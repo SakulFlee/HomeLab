@@ -1,6 +1,12 @@
 name: Hello World
 services:
-    hello-world:
+    mc-server:
         stdin_open: true
         tty: true
-        image: hello-world
+        image: eclipse-temurin:21
+        volumes:
+            -  $HOME/Data/MCServer:/app
+        command:
+            - java
+            - -jar
+            - /app/server.jar
