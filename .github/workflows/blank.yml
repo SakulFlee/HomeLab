@@ -1,0 +1,24 @@
+name: Deploy
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: Self-Hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy
+        run: docker-compose up -d
+
+      - name: Verify
+        run: |
+          docker-compose ps
+          docker ps
