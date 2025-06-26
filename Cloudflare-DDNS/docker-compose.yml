@@ -6,12 +6,4 @@ services:
     stdin_open: true
     tty: true
     volumes:
-      - type: bind
-        source: ${HOME}/Data/CloudFlare-DDNS/ipv4.last
-        target: /opt/cf_ddns/ipv4.last
-      - type: bind
-        source: ${HOME}/Data/CloudFlare-DDNS/ipv6.last
-        target: /opt/cf_ddns/ipv6.last
-      - type: bind
-        source: ${HOME}/Data/CloudFlare-DDNS/settings
-        target: /opt/cf_ddns/settings
+      - ${HOME}/Data/CloudFlare-DDNS:/opt/cf_ddns
