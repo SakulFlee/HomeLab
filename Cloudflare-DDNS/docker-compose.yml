@@ -7,7 +7,7 @@ services:
     tty: true
     volumes:
       - type: bind
-        source: $HOME/Data/CloudFlare-DDNS/ipv4.last'
+        source: $HOME/Data/CloudFlare-DDNS/ipv4.last
         target: /opt/cf_ddns/ipv4.last
       - type: bind
         source: $HOME/Data/CloudFlare-DDNS/ipv6.last
