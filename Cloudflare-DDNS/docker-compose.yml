@@ -1,7 +1,7 @@
 name: Cloudflare-DDNS
 services:
   cloudflare_ddns:
-    image: ghcr.io/sakul6499/cloudflare_ddns:latest
+    image: ghcr.io/sakulflee/cloudflare-ddns:alpine-3.21
     restart: on-failure
     stdin_open: true
     tty: true
