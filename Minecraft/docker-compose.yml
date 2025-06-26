@@ -2,6 +2,7 @@ name: Minecraft
 services:
     minecraft:
         build: .
+        restart: unless-stopped
         stdin_open: true
         tty: true
         volumes:
