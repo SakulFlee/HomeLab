@@ -6,7 +6,3 @@ services:
         tty: true
         volumes:
             -  $HOME/Data/Minecraft:/app
-        command:
-            - java
-            - -jar
-            - /app/server.jar
