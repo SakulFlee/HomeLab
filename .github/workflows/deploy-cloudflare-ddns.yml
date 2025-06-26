@@ -1,6 +1,9 @@
 name: Deploy - Cloudflare-DDNS
 
 on:
+  schedule:
+    - "*/15 * * * *"
+
   push:
     branches: [ "main" ]
   pull_request:
