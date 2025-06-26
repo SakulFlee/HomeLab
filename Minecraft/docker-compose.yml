@@ -1,11 +1,11 @@
-name: Hello World
+name: Minecraft
 services:
-    mc-server:
+    minecraft:
+        build: .
         stdin_open: true
         tty: true
-        image: eclipse-temurin:21
         volumes:
-            -  $HOME/Data/MCServer:/app
+            -  $HOME/Data/Minecraft:/app
         command:
             - java
             - -jar

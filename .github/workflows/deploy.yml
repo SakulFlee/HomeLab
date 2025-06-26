@@ -15,10 +15,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Deploy
+      - name: Deploy - Minecraft
+        working-directory: Minecraft
         run: docker-compose up -d
 
       - name: Verify
         run: |
-          docker-compose ps
           docker ps
