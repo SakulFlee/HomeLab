@@ -1,0 +1,6 @@
+name: Hello World
+services:
+    hello-world:
+        stdin_open: true
+        tty: true
+        image: hello-world
