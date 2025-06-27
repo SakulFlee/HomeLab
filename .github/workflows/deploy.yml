@@ -10,29 +10,54 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy:
+  checkout:
     runs-on: Self-Hosted
     steps:
       - uses: actions/checkout@v4
 
+  deploy-cloudflare-ddns:
+    runs-on: Self-Hosted
+    needs:
+      - checkout
+    steps:
       - name: Deploy - CloudFlare-DDNS
         working-directory: Cloudflare-DDNS
         run: |
           docker compose pull
           docker compose up --detach --remove-orphans
 
+  deploy-caddy:
+    runs-on: Self-Hosted
+    needs:
+      - checkout
+      - deploy-cloudflare-ddns
+    steps:
       - name: Deploy - Caddy
         working-directory: Caddy
         run: |
           docker compose build --pull
           docker compose up --detach --remove-orphans
 
+  deploy-minecraft:
+    runs-on: Self-Hosted
+    needs:
+      - checkout
+      - deploy-cloudflare-ddns
+      - deploy-caddy
+    steps:
       - name: Deploy - Minecraft
         working-directory: Minecraft
         run: |
           docker compose build --pull
           docker compose up --detach --remove-orphans
 
+  deploy-nextcloud:
+    runs-on: Self-Hosted
+    needs:
+      - checkout
+      - deploy-cloudflare-ddns
+      - deploy-caddy
+    steps:
       - name: Deploy - NextCloud
         working-directory: NextCloud
         run: |
