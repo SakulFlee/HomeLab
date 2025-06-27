@@ -11,12 +11,9 @@ bluemap.sakul-flee.de {
 nextcloud.sakul-flee.de {
     encode gzip
 
-    reverse_proxy nextcloud-aio-mastercontainer:8082 {
-        header_up Host {host}
-        header_up X-Real-IP {remote}
-        header_up X-Forwarded-For {remote}
-        header_up X-Forwarded-Proto {scheme}
-    }
+    header Strict-Transport-Security max-age=31536000;
+
+    reverse_proxy nextcloud-aio-mastercontainer:11000
 }
 
 nextcloud-aio.sakul-flee.de {
