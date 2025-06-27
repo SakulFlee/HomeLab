@@ -1,4 +1,4 @@
-name: Deploy - Cloudflare-DDNS
+name: Deploy
 
 on:
   push:
@@ -15,8 +15,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Deploy
+      - name: Deploy - CloudFlare-DDNS
         working-directory: Cloudflare-DDNS
         run: |
           docker compose pull
           docker compose up --detach --remove-orphans
+
+      - name: Deploy - Caddy
+        working-directory: Caddy
+        run: |
+          docker compose pull
+          docker compose up --detach --remove-orphans
+
+      - name: Deploy - Minecraft
+        working-directory: Minecraft
+        run: |
+          docker compose build --pull
+          docker compose up --detach --remove-orphans
+
