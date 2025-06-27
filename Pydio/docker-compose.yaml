@@ -2,7 +2,7 @@ name: Pydio
 services:
   cells:
     image: pydio/cells:latest
-    container_name: pydio
+    container_name: pydio-cells
     restart: unless-stopped
     ports: ["8080:8080"]
     volumes:
@@ -13,6 +13,7 @@ services:
 
   mysql:
     image: mysql:9
+    container_name: pydio-mysql
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: EethePah1ohy2Ich6ahyaitona6oe4ohyai1joerohb7Hae7eelaipienohriev8
