@@ -11,6 +11,7 @@ services:
       - pydio-data:/var/cells/data
     networks:
       - caddy_caddy
+      - pydio
 
   mysql:
     image: mysql:9
@@ -25,6 +26,8 @@ services:
     command: [mysqld, --character-set-server=utf8mb4, --collation-server=utf8mb4_unicode_ci]
     volumes:
       - pydio-mysql:/var/lib/mysql
+    networks:
+      - pydio
 
 volumes:
   pydio-data: {}
@@ -32,5 +35,6 @@ volumes:
   pydio-mysql: {}
 
 networks:
+  pydio:
   caddy_caddy:
     external: true
