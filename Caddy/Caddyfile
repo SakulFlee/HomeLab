@@ -9,7 +9,7 @@ bluemap.sakul-flee.de {
 }
 
 aio-nextcloud.sakul-flee.de {
-    reverse_proxy nextcloud-aio-mastercontainer:8080
+    reverse_proxy https://nextcloud-aio-mastercontainer:8080
 }
 
 nextcloud.sakul-flee.de {
