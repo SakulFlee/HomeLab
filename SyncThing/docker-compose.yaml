@@ -2,6 +2,8 @@ name: SyncThing
 services:
   syncthing:
     image: syncthing/syncthing
+    restart: unless-stopped
+    init: true
     container_name: syncthing
     environment:
       - PUID=1000
@@ -12,7 +14,8 @@ services:
       - 22000:22000/tcp # TCP file transfers
       - 22000:22000/udp # QUIC file transfers
       - 21027:21027/udp # Receive local discovery broadcasts
-    restart: unless-stopped
+    networks:
+      - caddy_caddy
     healthcheck:
       test: curl -fkLsS -m 2 127.0.0.1:8384/rest/noauth/health | grep -o --color=never OK || exit 1
       interval: 1m
@@ -21,3 +24,4 @@ services:
 
 networks:
   caddy_caddy:
+    external: true
