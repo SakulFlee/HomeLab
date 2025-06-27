@@ -11,7 +11,7 @@ services:
       - caddy
 
   mysql:
-    image: mysql:8
+    image: mysql:9
     restart: unless-stopped
     environment:
       MYSQL_ROOT_PASSWORD: EethePah1ohy2Ich6ahyaitona6oe4ohyai1joerohb7Hae7eelaipienohriev8
