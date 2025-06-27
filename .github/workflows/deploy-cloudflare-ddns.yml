@@ -18,5 +18,5 @@ jobs:
       - name: Deploy
         working-directory: Cloudflare-DDNS
         run: |
-          podman compose pull
-          podman compose --podman-run-args=--replace up --detach --remove-orphans
+          docker compose pull
+          docker compose up --detach --remove-orphans
