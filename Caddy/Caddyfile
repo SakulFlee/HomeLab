@@ -15,7 +15,7 @@ aio-nextcloud.sakul-flee.de {
             tls_insecure_skip_verify
         }
     }
-}
+}e
 
 nextcloud.sakul-flee.de {
     reverse_proxy nextcloud-aio-mastercontainer:11000
