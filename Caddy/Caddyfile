@@ -9,7 +9,7 @@ bluemap.sakul-flee.de {
 }
 
 nextcloud.sakul-flee.de {
-    reverse_proxy nextcloud-aio-mastercontainer:80 {
+    reverse_proxy nextcloud-aio-mastercontainer:8123 {
         header_up Host {host}
         header_up X-Real-IP {remote}
         header_up X-Forwarded-For {remote}
