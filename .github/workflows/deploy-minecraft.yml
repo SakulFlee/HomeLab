@@ -18,5 +18,5 @@ jobs:
       - name: Deploy
         working-directory: Minecraft
         run: |
-          docker-compose build --pull
-          docker-compose up --detach --remove-orphans
+          podman compose build --pull
+          podman compose up --detach --remove-orphans
