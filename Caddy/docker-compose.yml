@@ -1,0 +1,8 @@
+name: Caddy
+services:
+  caddy:
+    image: docker.io/caddy:latest
+    restart: unless-stopped
+    tty: true
+    volumes:
+      - $HOME/Data/Caddy:/etc/caddy:z
