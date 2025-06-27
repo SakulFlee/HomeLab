@@ -19,4 +19,4 @@ jobs:
         working-directory: Minecraft
         run: |
           podman compose build --pull
-          podman compose up --detach --remove-orphans --podman-run-args=--replace
+          podman compose --podman-run-args=--replace up --detach --remove-orphans
