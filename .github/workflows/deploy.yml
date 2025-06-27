@@ -51,15 +51,15 @@ jobs:
           docker compose build --pull
           docker compose up --detach --remove-orphans
 
-  deploy-pydio:
+  deploy-syncthing:
     runs-on: Self-Hosted
     needs:
       - checkout
       - deploy-cloudflare-ddns
       - deploy-caddy
     steps:
-      - name: Deploy - Pydio
-        working-directory: Pydio
+      - name: Deploy - SyncThing
+        working-directory: SyncThing
         run: |
           docker compose pull
           docker compose up --detach --remove-orphans
