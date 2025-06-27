@@ -9,7 +9,7 @@ bluemap.sakul-flee.de {
 }
 
 nextcloud.sakul-flee.de {
-    reverse_proxy nextcloud:11000
+    reverse_proxy nextcloud-aio-mastercontainer:11000
 }
 
 sakul-flee.de, www.sakul-flee.de {

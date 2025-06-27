@@ -15,7 +15,13 @@ services:
     volumes:
       - caddy_data:/data:z
       - caddy_config:/config:z
+    networks:
+      - nextcloud
 
 volumes:
   caddy_data:
   caddy_config:
+
+networks:
+  nextcloud:
+    external: true
