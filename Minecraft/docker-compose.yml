@@ -6,6 +6,8 @@ services:
         stdin_open: true
         tty: true
         ports:
-            -   "25565:25565"
+            - "25565:25565"
+            - "19132:19132"
+            - "8100:8100"
         volumes:
             -  $HOME/Data/Minecraft:/app:z
