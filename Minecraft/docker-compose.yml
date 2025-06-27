@@ -6,4 +6,4 @@ services:
         stdin_open: true
         tty: true
         volumes:
-            -  $HOME/Data/Minecraft:/app
+            -  $HOME/Data/Minecraft:/app:z

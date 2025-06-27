@@ -6,4 +6,4 @@ services:
     stdin_open: true
     tty: true
     volumes:
-      - ${HOME}/Data/CloudFlare-DDNS:/opt/cf_ddns
+      - $HOME/Data/CloudFlare-DDNS:/opt/cf_ddns:z
