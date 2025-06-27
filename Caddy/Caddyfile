@@ -11,7 +11,12 @@ bluemap.sakul-flee.de {
 pydio.sakul-flee.de {
     encode gzip
 
-    reverse_proxy pydio:8080
+    reverse_proxy pydio:8080 {
+        transport http {
+                    tls
+                    tls_insecure_skip_verify
+        }
+    }
 }
 
 sakul-flee.de, www.sakul-flee.de {
