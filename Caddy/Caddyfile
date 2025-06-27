@@ -9,9 +9,9 @@ bluemap.sakul-flee.de {
 }
 
 nextcloud.sakul-flee.de {
-    reverse_proxy host.docker.internal:8080
+    reverse_proxy nextcloud:11000
 }
 
-* {
+sakul-flee.de, www.sakul-flee.de {
     redir https://sakulflee.github.io
 }
