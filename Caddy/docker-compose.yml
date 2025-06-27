@@ -1,8 +1,19 @@
 name: Caddy
 services:
   caddy:
-    image: docker.io/caddy:latest
+    build: .
     restart: unless-stopped
     tty: true
+    cap_add:
+      - NET_ADMIN
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
     volumes:
-      - $HOME/Data/Caddy:/etc/caddy:z
+      - caddy_data:/data:z
+      - caddy_config:/config:z
+
+volumes:
+  caddy_data:
+  caddy_config:
