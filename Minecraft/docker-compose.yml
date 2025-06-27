@@ -5,6 +5,7 @@ services:
         restart: unless-stopped
         stdin_open: true
         tty: true
+        init: true
         ports:
             - "25565:25565"
             - "19132:19132"
