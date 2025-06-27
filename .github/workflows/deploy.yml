@@ -33,3 +33,8 @@ jobs:
           docker compose build --pull
           docker compose up --detach --remove-orphans
 
+      - name: Deploy - NextCloud
+        working-directory: NextCloud
+        run: |
+          docker compose pull
+          docker compose up --detach --remove-orphans
