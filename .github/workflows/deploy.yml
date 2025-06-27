@@ -24,7 +24,7 @@ jobs:
       - name: Deploy - Caddy
         working-directory: Caddy
         run: |
-          docker compose pull
+          docker compose build --pull
           docker compose up --detach --remove-orphans
 
       - name: Deploy - Minecraft
