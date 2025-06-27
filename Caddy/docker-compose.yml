@@ -23,4 +23,4 @@ volumes:
   caddy_config:
 
 networks:
-  nextcloud:
+  caddy_nextcloud:
