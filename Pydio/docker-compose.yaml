@@ -29,4 +29,5 @@ volumes:
 
 networks:
   caddy:
+    name: "caddy"
     external: true
