@@ -5,5 +5,6 @@ services:
     restart: on-failure
     stdin_open: true
     tty: true
+    init: true
     volumes:
       - $HOME/Data/CloudFlare-DDNS:/opt/cf_ddns:z
