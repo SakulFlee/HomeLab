@@ -28,5 +28,5 @@ volumes:
   pydio-mysql: {}
 
 networks:
-  caddy:
+  caddy_caddy:
     external: true
