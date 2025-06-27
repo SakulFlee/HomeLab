@@ -14,11 +14,6 @@ nextcloud.sakul-flee.de {
         header_up X-Real-IP {remote}
         header_up X-Forwarded-For {remote}
         header_up X-Forwarded-Proto {scheme}
-
-        transport http {
-            tls
-            tls_insecure_skip_verify
-        }
     }
 }
 
@@ -28,6 +23,11 @@ nextcloud-aio.sakul-flee.de {
         header_up X-Real-IP {remote}
         header_up X-Forwarded-For {remote}
         header_up X-Forwarded-Proto {scheme}
+
+        transport http {
+            tls
+            tls_insecure_skip_verify
+        }
     }
 }
 
