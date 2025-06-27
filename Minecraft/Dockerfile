@@ -1,4 +1,4 @@
-FROM eclipse-temurin:21
+FROM docker.io/eclipse-temurin:21
 
 ARG MINECRAFT_VERSION="1.21.6"
 ARG PAPER_BUILD="46"
