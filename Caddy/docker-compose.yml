@@ -16,11 +16,11 @@ services:
       - caddy_data:/data:z
       - caddy_config:/config:z
     networks:
-      - nextcloud
+      - caddy
 
 volumes:
   caddy_data:
   caddy_config:
 
 networks:
-  nextcloud:
+  caddy:

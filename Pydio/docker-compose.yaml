@@ -1,0 +1,32 @@
+name: Pydio
+services:
+  cells:
+    image: pydio/cells:latest
+    restart: unless-stopped
+    ports: ["8080:8080"]
+    volumes:
+      - pydio-cells:/var/cells
+      - pydio-data:/var/cells/data
+    networks:
+      - caddy
+
+  mysql:
+    image: mysql:8
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: EethePah1ohy2Ich6ahyaitona6oe4ohyai1joerohb7Hae7eelaipienohriev8
+      MYSQL_DATABASE: cells
+      MYSQL_USER: pydio
+      MYSQL_PASSWORD: jei8vae0iehai9gaSho5chae8EeGeiph4ethei7Fael8xied1arekaiqu3eefeew
+    command: [mysqld, --character-set-server=utf8mb4, --collation-server=utf8mb4_unicode_ci]
+    volumes:
+      - pydio-mysql:/var/lib/mysql
+
+volumes:
+  pydio-data: {}
+  pydio-cells: {}
+  pydio-mysql: {}
+
+networks:
+  caddy:
+    external: true

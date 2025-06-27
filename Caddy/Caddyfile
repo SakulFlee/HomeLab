@@ -8,28 +8,10 @@ bluemap.sakul-flee.de {
     reverse_proxy host.docker.internal:8100
 }
 
-nextcloud.sakul-flee.de {
+pydio.sakul-flee.de {
     encode gzip
 
-    header Strict-Transport-Security max-age=31536000;
-
-    reverse_proxy nextcloud-aio-mastercontainer:11000
-}
-
-nextcloud-aio.sakul-flee.de {
-    encode gzip
-
-    reverse_proxy nextcloud-aio-mastercontainer:8080 {
-        header_up Host {host}
-        header_up X-Real-IP {remote}
-        header_up X-Forwarded-For {remote}
-        header_up X-Forwarded-Proto {scheme}
-
-        transport http {
-            tls
-            tls_insecure_skip_verify
-        }
-    }
+    reverse_proxy pydio-cells:8080
 }
 
 sakul-flee.de, www.sakul-flee.de {

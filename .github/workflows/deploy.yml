@@ -51,15 +51,15 @@ jobs:
           docker compose build --pull
           docker compose up --detach --remove-orphans
 
-  deploy-nextcloud:
+  deploy-pydio:
     runs-on: Self-Hosted
     needs:
       - checkout
       - deploy-cloudflare-ddns
       - deploy-caddy
     steps:
-      - name: Deploy - NextCloud
-        working-directory: NextCloud
+      - name: Deploy - Pydio
+        working-directory: Pydio
         run: |
           docker compose pull
           docker compose up --detach --remove-orphans
