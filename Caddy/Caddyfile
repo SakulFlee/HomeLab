@@ -8,7 +8,7 @@ bluemap.sakul-flee.de {
     reverse_proxy host.docker.internal:8100
 }
 
-aio.nextcloud.sakul-flee.de {
+nextcloud-aio.sakul-flee.de {
     reverse_proxy nextcloud-aio-mastercontainer:11000 {
         transport http {
             tls
