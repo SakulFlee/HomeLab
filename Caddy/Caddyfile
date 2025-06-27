@@ -9,7 +9,7 @@ bluemap.sakul-flee.de {
 }
 
 nextcloud.sakul-flee.de {
-    reverse_proxy localhost:8080
+    reverse_proxy host.docker.internal:8080
 }
 
 * {
