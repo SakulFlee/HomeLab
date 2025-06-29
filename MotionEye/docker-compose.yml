@@ -9,8 +9,9 @@ services:
             - /etc/localtime:/etc/localtime:roz
             - $HOME/Data/MotionEye/config:/etc/motioneye:z
             - $HOME/Data/MotionEye/videos:/var/lib/motioneye:z
-            - /dev/video0:/dev/video0:rwz
-            - /dev/video1:/dev/video1:rwz
+        devices:
+            - /dev/video0
+            - /dev/video1
         networks:
             - caddy_caddy
 
