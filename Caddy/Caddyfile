@@ -14,6 +14,12 @@ syncthing.sakul-flee.de {
     reverse_proxy syncthing:8384
 }
 
+motioneye.sakul-flee.de {
+    encode gzip
+
+    reverse_proxy motioneye:8765
+}
+
 sakul-flee.de, www.sakul-flee.de {
     redir https://sakulflee.github.io
 }

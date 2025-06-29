@@ -63,3 +63,16 @@ jobs:
         run: |
           docker compose pull
           docker compose up --detach --remove-orphans
+
+  deploy-motioneye:
+    runs-on: Self-Hosted
+    needs:
+      - checkout
+      - deploy-cloudflare-ddns
+      - deploy-caddy
+    steps:
+      - name: Deploy - MotionEye
+        working-directory: MotionEye
+        run: |
+          docker compose pull
+          docker compose up --detach --remove-orphans

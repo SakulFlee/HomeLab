@@ -1,0 +1,17 @@
+name: MotionEye
+services:
+    motioneye:
+        image: ccrisan/motioneye:master-amd64
+        hostname: motioneye
+        init: true
+        tty: true
+        volumes:
+            - /etc/localtime:/etc/localtime:roz
+            - $HOME/Data/MotionEye/config:/etc/motioneye:z
+            - $HOME/Data/MotionEye/videos:/var/lib/motioneye:z
+        networks:
+            - caddy_caddy
+
+networks:
+    caddy_caddy:
+        external: true
