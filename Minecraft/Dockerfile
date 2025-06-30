@@ -25,7 +25,7 @@ RUN curl -L -o /plugins/ViaBackwards.jar https://hangarcdn.papermc.io/plugins/Vi
 RUN curl -L -o /plugins/Chunky.jar https://hangarcdn.papermc.io/plugins/pop4959/Chunky/versions/1.4.40/PAPER/Chunky-Bukkit-1.4.40.jar
 RUN curl -L -o /plugins/Portalis.jar https://hangarcdn.papermc.io/plugins/KingTheGuy/Portalis/versions/1.0/PAPER/portalis-1.0.jar
 RUN curl -L -o /plugins/TeaksTweaks.jar https://hangarcdn.papermc.io/plugins/teakivy/TeaksTweaks/versions/2.0.8-mc1.21.5/PAPER/TeaksTweaks-v2.0.8-mc1.21.5.jar
-RUN curl -L -o /plugins/TreeChopper.jar https://github.com/BeanFeed/TreeChopper/releases/tag/v1.1
+RUN curl -L -o /plugins/TreeChopper.jar https://github.com/BeanFeed/TreeChopper/releases/download/v1.1/TreeChopper-1.21-1.1.jar
 
 # Entrypoint
 COPY entrypoint.sh /entrypoint.sh
