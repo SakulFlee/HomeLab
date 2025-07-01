@@ -9,6 +9,11 @@ services:
         ports:
             - "25565:25565/tcp"
             - "19132:19132/udp"
-            - "8100:8100/tcp"
         volumes:
             -  $HOME/Data/Minecraft:/app:z
+        networks:
+            - caddy_caddy
+
+networks:
+    caddy_caddy:
+        external: true

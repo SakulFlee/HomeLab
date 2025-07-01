@@ -5,7 +5,7 @@
 bluemap.sakul-flee.de {
     encode gzip
 
-    reverse_proxy host.docker.internal:8100
+    reverse_proxy minecraft:8100
 }
 
 syncthing.sakul-flee.de {
