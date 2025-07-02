@@ -2,12 +2,6 @@
     email dev@sakul-flee.de
 }
 
-bluemap.sakul-flee.de {
-    encode gzip
-
-    reverse_proxy minecraft:8100
-}
-
 syncthing.sakul-flee.de {
     encode gzip
 

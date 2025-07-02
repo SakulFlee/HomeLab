@@ -11,9 +11,3 @@ services:
             - "19132:19132/udp"
         volumes:
             -  $HOME/Data/Minecraft:/app:z
-        networks:
-            - caddy_caddy
-
-networks:
-    caddy_caddy:
-        external: true
