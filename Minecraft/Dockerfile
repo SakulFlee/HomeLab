@@ -28,6 +28,8 @@ RUN curl -L -o /plugins/Chunky.jar https://hangarcdn.papermc.io/plugins/pop4959/
 RUN curl -L -o /plugins/Portalis.jar https://hangarcdn.papermc.io/plugins/KingTheGuy/Portalis/versions/1.0/PAPER/portalis-1.0.jar
 RUN curl -L -o /plugins/TeaksTweaks.jar https://hangarcdn.papermc.io/plugins/teakivy/TeaksTweaks/versions/2.0.8-mc1.21.5/PAPER/TeaksTweaks-v2.0.8-mc1.21.5.jar
 RUN curl -L -o /plugins/TreeChopper.jar https://github.com/BeanFeed/TreeChopper/releases/download/v1.1/TreeChopper-1.21-1.1.jar
+RUN curl -L -o /plugins/WorldEdit.jar https://ci.enginehub.org/repository/download/bt10/26983:id/worldedit-bukkit-7.3.15-SNAPSHOT-dist.jar?branch=version/7.3.x&guest=1
+RUN curl -L -o /plugins/WorldEditSUI.jar https://hangarcdn.papermc.io/plugins/kennytv/WorldEditSUI/versions/1.7.4/PAPER/WorldEditSUI-1.7.4.jar
 
 # Entrypoint
 COPY entrypoint.sh /entrypoint.sh
