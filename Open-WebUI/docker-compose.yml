@@ -1,7 +1,7 @@
 name: Open-WebUI
 services:
   open-webui:
-    image: ghcr.io/open-webui/open-webui:ollama
+    image: ghcr.io/open-webui/open-webui:main
     container_name: open-webui
     restart: on-failure
     tty: true
@@ -11,8 +11,6 @@ services:
       - open-webui:/app/backend/data
     networks:
       - caddy_caddy
-    devices:
-      - /dev/dri
 
 volumes:
   ollama:
