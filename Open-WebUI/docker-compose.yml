@@ -1,0 +1,29 @@
+name: Open-WebUI
+services:
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:ollama
+    container_name: open-webui
+    restart: on-failure
+    tty: true
+    init: true
+    volumes:
+      - ollama:/root/.ollama
+      - open-webui:/app/backend/data
+    networks:
+      - caddy_caddy
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities:
+                - gpu
+
+volumes:
+  ollama:
+  open-webui:
+
+networks:
+  caddy_caddy:
+    external: true
