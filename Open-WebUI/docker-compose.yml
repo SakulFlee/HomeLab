@@ -11,14 +11,8 @@ services:
       - open-webui:/app/backend/data
     networks:
       - caddy_caddy
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities:
-                - gpu
+    devices:
+      - /dev/dri
 
 volumes:
   ollama:
