@@ -78,19 +78,6 @@ jobs:
 
           docker compose up --detach --remove-orphans
 
-  deploy-open-webui:
-    runs-on: Self-Hosted
-    needs:
-      - checkout
-      - deploy-cloudflare-ddns
-      - deploy-caddy
-    steps:
-      - name: Deploy - Open-WebUI
-        working-directory: Open-WebUI
-        run: |
-          docker compose pull
-          docker compose up --detach --remove-orphans
-
   deploy-watchtower:
     runs-on: Self-Hosted
     needs:
