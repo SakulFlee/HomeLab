@@ -8,11 +8,13 @@ EXPOSE 19132
 EXPOSE 8100
 
 # Dependencies & Updates
-RUN apt-get update
-RUN apt-get upgrade -y
-RUN apt-get install -y sqlite3
-RUN apt-get install -y libsqljet-java
-RUN apt-get install -y libxerial-sqlite-jdbc-java
+RUN apt-get update \
+ && apt-get upgrade -y \
+ && apt-get install -y \
+    curl \
+    sqlite3 \
+    libsqljet-java \
+    libxerial-sqlite-jdbc-java
 
 # Server
 RUN mkdir /app
