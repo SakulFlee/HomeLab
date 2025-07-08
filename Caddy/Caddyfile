@@ -14,6 +14,12 @@ motioneye.sakul-flee.de {
     reverse_proxy motioneye:8765
 }
 
+bluemap.sakul-flee.de {
+    encode gzip
+
+    reverse_proxy bluemap:8010
+}
+
 sakul-flee.de, www.sakul-flee.de {
     redir https://sakulflee.github.io
 }

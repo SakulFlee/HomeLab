@@ -11,3 +11,28 @@ services:
             - "19132:19132/udp"
         volumes:
             -  $HOME/Data/Minecraft:/app:z
+    bluemap:
+        image: ghcr.io/bluemap-minecraft/bluemap:latest
+        container_name: bluemap
+        restart: unless-stopped
+        command: -r -u -w
+        ports:
+            - '8100:8100'
+        networks:
+            - caddy_caddy
+        volumes:
+            - 'bluemap_config:/app/config'
+            - 'bluemap_data:/app/data'
+            - 'bluemap_web:/app/web'
+            - '$HOME/Data/Minecraft/world:/app/world:zr'
+            - '$HOME/Data/Minecraft/world_nether:/app/world_nether:zr'
+            - '$HOME/Data/Minecraft/world_the_end:/app/world_the_end:zr'
+
+volumes:
+    bluemap_config:
+    bluemap_data:
+    bluemap_web:
+
+networks:
+    caddy_caddy:
+        external: true
