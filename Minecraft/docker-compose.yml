@@ -16,8 +16,6 @@ services:
         container_name: bluemap
         restart: unless-stopped
         command: -r -u -w
-        ports:
-            - '8100:8100'
         networks:
             - caddy_caddy
         volumes:

@@ -17,7 +17,7 @@ motioneye.sakul-flee.de {
 bluemap.sakul-flee.de {
     encode gzip
 
-    reverse_proxy bluemap:8010
+    reverse_proxy bluemap:8100
 }
 
 sakul-flee.de, www.sakul-flee.de {
