@@ -13,7 +13,7 @@ services:
             -  $HOME/Data/Minecraft:/app:z
     bluemap:
         image: ghcr.io/bluemap-minecraft/bluemap:latest
-        container_name: bluemap
+        container_name: minecraft-bluemap
         restart: unless-stopped
         command: -r -u -w
         networks:
