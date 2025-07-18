@@ -88,3 +88,17 @@ jobs:
         run: |
           docker compose pull
           docker compose up --detach --remove-orphans
+
+
+  deploy-private-internet-access:
+    runs-on: Self-Hosted
+    needs:
+      - checkout
+      - deploy-cloudflare-ddns
+    steps:
+      - name: Deploy - VPN
+        working-directory: PrivateInternetAccess
+        run: |
+          docker compose pull
+          docker compose up --detach --remove-orphans
+

@@ -1,0 +1,31 @@
+services:
+  vpn:
+    image: j0ner/pia-wireguard
+    container_name: vpn
+    restart: unless-stopped
+    environment:
+      - PIA_USER=p8130229
+      - PIA_PASS=oht8nFZEhp#^CPEF%SWaZz
+      - PIA_REGION_ID=nl_amsterdam
+      - VPN_IP_CHECK_DELAY=5
+      - PORT_FORWARDING=false
+      - VPN_LAN_NETWORKS=192.168.178.0/24
+      - CONNECTION_FILE=false
+      - PERSIST_PORT=false
+      - BYPASS_PORTS=
+      # - BYPASS_PORTS=8080/tcp,8080/udp
+      - SET_QBITTORRENT_PORT=false
+    volumes:
+      - vpn:/config
+    cap_add:
+      - NET_ADMIN
+    ports:
+      - 8080:8080
+    sysctls:
+      - net.ipv4.conf.all.src_valid_mark=1
+      - net.ipv6.conf.default.disable_ipv6=1
+      - net.ipv6.conf.all.disable_ipv6=1
+      - net.ipv6.conf.lo.disable_ipv6=1
+
+volumes:
+  vpn:
