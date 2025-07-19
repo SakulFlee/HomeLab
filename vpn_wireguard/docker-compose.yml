@@ -19,7 +19,7 @@ services:
       - ALLOWEDIPS=0.0.0.0/0
       - LOG_CONFS=true
     volumes:
-      - '$HOME/Data/WireGuard/:/config:rwxz'
+      - '$HOME/Data/WireGuard/:/config:z'
       - /lib/modules:/lib/modules:z
     # Note: since we are using "network_mode" the PIA VPN container has to expose the port!
     # ports:
