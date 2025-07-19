@@ -1,0 +1,28 @@
+services:
+  wireguard:
+    image: lscr.io/linuxserver/wireguard:latest
+    container_name: vpn_wireguard
+    restart: unless-stopped
+    network_mode: "container:vpn_pia"
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Berlin
+      - SERVERURL=wg.sakul-flee.de
+      - SERVERPORT=51820
+      - PEERS=1
+      - PEERDNS=9.9.9.9
+      - INTERNAL_SUBNET=10.13.13.0
+      - ALLOWEDIPS=0.0.0.0/0
+      - LOG_CONFS=true
+    volumes:
+      - '$HOME/Data/WireGuard/:/config:zrw'
+      - /lib/modules:/lib/modules
+    ports:
+      - 51820:51820/udp
+    sysctls:
+      - net.ipv4.ip_forward=1
+      - net.ipv4.conf.all.src_valid_mark=1

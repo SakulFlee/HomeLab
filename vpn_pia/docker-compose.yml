@@ -1,16 +1,16 @@
 services:
-  vpn:
+  vpn_pia:
     image: j0ner/pia-wireguard
     container_name: vpn
     restart: unless-stopped
     environment:
       - PIA_USER=p8130229
       - PIA_PASS=oht8nFZEhp#^CPEF%SWaZz
-      - PIA_REGION_ID=nl_amsterdam
+      - PIA_REGION_ID=swiss
       - VPN_IP_CHECK_DELAY=5
       - VPN_LAN_NETWORKS=192.168.178.0/24
     volumes:
-      - vpn:/config
+      - pia:/config
     cap_add:
       - NET_ADMIN
     ports:
@@ -22,4 +22,4 @@ services:
       - net.ipv6.conf.lo.disable_ipv6=1
 
 volumes:
-  vpn:
+  pia:
