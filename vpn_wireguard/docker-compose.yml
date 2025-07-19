@@ -21,8 +21,9 @@ services:
     volumes:
       - '$HOME/Data/WireGuard/:/config:zrw'
       - /lib/modules:/lib/modules
-    ports:
-      - 51820:51820/udp
+    # Note: since we are using "network_mode" the PIA VPN container has to expose the port!
+    # ports:
+    #   - 51820:51820/udp
     sysctls:
       - net.ipv4.ip_forward=1
       - net.ipv4.conf.all.src_valid_mark=1
