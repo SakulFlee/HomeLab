@@ -1,7 +1,7 @@
 services:
-  vpn_pia:
+  pia:
     image: j0ner/pia-wireguard
-    container_name: vpn
+    container_name: vpn_pia
     restart: unless-stopped
     environment:
       - PIA_USER=p8130229
