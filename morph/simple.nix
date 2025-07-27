@@ -26,6 +26,12 @@ in
       fsType = "rootfs";
       options = [ "rw" "relatime" ];
     };
+
+    # Fix for mount bug in NixOS + LXC
+    systemd.mounts = [{
+      where = "/sys/kernel/debug";
+      enable = false;
+    }];
   };
 
   "caddy" = _: {
@@ -40,6 +46,12 @@ in
       fsType = "rootfs";
       options = [ "rw" "relatime" ];
     };
+
+    # Fix for mount bug in NixOS + LXC
+    systemd.mounts = [{
+      where = "/sys/kernel/debug";
+      enable = false;
+    }];
   };
 
   "syncthing" = _: {
@@ -54,6 +66,12 @@ in
       fsType = "rootfs";
       options = [ "rw" "relatime" ];
     };
+
+    # Fix for mount bug in NixOS + LXC
+    systemd.mounts = [{
+      where = "/sys/kernel/debug";
+      enable = false;
+    }];
   };
 
   "minecraft" = _: {
@@ -68,5 +86,11 @@ in
       fsType = "rootfs";
       options = [ "rw" "relatime" ];
     };
+
+    # Fix for mount bug in NixOS + LXC
+    systemd.mounts = [{
+      where = "/sys/kernel/debug";
+      enable = false;
+    }];
   };
 }
