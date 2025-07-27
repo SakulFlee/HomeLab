@@ -16,6 +16,15 @@ jobs:
       - name: ⏬ Checkout
         uses: actions/checkout@v4
 
+      - name: 🔍 Show privileges and process status
+        run: |
+          id
+          ps auxf
+          cat /proc/self/status
+          cat /proc/$$/status
+          sudo -l
+          sudo whoami
+
       - name: 📝 Copy config
         working-directory: Cloudflare-DDNS
         run: sudo cp configuration.nix /etc/nixos/configuration.nix
