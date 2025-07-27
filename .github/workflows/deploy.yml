@@ -14,7 +14,7 @@ jobs:
       matrix: 
         ct: [ "cf-ddns", "caddy", "syncthing", "minecraft" ]
     runs-on:
-      - Self-Hosted
+      - self-hosted
       - ${{ matrix.ct }}
     steps:
       - run: printenv
