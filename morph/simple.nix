@@ -18,20 +18,11 @@ in
     deployment.tags = [ "ddns" ];
     system.stateVersion = "25.05";
 
-    # Fix for mount bug in NixOS + LXC
-    systemd.mounts = [
-      {
-        where = "/sys/kernel/debug";
-        enable = false;
-      }
-      {
-        where = "/sys/kernel/config";
-        enable = false;
-      }
-      {
-        where = "/sys";
-        enable = false;
-      }
+    # Disabling SystemD units that don't work inside LXC
+    systemd.suppressedSystemUnits = [
+      "dev-mqueue.mount"
+      "sys-kernel-debug.mount"
+      "sys-fs-fuse-connections.mount"
     ];
 
     # LXC Containers don't boot
@@ -71,20 +62,11 @@ in
     deployment.tags = [ "web" ];
     system.stateVersion = "25.05";
 
-    # Fix for mount bug in NixOS + LXC
-    systemd.mounts = [
-      {
-        where = "/sys/kernel/debug";
-        enable = false;
-      }
-      {
-        where = "/sys/kernel/config";
-        enable = false;
-      }
-      {
-        where = "/sys";
-        enable = false;
-      }
+    # Disabling SystemD units that don't work inside LXC
+    systemd.suppressedSystemUnits = [
+      "dev-mqueue.mount"
+      "sys-kernel-debug.mount"
+      "sys-fs-fuse-connections.mount"
     ];
 
     # LXC Containers don't boot
@@ -124,20 +106,11 @@ in
     deployment.tags = [ "svc" ];
     system.stateVersion = "25.05";
 
-    # Fix for mount bug in NixOS + LXC
-    systemd.mounts = [
-      {
-        where = "/sys/kernel/debug";
-        enable = false;
-      }
-      {
-        where = "/sys/kernel/config";
-        enable = false;
-      }
-      {
-        where = "/sys";
-        enable = false;
-      }
+    # Disabling SystemD units that don't work inside LXC
+    systemd.suppressedSystemUnits = [
+      "dev-mqueue.mount"
+      "sys-kernel-debug.mount"
+      "sys-fs-fuse-connections.mount"
     ];
 
     # LXC Containers don't boot
@@ -177,20 +150,11 @@ in
     deployment.tags = [ "svc" ];
     system.stateVersion = "25.05";
 
-    # Fix for mount bug in NixOS + LXC
-    systemd.mounts = [
-      {
-        where = "/sys/kernel/debug";
-        enable = false;
-      }
-      {
-        where = "/sys/kernel/config";
-        enable = false;
-      }
-      {
-        where = "/sys";
-        enable = false;
-      }
+    # Disabling SystemD units that don't work inside LXC
+    systemd.suppressedSystemUnits = [
+      "dev-mqueue.mount"
+      "sys-kernel-debug.mount"
+      "sys-fs-fuse-connections.mount"
     ];
 
     # LXC Containers don't boot
