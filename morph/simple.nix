@@ -20,7 +20,6 @@ in
     { systemdBoot, ... }:
     {
       deployment.tags = [ "web" ];
-      deployment.sshUser = "user";
 
       boot.loader.systemd-boot.enable = systemdBoot;
       boot.loader.efi.canTouchEfiVariables = true;
@@ -41,7 +40,6 @@ in
 
   "caddy" = _: {
     deployment.tags = [ "db" ];
-    deployment.sshUser = "user";
 
     boot.loader.systemd-boot.enable = true;
     boot.loader.efi.canTouchEfiVariables = true;
@@ -62,7 +60,6 @@ in
 
   "syncthing" = _: {
     deployment.tags = [ "db" ];
-    deployment.sshUser = "user";
 
     boot.loader.systemd-boot.enable = true;
     boot.loader.efi.canTouchEfiVariables = true;
@@ -83,7 +80,6 @@ in
 
   "minecraft" = _: {
     deployment.tags = [ "db" ];
-    deployment.sshUser = "user";
 
     boot.loader.systemd-boot.enable = true;
     boot.loader.efi.canTouchEfiVariables = true;
