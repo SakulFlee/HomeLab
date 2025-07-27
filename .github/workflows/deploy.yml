@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 jobs:        
-  deploy-cloudflare-ddns:
+  morph:
     runs-on:
       - self-hosted
       - morph
