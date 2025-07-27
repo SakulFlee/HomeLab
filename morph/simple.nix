@@ -24,6 +24,16 @@ in
       "sys-kernel-debug.mount"
       "sys-fs-fuse-connections.mount"
     ];
+    systemd.mounts = [
+      {
+        where = "/sys/kernel/debug";
+        enable = false;
+      }
+      {
+        where = "/sys/kernel/config";
+        enable = false;
+      }
+    ];
 
     # LXC Containers don't boot
     boot.loader.grub.enable = false;
@@ -67,6 +77,16 @@ in
       "dev-mqueue.mount"
       "sys-kernel-debug.mount"
       "sys-fs-fuse-connections.mount"
+    ];
+    systemd.mounts = [
+      {
+        where = "/sys/kernel/debug";
+        enable = false;
+      }
+      {
+        where = "/sys/kernel/config";
+        enable = false;
+      }
     ];
 
     # LXC Containers don't boot
@@ -112,6 +132,16 @@ in
       "sys-kernel-debug.mount"
       "sys-fs-fuse-connections.mount"
     ];
+    systemd.mounts = [
+      {
+        where = "/sys/kernel/debug";
+        enable = false;
+      }
+      {
+        where = "/sys/kernel/config";
+        enable = false;
+      }
+    ];
 
     # LXC Containers don't boot
     boot.loader.grub.enable = false;
@@ -155,6 +185,16 @@ in
       "dev-mqueue.mount"
       "sys-kernel-debug.mount"
       "sys-fs-fuse-connections.mount"
+    ];
+    systemd.mounts = [
+      {
+        where = "/sys/kernel/debug";
+        enable = false;
+      }
+      {
+        where = "/sys/kernel/config";
+        enable = false;
+      }
     ];
 
     # LXC Containers don't boot
