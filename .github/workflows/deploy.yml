@@ -20,7 +20,7 @@ jobs:
       - run: printenv
       - run: echo $PATH
       - run: docker info
-      - run: docker run -it --rm hello-world
+      - run: docker run -i --rm hello-world
 
   # checkout:
   #   runs-on: Self-Hosted
