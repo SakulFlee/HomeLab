@@ -19,10 +19,16 @@ in
     system.stateVersion = "25.05";
 
     # Fix for mount bug in NixOS + LXC
-    systemd.mounts = [{
-      where = "/sys/kernel/debug";
-      enable = false;
-    }];
+    systemd.mounts = [
+      {
+        where = "/sys/kernel/debug";
+        enable = false;
+      }
+      {
+        where = "/sys/kernel/config";
+        enable = false;
+      }
+    ];
 
     # LXC Containers don't boot
     boot.loader.grub.enable = false;
@@ -62,10 +68,16 @@ in
     system.stateVersion = "25.05";
 
     # Fix for mount bug in NixOS + LXC
-    systemd.mounts = [{
-      where = "/sys/kernel/debug";
-      enable = false;
-    }];
+    systemd.mounts = [
+      {
+        where = "/sys/kernel/debug";
+        enable = false;
+      }
+      {
+        where = "/sys/kernel/config";
+        enable = false;
+      }
+    ];
 
     # LXC Containers don't boot
     boot.loader.grub.enable = false;
@@ -105,10 +117,16 @@ in
     system.stateVersion = "25.05";
 
     # Fix for mount bug in NixOS + LXC
-    systemd.mounts = [{
-      where = "/sys/kernel/debug";
-      enable = false;
-    }];
+    systemd.mounts = [
+      {
+        where = "/sys/kernel/debug";
+        enable = false;
+      }
+      {
+        where = "/sys/kernel/config";
+        enable = false;
+      }
+    ];
 
     # LXC Containers don't boot
     boot.loader.grub.enable = false;
@@ -148,10 +166,16 @@ in
     system.stateVersion = "25.05";
 
     # Fix for mount bug in NixOS + LXC
-    systemd.mounts = [{
-      where = "/sys/kernel/debug";
-      enable = false;
-    }];
+    systemd.mounts = [
+      {
+        where = "/sys/kernel/debug";
+        enable = false;
+      }
+      {
+        where = "/sys/kernel/config";
+        enable = false;
+      }
+    ];
 
     # LXC Containers don't boot
     boot.loader.grub.enable = false;
