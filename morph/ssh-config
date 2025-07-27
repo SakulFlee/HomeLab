@@ -1,3 +1,7 @@
+Host 10.0.0.*
+   StrictHostKeyChecking no
+   UserKnownHostsFile=/dev/null
+
 Host caddy
     HostName 10.0.0.101
     User user
