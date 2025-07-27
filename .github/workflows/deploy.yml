@@ -27,52 +27,53 @@ jobs:
     needs:
       - checkout
     steps:
-      - name: Deploy - CloudFlare-DDNS
+      - name: 📝 Copy config
         working-directory: Cloudflare-DDNS
-        run: |
-          docker compose pull
-          docker compose up --detach --remove-orphans
+        run: sudo cp configuration.nix /etc/nixos/configuration.nix
 
-  deploy-caddy:
-    runs-on:
-      - self-hosted
-      - caddy
-    needs:
-      - checkout
-      - deploy-cloudflare-ddns
-    steps:
-      - name: Deploy - Caddy
-        working-directory: Caddy
-        run: |
-          docker compose build --pull
-          docker compose up --detach --remove-orphans
+      - name: ⚙️ Apply config
+        run: sudo nixos-rebuild switch
 
-  deploy-syncthing:
-    runs-on:
-      - self-hosted
-      - syncthing
-    needs:
-      - checkout
-      - deploy-cloudflare-ddns
-      - deploy-caddy
-    steps:
-      - name: Deploy - SyncThing
-        working-directory: SyncThing
-        run: |
-          docker compose pull
-          docker compose up --detach --remove-orphans
+  # deploy-caddy:
+  #   runs-on:
+  #     - self-hosted
+  #     - caddy
+  #   needs:
+  #     - checkout
+  #     - deploy-cloudflare-ddns
+  #   steps:
+  #     - name: Deploy - Caddy
+  #       working-directory: Caddy
+  #       run: |
+  #         docker compose build --pull
+  #         docker compose up --detach --remove-orphans
 
-  deploy-minecraft:
-    runs-on:
-      - self-hosted
-      - minecraft
-    needs:
-      - checkout
-      - deploy-cloudflare-ddns
-      - deploy-caddy
-    steps:
-      - name: Deploy - Minecraft
-        working-directory: Minecraft
-        run: |
-          docker compose build --pull
-          docker compose up --detach --remove-orphans
+  # deploy-syncthing:
+  #   runs-on:
+  #     - self-hosted
+  #     - syncthing
+  #   needs:
+  #     - checkout
+  #     - deploy-cloudflare-ddns
+  #     - deploy-caddy
+  #   steps:
+  #     - name: Deploy - SyncThing
+  #       working-directory: SyncThing
+  #       run: |
+  #         docker compose pull
+  #         docker compose up --detach --remove-orphans
+
+  # deploy-minecraft:
+  #   runs-on:
+  #     - self-hosted
+  #     - minecraft
+  #   needs:
+  #     - checkout
+  #     - deploy-cloudflare-ddns
+  #     - deploy-caddy
+  #   steps:
+  #     - name: Deploy - Minecraft
+  #       working-directory: Minecraft
+  #       run: |
+  #         docker compose build --pull
+  #         docker compose up --detach --remove-orphans
