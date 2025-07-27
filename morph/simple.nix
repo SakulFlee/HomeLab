@@ -1,6 +1,9 @@
+let
+  pkgs = import (import ./nixpkgs.nix) { };
+in
 {
   network = {
-    nixpkgs = import ./nixpkgs.nix { };
+    inherit pkgs;
     description = "HomeLab";
     ordering = {
       tags = [
