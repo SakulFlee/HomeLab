@@ -8,25 +8,14 @@ on:
   workflow_dispatch:
 
 jobs:        
-  checkout:
-    strategy:
-      fail-fast: false
-      matrix: 
-        ct: [ "cf-ddns", "caddy", "syncthing", "minecraft" ]
-    runs-on:
-      - self-hosted
-      - ${{ matrix.ct }}
-    steps:
-      - name: ⏬ Checkout
-        uses: actions/checkout@v4
-      
   deploy-cloudflare-ddns:
     runs-on:
       - self-hosted
       - cf-ddns
-    needs:
-      - checkout
     steps:
+      - name: ⏬ Checkout
+        uses: actions/checkout@v4
+
       - name: 📝 Copy config
         working-directory: Cloudflare-DDNS
         run: sudo cp configuration.nix /etc/nixos/configuration.nix
