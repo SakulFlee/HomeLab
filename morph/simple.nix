@@ -16,29 +16,27 @@ in
     };
   };
 
-  "cf-ddns" =
-    { systemdBoot, ... }:
-    {
-      deployment.tags = [ "web" ];
+  "cf-ddns" = _: {
+    deployment.tags = [ "web" ];
 
-      boot.loader.systemd-boot.enable = systemdBoot;
-      boot.loader.efi.canTouchEfiVariables = true;
+    boot.loader.systemd-boot.enable = true;
+    boot.loader.efi.canTouchEfiVariables = true;
 
-      system.stateVersion = "25.05";
+    system.stateVersion = "25.05";
 
-      services.nginx.enable = true;
+    services.postgresql.enable = true;
 
-      fileSystems = {
-        "/" = {
-          label = "nixos";
-          fsType = "ext4";
-        };
-        "/boot" = {
-          label = "boot";
-          fsType = "vfat";
-        };
+    fileSystems = {
+      "/" = {
+        label = "nixos";
+        fsType = "ext4";
+      };
+      "/boot" = {
+        label = "boot";
+        fsType = "vfat";
       };
     };
+  };
 
   "caddy" = _: {
     deployment.tags = [ "db" ];
