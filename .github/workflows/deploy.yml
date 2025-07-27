@@ -26,9 +26,9 @@ jobs:
         working-directory: morph
         env:
           SSH_USER: root
-          SSH_IDENTITY_FILE: ~/.ssh/id_rsa
+          SSH_IDENTITY_FILE: $HOME/.ssh/id_rsa
           SSH_SKIP_HOST_KEY_CHECK: true
-          SSH_CONFIG_FILE: ~/.ssh/config
+          SSH_CONFIG_FILE: $HOME/.ssh/config
         run: nix-shell --packages morph --command 'morph deploy simple.nix switch'
 
   # deploy-caddy:
