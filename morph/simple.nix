@@ -19,6 +19,19 @@ in
     system.stateVersion = "25.05";
 
     boot.isContainer = true;
+    systemd = {
+      mounts = [
+        {
+          where = "/sys/kernel/debug";
+          enable = false;
+        }
+      ];
+      suppressedSystemUnits = [
+        "dev-mqueue.mount"
+        "sys-kernel-debug.mount"
+        "sys-fs-fuse-connections.mount"
+      ];
+    };
 
     networking.firewall.enable = true;
 
@@ -49,6 +62,19 @@ in
     system.stateVersion = "25.05";
 
     boot.isContainer = true;
+    systemd = {
+      mounts = [
+        {
+          where = "/sys/kernel/debug";
+          enable = false;
+        }
+      ];
+      suppressedSystemUnits = [
+        "dev-mqueue.mount"
+        "sys-kernel-debug.mount"
+        "sys-fs-fuse-connections.mount"
+      ];
+    };
 
     networking.firewall.enable = true;
 
@@ -79,6 +105,19 @@ in
     system.stateVersion = "25.05";
 
     boot.isContainer = true;
+    systemd = {
+      mounts = [
+        {
+          where = "/sys/kernel/debug";
+          enable = false;
+        }
+      ];
+      suppressedSystemUnits = [
+        "dev-mqueue.mount"
+        "sys-kernel-debug.mount"
+        "sys-fs-fuse-connections.mount"
+      ];
+    };
 
     networking.firewall.enable = true;
 
@@ -109,6 +148,32 @@ in
     system.stateVersion = "25.05";
 
     boot.isContainer = true;
+    systemd = {
+      mounts = [
+        {
+          where = "/sys/kernel/debug";
+          enable = false;
+        }
+      ];
+      suppressedSystemUnits = [
+        "dev-mqueue.mount"
+        "sys-kernel-debug.mount"
+        "sys-fs-fuse-connections.mount"
+      ];
+    };
+    systemd = {
+      mounts = [
+        {
+          where = "/sys/kernel/debug";
+          enable = false;
+        }
+      ];
+      suppressedSystemUnits = [
+        "dev-mqueue.mount"
+        "sys-kernel-debug.mount"
+        "sys-fs-fuse-connections.mount"
+      ];
+    };
 
     networking.firewall.enable = true;
 
