@@ -25,8 +25,8 @@ jobs:
       - name: ⏫ Morph deploy
         working-directory: morph
         env:
-          SSH_USER: user
-          SSH_SKIP_HOST_KY_CHECK: true
+          SSH_USER: root
+          SSH_SKIP_HOST_KEY_CHECK: true
         run: nix-shell --packages morph --command 'morph deploy simple.nix switch'
 
   # deploy-caddy:
