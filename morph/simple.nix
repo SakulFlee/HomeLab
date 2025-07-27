@@ -1,6 +1,6 @@
 {
   network = {
-    inherit import (import ./nixpkgs.nix) { };
+    nixpkgs = import ./nixpkgs.nix { };
     description = "HomeLab";
     ordering = {
       tags = [
