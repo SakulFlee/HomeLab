@@ -11,9 +11,9 @@ jobs:
   test:
     runs-on: Self-Hosted
     steps:
-      - run: nix-shell -p docker --run "docker info"
-      - run: nix-shell -p docker --run "docker run -it --rm hello-world"
-            
+      - run: docker info
+      - run: docker run -it --rm hello-world
+        
   test-cf-ddns:
     strategy:
       fail-fast: false
