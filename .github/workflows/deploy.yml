@@ -18,7 +18,9 @@ jobs:
 
       - name: 📝 Restore SSH Config
         working-directory: morph
-        run: cp ssh-config ~/.ssh/config
+        run: |
+          mkdir -p ~/.ssh/
+          cp ssh-config ~/.ssh/config
 
       - name: ⏫ Morph deploy
         working-directory: morph
