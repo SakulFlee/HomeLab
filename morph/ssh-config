@@ -1,3 +1,11 @@
+Host cf-ddns
+    HostName 10.0.0.100
+
 Host caddy
     HostName 10.0.0.101
-    User user
+
+Host syncthing
+    HostName 10.0.0.102
+
+Host minecraft
+    HostName 10.0.0.103
