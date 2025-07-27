@@ -28,6 +28,10 @@ in
         where = "/sys/kernel/config";
         enable = false;
       }
+      {
+        where = "/sys";
+        enable = false;
+      }
     ];
 
     # LXC Containers don't boot
@@ -75,6 +79,10 @@ in
       }
       {
         where = "/sys/kernel/config";
+        enable = false;
+      }
+      {
+        where = "/sys";
         enable = false;
       }
     ];
@@ -126,6 +134,10 @@ in
         where = "/sys/kernel/config";
         enable = false;
       }
+      {
+        where = "/sys";
+        enable = false;
+      }
     ];
 
     # LXC Containers don't boot
@@ -173,6 +185,10 @@ in
       }
       {
         where = "/sys/kernel/config";
+        enable = false;
+      }
+      {
+        where = "/sys";
         enable = false;
       }
     ];
