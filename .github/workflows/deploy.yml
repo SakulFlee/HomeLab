@@ -19,7 +19,7 @@ jobs:
       - name: 📝 Morph deploy
         working-directory: morph
         env:
-          PATH: ~/.nix-profile/bin/
+          PATH: ~/.nix-profile/bin/:${{ env.PATH }}
         run: morph deploy simple.nix switch
 
   # deploy-caddy:
