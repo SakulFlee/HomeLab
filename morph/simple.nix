@@ -16,8 +16,7 @@ in
     };
   };
 
-  # CF-DDNS
-  "192.168.178.199" = _: {
+  "cf-ddns" =
     { systemdBoot, ... }:
     {
       deployment.tags = [ "web" ];
@@ -41,8 +40,7 @@ in
       };
     };
 
-  # Caddy
-  "192.168.178.201" = _: {
+  "caddy" = _: {
     deployment.tags = [ "db" ];
 
     boot.loader.systemd-boot.enable = true;
@@ -64,8 +62,7 @@ in
     };
   };
 
-  # Syncthing
-  "192.168.178.202" = _: {
+  "syncthing" = _: {
     deployment.tags = [ "db" ];
 
     boot.loader.systemd-boot.enable = true;
@@ -87,8 +84,7 @@ in
     };
   };
 
-  # Minecraft
-  "192.168.178.203" = _: {
+  "minecraft" = _: {
     deployment.tags = [ "db" ];
 
     boot.loader.systemd-boot.enable = true;
