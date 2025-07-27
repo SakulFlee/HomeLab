@@ -21,11 +21,7 @@ in
     # Fix for mount bug in NixOS + LXC
     systemd.mounts = [
       {
-        where = "/sys/kernel/debug";
-        enable = false;
-      }
-      {
-        where = "/sys/kernel/config";
+        where = "/sys";
         enable = false;
       }
     ];
@@ -70,11 +66,7 @@ in
     # Fix for mount bug in NixOS + LXC
     systemd.mounts = [
       {
-        where = "/sys/kernel/debug";
-        enable = false;
-      }
-      {
-        where = "/sys/kernel/config";
+        where = "/sys";
         enable = false;
       }
     ];
@@ -119,11 +111,7 @@ in
     # Fix for mount bug in NixOS + LXC
     systemd.mounts = [
       {
-        where = "/sys/kernel/debug";
-        enable = false;
-      }
-      {
-        where = "/sys/kernel/config";
+        where = "/sys";
         enable = false;
       }
     ];
@@ -168,11 +156,7 @@ in
     # Fix for mount bug in NixOS + LXC
     systemd.mounts = [
       {
-        where = "/sys/kernel/debug";
-        enable = false;
-      }
-      {
-        where = "/sys/kernel/config";
+        where = "/sys";
         enable = false;
       }
     ];
