@@ -18,31 +18,7 @@ in
     deployment.tags = [ "ddns" ];
     system.stateVersion = "25.05";
 
-    # Disabling SystemD units that don't work inside LXC
-    systemd.suppressedSystemUnits = [
-      "dev-mqueue.mount"
-      "sys-kernel-debug.mount"
-      "sys-fs-fuse-connections.mount"
-    ];
-    systemd.mounts = [
-      {
-        where = "/sys/kernel/debug";
-        enable = false;
-      }
-      {
-        where = "/sys/kernel/config";
-        enable = false;
-      }
-    ];
-
-    # LXC Containers don't boot
-    boot.loader.grub.enable = false;
-
-    fileSystems."/" = {
-      device = "none";
-      fsType = "rootfs";
-      options = [ "rw" "relatime" ];
-    };
+    boot.isContainer = true;
 
     networking.firewall.enable = true;
 
@@ -72,31 +48,7 @@ in
     deployment.tags = [ "web" ];
     system.stateVersion = "25.05";
 
-    # Disabling SystemD units that don't work inside LXC
-    systemd.suppressedSystemUnits = [
-      "dev-mqueue.mount"
-      "sys-kernel-debug.mount"
-      "sys-fs-fuse-connections.mount"
-    ];
-    systemd.mounts = [
-      {
-        where = "/sys/kernel/debug";
-        enable = false;
-      }
-      {
-        where = "/sys/kernel/config";
-        enable = false;
-      }
-    ];
-
-    # LXC Containers don't boot
-    boot.loader.grub.enable = false;
-
-    fileSystems."/" = {
-      device = "none";
-      fsType = "rootfs";
-      options = [ "rw" "relatime" ];
-    };
+    boot.isContainer = true;
 
     networking.firewall.enable = true;
 
@@ -126,31 +78,7 @@ in
     deployment.tags = [ "svc" ];
     system.stateVersion = "25.05";
 
-    # Disabling SystemD units that don't work inside LXC
-    systemd.suppressedSystemUnits = [
-      "dev-mqueue.mount"
-      "sys-kernel-debug.mount"
-      "sys-fs-fuse-connections.mount"
-    ];
-    systemd.mounts = [
-      {
-        where = "/sys/kernel/debug";
-        enable = false;
-      }
-      {
-        where = "/sys/kernel/config";
-        enable = false;
-      }
-    ];
-
-    # LXC Containers don't boot
-    boot.loader.grub.enable = false;
-
-    fileSystems."/" = {
-      device = "none";
-      fsType = "rootfs";
-      options = [ "rw" "relatime" ];
-    };
+    boot.isContainer = true;
 
     networking.firewall.enable = true;
 
@@ -180,31 +108,7 @@ in
     deployment.tags = [ "svc" ];
     system.stateVersion = "25.05";
 
-    # Disabling SystemD units that don't work inside LXC
-    systemd.suppressedSystemUnits = [
-      "dev-mqueue.mount"
-      "sys-kernel-debug.mount"
-      "sys-fs-fuse-connections.mount"
-    ];
-    systemd.mounts = [
-      {
-        where = "/sys/kernel/debug";
-        enable = false;
-      }
-      {
-        where = "/sys/kernel/config";
-        enable = false;
-      }
-    ];
-
-    # LXC Containers don't boot
-    boot.loader.grub.enable = false;
-
-    fileSystems."/" = {
-      device = "none";
-      fsType = "rootfs";
-      options = [ "rw" "relatime" ];
-    };
+    boot.isContainer = true;
 
     networking.firewall.enable = true;
 
