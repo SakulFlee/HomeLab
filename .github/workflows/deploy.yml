@@ -11,26 +11,14 @@ jobs:
   deploy-cloudflare-ddns:
     runs-on:
       - self-hosted
-      - cf-ddns
+      - morph
     steps:
       - name: ⏬ Checkout
         uses: actions/checkout@v4
 
-      - name: 🔍 Show privileges and process status
-        run: |
-          id
-          ps auxf
-          cat /proc/self/status
-          cat /proc/$$/status
-          sudo -l
-          sudo whoami
-
-      - name: 📝 Copy config
-        working-directory: Cloudflare-DDNS
-        run: sudo cp configuration.nix /etc/nixos/configuration.nix
-
-      - name: ⚙️ Apply config
-        run: sudo nixos-rebuild switch
+      - name: 📝 Morph deploy
+        working-directory: morph
+        run: morph deploy simple.nix switch
 
   # deploy-caddy:
   #   runs-on:
