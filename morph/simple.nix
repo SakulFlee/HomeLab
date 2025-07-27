@@ -1,106 +1,33 @@
-let
-  pkgs = import (import ./nixpkgs.nix) { };
-in
 {
   network = {
-    inherit pkgs;
-    specialArgs = {
-      systemdBoot = true;
-    };
-    description = "simple hosts";
+    inherit import (import ./nixpkgs.nix) { };
+    description = "HomeLab";
     ordering = {
       tags = [
-        "db"
+        "ddns"
         "web"
+        "svc"
       ];
     };
   };
 
   "cf-ddns" = _: {
-    deployment.tags = [ "web" ];
-
-    boot.loader.systemd-boot.enable = true;
-    boot.loader.efi.canTouchEfiVariables = true;
-
+    deployment.tags = [ "ddns" ];
     system.stateVersion = "25.05";
-
-    services.postgresql.enable = true;
-
-    fileSystems = {
-      "/" = {
-        label = "nixos";
-        fsType = "ext4";
-      };
-      "/boot" = {
-        label = "boot";
-        fsType = "vfat";
-      };
-    };
   };
 
   "caddy" = _: {
-    deployment.tags = [ "db" ];
-
-    boot.loader.systemd-boot.enable = true;
-    boot.loader.efi.canTouchEfiVariables = true;
-
+    deployment.tags = [ "web" ];
     system.stateVersion = "25.05";
-
-    services.postgresql.enable = true;
-
-    fileSystems = {
-      "/" = {
-        label = "nixos";
-        fsType = "ext4";
-      };
-      "/boot" = {
-        label = "boot";
-        fsType = "vfat";
-      };
-    };
   };
 
   "syncthing" = _: {
-    deployment.tags = [ "db" ];
-
-    boot.loader.systemd-boot.enable = true;
-    boot.loader.efi.canTouchEfiVariables = true;
-
+    deployment.tags = [ "svc" ];
     system.stateVersion = "25.05";
-
-    services.postgresql.enable = true;
-
-    fileSystems = {
-      "/" = {
-        label = "nixos";
-        fsType = "ext4";
-      };
-      "/boot" = {
-        label = "boot";
-        fsType = "vfat";
-      };
-    };
   };
 
   "minecraft" = _: {
-    deployment.tags = [ "db" ];
-
-    boot.loader.systemd-boot.enable = true;
-    boot.loader.efi.canTouchEfiVariables = true;
-
+    deployment.tags = [ "svc" ];
     system.stateVersion = "25.05";
-
-    services.postgresql.enable = true;
-
-    fileSystems = {
-      "/" = {
-        label = "nixos";
-        fsType = "ext4";
-      };
-      "/boot" = {
-        label = "boot";
-        fsType = "vfat";
-      };
-    };
   };
 }
