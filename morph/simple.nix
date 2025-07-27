@@ -1,59 +1,96 @@
+let
+  pkgs = import (import ./nixpkgs.nix) { };
+in
 {
-  description = "A basic Morph-managed NixOS container";
-
-  inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable"; # Or a specific stable channel like "nixos-24.05"
-    morph.url = "github:NixOS/morph";
+  network = {
+    inherit pkgs;
+    description = "HomeLab";
+    ordering = {
+      tags = [
+        "ddns"
+        "web"
+        "svc"
+      ];
+    };
   };
 
-  outputs = { self, nixpkgs, morph, ... }: {
-    morphHosts = {
-      # Define your host(s) here. You can add more hosts as needed.
-      caddy = {
-        # Specify the type of host. For a Proxmox LXC, 'lxc' is appropriate.
-        # Morph might interact with the Proxmox API directly, or you might
-        # still manage the LXC creation through Proxmox and then use Morph
-        # to deploy the NixOS configuration *inside* the LXC.
-        # This example assumes you'll deploy *into* an existing LXC.
-        type = "lxc"; # Or "nixos" for a regular NixOS machine
+  "cf-ddns" = _: {
+    deployment.tags = [ "ddns" ];
+    system.stateVersion = "25.05";
 
-        # The NixOS configuration for this host
-        config = nixpkgs.lib.nixosSystem {
-          system = "x86_64-linux"; # Adjust if your LXC architecture is different
-          specialArgs = { inherit self; }; # Pass flake inputs if needed
+    # Fix for mount bug in NixOS + LXC
+    systemd.mounts = [{
+      where = "/sys/kernel/debug";
+      enable = false;
+    }];
 
-          modules = [
-            # Your original NixOS configuration
-            ({ config, modulesPath, pkgs, lib, ... }: {
-              imports = [ (modulesPath + "/virtualisation/proxmox-lxc.nix") ];
-              system.stateVersion = "25.05";
+    # LXC Containers don't boot
+    boot.loader.grub.enable = false;
 
-              networking.firewall.enable = true;
+    fileSystems."/" = {
+      device = "none";
+      fsType = "rootfs";
+      options = [ "rw" "relatime" ];
+    };
+  };
 
-              environment.systemPackages = with pkgs; [
-                neovim
-              ];
+  "caddy" = _: {
+    deployment.tags = [ "web" ];
+    system.stateVersion = "25.05";
 
-              services.openssh = {
-                enable = true;
-                openFirewall = true;
-                settings = {
-                  PasswordAuthentication = false;
-                  PermitRootLogin = "prohibit-password";
-                };
-              };
+    # Fix for mount bug in NixOS + LXC
+    systemd.mounts = [{
+      where = "/sys/kernel/debug";
+      enable = false;
+    }];
 
-              users.users.root.openssh.authorizedKeys.keys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC+/nVLDx7H/NeQJ82RsCdnckDPt8v+4kdhM1j6ThKoKORn+y8wg3mTAp/vfsX73gBrX/7JGbIjL2Revl3p1pJ00EAVFcnDifAlx3PRYhTKnE0Mwik65rjlbTghDjFbsyTJef2LIRxzlq7uhmAWPd4Ft5rQBEJ62mUGhXXG+9GmUJO26OQm1kkdeBgN3ctLjyesS61NJpnjs/CgMFG62LQEAmBahW2IplwayEvkITqVqQ09/un9UjTnvF1+UZbtZIzzgAhjAxa72LARz4FuBDnHjta5ukQjJdtStDBhlDUoFJlsgjaYg5Ho/ICILFCTd/+UZXh3lk0oAAU7GUULIzoY/JNcFMooI2IkR3Cvpumq2oYMNDn5M6+eTTbP7TvLl0V123bVGCzEq08MRIze072ybh9IfZpZAKow0YilE2ndBPcMhiv+dXi9PQ281on+PFv8bVwWgLl/kEeI9vJTT5MwVX02DLLOBI04Zts8n+HyQNDnrqsUj4XBR+9zFDs= github-actions@pve" ];
+    # LXC Containers don't boot
+    boot.loader.grub.enable = false;
 
-              users.users.user = {
-                isNormalUser  = true;
-                extraGroups  = [ "wheel" "networkmanager" ];
-                openssh.authorizedKeys.keys = [ "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQC+/nVLDx7H/NeQJ82RsCdnckDPt8v+4kdhM1j6ThKoKORn+y8wg3mTAp/vfsX73gBrX/7JGbIjL2Revl3p1pJ00EAVFcnDifAlx3PRYhTKnE0Mwik65rjlbTghDjFbsyWsnyTJef2LIRxzlq7uhmAWPd4Ft5rQBEJ62mUGhXXG+9GmUJO26OQm1kkdeBgN3ctLjyesS61NJpnjs/CgMFG62LQEAmBahW2IplwayEvkITqVqQ09/un9UjTnvF1+UZbtZIzzgAhjAxa72LARz4FuBDnHjta5ukQjJdtStDBhlDUoFJlsgjaYg5Ho/ICILFCTd/+UZXh3lk0oAAU7GUULIzoY/JNcFMooI2IkR3Cvpumq2oYMNDn5M6+eTTbP7TvLl0V123bVGCzEq08MRIze072ybh9IfZpZAKow0YilE2ndBPcMhiv+dXi9PQ281on+PFv8bWl/kEeI9vJTT5MwVX02DLLOBI04Zts8n+HyQNDnrqsUj4XBR+9zFDs= github-actions@pve" ];
-              };
-            })
-          ];
-        };
-      };
+    fileSystems."/" = {
+      device = "none";
+      fsType = "rootfs";
+      options = [ "rw" "relatime" ];
+    };
+  };
+
+  "syncthing" = _: {
+    deployment.tags = [ "svc" ];
+    system.stateVersion = "25.05";
+
+    # Fix for mount bug in NixOS + LXC
+    systemd.mounts = [{
+      where = "/sys/kernel/debug";
+      enable = false;
+    }];
+
+    # LXC Containers don't boot
+    boot.loader.grub.enable = false;
+
+    fileSystems."/" = {
+      device = "none";
+      fsType = "rootfs";
+      options = [ "rw" "relatime" ];
+    };
+  };
+
+  "minecraft" = _: {
+    deployment.tags = [ "svc" ];
+    system.stateVersion = "25.05";
+
+    # Fix for mount bug in NixOS + LXC
+    systemd.mounts = [{
+      where = "/sys/kernel/debug";
+      enable = false;
+    }];
+
+    # LXC Containers don't boot
+    boot.loader.grub.enable = false;
+
+    fileSystems."/" = {
+      device = "none";
+      fsType = "rootfs";
+      options = [ "rw" "relatime" ];
     };
   };
 }
