@@ -24,6 +24,8 @@ in
       boot.loader.systemd-boot.enable = systemdBoot;
       boot.loader.efi.canTouchEfiVariables = true;
 
+      system.stateVersion = "25.05";
+
       services.nginx.enable = true;
 
       fileSystems = {
@@ -43,6 +45,8 @@ in
 
     boot.loader.systemd-boot.enable = true;
     boot.loader.efi.canTouchEfiVariables = true;
+
+    system.stateVersion = "25.05";
 
     services.postgresql.enable = true;
 
@@ -64,6 +68,8 @@ in
     boot.loader.systemd-boot.enable = true;
     boot.loader.efi.canTouchEfiVariables = true;
 
+    system.stateVersion = "25.05";
+
     services.postgresql.enable = true;
 
     fileSystems = {
@@ -83,6 +89,8 @@ in
 
     boot.loader.systemd-boot.enable = true;
     boot.loader.efi.canTouchEfiVariables = true;
+
+    system.stateVersion = "25.05";
 
     services.postgresql.enable = true;
 
