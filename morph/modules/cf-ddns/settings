@@ -17,7 +17,7 @@ ZONE_ID="d9cf7a34062143f55d5968b51c1a0304"
 # Type A    DNS entries == IPv4
 # Type AAAA DNS entries == IPv6
 IPv4_HOSTS=("sakul-flee.de" "mc.sakul-flee.de")
-IPv6_HOSTS=()
+IPv6_HOSTS=("sakul-flee.de" "mc.sakul-flee.de")
 
 # Path to where the last ip cache's are stored
 LAST_IP_CACHE_FOLDER="/opt/cf_ddns/cache"
