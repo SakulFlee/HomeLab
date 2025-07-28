@@ -19,6 +19,8 @@ jobs:
       - name: ⏫ Morph deploy
         working-directory: morph
         env:
+          SSH_USER: root
+          SSH_IDENTITY_FILE: /home/github-actions/.ssh/id_rsa
           SSH_SKIP_HOST_KEY_CHECK: true
         run: nix-shell --packages morph --command 'morph deploy network.nix switch'
 
