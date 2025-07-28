@@ -16,11 +16,11 @@ in
       ...
     }:
     {
-      deployment = {
-        targetHost = "192.168.100.1";
-        targetPort = 22;
-        targetUser = "root";
-      };
+      # deployment = {
+      #   targetHost = "192.168.100.1";
+      #   targetPort = 22;
+      #   targetUser = "root";
+      # };
 
       imports = [ ./hosts/cf-ddns/configuration.nix ];
     };
