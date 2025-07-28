@@ -10,6 +10,13 @@ let
   settingsFile = builtins.readFile ./settings;
   settingsFileDerivation = pkgs.writeText "cf-ddns-settings" settingsFile;
   settingsTargetPath = "/opt/cf_ddns/settings";
+  wrapperScript = pkgs.writeShellScript "cloudflare-ddns-wrapper" ''
+    # Add binaries required to PATH
+    export PATH="${pkgs.bash}/bin:${pkgs.curl}/bin:${pkgs.gnused}/bin:${pkgs.jq}/bin:$PATH"
+
+    exec ${pkgs.writeText "cloudflare-ddns-script" scriptFile} "$@"
+  '';
+
 in
 {
   options.services.cloudflare-ddns = {
@@ -32,7 +39,7 @@ in
         ln -sf ${settingsFileDerivation} ${settingsTargetPath}
       '';
 
-      script = scriptFile;
+      script = "${wrapperScript}";
 
       serviceConfig = {
         Type = "oneshot";
