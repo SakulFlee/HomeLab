@@ -16,12 +16,6 @@ jobs:
       - name: ⏬ Checkout
         uses: actions/checkout@v4
 
-      - name: 📝 Restore SSH Config
-        working-directory: morph
-        run: |
-          mkdir -p ~/.ssh/
-          cp ssh-config ~/.ssh/config
-
       - name: ⏫ Morph deploy
         working-directory: morph
         env:
