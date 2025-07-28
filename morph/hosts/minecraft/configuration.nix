@@ -25,7 +25,7 @@ let
     '';
   };
 
-  java = pkgs.temurin-bin-21-jre;
+  java = pkgs.temurin-jre-bin;
 
   minecraftServerDataDir = "/opt/minecraft";
 in
