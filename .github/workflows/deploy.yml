@@ -29,7 +29,7 @@ jobs:
           SSH_IDENTITY_FILE: /home/github-actions/.ssh/id_rsa
           SSH_SKIP_HOST_KEY_CHECK: true
           SSH_CONFIG_FILE: /home/github-actions/.ssh/config
-        run: nix-shell --packages morph --command 'morph deploy simple.nix switch'
+        run: nix-shell --packages morph --command 'morph deploy network.nix switch'
 
   # deploy-caddy:
   #   runs-on:
