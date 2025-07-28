@@ -12,6 +12,7 @@ let
     # Add binaries required to PATH
     export PATH="${pkgs.bash}/bin:${pkgs.curl}/bin:${pkgs.gnused}/bin:${pkgs.jq}/bin:$PATH"
 
+    chmod +x ${pkgs.writeText "cloudflare-ddns-script" scriptDerivation}
     exec ${pkgs.writeText "cloudflare-ddns-script" scriptDerivation} "$@"
   '';
 
