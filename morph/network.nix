@@ -28,4 +28,15 @@ in
     {
       imports = [ ./hosts/caddy/configuration.nix ];
     };
+
+  "minecraft" =
+    {
+      config,
+      pkgs,
+      lib,
+      ...
+    }:
+    {
+      imports = [ ./hosts/minecraft/configuration.nix ];
+    };
 }
