@@ -35,8 +35,6 @@
 
   networking = {
     firewall.enable = true;
-    useNetworkd = true;
-    dhcpcd.useHostResolvConf = false;
 
     interfaces.eth0 = {
       useDHCP = false;
