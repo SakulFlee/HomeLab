@@ -7,16 +7,12 @@
 
 let
   pluginsJarsPath = lib.cleanSource ./plugins;
-  # The actual downloaded Paper JAR derivation (only the JAR, no plugins yet)
   paperJarDerivation = pkgs.stdenv.mkDerivation {
     pname = "paper-jar";
     version = "${minecraftVersion}-b${paperBuild}";
 
     src = pkgs.fetchurl {
       url = "https://api.papermc.io/v2/projects/paper/versions/${minecraftVersion}/builds/${paperBuild}/downloads/paper-${minecraftVersion}-${paperBuild}.jar";
-      # IMPORTANT: Replace with the actual SHA256 for the specific version and build.
-      # Get it by running `nix-prefetch-url URL`
-      sha256 = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="; # <--- UPDATE THIS SHA256
     };
 
     installPhase = ''
