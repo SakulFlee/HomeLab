@@ -7,6 +7,7 @@
 
 let
   scriptFile = builtins.readFile ./script.sh;
+  settingsFile = pkgs.writeText "cf-ddns-settings" (builtins.readFile ./settings);
 in
 {
   options.services.cloudflare-ddns = {
@@ -30,6 +31,11 @@ in
         User = "root";
       };
     };
+
+    systemd.tmpfiles.rules = [
+      "d /opt/cf_ddns 0755 root root -"
+      "L /opt/cf_ddns/settings - - - ${settingsFile}"
+    ];
 
     environment.systemPackages = with pkgs; [
       bash
