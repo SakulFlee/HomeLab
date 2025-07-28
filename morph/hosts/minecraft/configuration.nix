@@ -8,7 +8,8 @@
 let
   minecraftVersion = "1.21.6";
   paperBuild = "17";
-  
+  memoryLimit = "8G";
+
   pluginsJarsPath = lib.cleanSource ./plugins;
   paperJarDerivation = pkgs.stdenv.mkDerivation {
     pname = "paper-jar";
