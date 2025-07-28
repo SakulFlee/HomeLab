@@ -26,6 +26,14 @@
     "sys-fs-fuse-connections.mount"
   ];
 
+  nix.gc = {
+    automatic = true;
+    dates = "weekly"; # Or "daily", "03:00", etc.
+    options = "--delete-older-generations";
+  };
+  # Optional, but good for space saving
+  nix.extraOptions = "auto-optimise-store = true";
+
   networking.firewall.enable = true;
 
   environment.systemPackages = with pkgs; [
