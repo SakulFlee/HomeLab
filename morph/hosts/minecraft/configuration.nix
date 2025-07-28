@@ -81,7 +81,7 @@ in
         find "${minecraftServerDataDir}/plugins" -maxdepth 1 -name "*.jar" -delete || true
 
         # Copy expected plugin JARs
-        cp -r "${pluginsJarsSrc}/." "${minecraftServerDataDir}/plugins/" || true
+        cp -r "${pluginsJarsPath}/." "${minecraftServerDataDir}/plugins/" || true
 
         # Handle EULA
         echo "eula=true" > "${minecraftServerDataDir}/eula.txt"
