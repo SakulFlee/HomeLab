@@ -7,7 +7,9 @@
 
 let
   scriptFile = builtins.readFile ./script.sh;
-  settingsFile = pkgs.writeText "cf-ddns-settings" (builtins.readFile ./settings);
+  settingsFile = builtins.readFile ./settings;
+  settingsFileDerivation = pkgs.writeText "cf-ddns-settings" settingsFile;
+  settingsTargetPath = "/opt/cf_ddns/settings";
 in
 {
   options.services.cloudflare-ddns = {
@@ -25,17 +27,18 @@ in
     };
 
     systemd.services."cloudflare-ddns" = {
+      preStart = ''
+        mkdir -p "$(dirname ${settingsTargetPath})"
+        ln -sf ${settingsFileDerivation} ${settingsTargetPath}
+      '';
+
       script = scriptFile;
+
       serviceConfig = {
         Type = "oneshot";
         User = "root";
       };
     };
-
-    systemd.tmpfiles.rules = [
-      "d /opt/cf_ddns 0755 root root -"
-      "L /opt/cf_ddns/settings - - - ${settingsFile}"
-    ];
 
     environment.systemPackages = with pkgs; [
       bash
