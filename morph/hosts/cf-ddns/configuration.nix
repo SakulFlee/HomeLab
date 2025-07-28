@@ -36,6 +36,7 @@
   networking = {
     firewall.enable = true;
     useNetworkd = true;
+    dhcpcd.useHostResolvConf = false;
 
     interfaces.eth0 = {
       useDHCP = false;
@@ -47,7 +48,10 @@
       ];
     };
 
-    defaultGateway = "10.0.0.1";
+    defaultGateway = {
+      address = "10.0.0.1";
+      interface = "eth0";
+    };
 
     nameservers = [
       "9.9.9.9"
