@@ -28,13 +28,32 @@
 
   nix.gc = {
     automatic = true;
-    dates = "weekly"; # Or "daily", "03:00", etc.
+    dates = "weekly";
     options = "--delete-older-generations";
   };
-  # Optional, but good for space saving
   nix.extraOptions = "auto-optimise-store = true";
 
-  networking.firewall.enable = true;
+  networking = {
+    firewall.enable = true;
+    useNetworkd = true;
+
+    interfaces.eth0 = {
+      useDHCP = false;
+      ipv4.addresses = [
+        {
+          address = "10.0.0.100";
+          prefixLength = 24; # ^/24
+        }
+      ];
+    };
+
+    defaultGateway = "10.0.0.1";
+
+    nameservers = [
+      "9.9.9.9"
+      "149.112.112.112"
+    ];
+  };
 
   environment.systemPackages = with pkgs; [
     neovim
