@@ -7,7 +7,6 @@ in
     description = "HomeLab";
   };
 
-  # Define each host
   "cf-ddns" =
     {
       config,
@@ -16,12 +15,17 @@ in
       ...
     }:
     {
-      # deployment = {
-      #   targetHost = "192.168.100.1";
-      #   targetPort = 22;
-      #   targetUser = "root";
-      # };
-
       imports = [ ./hosts/cf-ddns/configuration.nix ];
+    };
+
+  "caddy" =
+    {
+      config,
+      pkgs,
+      lib,
+      ...
+    }:
+    {
+      imports = [ ./hosts/caddy/configuration.nix ];
     };
 }
