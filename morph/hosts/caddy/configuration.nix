@@ -21,9 +21,22 @@
     enable = true;
     email = "dev@sakul-flee.de";
     virtualHosts = {
-      "test.sakul-flee.de" = {
+      "sakul-flee.de, www.sakul-flee.de, web.sakul-flee.de
+" = {
         extraConfig = ''
-          respond "Test successful!"
+          redir "https://sakulflee.github.io"
+        '';
+      };
+      "syncthing.sakul-flee.de" = {
+        extraConfig = ''
+          encode gzip 
+          reverse_proxy "syncthing:8384"
+        '';
+      };
+      "bluemap.sakul-flee.de" = {
+        extraConfig = ''
+          encode gzip 
+          reverse_proxy "minecraft:8100"
         '';
       };
     };

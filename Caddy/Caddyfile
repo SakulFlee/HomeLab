@@ -4,7 +4,6 @@
 
 syncthing.sakul-flee.de {
     encode gzip
-
     reverse_proxy syncthing:8384
 }
 
