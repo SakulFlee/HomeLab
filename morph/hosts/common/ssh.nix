@@ -1,7 +1,7 @@
 { config, ... }:
 
 {
-  networking.allowedTCPPorts = [
+  networking.firewall.allowedTCPPorts = [
     22 # SSH
   ];
 
