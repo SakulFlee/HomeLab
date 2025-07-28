@@ -40,20 +40,19 @@
       useDHCP = false;
       ipv4.addresses = [
         {
-          address = "10.0.0.100";
+          address = "192.168.100.100";
           prefixLength = 24; # ^/24
         }
       ];
     };
 
     defaultGateway = {
-      address = "10.0.0.1";
+      address = "192.168.1.1";
       interface = "eth0";
     };
 
     nameservers = [
-      "9.9.9.9"
-      "149.112.112.112"
+      "192.168.1.1"
     ];
   };
 
