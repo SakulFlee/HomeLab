@@ -17,7 +17,7 @@ in
     }:
     {
       deployment = {
-        targetHost = "10.0.0.101";
+        targetHost = "10.0.0.100";
         targetPort = 22;
         targetUser = "root";
       };
