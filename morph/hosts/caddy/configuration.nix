@@ -19,7 +19,7 @@
 
   services.caddy = {
     enable = true;
-    openFirewall = true;
+    email = "dev@sakul-flee.de";
     virtualHosts = {
       "test.sakul-flee.de" = {
         extraConfig = ''
