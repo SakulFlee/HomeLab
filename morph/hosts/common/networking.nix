@@ -2,11 +2,8 @@
 
 {
   networking = {
-    networking.firewall = {
+    firewall = {
       enable = true;
-      allowedTCPPorts = [
-        22 # SSH
-      ];
     };
 
     interfaces.eth0 = {

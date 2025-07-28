@@ -1,6 +1,10 @@
 { config, ... }:
 
 {
+  networking.allowedTCPPorts = [
+    22 # SSH
+  ];
+
   services.openssh = {
     enable = true;
     openFirewall = true;
