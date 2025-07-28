@@ -21,8 +21,7 @@
     enable = true;
     email = "dev@sakul-flee.de";
     virtualHosts = {
-      "sakul-flee.de, www.sakul-flee.de, web.sakul-flee.de
-" = {
+      "sakul-flee.de, www.sakul-flee.de, web.sakul-flee.de" = {
         extraConfig = ''
           redir "https://sakulflee.github.io"
         '';
