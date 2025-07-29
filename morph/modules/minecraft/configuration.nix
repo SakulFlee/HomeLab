@@ -7,7 +7,7 @@
 
 let
   minecraftServerDataDir = "/opt/minecraft";
-  java = pkgs.temurin-bin-21-jre; # Using pkgs.temurin-bin-21-jre
+  java = pkgs.temurin-bin;
 in
 {
   options.services.minecraft = {
