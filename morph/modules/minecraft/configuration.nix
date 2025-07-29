@@ -30,17 +30,6 @@ let
   minecraftServerDataDir = "/opt/minecraft";
 in
 {
-  deployment.tags = [ "minecraft" ];
-
-  imports = [
-    ../common/state.nix
-    ../common/lxc.nix
-    ../common/gc.nix
-    ../common/networking.nix
-    ../common/ssh.nix
-    ../common/common_packages.nix
-  ];
-
   services.minecraft = {
     enable = true;
     description = "Minecraft Paper Server v${minecraftVersion} Build ${paperBuild}";
