@@ -6,7 +6,7 @@
 }:
 
 let
-  minecraftServerDataDir = "/opt/minecraft";
+  minecraftServerDataDir = "/var/lib/minecraft";
   java = pkgs.temurin-bin;
 in
 {
