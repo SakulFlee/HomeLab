@@ -71,7 +71,7 @@ in
 
         cd "${minecraftServerDataDir}"
 
-        "${java}/bin/java -Xms512M -Xmx${config.services.minecraft.memoryLimit} -jar ${minecraftServerDataDir}/server.jar nogui"
+        "${java}/bin/java" -Xms512M -Xmx${config.services.minecraft.memoryLimit} -jar "${minecraftServerDataDir}/server.jar" nogui
       '';
     in
     {
