@@ -55,9 +55,9 @@ in
           + " v${config.services.minecraft.version} Build ${toString config.services.minecraft.build}";
         serviceConfig = {
           Type = "simple";
-          # REMOVED: DynamicUser = true;
-          User = "minecraft"; # ADDED: Explicitly set user
-          Group = "minecraft"; # ADDED: Explicitly set group
+          DynamicUser = true;
+          User = "minecraft";
+          Group = "minecraft";
           WorkingDirectory = minecraftServerDataDir;
           ExecStart = "${java}/bin/java -Xms512M -Xmx${config.services.minecraft.memoryLimit} -jar ${minecraftServerDataDir}/server.jar nogui";
           Restart = "on-failure";
@@ -90,16 +90,11 @@ in
         };
       };
 
-      # These configurations are correctly placed to be conditional
-      users.groups.minecraft = { };
-      users.users.minecraft = {
-        isSystem = true;
-        group = "minecraft";
-      };
       systemd.tmpfiles.rules = [
         "d '${minecraftServerDataDir}' 0755 minecraft minecraft -"
         "d '${minecraftServerDataDir}/plugins' 0755 minecraft minecraft -"
       ];
+
       networking.firewall = {
         allowedTCPPorts = [
           25565
