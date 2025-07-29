@@ -6,7 +6,7 @@
 }:
 
 let
-  pluginsJarsPath = lib.cleanSource ../files/minecraft_plugins;
+  pluginsJarsPath = lib.cleanSource ../../files/minecraft_plugins;
 in
 {
   deployment.tags = [ "minecraft" ];
