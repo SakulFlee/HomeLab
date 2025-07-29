@@ -23,7 +23,7 @@ in
 
   services.minecraft = {
     enable = true;
-    version = "1.21.6";
+    version = "1.21.8";
     build = 17;
     memoryLimit = "8G";
     pluginsJarsSource = pluginsJarsPath;

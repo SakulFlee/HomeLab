@@ -18,11 +18,11 @@ in
     };
     version = lib.mkOption {
       type = lib.types.str;
-      default = "1.21.6";
+      default = "1.21.8";
     };
     build = lib.mkOption {
       type = lib.types.int;
-      default = 17;
+      default = 1;
     };
     memoryLimit = lib.mkOption {
       type = lib.types.str;
