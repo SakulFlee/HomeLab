@@ -73,11 +73,9 @@ in
         #!${pkgs.bash}/bin/bash
         set -euo pipefail
 
-        pushd "${minecraftServerDataDir}"
+        cd "${minecraftServerDataDir}"
         
         "${java}/bin/java -Xms512M -Xmx${config.services.minecraft.memoryLimit} -jar ${minecraftServerDataDir}/server.jar nogui"
-
-        popd
       '';
     in
     {
