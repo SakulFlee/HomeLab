@@ -52,7 +52,7 @@ in
         #!${pkgs.bash}/bin/bash
         set -euo pipefail
 
-        cp "${paperJarDerivation}/jar/server.jar" "${minecraftServerDataDir}/server.jar"
+        ${pkgs.coreutils}/bin/install -m 0644 "${paperJarDerivation}/jar/server.jar" "${minecraftServerDataDir}/server.jar"
 
         mkdir -p "${minecraftServerDataDir}/plugins"
         chown -R minecraft:minecraft "${minecraftServerDataDir}/plugins"
