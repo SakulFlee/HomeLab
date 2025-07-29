@@ -69,6 +69,16 @@ in
           echo "eula=true" > "${minecraftServerDataDir}/eula.txt"
         fi
       '';
+      minecraftScript = pkgs.writeScript "prepare-minecraft-data-dir" ''
+        #!${pkgs.bash}/bin/bash
+        set -euo pipefail
+
+        pushd "${minecraftServerDataDir}"
+        
+        "${java}/bin/java -Xms512M -Xmx${config.services.minecraft.memoryLimit} -jar ${minecraftServerDataDir}/server.jar nogui"
+
+        popd
+      '';
     in
     {
       systemd.services.minecraft = {
@@ -92,9 +102,8 @@ in
           StandardOutput = "journal";
           StandardError = "journal";
 
-          WorkingDirectory = minecraftServerDataDir;
           ExecStartPre = "${prepareMinecraftScript}";
-          ExecStart = "${java}/bin/java -Xms512M -Xmx${config.services.minecraft.memoryLimit} -jar ${minecraftServerDataDir}/server.jar nogui";
+          ExecStart = "${minecraftScript}";
         };
       };
 
