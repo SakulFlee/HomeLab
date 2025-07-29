@@ -52,10 +52,6 @@ in
         #!${pkgs.bash}/bin/bash
         set -euo pipefail
 
-        mkdir -p "${minecraftServerDataDir}"
-        # chown is still needed to ensure the persistent user owns the directory
-        chown -R minecraft:minecraft "${minecraftServerDataDir}"
-
         cp "${paperJarDerivation}/jar/server.jar" "${minecraftServerDataDir}/server.jar"
 
         mkdir -p "${minecraftServerDataDir}/plugins"
@@ -74,7 +70,7 @@ in
         set -euo pipefail
 
         cd "${minecraftServerDataDir}"
-        
+
         "${java}/bin/java -Xms512M -Xmx${config.services.minecraft.memoryLimit} -jar ${minecraftServerDataDir}/server.jar nogui"
       '';
     in
@@ -85,20 +81,22 @@ in
           + " v${config.services.minecraft.version} Build ${toString config.services.minecraft.build}";
         serviceConfig = {
           Type = "simple";
-          
+
           DynamicUser = true;
           User = "minecraft";
           Group = "minecraft";
-          
+
           Restart = "on-failure";
           RestartSec = "10s";
-          
+
           MemoryMax = config.services.minecraft.memoryLimit;
           CPUAccounting = true;
           IOAccounting = true;
           StandardInput = "tty";
           StandardOutput = "journal";
           StandardError = "journal";
+
+          StateDirectory = "minecraft";
 
           ExecStartPre = "${prepareMinecraftScript}";
           ExecStart = "${minecraftScript}";
