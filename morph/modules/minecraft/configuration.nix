@@ -77,12 +77,14 @@ in
           + " v${config.services.minecraft.version} Build ${toString config.services.minecraft.build}";
         serviceConfig = {
           Type = "simple";
+          
           DynamicUser = true;
           User = "minecraft";
           Group = "minecraft";
-          WorkingDirectory = minecraftServerDataDir;
+          
           Restart = "on-failure";
           RestartSec = "10s";
+          
           MemoryMax = config.services.minecraft.memoryLimit;
           CPUAccounting = true;
           IOAccounting = true;
@@ -90,15 +92,11 @@ in
           StandardOutput = "journal";
           StandardError = "journal";
 
-          ExecStart = "${java}/bin/java -Xms512M -Xmx${config.services.minecraft.memoryLimit} -jar ${minecraftServerDataDir}/server.jar nogui";
+          WorkingDirectory = minecraftServerDataDir;
           ExecStartPre = "${prepareMinecraftScript}";
+          ExecStart = "${java}/bin/java -Xms512M -Xmx${config.services.minecraft.memoryLimit} -jar ${minecraftServerDataDir}/server.jar nogui";
         };
       };
-
-      systemd.tmpfiles.rules = [
-        "d '${minecraftServerDataDir}' 0755 minecraft minecraft -"
-        "d '${minecraftServerDataDir}/plugins' 0755 minecraft minecraft -"
-      ];
 
       networking.firewall = {
         allowedTCPPorts = [
