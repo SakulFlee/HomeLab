@@ -40,6 +40,7 @@ in
         pname = "paper-jar";
         version = "${config.services.minecraft.version}-b${toString config.services.minecraft.build}";
 
+        dontUnpack = true;
         src = pkgs.fetchurl {
           url = "https://api.papermc.io/v2/projects/paper/versions/${config.services.minecraft.version}/builds/${toString config.services.minecraft.build}/downloads/paper-${config.services.minecraft.version}-${toString config.services.minecraft.build}.jar";
           sha256 = "sha256-mR3yv8RlcWe2ERctjDyx2rD3If5DmCyqRqH1MrlVc70=";
