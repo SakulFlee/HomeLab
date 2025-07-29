@@ -18,7 +18,7 @@ in
     ../common/networking.nix
     ../common/ssh.nix
     ../common/common_packages.nix
-    ../../modules/minecraft/minecraft-module.nix
+    ../../modules/minecraft/configuration.nix
   ];
 
   services.minecraft = {
