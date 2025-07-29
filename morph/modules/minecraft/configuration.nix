@@ -90,8 +90,8 @@ in
           User = "minecraft";
           Group = "minecraft";
 
-          Restart = "on-failure";
-          RestartSec = "10s";
+          Restart = "always";
+          RestartSec = "1s";
 
           MemoryMax = config.services.minecraft.memoryLimit;
           CPUAccounting = true;
