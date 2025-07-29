@@ -24,6 +24,10 @@ in
       type = lib.types.int;
       default = 1;
     };
+    buildSHA256 = lib.mkOption {
+      type = lib.types.str;
+      default = "sha256-cCPh/j2KbZES/eFhjStBVIkLkqkaJaKwW6fQmGT0Ng8=";
+    };
     memoryLimit = lib.mkOption {
       type = lib.types.str;
       default = "8G";
@@ -43,7 +47,7 @@ in
         dontUnpack = true;
         src = pkgs.fetchurl {
           url = "https://api.papermc.io/v2/projects/paper/versions/${config.services.minecraft.version}/builds/${toString config.services.minecraft.build}/downloads/paper-${config.services.minecraft.version}-${toString config.services.minecraft.build}.jar";
-          sha256 = "sha256-mR3yv8RlcWe2ERctjDyx2rD3If5DmCyqRqH1MrlVc70=";
+          sha256 = "${config.services.minecraft.buildSHA256}";
         };
         installPhase = "mkdir -p $out/jar; cp $src $out/jar/server.jar;";
       };

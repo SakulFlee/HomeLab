@@ -25,6 +25,7 @@ in
     enable = true;
     version = "1.21.8";
     build = 17;
+    buildSHA256 = "sha256-cCPh/j2KbZES/eFhjStBVIkLkqkaJaKwW6fQmGT0Ng8=";
     memoryLimit = "8G";
     pluginsJarsSource = pluginsJarsPath;
   };
