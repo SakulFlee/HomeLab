@@ -47,6 +47,28 @@ in
         };
         installPhase = "mkdir -p $out/jar; cp $src $out/jar/server.jar;";
       };
+
+      prepareMinecraftScript = pkgs.writeScript "prepare-minecraft-data-dir" ''
+        #!${pkgs.bash}/bin/bash
+        set -euo pipefail
+
+        mkdir -p "${minecraftServerDataDir}"
+        # chown is still needed to ensure the persistent user owns the directory
+        chown -R minecraft:minecraft "${minecraftServerDataDir}"
+
+        cp "${paperJarDerivation}/jar/server.jar" "${minecraftServerDataDir}/server.jar"
+
+        mkdir -p "${minecraftServerDataDir}/plugins"
+        chown -R minecraft:minecraft "${minecraftServerDataDir}/plugins"
+
+        find "${minecraftServerDataDir}/plugins" -maxdepth 1 -name "*.jar" -delete || true
+
+        cp -r "${config.services.minecraft.pluginsJarsSource}/." "${minecraftServerDataDir}/plugins/" || true
+
+        if [ ! -f "${minecraftServerDataDir}/eula.txt" ]; then
+          echo "eula=true" > "${minecraftServerDataDir}/eula.txt"
+        fi
+      '';
     in
     {
       systemd.services.minecraft = {
@@ -59,7 +81,6 @@ in
           User = "minecraft";
           Group = "minecraft";
           WorkingDirectory = minecraftServerDataDir;
-          ExecStart = "${java}/bin/java -Xms512M -Xmx${config.services.minecraft.memoryLimit} -jar ${minecraftServerDataDir}/server.jar nogui";
           Restart = "on-failure";
           RestartSec = "10s";
           MemoryMax = config.services.minecraft.memoryLimit;
@@ -69,24 +90,8 @@ in
           StandardOutput = "journal";
           StandardError = "journal";
 
-          ExecStartPre = ''
-            mkdir -p "${minecraftServerDataDir}"
-            # chown is still needed to ensure the persistent user owns the directory
-            chown -R minecraft:minecraft "${minecraftServerDataDir}"
-
-            cp "${paperJarDerivation}/jar/server.jar" "${minecraftServerDataDir}/server.jar"
-
-            mkdir -p "${minecraftServerDataDir}/plugins"
-            chown -R minecraft:minecraft "${minecraftServerDataDir}/plugins"
-
-            find "${minecraftServerDataDir}/plugins" -maxdepth 1 -name "*.jar" -delete || true
-
-            cp -r "${config.services.minecraft.pluginsJarsSource}/." "${minecraftServerDataDir}/plugins/" || true
-
-            if [ ! -f "${minecraftServerDataDir}/eula.txt" ]; then
-              echo "eula=true" > "${minecraftServerDataDir}/eula.txt"
-            fi
-          '';
+          ExecStart = "${java}/bin/java -Xms512M -Xmx${config.services.minecraft.memoryLimit} -jar ${minecraftServerDataDir}/server.jar nogui";
+          ExecStartPre = "${prepareMinecraftScript}";
         };
       };
 
