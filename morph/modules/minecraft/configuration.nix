@@ -7,7 +7,7 @@
 
 let
   minecraftServerDataDir = "/opt/minecraft";
-  java = pkgs.temurin-bin-21-jre; # Using pkgs.temurin-bin-21-jre as previously discussed
+  java = pkgs.temurin-bin-21-jre; # Using pkgs.temurin-bin-21-jre
 in
 {
   options.services.minecraft = {
@@ -34,13 +34,10 @@ in
     };
   };
 
-  # The 'config' attribute is assigned the result of lib.mkIf
   config = lib.mkIf config.services.minecraft.enable (
-    # The 'let ... in { ... }' block is now wrapped in parentheses,
-    # making it a single expression (an attribute set) for lib.mkIf.
     let
       paperJarDerivation = pkgs.stdenv.mkDerivation {
-        pname = "paper-jar"; # Corrected name
+        pname = "paper-jar"; # Renamed back to paper-jar for consistency
         version = "${config.services.minecraft.version}-b${toString config.services.minecraft.build}";
 
         src = pkgs.fetchurl {
@@ -52,14 +49,15 @@ in
       };
     in
     {
-      # This is the attribute set that gets merged by lib.mkIf
       systemd.services.minecraft = {
         description =
           config.services.minecraft.description
           + " v${config.services.minecraft.version} Build ${toString config.services.minecraft.build}";
         serviceConfig = {
           Type = "simple";
-          DynamicUser = true;
+          # REMOVED: DynamicUser = true;
+          User = "minecraft"; # ADDED: Explicitly set user
+          Group = "minecraft"; # ADDED: Explicitly set group
           WorkingDirectory = minecraftServerDataDir;
           ExecStart = "${java}/bin/java -Xms512M -Xmx${config.services.minecraft.memoryLimit} -jar ${minecraftServerDataDir}/server.jar nogui";
           Restart = "on-failure";
@@ -73,6 +71,7 @@ in
 
           ExecStartPre = ''
             mkdir -p "${minecraftServerDataDir}"
+            # chown is still needed to ensure the persistent user owns the directory
             chown -R minecraft:minecraft "${minecraftServerDataDir}"
 
             cp "${paperJarDerivation}/jar/server.jar" "${minecraftServerDataDir}/server.jar"
@@ -91,7 +90,7 @@ in
         };
       };
 
-      # --- These are now within the conditionally merged attribute set ---
+      # These configurations are correctly placed to be conditional
       users.groups.minecraft = { };
       users.users.minecraft = {
         isSystem = true;
@@ -103,13 +102,11 @@ in
       ];
       networking.firewall = {
         allowedTCPPorts = [
-          25565 # Minecraft Java
-          8100 # BlueMap
+          25565
+          8100
         ];
-        allowedUDPPorts = [
-          19132 # Minecraft Bedrock
-        ];
+        allowedUDPPorts = [ 19132 ];
       };
-    } # Close the 'in' attribute set
-  ); # Close the parenthesis for lib.mkIf
+    }
+  );
 }
