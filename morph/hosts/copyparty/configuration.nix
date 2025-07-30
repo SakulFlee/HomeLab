@@ -7,7 +7,7 @@
 
 let
   passwordFile = builtins.readFile ./passwords/sakulflee.pass;
-  passwordFileDerivation = pkgs.writeText "copyparty-password-sakulflee" settingsFile;
+  passwordFileDerivation = pkgs.writeText "copyparty-password-sakulflee" passwordFile;
 in
 {
   deployment.tags = [ "ddns" ];
