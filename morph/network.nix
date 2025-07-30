@@ -7,27 +7,27 @@ in
     description = "HomeLab";
   };
 
-  # "cf-ddns" =
-  #   {
-  #     config,
-  #     pkgs,
-  #     lib,
-  #     ...
-  #   }:
-  #   {
-  #     imports = [ ./hosts/cf-ddns/configuration.nix ];
-  #   };
+  "cf-ddns" =
+    {
+      config,
+      pkgs,
+      lib,
+      ...
+    }:
+    {
+      imports = [ ./hosts/cf-ddns/configuration.nix ];
+    };
 
-  # "caddy" =
-  #   {
-  #     config,
-  #     pkgs,
-  #     lib,
-  #     ...
-  #   }:
-  #   {
-  #     imports = [ ./hosts/caddy/configuration.nix ];
-  #   };
+  "caddy" =
+    {
+      config,
+      pkgs,
+      lib,
+      ...
+    }:
+    {
+      imports = [ ./hosts/caddy/configuration.nix ];
+    };
 
   "minecraft" =
     {
