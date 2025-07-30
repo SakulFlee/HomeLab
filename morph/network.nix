@@ -40,14 +40,14 @@ in
       imports = [ ./hosts/minecraft/configuration.nix ];
     };
 
-  # "copyparty" =
-  #   {
-  #     config,
-  #     pkgs,
-  #     lib,
-  #     ...
-  #   }:
-  #   {
-  #     imports = [ ./hosts/copyparty/configuration.nix ];
-  #   };
+  "copyparty" =
+    {
+      config,
+      pkgs,
+      lib,
+      ...
+    }:
+    {
+      imports = [ ./hosts/copyparty/configuration.nix ];
+    };
 }
