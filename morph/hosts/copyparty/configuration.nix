@@ -20,27 +20,35 @@ in
     ../common/networking.nix
     ../common/ssh.nix
     ../common/common_packages.nix
-
-    copyparty.url = "github:9001/copyparty"
+    "github:9001/copyparty"
   ];
 
   # ensure that copyparty is an allowed argument to the outputs function
-  outputs = { self, nixpkgs, copyparty }: {
-    nixosConfigurations.yourHostName = nixpkgs.lib.nixosSystem {
-      modules = [
-        # load the copyparty NixOS module
-        copyparty.nixosModules.default
-        ({ pkgs, ... }: {
-          # add the copyparty overlay to expose the package to the module
-          nixpkgs.overlays = [ copyparty.overlays.default ];
-          # (optional) install the package globally
-          environment.systemPackages = [ pkgs.copyparty ];
-          # configure the copyparty module
-          services.copyparty.enable = true;
-        })
-      ];
+  outputs =
+    {
+      self,
+      nixpkgs,
+      copyparty,
+    }:
+    {
+      nixosConfigurations.yourHostName = nixpkgs.lib.nixosSystem {
+        modules = [
+          # load the copyparty NixOS module
+          copyparty.nixosModules.default
+          (
+            { pkgs, ... }:
+            {
+              # add the copyparty overlay to expose the package to the module
+              nixpkgs.overlays = [ copyparty.overlays.default ];
+              # (optional) install the package globally
+              environment.systemPackages = [ pkgs.copyparty ];
+              # configure the copyparty module
+              services.copyparty.enable = true;
+            }
+          )
+        ];
+      };
     };
-  };
 
   services.copyparty = {
     enable = true;
@@ -50,7 +58,7 @@ in
     settings = {
       i = "0.0.0.0";
       p = [ 3210 ];
-      
+
       no-reload = true;
     };
 
@@ -62,13 +70,13 @@ in
     volumes = {
       "/" = {
         path = "/srv/copyparty";
-        
+
         # see `copyparty --help-accounts` for available options
         access = {
           r = "";
           rw = [ "sakulflee" ];
         };
-        
+
         # see `copyparty --help-flags` for available options
         flags = {
           # "fk" enables filekeys (necessary for upget permission) (4 chars long)
