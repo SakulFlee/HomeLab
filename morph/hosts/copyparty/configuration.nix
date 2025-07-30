@@ -5,15 +5,15 @@
   ...
 }:
 
-# let
-#   passwordFile = builtins.readFile ./passwords/sakulflee.pass;
-#   passwordFileDerivation = pkgs.writeText "copyparty-password-sakulflee" passwordFile;
+let
+  passwordFile = builtins.readFile ./passwords/sakulflee.pass;
+  passwordFileDerivation = pkgs.writeText "copyparty-password-sakulflee" passwordFile;
 
-#   copypartySrc = builtins.fetchGit {
-#     url = "https://github.com/9001/copyparty";
-#   };
-#   copypartyNixOSModule = import "${copypartySrc}/contrib/nixos/modules/copyparty.nix";
-# in
+  copypartySrc = builtins.fetchGit {
+    url = "https://github.com/9001/copyparty";
+  };
+  copypartyNixOSModule = import "${copypartySrc}/contrib/nixos/modules/copyparty.nix";
+in
 {
   imports = [
     ../../modules/cf-ddns/configuration.nix
@@ -23,83 +23,83 @@
     ../common/networking.nix
     ../common/ssh.nix
     ../common/common_packages.nix
-    # copypartyNixOSModule
+    copypartyNixOSModule
   ];
 
-  # # ensure that copyparty is an allowed argument to the outputs function
-  # outputs =
-  #   {
-  #     self,
-  #     nixpkgs,
-  #     copyparty,
-  #   }:
-  #   {
-  #     nixosConfigurations.yourHostName = nixpkgs.lib.nixosSystem {
-  #       modules = [
-  #         # load the copyparty NixOS module
-  #         copyparty.nixosModules.default
-  #         (
-  #           { pkgs, ... }:
-  #           {
-  #             # add the copyparty overlay to expose the package to the module
-  #             nixpkgs.overlays = [ copyparty.overlays.default ];
-  #             # (optional) install the package globally
-  #             environment.systemPackages = [ pkgs.copyparty ];
-  #             # configure the copyparty module
-  #             services.copyparty.enable = true;
-  #           }
-  #         )
-  #       ];
-  #     };
-  #   };
+  # ensure that copyparty is an allowed argument to the outputs function
+  outputs =
+    {
+      self,
+      nixpkgs,
+      copyparty,
+    }:
+    {
+      nixosConfigurations.yourHostName = nixpkgs.lib.nixosSystem {
+        modules = [
+          # load the copyparty NixOS module
+          copyparty.nixosModules.default
+          (
+            { pkgs, ... }:
+            {
+              # add the copyparty overlay to expose the package to the module
+              nixpkgs.overlays = [ copyparty.overlays.default ];
+              # (optional) install the package globally
+              environment.systemPackages = [ pkgs.copyparty ];
+              # configure the copyparty module
+              services.copyparty.enable = true;
+            }
+          )
+        ];
+      };
+    };
 
-  # services.copyparty = {
-  #   enable = true;
+  services.copyparty = {
+    enable = true;
 
-  #   # Directly maps to values in the [global] section of the copyparty config.
-  #   # see `copyparty --help` for available options
-  #   settings = {
-  #     i = "0.0.0.0";
-  #     p = [ 3210 ];
+    # Directly maps to values in the [global] section of the copyparty config.
+    # see `copyparty --help` for available options
+    settings = {
+      i = "0.0.0.0";
+      p = [ 3210 ];
 
-  #     no-reload = true;
-  #   };
+      no-reload = true;
+    };
 
-  #   # Create user(s) and set their password in a file
-  #   accounts = {
-  #     sakulflee.passwordFile = "${passwordFileDerivation}";
-  #   };
+    # Create user(s) and set their password in a file
+    accounts = {
+      sakulflee.passwordFile = "${passwordFileDerivation}";
+    };
 
-  #   volumes = {
-  #     "/" = {
-  #       path = "/srv/copyparty";
+    volumes = {
+      "/" = {
+        path = "/srv/copyparty";
 
-  #       # see `copyparty --help-accounts` for available options
-  #       access = {
-  #         r = "";
-  #         rw = [ "sakulflee" ];
-  #       };
+        # see `copyparty --help-accounts` for available options
+        access = {
+          r = "";
+          rw = [ "sakulflee" ];
+        };
 
-  #       # see `copyparty --help-flags` for available options
-  #       flags = {
-  #         # "fk" enables filekeys (necessary for upget permission) (4 chars long)
-  #         fk = 4;
+        # see `copyparty --help-flags` for available options
+        flags = {
+          # "fk" enables filekeys (necessary for upget permission) (4 chars long)
+          fk = 4;
 
-  #         # scan for new files every 60sec
-  #         scan = 60;
+          # scan for new files every 60sec
+          scan = 60;
 
-  #         # volflag "e2d" enables the uploads database
-  #         e2d = true;
+          # volflag "e2d" enables the uploads database
+          e2d = true;
 
-  #         # "d2t" disables multimedia parsers (in case the uploads are malicious)
-  #         d2t = true;
+          # "d2t" disables multimedia parsers (in case the uploads are malicious)
+          d2t = true;
 
-  #         # skips hashing file contents if path matches *.iso
-  #         # nohash = "\.iso$";
-  #       };
-  #     };
-  #   };
-  #   # you may increase the open file limit for the process
-  #   openFilesLimit = 8192;
-  # };
+          # skips hashing file contents if path matches *.iso
+          # nohash = "\.iso$";
+        };
+      };
+    };
+    # you may increase the open file limit for the procwaaess
+    openFilesLimit = 8192;
+  };
 }
