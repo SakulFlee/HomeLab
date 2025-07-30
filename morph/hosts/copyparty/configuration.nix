@@ -8,6 +8,11 @@
 let
   passwordFile = builtins.readFile ./passwords/sakulflee.pass;
   passwordFileDerivation = pkgs.writeText "copyparty-password-sakulflee" passwordFile;
+
+  copypartySrc = builtins.fetchGit {
+    url = "https://github.com/9001/copyparty";
+  };
+  copypartyNixOSModule = import "${copypartySrc}/contrib/nixos/modules/copyparty.nix";
 in
 {
   deployment.tags = [ "ddns" ];
@@ -20,7 +25,7 @@ in
     ../common/networking.nix
     ../common/ssh.nix
     ../common/common_packages.nix
-    "github:9001/copyparty"
+    copypartyNixOSModule
   ];
 
   # ensure that copyparty is an allowed argument to the outputs function
