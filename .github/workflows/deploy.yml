@@ -21,9 +21,9 @@ jobs:
           DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
         run: |
           mkdir -p ~/.ssh
-          echo "$SSH_KEY" > ~/.ssh/id
+          echo "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 0700 ~/.ssh
-          chmod 0600 ~/.ssh/id
+          chmod 0600 ~/.ssh/deploy_key
 
       - name: 🧰 Install/Update Galaxy community collection
         run: ansible-galaxy collection install community.general
