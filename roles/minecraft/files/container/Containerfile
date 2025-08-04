@@ -3,9 +3,9 @@ FROM docker.io/eclipse-temurin:24
 ARG MINECRAFT_VERSION="1.21.7"
 ARG PAPER_BUILD="17"
 
-EXPOSE 25565
-EXPOSE 19132
-EXPOSE 8100
+EXPOSE 25565/tcp
+EXPOSE 19132/udp
+EXPOSE 8100/tcp
 
 # Dependencies & Updates
 RUN apt-get update \
