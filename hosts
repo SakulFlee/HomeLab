@@ -1,0 +1,6 @@
+[hosts]
+syncthing ansible_user=root ansible_ssh_extra_args='-o StrictHostKeyChecking=no'
+cloudflare-ddns ansible_user=root ansible_host=192.168.1.29 ansible_ssh_extra_args='-o StrictHostKeyChecking=no'
+caddy ansible_user=root ansible_host=192.168.1.30 ansible_ssh_extra_args='-o StrictHostKeyChecking=no'
+minecraft ansible_user=root ansible_host=192.168.1.27 ansible_ssh_extra_args='-o StrictHostKeyChecking=no'
+matrix ansible_user=root ansible_ssh_extra_args='-o StrictHostKeyChecking=no'

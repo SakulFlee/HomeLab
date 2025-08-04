@@ -1,0 +1,34 @@
+- name: "Create synapse directory"
+  ansible.builtin.file:
+    path: /var/lib/synapse
+    state: directory
+    owner: 991
+    group: 991
+    mode: "0755"
+
+- name: "Copy synapse config files"
+  ansible.builtin.copy:
+    src: config/
+    dest: /var/lib/synapse
+    owner: 991
+    group: 991
+    mode: "0755"
+
+- name: Deploy synapse
+  containers.podman.podman_container:
+    name: synapse
+    image: matrixdotorg/synapse:v1.135.0
+    state: started
+    init: true
+    ports:
+      - 8008:8008
+    volumes:
+      - /var/lib/synapse:/data:z
+    network:
+      - matrix
+
+- name: Add task to start container on reboot
+  ansible.builtin.cron:
+    special_time: "reboot"
+    name: Start container
+    job: podman start synapse

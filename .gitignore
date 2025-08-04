@@ -1,1 +1,4 @@
-.idea/
+# Ansible Galaxy
+.ansible/
+
+

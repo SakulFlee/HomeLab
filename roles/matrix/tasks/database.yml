@@ -1,0 +1,30 @@
+- name: "Create postgresql data directory"
+  ansible.builtin.file:
+    path: /var/lib/postgresql/data
+    state: directory
+    owner: 1000
+    group: 1000
+    mode: "0755"
+
+- name: Deploy database
+  containers.podman.podman_container:
+    name: postgres
+    image: postgres:17
+    state: started
+    init: true
+    env:
+      POSTGRES_PASSWORD: deo1eezae7eith3vaer5cheeghie3ae1paepeiwe7cephah7eetooT9iToh3xei3
+      PGDATA: /var/lib/postgresql/data
+      POSTGRES_INITDB_ARGS: "--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
+    ports:
+      - 5432:5432
+    volumes:
+      - /var/lib/postgresql/data:/var/lib/postgresql/data:z
+    network:
+      - matrix
+
+- name: Add task to start container on reboot
+  ansible.builtin.cron:
+    special_time: "reboot"
+    name: Start container
+    job: podman start postgres

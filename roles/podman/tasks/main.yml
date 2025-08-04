@@ -1,0 +1,11 @@
+- name: "Install podman"
+  ansible.builtin.shell: transactional-update --non-interactive --continue --drop-if-no-change pkg install podman
+  args:
+    creates:
+      - /usr/bin/podman
+  register: update_result
+  changed_when: update_result.stdout is search('New default snapshot')
+
+- name: "Reboot if a new snapshot was committed"
+  ansible.builtin.reboot:
+  when: update_result is changed

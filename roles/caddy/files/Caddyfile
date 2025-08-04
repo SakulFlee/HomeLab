@@ -1,0 +1,18 @@
+{
+    email dev@sakul-flee.de
+}
+
+syncthing.sakul-flee.de {
+    encode gzip
+    reverse_proxy syncthing:8384
+}
+
+bluemap.sakul-flee.de {
+    encode gzip
+
+    reverse_proxy minecraft:8100
+}
+
+sakul-flee.de, www.sakul-flee.de {
+    redir https://sakulflee.github.io
+}

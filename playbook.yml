@@ -1,0 +1,39 @@
+- name: "Cloudflare-DDNS"
+  hosts: cloudflare-ddns
+  become: true
+  roles:
+    - role: podman
+    - role: cron
+    - role: cloudflare-ddns
+
+- name: "Caddy"
+  hosts: caddy
+  become: true
+  roles:
+    - role: podman
+    - role: cron
+    - role: caddy
+
+- name: "Syncthing"
+  hosts: syncthing
+  become: true
+  roles:
+    - role: podman
+    - role: cron
+    - role: syncthing
+
+- name: "Minecraft"
+  hosts: minecraft
+  become: true
+  roles:
+    - role: podman
+    - role: cron
+    - role: minecraft
+
+- name: "Matrix"
+  hosts: matrix
+  become: true
+  roles:
+    - role: podman
+    - role: cron
+    - role: matrix

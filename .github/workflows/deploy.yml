@@ -2,12 +2,12 @@ name: Deploy
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
-jobs:        
+jobs:
   deploy:
     runs-on:
       - self-hosted
@@ -16,54 +16,17 @@ jobs:
       - name: ⏬ Checkout
         uses: actions/checkout@v4
 
-      - name: ⏫ Morph deploy
-        working-directory: morph
-        env:
-          SSH_USER: root
-          SSH_IDENTITY_FILE: /home/github-actions/.ssh/id_rsa
-          SSH_SKIP_HOST_KEY_CHECK: true
-        run: nix-shell --packages morph --command 'morph deploy network.nix switch'
+      - name: ⚙️ Setup
+        with:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/id
+          chmod 0700 ~/.ssh
+          chmod 0600 ~/.ssh/id
 
-  # deploy-caddy:
-  #   runs-on:
-  #     - self-hosted
-  #     - caddy
-  #   needs:
-  #     - checkout
-  #     - deploy-cloudflare-ddns
-  #   steps:
-  #     - name: Deploy - Caddy
-  #       working-directory: Caddy
-  #       run: |
-  #         docker compose build --pull
-  #         docker compose up --detach --remove-orphans
+      - name: 🧰 Install/Update Galaxy community collection
+        run: ansible-galaxy collection install community.general
 
-  # deploy-syncthing:
-  #   runs-on:
-  #     - self-hosted
-  #     - syncthing
-  #   needs:
-  #     - checkout
-  #     - deploy-cloudflare-ddns
-  #     - deploy-caddy
-  #   steps:
-  #     - name: Deploy - SyncThing
-  #       working-directory: SyncThing
-  #       run: |
-  #         docker compose pull
-  #         docker compose up --detach --remove-orphans
-
-  # deploy-minecraft:
-  #   runs-on:
-  #     - self-hosted
-  #     - minecraft
-  #   needs:
-  #     - checkout
-  #     - deploy-cloudflare-ddns
-  #     - deploy-caddy
-  #   steps:
-  #     - name: Deploy - Minecraft
-  #       working-directory: Minecraft
-  #       run: |
-  #         docker compose build --pull
-  #         docker compose up --detach --remove-orphans
+      - name: ⏫ Ansible deploy
+        run: ansible-playbook -i hosts -v playbook.yml
