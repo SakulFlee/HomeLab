@@ -15,12 +15,10 @@ bluemap.sakul-flee.de {
 
 sakul-flee.de, www.sakul-flee.de {
     redir https://sakulflee.github.io
-}
-
-# Matrix
-/.well-known/matrix/server {
-    handle_method GET {
-        respond 200 "{\"m.server\": \"matrix.sakul-flee.de:8008\"}"
+    # Matrix
+    /.well-known/matrix/server {
+        handle_method GET {
+            respond 200 "{\"m.server\": \"matrix.sakul-flee.de:8008\"}"
+        }
     }
 }
-
