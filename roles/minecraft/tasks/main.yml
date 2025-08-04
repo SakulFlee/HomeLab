@@ -12,7 +12,6 @@
     path: /var/lib/container/
     build:
       cache: false
-    force: true
     pull: true
   register: image_build
 
