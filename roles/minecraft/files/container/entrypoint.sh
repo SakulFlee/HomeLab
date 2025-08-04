@@ -12,4 +12,4 @@ cp /plugins/* plugins/
 echo "eula=true" >/app/eula.txt
 
 # Start the server! :)
-java -Xms512M -Xmx8G -jar /paper.jar
+java -Xms512M -Xmx6G -jar /paper.jar
