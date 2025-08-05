@@ -13,6 +13,7 @@
     owner: 991
     group: 991
     mode: "0755"
+  register: synapse_config
 
 - name: Deploy synapse
   containers.podman.podman_container:
@@ -20,12 +21,16 @@
     image: matrixdotorg/synapse:v1.135.0
     state: started
     init: true
+    recreate: "{{ synapse_config.changed }}"
+    restart_policy: unless-stopped
     ports:
       - 8008:8008
     volumes:
       - /var/lib/synapse:/data:z
     network:
       - matrix
+    memory_reservation: 1GB
+    cpus: 1.0
 
 - name: Add task to start container on reboot
   ansible.builtin.cron:

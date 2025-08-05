@@ -2,9 +2,9 @@
   ansible.builtin.import_tasks:
     file: network.yml
 
-- name: Import Database tasks
+- name: Import Postgres tasks
   ansible.builtin.import_tasks:
-    file: database.yml
+    file: postgres.yml
 
 - name: Import Synapse tasks
   ansible.builtin.import_tasks:

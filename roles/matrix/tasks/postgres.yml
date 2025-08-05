@@ -12,6 +12,7 @@
     image: postgres:17
     state: started
     init: true
+    restart_policy: unless-stopped
     env:
       POSTGRES_PASSWORD: deo1eezae7eith3vaer5cheeghie3ae1paepeiwe7cephah7eetooT9iToh3xei3
       PGDATA: /var/lib/postgresql/data
@@ -22,6 +23,8 @@
       - /var/lib/postgresql/data:/var/lib/postgresql/data:z
     network:
       - matrix
+    memory_reservation: 1GB
+    cpus: 1.0
 
 - name: Add task to start container on reboot
   ansible.builtin.cron:
