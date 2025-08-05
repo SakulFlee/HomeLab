@@ -9,7 +9,8 @@
 # For more information on how to configure Synapse, including a complete accounting of
 # each option, go to docs/usage/configuration/config_documentation.md or
 # https://element-hq.github.io/synapse/latest/usage/configuration/config_documentation.html
-server_name: "matrix.sakul-flee.de"
+server_name: "sakul-flee.de"
+serve_well_known: true
 pid_file: /data/homeserver.pid
 listeners:
   - port: 8008
@@ -65,6 +66,7 @@ oidc_providers:
     idp_name: Github
     idp_brand: "github" # optional: styling hint for clients
     discover: false
+    enable_registration: false
     issuer: "https://github.com/"
     client_id: "Ov23lihBTFzjS0e0N2v2"
     client_secret: "5b13e51b89fba40c42890aa0558f800e0036bdc2"
