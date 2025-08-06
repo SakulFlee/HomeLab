@@ -20,4 +20,6 @@ jobs:
         run: ansible-galaxy collection install community.general
 
       - name: ⏫ Ansible deploy
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: False
         run: ansible-playbook -i hosts -v playbook.yml
