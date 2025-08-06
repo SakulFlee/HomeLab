@@ -38,8 +38,8 @@
     volume:
       - "/var/lib/minecraft/:/app:z"
 
-- name: Add task to start container on reboot
+- name: Add Cron task to start containers @boot
   ansible.builtin.cron:
+    name: "Start minecraft container"
     special_time: "reboot"
-    name: Start container
     job: podman start minecraft
