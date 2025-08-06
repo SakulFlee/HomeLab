@@ -1,11 +1,16 @@
-- name: "Install podman"
-  ansible.builtin.shell: transactional-update --non-interactive --continue --drop-if-no-change pkg install podman
-  args:
-    creates:
-      - /usr/bin/podman
-  register: update_result
-  changed_when: update_result.stdout is search('New default snapshot')
+- name: Install podman
+  ansible.builtin.package:
+    name: podman
+    state: present
 
-- name: "Reboot if a new snapshot was committed"
-  ansible.builtin.reboot:
-  when: update_result is changed
+- name: Enable and start podman service
+  ansible.builtin.service:
+    name: podman
+    enabled: true
+    state: started
+
+- name: Enable and start cgroups service
+  ansible.builtin.service:
+    name: cgroups
+    enabled: true
+    state: started
