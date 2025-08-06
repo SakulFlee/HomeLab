@@ -9,3 +9,9 @@
 - name: Import Synapse tasks
   ansible.builtin.import_tasks:
     file: synapse.yml
+
+- name: Add Cron task to start containers @boot
+  ansible.builtin.cron:
+    name: "Start matrix containers"
+    special_time: "reboot"
+    job: podman start postgres synapse

@@ -29,11 +29,3 @@
       - /var/lib/synapse:/data:z
     network:
       - matrix
-    memory_reservation: 1GB
-    cpus: 1.0
-
-- name: Add task to start container on reboot
-  ansible.builtin.cron:
-    special_time: "reboot"
-    name: Start container
-    job: podman start synapse
