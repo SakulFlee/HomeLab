@@ -5,6 +5,7 @@
     owner: root
     group: root
     mode: "0755"
+  register: container_files_copy
 
 - name: "Create minecraft directory"
   ansible.builtin.file:
@@ -20,6 +21,7 @@
     path: /var/lib/container/
     build:
       cache: false
+    force: "{{ container_files_copy.changed }}"
     pull: true
   register: image_build
 
