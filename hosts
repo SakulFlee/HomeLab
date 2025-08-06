@@ -1,6 +1,6 @@
 [hosts]
-syncthing ansible_user=root ansible_ssh_extra_args='-o StrictHostKeyChecking=no'
+syncthing ansible_user=root
 cloudflare-ddns ansible_user=root
 caddy ansible_user=root
-minecraft ansible_user=root ansible_ssh_extra_args='-o StrictHostKeyChecking=no'
+minecraft ansible_user=root
 matrix ansible_user=root
