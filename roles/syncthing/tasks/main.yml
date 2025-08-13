@@ -12,6 +12,7 @@
     name: syncthing
     image: ghcr.io/syncthing/syncthing:latest
     restart_policy: unless-stopped
+    pull: always
     user: "1000:1000"
     ports:
       - 8384:8384 # Web UI
