@@ -18,7 +18,7 @@
 - name: Deploy synapse
   containers.podman.podman_container:
     name: synapse
-    image: matrixdotorg/synapse:v1.135.0
+    image: matrixdotorg/synapse:v1.136.0
     state: started
     init: true
     recreate: "{{ synapse_config.changed }}"
