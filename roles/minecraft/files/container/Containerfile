@@ -1,8 +1,11 @@
 FROM docker.io/eclipse-temurin:24
 
-EXPOSE 25565/tcp # Minecraft Java
-EXPOSE 19132/udp # Minecraft Bedrock
-EXPOSE 8100/tcp  # BlueMap
+# Minecraft Java
+EXPOSE 25565/tcp 
+# Minecraft Bedrock
+EXPOSE 19132/udp 
+# BlueMap
+EXPOSE 8100/tcp  
 
 # Dependencies & Updates
 RUN apt-get update \
