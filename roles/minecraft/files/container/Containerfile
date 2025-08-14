@@ -1,25 +1,21 @@
 FROM docker.io/eclipse-temurin:24
 
-ARG MINECRAFT_VERSION="1.21.8"
-ARG PAPER_BUILD="31"
-
-EXPOSE 25565/tcp
-EXPOSE 19132/udp
-EXPOSE 8100/tcp
+EXPOSE 25565/tcp # Minecraft Java
+EXPOSE 19132/udp # Minecraft Bedrock
+EXPOSE 8100/tcp  # BlueMap
 
 # Dependencies & Updates
 RUN apt-get update \
   && apt-get upgrade -y \
   && apt-get install -y \
-  curl \
   sqlite3 \
   libsqljet-java \
   libxerial-sqlite-jdbc-java
 
-# Server
+# Server directory
 RUN mkdir /app
-# RUN curl -L -o /paper.jar https://api.papermc.io/v2/projects/paper/versions/${MINECRAFT_VERSION}/builds/${PAPER_BUILD}/downloads/paper-${MINECRAFT_VERSION}-${PAPER_BUILD}.jar
-# RUN curl -L -o /paper.jar https://fill-data.papermc.io/v1/objects/aa6357abc6e54187bf45ceb5c78c2839ca7e22f988659223ff2e7147c1554f61/paper-1.21.8-31.jar
+
+# Server file
 copy server.jar /paper.jar
 
 # Plugins
