@@ -27,3 +27,9 @@
   roles:
     - role: podman
     - role: matrix
+
+- name: "Technitium-DNS"
+  hosts: technitium-dns
+  roles:
+    - role: podman
+    - role: technitium-dns
