@@ -1,0 +1,28 @@
+- name: "Copy Pixelmon container"
+  ansible.builtin.copy:
+    src: pixelmon/
+    dest: /var/lib/pixelmon
+    owner: root
+    group: root
+    mode: "0755"
+  register: container_files_copy
+
+- name: "Deploy container"
+  containers.podman.podman_container:
+    state: started
+    name: pixelmon
+    image: docker.io/eclipse-temurin:21
+    restart_policy: unless-stopped
+    init: true
+    recreate: "{{ container_files_copy.changed }}"
+    ports:
+      - "25566:25565/tcp" # Minecraft Java
+    volume:
+      - "/var/lib/pixelmon:/app:z"
+    command: /app/run.sh
+
+- name: Add Cron task to start containers @boot
+  ansible.builtin.cron:
+    name: "Start pixelmon container"
+    special_time: "reboot"
+    job: podman start pixelmon

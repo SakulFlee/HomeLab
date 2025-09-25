@@ -33,3 +33,9 @@
   roles:
     - role: podman
     - role: technitium-dns
+
+- name: "Pixelmon"
+  hosts: pixelmon
+  roles:
+    - role: podman
+    - role: pixelmon

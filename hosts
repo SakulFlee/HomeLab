@@ -5,3 +5,4 @@ caddy ansible_user=root
 minecraft ansible_user=root
 matrix ansible_user=root
 technitium-dns ansible_user=root
+pixelmon ansible_user=root
