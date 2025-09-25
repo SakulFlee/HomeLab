@@ -11,7 +11,7 @@
   containers.podman.podman_container:
     state: started
     name: pixelmon
-    image: docker.io/eclipse-temurin:21
+    image: docker.io/eclipse-temurin:25
     restart_policy: unless-stopped
     init: true
     recreate: "{{ container_files_copy.changed }}"

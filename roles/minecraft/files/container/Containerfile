@@ -1,4 +1,4 @@
-FROM docker.io/eclipse-temurin:24
+FROM docker.io/eclipse-temurin:25
 
 # Minecraft Java
 EXPOSE 25565/tcp 
