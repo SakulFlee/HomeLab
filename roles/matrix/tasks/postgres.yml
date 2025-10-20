@@ -9,7 +9,7 @@
 - name: Deploy database
   containers.podman.podman_container:
     name: postgres
-    image: postgres:17
+    image: postgres:18
     state: started
     init: true
     restart_policy: unless-stopped
