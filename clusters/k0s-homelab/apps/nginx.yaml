@@ -13,4 +13,4 @@ spec:
   targetNamespace: default
   timeout: 3m0s
   wait: true
-  path: ./infrastructure/nginx/
+  path: ./apps/nginx/
