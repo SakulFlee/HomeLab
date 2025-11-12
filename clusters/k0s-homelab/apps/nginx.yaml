@@ -11,6 +11,7 @@ spec:
     kind: GitRepository
     name: flux-system 
   targetNamespace: nginx
+  createNamespace: true
   timeout: 3m0s
   wait: true
   path: ./apps/nginx/
