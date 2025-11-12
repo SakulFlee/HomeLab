@@ -5,25 +5,24 @@ metadata:
   user: admin
 spec:
   hosts:
-    - role: controller
+    - role: controller+worker
       ssh:
         address: 192.168.100.0
         user: root
         port: 22
-        # keyPath: ~/.ssh/id_ed25519   
-        keyPath: null
+        keyPath: ~/.ssh/id_ed25519   
     - role: worker
       ssh:
         address: 192.168.100.1 
         user: root
         port: 22
-        # keyPath: ~/.ssh/id_ed25519
+        keyPath: ~/.ssh/id_ed25519
     - role: worker
       ssh:
         address: 192.168.100.2 
         user: root
         port: 22
-        # keyPath: ~/.ssh/id_ed25519
+        keyPath: ~/.ssh/id_ed25519
   options:
     wait:
       enabled: true
