@@ -1,0 +1,38 @@
+# infrastructure/nginx-app/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  labels:
+    app: nginx
+spec:
+  # Desired number of identical Pods
+  replicas: 3
+  
+  # Selector links the Deployment to its Pods via labels
+  selector:
+    matchLabels:
+      app: nginx
+      component: web
+  
+  # Template defines the Pods the Deployment will create
+  template:
+    metadata:
+      labels:
+        app: nginx
+        component: web
+    spec:
+      containers:
+      - name: nginx-container
+        # The official Nginx Docker image
+        image: nginx:stable
+        # Nginx listens on port 80 by default
+        ports:
+        - containerPort: 80
+        # Simple liveness probe to check if the Nginx process is running
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 5
+          periodSeconds: 5
