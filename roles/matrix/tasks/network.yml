@@ -1,5 +1,0 @@
-- name: Create matrix network
-  containers.podman.podman_network:
-    name: matrix
-    driver: bridge
-    state: present
