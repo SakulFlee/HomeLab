@@ -14,8 +14,8 @@ spec:
         kind: HelmRepository
         name: traefik
       interval: 5m
-  releaseName: traefik 
-  targetNamespace: traefik 
+  releaseName: traefik
+  targetNamespace: traefik
   install:
     remediation:
       retries: 3
@@ -46,11 +46,12 @@ spec:
     gateway:
       listeners:
         web:
-          port: 80 
-          namespacePolicy:
-            from: All   
-        websecure:
-          port: 443
+          port: 80
+          protocol: HTTP
           namespacePolicy:
             from: All
-
+        websecure:
+          port: 443
+          protocol: HTTPS
+          namespacePolicy:
+            from: All
