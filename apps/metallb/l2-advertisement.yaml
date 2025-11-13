@@ -8,5 +8,5 @@ spec:
     - exposed-pool
   nodeSelectors:
     - matchLabels:
-      kubernetes.io/hostname: k0s-controller
+        kubernetes.io/hostname: k0s-controller
 
