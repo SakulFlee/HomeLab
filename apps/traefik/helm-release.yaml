@@ -1,0 +1,24 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmChart
+metadata:
+  name: traefik
+  namespace: default
+spec:
+  interval: 5m0s
+  chart: traefik 
+  reconcileStrategy: ChartVersion
+  sourceRef:
+    kind: HelmRepository
+    name: traefik
+  version: '37.*'
+  values:
+    ports:
+      web:
+        expose: true
+        exposedPort: 80
+        hostPort: 80
+      websecure:
+        expose: true
+        exposedPort: 443
+        hostPort: 443
+
