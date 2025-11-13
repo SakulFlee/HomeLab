@@ -3,6 +3,8 @@ kind: Kustomization
 metadata:
   name: nginx 
   namespace: nginx
+dependsOn:
+- metallb
 resources:
 - namespace.yaml
 - deployment.yaml
