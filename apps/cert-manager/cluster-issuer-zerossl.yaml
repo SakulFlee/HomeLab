@@ -1,0 +1,18 @@
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: zerossl-production
+spec:
+  acme:
+    server: https://acme.zerossl.com/v2/DV90
+    externalAccountBinding:
+      keyID: eebz6czhXTiZkCtJ7yWBrw
+      keySecretRef:
+        name: zerossl-eab-secret
+        key: secret
+    privateKeySecretRef:
+      name: zerossl-production
+    solvers:
+    - http01:
+        ingress:
+          class: traefik
