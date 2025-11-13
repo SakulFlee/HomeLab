@@ -4,5 +4,6 @@ metadata:
   name: nginx 
   namespace: nginx
 resources:
+- namespace.yaml
 - deployment.yaml
 - service.yaml
