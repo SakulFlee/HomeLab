@@ -4,7 +4,7 @@ metadata:
   name: nginx 
   namespace: nginx
 dependsOn:
-- metallb
+- traefik
 resources:
 - namespace.yaml
 - deployment.yaml
