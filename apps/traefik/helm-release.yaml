@@ -37,11 +37,11 @@ spec:
     gateway:
       listeners:
         web:
-          port: 80 
+          # port: 80 
           namespacePolicy:
             from: All   
         websecure:
-          port: 443
+          # port: 443
           namespacePolicy:
             from: All
 
