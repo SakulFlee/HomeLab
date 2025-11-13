@@ -6,5 +6,6 @@ metadata:
 dependsOn:
 - metallb
 resources:
+- traefik.yaml
 - helm-repository.yaml
 - helm-release.yaml
