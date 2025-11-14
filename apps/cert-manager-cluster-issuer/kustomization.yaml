@@ -6,7 +6,6 @@ metadata:
 dependsOn:
 - cert-manager
 resources:
-- secret-zerossl-eab.yaml
 - cluster-issuer-letsencrypt-production.yaml  
 - cluster-issuer-letsencrypt-staging.yaml     
 - cluster-issuer-zerossl.yaml                 
