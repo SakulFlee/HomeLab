@@ -1,15 +1,11 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 metadata:
-  name: traefik 
-  namespace: traefik
+  name: cert-manager
+  namespace: cert-manager
 dependsOn:
 - metallb
 resources:
 - namespace.yaml
 - helm-repository.yaml
 - helm-release.yaml                          
-- secret-zerossl-eab.yaml
-- cluster-issuer-letsencrypt-production.yaml  
-- cluster-issuer-letsencrypt-staging.yaml     
-- cluster-issuer-zerossl.yaml                 
