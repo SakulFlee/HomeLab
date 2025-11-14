@@ -6,4 +6,7 @@ metadata:
 spec:
   ipAddressPools:
     - exposed-pool
+  nodeSelectors:
+    - matchLabels:
+        kubernetes.io/hostname: k0s-controller
 
