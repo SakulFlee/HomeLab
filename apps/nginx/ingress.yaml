@@ -8,13 +8,14 @@ metadata:
 spec:
   ingressClassName: traefik
   tls:
-  - secretName: test-sakul-flee-de-tls
+    - hosts:
+      - secretName: test-sakul-flee-de-tls
   rules:
   - host: test.sakul-flee.de
     http:
       paths:
       - path: /
-        pathType: Prefix
+        pathType: Exact
         backend:
           service:
             name: nginx
