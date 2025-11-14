@@ -34,7 +34,6 @@ spec:
     ports:
       web:
         exposedPort: 80
-        redirectTo: websecure
       websecure:
         exposedPort: 443
         http3:
