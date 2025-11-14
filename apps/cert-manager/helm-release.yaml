@@ -10,7 +10,7 @@ spec:
     spec:
       chart: cert-manager
       sourceRef:
-        kind: OCIRepository
+        kind: HelmRepository
         name: cert-manager
       interval: 5m
   releaseName: cert-manager
