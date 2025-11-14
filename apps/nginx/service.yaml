@@ -8,8 +8,8 @@ metadata:
 spec:
   # LoadBalancer type exposes the service externally (via a cloud load balancer)
   # Change to 'ClusterIP' if you only need internal access (default)
-  type: LoadBalancer 
-  
+  type: ClusterIP 
+
   # The selector MUST match the labels on the Pods (from the Deployment template)
   selector:
     app: nginx
