@@ -9,7 +9,6 @@ spec:
   chart:
     spec:
       chart: cert-manager
-      version: 'v1.19.*'
       sourceRef:
         kind: OCIRepository
         name: cert-manager
