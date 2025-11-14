@@ -6,7 +6,7 @@ spec:
   acme:
     server: https://acme.zerossl.com/v2/DV90
     externalAccountBinding:
-      keyID: Yd5rPVZTGWojeHuyflLYxg
+      keyID: eozH0I8_VE2ccobTDnNIow      
       keySecretRef:
         name: zerossl-eab
         key: hmac
