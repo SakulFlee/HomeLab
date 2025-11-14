@@ -9,7 +9,7 @@ resources:
 - namespace.yaml
 - helm-repository.yaml
 - helm-release.yaml                          
-# - secret-zerossl-eab.yaml
-# - cluster-issuer-letsencrypt-production.yaml  
-# - cluster-issuer-letsencrypt-staging.yaml     
-# - cluster-issuer-zerossl.yaml                 
+- secret-zerossl-eab.yaml
+- cluster-issuer-letsencrypt-production.yaml  
+- cluster-issuer-letsencrypt-staging.yaml     
+- cluster-issuer-zerossl.yaml                 
