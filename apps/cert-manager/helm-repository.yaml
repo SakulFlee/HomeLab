@@ -4,5 +4,6 @@ metadata:
   name: cert-manager
   namespace: flux-system
 spec:
-  interval: 1h0m0s  
+  interval: 1h0m0s 
+  type: oci
   url: oci://quay.io/jetstack/charts/cert-manager
