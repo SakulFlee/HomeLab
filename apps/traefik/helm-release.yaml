@@ -34,8 +34,10 @@ spec:
     ports:
       web:
         exposedPort: 80
+        nodePort: 8080
       websecure:
         exposedPort: 443
+        nodePort: 8443
         http3:
           enabled: true
 
