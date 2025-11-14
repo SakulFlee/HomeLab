@@ -9,7 +9,8 @@ spec:
   ingressClassName: traefik
   tls:
     - hosts:
-      - secretName: test-sakul-flee-de-tls
+      - test.sakul-flee.de
+      secretName: test-tls
   rules:
   - host: test.sakul-flee.de
     http:
