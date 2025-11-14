@@ -9,10 +9,10 @@ spec:
       keyID: eebz6czhXTiZkCtJ7yWBrw
       keySecretRef:
         name: zerossl-eab-secret
+        namespace: cert-manager
         key: secret
     privateKeySecretRef:
       name: zerossl-production
-      namespace: cert-manager
     solvers:
     - http01:
         ingress:
