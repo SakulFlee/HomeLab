@@ -1,0 +1,40 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cloudflare-ddns
+  namespace: cloudflare-ddns
+spec:
+  schedule: "*/5 * * * *"
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Replace
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: cloudflare-ddns
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: cloudflare-ddns
+            image: ghcr.io/sakulflee/cloudflare-ddns:latest
+            volumeMounts:
+            - name: ipv4-last
+              mountPath: /opt/cf_ddns/ipv4.last
+              subPath: ipv4.last
+            - name: cache
+              mountPath: /opt/cloudflare-ddns/cache
+            - name: settings
+              mountPath: /opt/cf_ddns/settings
+              subPath: settings 
+          volumes:
+          - name: ipv4-last
+            persistentVolumeClaim:
+              claimName: cloudflare-ddns-ipv4-last
+          - name: cache
+            persistentVolumeClaim:
+              claimName: cloudflare-ddns-cache
+          - name: settings
+            configMap:
+              name: cloudflare-ddns-settings
