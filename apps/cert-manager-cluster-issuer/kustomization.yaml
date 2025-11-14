@@ -8,4 +8,4 @@ dependsOn:
 resources:
 - cluster-issuer-letsencrypt-production.yaml  
 - cluster-issuer-letsencrypt-staging.yaml     
-- cluster-issuer-zerossl.yaml                 
+- cluster-issuer-zerossl.yaml 

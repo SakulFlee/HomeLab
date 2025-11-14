@@ -8,7 +8,7 @@ spec:
     externalAccountBinding:
       keyID: Yd5rPVZTGWojeHuyflLYxg
       keySecretRef:
-        name: zerossl-eab-secret
+        name: zerossl-eab
         key: hmac
     privateKeySecretRef:
       name: zerossl-production
