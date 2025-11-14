@@ -12,6 +12,7 @@ spec:
         key: secret
     privateKeySecretRef:
       name: zerossl-production
+      namespace: cert-manager
     solvers:
     - http01:
         ingress:
