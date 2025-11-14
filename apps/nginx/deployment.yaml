@@ -2,7 +2,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: nginx-deployment
+  name: nginx
   labels:
     app: nginx
 spec:
@@ -23,7 +23,7 @@ spec:
         component: web
     spec:
       containers:
-      - name: nginx-container
+      - name: nginx
         # The official Nginx Docker image
         image: nginx:stable
         # Nginx listens on port 80 by default
