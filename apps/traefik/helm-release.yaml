@@ -31,6 +31,8 @@ spec:
       target:
         kind: Deployment
   values:
+    service:
+      type: ClusterIP
     ports:
       web:
         exposedPort: 80
