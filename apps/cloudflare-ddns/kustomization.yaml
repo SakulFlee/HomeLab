@@ -5,6 +5,6 @@ metadata:
   namespace: cloudflare-ddns
 resources:
 - namespace.yaml
-# - pvc-cache.yaml
-# - pvc-ipv4.yaml
-# - cronjob.yaml
+- pvc-cache.yaml
+- pvc-ipv4.yaml
+- cronjob.yaml
