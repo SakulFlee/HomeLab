@@ -17,6 +17,7 @@ spec:
   releaseName: longhorn
   targetNamespace: longhorn-system
   install:
+    createNamespace: true
     remediation:
       retries: 3
   upgrade:
