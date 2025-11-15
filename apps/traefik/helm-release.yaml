@@ -32,7 +32,7 @@ spec:
         kind: Deployment
   values:
     service:
-      type: ClusterIP
+      type: NodePort
     ports:
       web:
         exposedPort: 80
