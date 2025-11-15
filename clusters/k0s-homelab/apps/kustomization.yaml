@@ -5,4 +5,5 @@ resources:
 - cert-manager-cluster-issuer.yaml
 - metallb.yaml
 - traefik.yaml
+- traefik-websecure-redirect.yaml
 - nginx.yaml 
