@@ -3,6 +3,7 @@ kind: Kustomization
 resources:
 - cert-manager.yaml
 - cert-manager-cluster-issuer.yaml
+- cloudflare-ddns.yaml
 - metallb.yaml
 - traefik.yaml
 - traefik-websecure-redirect.yaml
