@@ -31,4 +31,7 @@ spec:
     - paths: ["/spec/replicas"]
       target:
         kind: Deployment
-
+  values:
+    service:
+      ui: 
+        type: LoadBalancer
