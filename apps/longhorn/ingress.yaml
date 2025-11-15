@@ -4,7 +4,7 @@ metadata:
   name: longhorn-ingress
   namespace: longhorn-system
   annotations:
-    traefik.ingress.kubernetes.io/router.middlewares: longhorn-system-middlware-basic-auth@kubernetescrd
+    traefik.ingress.kubernetes.io/router.middlewares: longhorn-system-middleware-basic-auth@kubernetescrd
     cert-manager.io/cluster-issuer: zerossl-production
 spec:
   ingressClassName: traefik
@@ -13,13 +13,14 @@ spec:
       - longhorn.sakul-flee.de
       secretName: longhorn-tls
   rules:
-  - http:
-      paths:
-      - pathType: Prefix
-        path: "/"
-        backend:
-          service:
-            name: longhorn-frontend
-            port:
-              number: 80
+    - host: longhorn.sakul-flee.de
+      http:
+        paths:
+        - pathType: Prefix
+          path: "/"
+          backend:
+            service:
+              name: longhorn-frontend
+              port:
+                number: 80
 
