@@ -9,3 +9,5 @@ resources:
 - namespace.yaml
 - helm-repository.yaml
 - helm-release.yaml
+- middleware-auth.yaml
+- ingress.yaml
