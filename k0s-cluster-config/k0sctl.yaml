@@ -7,19 +7,19 @@ spec:
   hosts:
     - role: controller+worker
       ssh:
-        address: 192.168.100.0
+        address: 192.168.1.10
         user: root
         port: 22
         keyPath: ~/.ssh/id_ed25519   
     - role: worker
       ssh:
-        address: 192.168.100.1 
+        address: 192.168.1.11
         user: root
         port: 22
         keyPath: ~/.ssh/id_ed25519
     - role: worker
       ssh:
-        address: 192.168.100.2 
+        address: 192.168.1.12
         user: root
         port: 22
         keyPath: ~/.ssh/id_ed25519
