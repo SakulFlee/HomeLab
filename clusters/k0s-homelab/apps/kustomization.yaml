@@ -7,4 +7,5 @@ resources:
 - metallb.yaml
 - traefik.yaml
 - traefik-websecure-redirect.yaml
+- longhorn.yaml
 - nginx.yaml 
