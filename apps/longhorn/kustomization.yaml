@@ -11,4 +11,3 @@ resources:
 - helm-release.yaml
 - middleware-auth.yaml
 - ingress.yaml
-- backup-target-setting.yaml
