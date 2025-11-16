@@ -1,6 +1,0 @@
-apiVersion: longhorn.io/v1beta2
-kind: Setting
-metadata:
-  name: backup-target
-  namespace: longhorn-system
-value: nfs://192.168.1.3:/volume1/kpool
