@@ -8,19 +8,19 @@ spec:
     - role: controller+worker
       ssh:
         address: 192.168.1.10
-        user: root
+        user: debian
         port: 22
         keyPath: ~/.ssh/id_ed25519   
     - role: worker
       ssh:
         address: 192.168.1.11
-        user: root
+        user: debian
         port: 22
         keyPath: ~/.ssh/id_ed25519
     - role: worker
       ssh:
         address: 192.168.1.12
-        user: root
+        user: debian
         port: 22
         keyPath: ~/.ssh/id_ed25519
   options:
