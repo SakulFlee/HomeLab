@@ -6,7 +6,6 @@ resources:
 - cloudflare-ddns.yaml
 - metallb.yaml
 - traefik.yaml
-- traefik-websecure-redirect.yaml
 # - longhorn.yaml
 - openebs.yaml
 - nginx.yaml 
