@@ -9,7 +9,7 @@ spec:
     default:
       path: /var/lib/longhorn/
       allowScheduling: true
-      storageReserved: 32Gi
+      storageReserved: 34359738368
     storage:
       path: /mnt/longhorn-data/
       allowScheduling: true
