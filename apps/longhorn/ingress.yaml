@@ -4,7 +4,7 @@ metadata:
   name: longhorn-ingress
   namespace: longhorn-system
   annotations:
-    traefik.ingress.kubernetes.io/router.middlewares: longhorn-system-middleware-basic-auth@kubernetescrd
+    # traefik.ingress.kubernetes.io/router.middlewares: longhorn-system-middleware-basic-auth@kubernetescrd
     cert-manager.io/cluster-issuer: zerossl-production
 spec:
   ingressClassName: traefik
