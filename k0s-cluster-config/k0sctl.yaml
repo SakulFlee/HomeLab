@@ -7,7 +7,7 @@ spec:
   hosts:
     - role: controller+worker
       ssh:
-        address: 192.168.1.10
+        address: 192.168.1.12
         user: debian
         port: 22
         keyPath: ~/.ssh/id_ed25519   
@@ -19,7 +19,7 @@ spec:
         keyPath: ~/.ssh/id_ed25519
     - role: worker
       ssh:
-        address: 192.168.1.12
+        address: 192.168.1.10
         user: debian
         port: 22
         keyPath: ~/.ssh/id_ed25519
