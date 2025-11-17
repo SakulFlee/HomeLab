@@ -31,4 +31,10 @@ spec:
     - paths: ["/spec/replicas"]
       target:
         kind: Deployment
-
+  values:
+    engines:
+      local:
+        lvm:
+          enabled: false
+        zfs:
+          enabled: false
