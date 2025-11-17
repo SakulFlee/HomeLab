@@ -4,5 +4,6 @@ metadata:
   name: openebs
   namespace: openebs
 resources:
+- namespace.yaml
 - helm-repository.yaml
 - helm-release.yaml
