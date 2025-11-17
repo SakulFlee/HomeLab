@@ -8,5 +8,5 @@ resources:
 - traefik.yaml
 - traefik-websecure-redirect.yaml
 # - longhorn.yaml
-- openebs
+- openebs.yaml
 - nginx.yaml 
