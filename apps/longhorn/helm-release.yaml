@@ -32,9 +32,6 @@ spec:
       target:
         kind: Deployment
   values:
-    service:
-      ui: 
-        type: ClusterIP
     global:
       tolerations:
         - key: "node-role.kubernetes.io/control-plane"
