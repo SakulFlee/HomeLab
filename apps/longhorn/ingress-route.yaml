@@ -1,0 +1,23 @@
+apiVersion: traefik.containo.us/v1alpha1
+kind: IngressRoute
+metadata:
+  name: longhorn-ingress
+  namespace: longhorn-system
+spec:
+  entryPoints:
+    - web
+  routes:
+  - kind: Rule
+    match: Host('longhorn.sakul-flee.de')
+    middlewares:
+      - name: middleware-basic-auth
+        namespace: longhorn-system
+    services:
+    - kind: Service
+      name: longhorn-frontend
+      port: 80
+  tls:
+    certResolver: zerossl-production
+    domains:
+    - main: longhorn.sakul-flee.de
+

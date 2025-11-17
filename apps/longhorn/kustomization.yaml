@@ -10,4 +10,4 @@ resources:
 - helm-repository.yaml
 - helm-release.yaml
 - middleware-basic-auth.yaml
-- ingress.yaml
+- ingress-route.yaml
