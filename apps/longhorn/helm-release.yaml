@@ -34,7 +34,7 @@ spec:
   values:
     service:
       ui: 
-        type: LoadBalancer
+        type: ClusterIP
     global:
       tolerations:
         - key: "node-role.kubernetes.io/control-plane"
