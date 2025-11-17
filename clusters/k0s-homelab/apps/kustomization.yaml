@@ -6,7 +6,7 @@ resources:
 - cloudflare-ddns.yaml
 - metallb.yaml
 - traefik.yaml
-# - longhorn.yaml
+- longhorn.yaml
 # - openebs.yaml
-- rook-ceph.yaml
+# - rook-ceph.yaml
 - nginx.yaml 
