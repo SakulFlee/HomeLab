@@ -32,6 +32,8 @@ spec:
       target:
         kind: Deployment
   values:
+    defaultSettings:
+      storageReservedPercentageForDefaultDisk: 10
     global:
       tolerations:
         - key: "node-role.kubernetes.io/control-plane"
