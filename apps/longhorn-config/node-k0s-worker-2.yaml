@@ -1,0 +1,14 @@
+apiVersion: longhorn.io/v1beta2
+kind: Node
+metadata:
+  name: k0s-worker-2
+  namespace: longhorn-system
+spec:
+  allowScheduling: true
+  disks:
+    - path: /var/lib/longhorn/
+      allowScheduling: true
+      storageReserved: 145232960716
+    - path: /mnt/longhorn-data/
+      allowScheduling: true
+      storageReserved: 0
