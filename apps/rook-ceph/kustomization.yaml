@@ -1,12 +1,10 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 metadata:
-  name: ceph 
-  namespace: ceph
+  name: rook-ceph
+  namespace: rook-ceph
 resources:
 - namespace.yaml
 - helm-repository.yaml
-- helm-release.yaml
-- middleware-auth.yaml
-- ingress.yaml
-- backup-target.yaml
+- helm-release-rook-ceph.yaml
+- helm-release-rook-ceph-cluster.yaml
