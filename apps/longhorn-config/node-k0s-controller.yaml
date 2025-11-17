@@ -6,7 +6,7 @@ metadata:
 spec:
   allowScheduling: true
   disks:
-    default:
+    default-disk-caddcf2760adf854:
       path: /var/lib/longhorn/
       allowScheduling: true
       storageReserved: 34359738368
