@@ -33,11 +33,10 @@ spec:
         kind: Deployment
   values:
     defaultSettings:
+      taintToleration: "node-role.kubernetes.io/control-plane:NoSchedule"
       storageReservedPercentageForDefaultDisk: 10
     global:
       tolerations:
         - key: "node-role.kubernetes.io/control-plane"
           operator: "Exists"
           effect: "NoSchedule"
-    defaultSettings:
-      taintToleration: "node-role.kubernetes.io/control-plane:NoSchedule"
