@@ -1,0 +1,8 @@
+apiVersion: "openebs.io/v1beta3"
+kind: DiskPool
+metadata:
+  name: pool-worker-2
+  namespace: openebs
+spec:
+  node: k0s-worker-2
+  disks: ["aio:///dev/disk/by-id/nvme-WDC_WDS100T2B0C-00PXH0_21169U473004"]

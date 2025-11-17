@@ -1,0 +1,8 @@
+apiVersion: "openebs.io/v1beta3"
+kind: DiskPool
+metadata:
+  name: pool-controller
+  namespace: openebs
+spec:
+  node: k0s-controller
+  disks: ["aio:///dev/disk/by-id/ata-SanDisk_SSD_PLUS_1000GB_250347802145"]
