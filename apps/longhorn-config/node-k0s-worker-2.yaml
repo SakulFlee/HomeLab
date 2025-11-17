@@ -6,10 +6,6 @@ metadata:
 spec:
   allowScheduling: true
   disks:
-    default-disk-d09e0643f4271227:
-      path: /var/lib/longhorn/
-      allowScheduling: true
-      storageReserved: 34359738368
     storage:
       path: /mnt/longhorn-data/
       allowScheduling: true
