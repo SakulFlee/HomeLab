@@ -59,3 +59,14 @@ for node in $(cat k0s-cluster-config/k0sctl.yaml | grep address | awk {'print $2
 ```
 _Assuming the username is `debian`._
 
+### Step 4.: Reconciliation
+
+After a change has been **pushed** into this repository, FluxCD will automatically detect changes about every 10 minutes.
+If you want to force a reconciliation early, run the following command:
+```bash
+flux reconcile kustomization flux-system --with-source
+```
+
+`flux-system` is the main file handling this whole repository.
+If you just want to update a specific kustomization, simply exchange `flux-system` with the flux kustomization name of your choice!
+
