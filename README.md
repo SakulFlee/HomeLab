@@ -53,3 +53,9 @@ After a bit, Flux should report that it is ready.
 If the cluster is freshly installed, it sometimes fails to do DNS queries _for unknown reasons_.
 **Fully restarting** each node usually fixes that, but you'll have to restart the `flux bootstrap`!
 
+E.g.:
+```bash
+for node in $(cat k0s-cluster-config/k0sctl.yaml | grep address | awk {'print $2'}); do echo "> Rebooting $node ..."; ssh debian@$node -- sudo /sbin/reboot; echo ""; done
+```
+_Assuming the username is `debian`._
+
