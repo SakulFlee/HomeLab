@@ -11,7 +11,7 @@ spec:
       chart: redis
       version: '0.14.*'
       sourceRef:
-        kind: HelmRepository
+        kind: OCIRepository
         name: redis
       interval: 5m
   releaseName: nextcloud-redis
