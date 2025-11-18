@@ -10,3 +10,4 @@ resources:
 - node-k0s-controller.yaml
 - node-k0s-worker-1.yaml
 - node-k0s-worker-2.yaml
+- storage-class.yaml
