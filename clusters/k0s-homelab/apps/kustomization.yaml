@@ -11,5 +11,4 @@ resources:
 - nginx.yaml 
 - cloudnative-pg.yaml
 - pgadmin.yaml
-- redis-enterprise-operator.yaml
 - nextcloud.yaml
