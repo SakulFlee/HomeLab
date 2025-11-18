@@ -9,7 +9,7 @@ spec:
   chart:
     spec:
       chart: redis-enterprise-operator
-      version: '8.0.*'
+      version: '8.0.2-2'
       sourceRef:
         kind: HelmRepository
         name: redis-enterprise-operator
