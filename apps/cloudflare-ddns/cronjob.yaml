@@ -36,5 +36,9 @@ spec:
             persistentVolumeClaim:
               claimName: cloudflare-ddns-cache
           - name: settings
-            configMap:
-              name: cloudflare-ddns-settings
+            secret:
+              secretName: cloudflare-ddns-settings
+              items:
+              - key: settings
+                path: settings
+
