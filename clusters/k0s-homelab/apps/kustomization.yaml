@@ -8,6 +8,4 @@ resources:
 - traefik.yaml
 - longhorn.yaml
 - longhorn-config.yaml
-# - openebs.yaml
-# - rook-ceph.yaml
 - nginx.yaml 
