@@ -9,3 +9,4 @@ resources:
 - longhorn.yaml
 - longhorn-config.yaml
 - nginx.yaml 
+- cloudnative-pg.yaml
