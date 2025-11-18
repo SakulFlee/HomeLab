@@ -32,6 +32,9 @@ spec:
       target:
         kind: Deployment
   values:
+    existingSecret: secret-pgadmin
+    env:
+      email: "pgadmin@sakul-flee.de" 
     ingress:
       enabled: true
       ingressClassName: traefik
