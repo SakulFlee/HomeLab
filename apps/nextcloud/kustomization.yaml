@@ -10,4 +10,5 @@ dependsOn:
 - longhorn-config
 - cloudnative-pg
 resources:
+- namespace.yaml
 - database-postgres.yaml
