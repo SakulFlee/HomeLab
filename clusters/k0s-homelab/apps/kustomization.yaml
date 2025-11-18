@@ -10,3 +10,4 @@ resources:
 - longhorn-config.yaml
 - nginx.yaml 
 - cloudnative-pg.yaml
+- nextcloud.yaml
