@@ -12,3 +12,5 @@ dependsOn:
 resources:
 - namespace.yaml
 - database-postgres.yaml
+- helm-repository-redis.yaml
+- helm-release-redis.yaml

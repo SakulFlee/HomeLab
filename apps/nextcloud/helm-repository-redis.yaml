@@ -1,0 +1,13 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: redis
+  namespace: nextcloud
+spec:
+  interval: 5m0s
+  url: oci://registry-1.docker.io/cloudpirates/redis  
+  layerSelector:
+    mediaType: "application/vnd.cncf.helm.chart.content.v1.tar+gzip"
+    operation: copy
+  ref:
+    semver: "^0.14.0"
