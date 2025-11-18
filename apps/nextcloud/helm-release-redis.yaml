@@ -6,14 +6,9 @@ metadata:
 spec:
   interval: 15m
   timeout: 5m
-  chart:
-    spec:
-      chart: redis
-      version: '0.14.*'
-      sourceRef:
-        kind: OCIRepository
-        name: redis
-      interval: 5m
+  chartRef:
+    kind: OCIRepository
+    name: redis
   releaseName: nextcloud-redis
   targetNamespace: nextcloud
   install:
