@@ -9,7 +9,7 @@ spec:
   chart:
     spec:
       chart: redis
-      version: '1.14.*'
+      version: '0.14.*'
       sourceRef:
         kind: HelmRepository
         name: redis
