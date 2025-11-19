@@ -148,8 +148,8 @@ spec:
         usernameKey: username
         passwordKey: password
         hostKey: host
-        databaseKey: database
-    
+        databaseKey: dbname
+
     # Redis 
     externalRedis:
       enabled: true
