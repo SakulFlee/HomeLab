@@ -92,18 +92,7 @@ spec:
           mountPath: /docker-entrypoint-hooks.d/before-starting/install-apps.sh
           subPath: install-apps.sh
           readOnly: true
-    
-    # HA probes
-    # WARNING: Disable probes during SETUP, enable them afterwards to ensure the containers are alive.
-    #           If the setup takes long enough, the container may get killed preemptively before it can finish the setup process.
-    #           **You will be greeted by the NextCloud setup screen if that happens!**
-    # startupProbe:
-    #   enabled: false
-    # livenessProbe:
-    #   enabled: false
-    # readinessProbe:
-    #   enabled: false
-    
+       
     # Ingress 
     ingress:
       enabled: true
@@ -120,8 +109,6 @@ spec:
     
     # Service 
     service:
-      type: ClusterIP
-      port: 8080
       annotations:
         traefik.ingress.kubernetes.io/service.sticky.cookie: "true"
     
