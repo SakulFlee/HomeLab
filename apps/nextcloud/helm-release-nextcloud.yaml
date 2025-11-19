@@ -120,6 +120,8 @@ spec:
     
     # Service 
     service:
+      type: ClusterIP
+      port: 8080
       annotations:
         traefik.ingress.kubernetes.io/service.sticky.cookie: "true"
     
