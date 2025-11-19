@@ -26,3 +26,5 @@ spec:
     - paths: ["/spec/replicas"]
       target:
         kind: Deployment
+  values:
+    architecture: cluster
