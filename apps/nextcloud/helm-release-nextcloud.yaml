@@ -126,12 +126,12 @@ spec:
     # Persistence 
     persistence:
       enabled: true
-      storageClass: openebs-zfspv
+      storageClass: longhorn-replicated
       size: 8Gi
       accessMode: ReadWriteOnce 
       nextcloudData:
         enabled: true
-        storageClass: openebs-zfspv
+        storageClass: longhorn-replicated 
         size: 128Gi
         accessMode: ReadWriteOnce 
     
