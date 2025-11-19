@@ -15,5 +15,7 @@ resources:
 - configmap-app-install-hook.yaml
 - helm-repository-redis.yaml
 - helm-release-redis.yaml 
+- helm-repository-clamav.yaml
+- helm-release-clamav.yaml
 - helm-repository-nextcloud.yaml
 - helm-release-nextcloud.yaml
