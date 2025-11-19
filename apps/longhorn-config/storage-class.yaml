@@ -6,7 +6,7 @@ metadata:
     storageclass.kubernetes.io/is-default-class: true
 provisioner: driver.longhorn.io
 allowVolumeExpansion: true
-reclaimPolicy: Retain
+reclaimPolicy: Delete
 parameters:
   numberOfReplicas: "3"
   staleReplicaTimeout: "2880" # 48 hours in minutes
