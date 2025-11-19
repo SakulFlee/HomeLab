@@ -100,7 +100,10 @@ spec:
           mountPath: /docker-entrypoint-hooks.d/before-starting/install-apps.sh
           subPath: install-apps.sh
           readOnly: true
-       
+    
+    startupProbe:
+      enabled: true
+
     # Ingress 
     ingress:
       enabled: true
