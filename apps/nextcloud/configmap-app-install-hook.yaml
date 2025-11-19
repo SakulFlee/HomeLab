@@ -144,7 +144,7 @@ data:
       "yes"
       "https://collabora.sakul-flee.de:443"
       "https://collabora.sakul-flee.de"
-      "10.42.0.0/16"
+      "10.0.0.0/8"
     )
 
     # --- Script --- 
