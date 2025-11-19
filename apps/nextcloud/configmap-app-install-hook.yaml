@@ -135,7 +135,7 @@ data:
 
     # 3. Actual values
     APP_CONFIG_VALUES=(
-      "clamav.clamav.svc.cluster.local"
+      "clamav"
       "3310"
       "yes"
       "yes"
