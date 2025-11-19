@@ -74,6 +74,14 @@ spec:
               'OC\Preview\PDF'
             ),
           );
+        logging.config.php: |-
+          <?php
+          $CONFIG = array (
+            'log_type' => 'file',
+            'log_filesystem_inherit_acl' => false,
+            'loglevel' => 0,  # 0=Debug, 1=Info, 2=Warning, 3=Error, 4=Fatal
+            'log_rotate_size' => 10485760,  # 10MB
+          );
       trustedDomains:
         - nextcloud.sakul-flee.de
       extraEnv:
