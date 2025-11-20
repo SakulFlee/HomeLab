@@ -153,12 +153,13 @@ spec:
 
     # Redis 
     externalRedis:
-      enabled: true
-      existingSecret:
-        enabled: true
-        secretName: nextcloud-redis-headless 
-        passwordKey: redis-password
-      host: nextcloud-redis
+      enabled: false
+      # enabled: true
+      # existingSecret:
+      #   enabled: true
+      #   secretName: nextcloud-redis 
+      #   passwordKey: redis-password
+      # host: nextcloud-redis
     
     # Cron 
     cronjob:
