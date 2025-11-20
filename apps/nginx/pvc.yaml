@@ -4,5 +4,5 @@ metadata:
   name: nginx-pvc
   namespace: nginx
 spec:
-  accessMode: ReadWriteMany
+  accessModes: ReadWriteMany
   capacity: 8Gi
