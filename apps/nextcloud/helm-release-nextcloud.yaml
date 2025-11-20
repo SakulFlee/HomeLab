@@ -82,7 +82,7 @@ spec:
             'overwriteprotocol' => 'https',
             'overwritehost' => 'nextcloud.sakul-flee.de',
             'trusted_proxies' => [
-              10.0.0.0/8
+              '10.0.0.0/8',
             ],
             'forwarded_for_headers' => [
               'HTTP_X_FORWARDED_FOR',
