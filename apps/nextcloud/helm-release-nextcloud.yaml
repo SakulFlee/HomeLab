@@ -124,7 +124,7 @@ spec:
       annotations:
         cert-manager.io/cluster-issuer: zerossl-production
         traefik.ingress.kubernetes.io/router.entrypoints: websecure
-        traefik.ingress.kubernetes.io/router.middlewares: nextcloud-hsts@kubernetescrd
+        traefik.ingress.kubernetes.io/router.middlewares: nextcloud-nextcloud-hsts@kubernetescrd
       hosts:
         - nextcloud.sakul-flee.de
       tls:
