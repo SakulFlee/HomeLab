@@ -92,7 +92,7 @@ spec:
           mountPath: /docker-entrypoint-hooks.d/before-starting/pre-install-hook.sh
           subPath: pre-start-hook.sh
           readOnly: true        
-        - name: app-hook
+        - name: pre-install-hook          
           mountPath: /app-hook.sh
           subPath: app-hook.sh
           readOnly: true
