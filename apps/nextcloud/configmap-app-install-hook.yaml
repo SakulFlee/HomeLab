@@ -161,7 +161,7 @@ data:
     done   
 
     # Install and enable apps
-    for e in {$APPS_TO_INSTALL_AND_ENABLE[@]}; do
+    for e in ${APPS_TO_INSTALL_AND_ENABLE[@]}; do
       echo "> Installing and enabling app: $e"
 
       php /var/www/html/occ app:install "$e"
