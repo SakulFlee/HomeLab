@@ -158,7 +158,7 @@ spec:
         enabled: true
         secretName: nextcloud-redis 
         passwordKey: redis-password
-      host: nextcloud-redis-headless
+      host: nextcloud-redis-master
     
     # Cron 
     cronjob:
