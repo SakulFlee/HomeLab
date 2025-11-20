@@ -151,7 +151,7 @@ data:
     echo "Running app install hook ..."
 
     # Remove and disable apps
-    for e in $APPS_TO_REMOVE_AND_DISABLE; do
+    for e in ${APPS_TO_REMOVE_AND_DISABLE[@]}; do
       echo "> Disabling and removing app: $e"
 
       php /var/www/html/occ app:disable "$e"
@@ -161,7 +161,7 @@ data:
     done   
 
     # Install and enable apps
-    for e in $APPS_TO_INSTALL_AND_ENABLE; do
+    for e in {$APPS_TO_INSTALL_AND_ENABLE[@]}; do
       echo "> Installing and enabling app: $e"
 
       php /var/www/html/occ app:install "$e"
