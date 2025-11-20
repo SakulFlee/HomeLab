@@ -35,7 +35,7 @@ spec:
     # Nextcloud settings
     nextcloud:
       host: nextcloud.sakul-flee.de
-      existing_secret:
+      existingSecret:
         enabled: true
         secretName: secret-nextcloud
         usernameKey: username
