@@ -1,4 +1,2 @@
-# Ansible Galaxy
-.ansible/
-
-
+# Kubernetes CRD cache
+~/*
