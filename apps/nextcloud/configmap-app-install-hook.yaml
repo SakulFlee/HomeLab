@@ -5,7 +5,7 @@ metadata:
   name: nextcloud-app-install-hook
   namespace: nextcloud 
 data:
-  pre-start-hook.sh: |
+  app-start-hook.sh: |
     #!/usr/bin/env bash
     nohup bash /app-hook.sh &
   app-hook.sh: |
