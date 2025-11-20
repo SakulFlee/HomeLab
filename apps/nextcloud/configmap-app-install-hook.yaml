@@ -152,14 +152,22 @@ data:
 
     # Remove and disable apps
     for e in $APPS_TO_REMOVE_AND_DISABLE; do
+      echo "> Disabling and removing app: $e"
+
       php /var/www/html/occ app:disable "$e"
       php /var/www/html/occ app:remove "$e"
+
+      echo ""
     done   
 
     # Install and enable apps
     for e in $APPS_TO_INSTALL_AND_ENABLE; do
+      echo "> Installing and enabling app: $e"
+
       php /var/www/html/occ app:install "$e"
       php /var/www/html/occ app:enable "$e"
+
+      echo ""
     done
 
     # App settings 
@@ -180,5 +188,9 @@ data:
       VALUE_KEY=${APP_CONFIG_VALUE_KEYS[i]}
       VALUE=${APP_CONFIG_VALUES[i]}
 
+      echo "Setting '$VALUE_KEY' for app '$KEY' to '$VALUE'!"
+
       php /var/www/html/occ config:app:set "$KEY" "$VALUE_KEY" --value "$VALUE"
+    
+      echo ""
     done 
