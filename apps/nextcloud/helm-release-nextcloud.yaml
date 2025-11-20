@@ -95,7 +95,7 @@ spec:
     
     startupProbe:
       enabled: true
-      initialDelaySeconds: 120
+      initialDelaySeconds: 90
 
     # Ingress 
     ingress:
