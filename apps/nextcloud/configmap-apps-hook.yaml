@@ -2,13 +2,21 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: nextcloud-app-install-hook
+  name: nextcloud-apps-hook
   namespace: nextcloud 
 data:
-  app-start-hook.sh: |
-    #!/usr/bin/env bash
-    nohup bash /app-hook.sh &
-  app-hook.sh: |
+  # We want to overwrite the included script at /cron.sh with our custom script.
+  # Make sure it actually does run CronD in the end!
+  cron.sh: |
+    #!/bin/sh
+    set -eu
+      
+    # This is our ONE-TIME app management & configuration script:
+    nohup bash /apps.sh &
+
+    # This is the standard CronD execution script executed and bundled by Nextcloud:
+    exec busybox crond -f -L /dev/stdout
+  apps.sh: |
     #!/usr/bin/env bash
     
     # --- Config --- 
