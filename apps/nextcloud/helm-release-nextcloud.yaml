@@ -32,6 +32,8 @@ spec:
       target:
         kind: Deployment
   values:
+    replicaCount: 3
+
     # Nextcloud settings
     nextcloud:
       host: nextcloud.sakul-flee.de
