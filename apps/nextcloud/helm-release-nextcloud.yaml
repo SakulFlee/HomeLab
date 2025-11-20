@@ -89,17 +89,17 @@ spec:
         - name: TRUSTED_PROXIES
           value: "10.0.0.0/8"
     
-      # extraVolumes:
-      #   - name: app-install-hook
-      #     configMap:
-      #       name: nextcloud-app-install-hook
-      #       defaultMode: 0777
-      #
-      # extraVolumeMounts:
-      #   - name: app-install-hook
-      #     mountPath: /docker-entrypoint-hooks.d/before-starting/install-apps.sh
-      #     subPath: install-apps.sh
-      #     readOnly: true
+      extraVolumes:
+        - name: app-install-hook
+          configMap:
+            name: nextcloud-app-install-hook
+            defaultMode: 0777
+
+      extraVolumeMounts:
+        - name: app-install-hook
+          mountPath: /docker-entrypoint-hooks.d/before-starting/install-apps.sh
+          subPath: install-apps.sh
+          readOnly: true
     
     startupProbe:
       enabled: true
