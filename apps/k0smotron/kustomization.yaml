@@ -4,6 +4,5 @@ metadata:
   name: k0smotron
   namespace: k0smotron
 resources:
-- namespace.yaml
 - install.yaml
 - cluster.yaml
