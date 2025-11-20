@@ -123,12 +123,12 @@ spec:
       enabled: true
       storageClass: longhorn-replicated
       size: 8Gi
-      accessMode: ReadWriteOnce 
+      accessMode: ReadWriteMany 
       nextcloudData:
         enabled: true
         storageClass: longhorn-replicated 
         size: 128Gi
-        accessMode: ReadWriteOnce 
+        accessMode: ReadWriteMany 
     
     # Database 
     internalDatabase:
