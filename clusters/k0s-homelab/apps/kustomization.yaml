@@ -8,7 +8,6 @@ resources:
 - traefik.yaml
 - longhorn.yaml
 - longhorn-config.yaml
-- nginx.yaml 
 - cloudnative-pg.yaml
 - pgadmin.yaml
 - nextcloud.yaml
