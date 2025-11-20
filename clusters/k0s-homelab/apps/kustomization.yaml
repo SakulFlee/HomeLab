@@ -11,4 +11,5 @@ resources:
 - nginx.yaml 
 - cloudnative-pg.yaml
 - pgadmin.yaml
+- k0smotron.yaml
 - nextcloud.yaml
