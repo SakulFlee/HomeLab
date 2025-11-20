@@ -27,4 +27,9 @@ spec:
       target:
         kind: Deployment
   values:
-    architecture: cluster
+    architecture: replication
+    replicaCount: 3
+    sentinel:
+      enabled: false
+    auth:
+      enabled: true
