@@ -129,6 +129,7 @@ data:
       "av_stream_max_length"
       "enabled"
       "public_wopi_url"
+      "wopi_callback_url"
       "wopi_url"
       "wopi_allowlist"
     )
@@ -142,7 +143,8 @@ data:
       "only_log"
       "52428800"
       "yes"
-      "https://collabora.sakul-flee.de:443"
+      "https://nextcloud.sakul-flee.de"
+      "https://nextcloud.sakul-flee.de"
       "https://collabora.sakul-flee.de"
       "10.0.0.0/8"
     )
