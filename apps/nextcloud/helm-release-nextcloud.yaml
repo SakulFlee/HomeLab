@@ -95,21 +95,21 @@ spec:
         - name: TRUSTED_PROXIES
           value: "10.0.0.0/8"
     
-      extraVolumes:
-        - name: nextcloud-apps-hook
-          configMap:
-            name: nextcloud-apps-hook
-            defaultMode: 0777
-
-      extraVolumeMounts:
-        - name: nextcloud-apps-hook
-          mountPath: /apps.sh
-          subPath: apps.sh
-          readOnly: true
-        - name: nextcloud-apps-hook
-          mountPath: /cron.sh
-          subPath: cron.sh
-          readOnly: true
+      # extraVolumes:
+      #   - name: nextcloud-apps-hook
+      #     configMap:
+      #       name: nextcloud-apps-hook
+      #       defaultMode: 0777
+      #
+      # extraVolumeMounts:
+      #   - name: nextcloud-apps-hook
+      #     mountPath: /apps.sh
+      #     subPath: apps.sh
+      #     readOnly: true
+      #   - name: nextcloud-apps-hook
+      #     mountPath: /cron.sh
+      #     subPath: cron.sh
+      #     readOnly: true
 
     startupProbe:
       enabled: true
