@@ -12,13 +12,17 @@ spec:
     # CORS
     accessControlAllowMethods:
       - GET
-      - OPTIONS
+      - POST
       - PUT
-    accessControlAllowHeaders: 
+      - PATCH
+      - DELETE
+      - OPTIONS
+    accessControlAllowHeaders:
       - '*'
     accessControlAllowOriginList:
       - self
       - https://nextcloud.sakul-flee.de
       - https://collabora.sakul-flee.de
+    accessControlAllowCredentials: true
     accessControlMaxAge: 100
     addVaryHeader: true
