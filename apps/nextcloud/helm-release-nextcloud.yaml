@@ -96,19 +96,19 @@ spec:
           value: "10.0.0.0/8"
     
       extraVolumes:
-        - name: nextcloud-apps-hook
+        - name: app-install-hook
           configMap:
-            name: nextcloud-apps-hook
+            name: nextcloud-app-install-hook
             defaultMode: 0777
 
       extraVolumeMounts:
-        - name: nextcloud-apps-hook
-          mountPath: /apps.sh
-          subPath: apps.sh
+        - name: app-install-hook
+          mountPath: /docker-entrypoint-hooks.d/before-starting/app-start-hook.sh
+          subPath: app-start-hook.sh
           readOnly: true
-        - name: nextcloud-apps-hook
-          mountPath: /cron.sh
-          subPath: cron.sh
+        - name: app-install-hook          
+          mountPath: /app-hook.sh
+          subPath: app-hook.sh
           readOnly: true
 
     startupProbe:
