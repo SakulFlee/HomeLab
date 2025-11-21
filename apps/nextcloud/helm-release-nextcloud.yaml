@@ -74,20 +74,20 @@ spec:
               'OC\Preview\PDF'
             ),
           );
-        # https.config.php: |-
-        #   <?php
-        #   $CONFIG = array(
-        #     'overwriteprotocol' => 'https',
-        #     'overwritehost' => 'nextcloud.sakul-flee.de',
-        #     'trusted_proxies' => [
-        #       '10.0.0.0/8',
-        #     ],
-        #     'forwarded_for_headers' => [
-        #       'HTTP_X_FORWARDED_FOR',
-        #       'HTTP_X_FORWARDED_HOST',
-        #       'HTTP_X_FORWARDED_PROTO'
-        #     ],
-        #   );
+        https.config.php: |-
+          <?php
+          $CONFIG = array(
+            'overwriteprotocol' => 'https',
+            'overwritehost' => 'nextcloud.sakul-flee.de',
+            'trusted_proxies' => [
+              '10.0.0.0/8',
+            ],
+            'forwarded_for_headers' => [
+              'HTTP_X_FORWARDED_FOR',
+              'HTTP_X_FORWARDED_HOST',
+              'HTTP_X_FORWARDED_PROTO'
+            ],
+          );
         # csp.config.php: |-
         #   <?php
         #   $CONFIG = array(
@@ -95,7 +95,6 @@ spec:
         #   );
       trustedDomains:
         - nextcloud.sakul-flee.de
-        - collabora.sakul-flee.de
       extraEnv:
         # Set cluster CIDR as trusted
         - name: TRUSTED_PROXIES
