@@ -9,3 +9,15 @@ spec:
     stsSeconds: 15552000
     stsIncludeSubdomains: true
     forceSTSHeader: true
+    # CORS
+    accessControlAllowMethods:
+      - GET
+      - OPTIONS
+      - PUT
+    accessControlAllowHeaders: "*"
+    accessControlAllowOriginList:
+      - self
+      - https://nextcloud.sakul-flee.de
+      - https://collabora.sakul-flee.de
+    accessControlMaxAge: 100
+    addVaryHeader: true
