@@ -1,7 +1,7 @@
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
-  name: nextcloud-hsts
+  name: middleware-nextcloud
   namespace: nextcloud
 spec:
   headers:

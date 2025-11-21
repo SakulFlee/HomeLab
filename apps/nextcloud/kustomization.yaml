@@ -12,7 +12,7 @@ dependsOn:
 resources:
 - namespace.yaml
 - database-postgres.yaml
-- middleware-hsts.yaml
+- middleware.yaml
 - configmap-app-hook.yaml
 - helm-repository-redis.yaml
 - helm-release-redis.yaml 
