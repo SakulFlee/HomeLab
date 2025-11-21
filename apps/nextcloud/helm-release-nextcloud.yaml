@@ -95,6 +95,7 @@ spec:
         #   );
       trustedDomains:
         - nextcloud.sakul-flee.de
+        - collabora.sakul-flee.de
       extraEnv:
         # Set cluster CIDR as trusted
         - name: TRUSTED_PROXIES
