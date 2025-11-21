@@ -5,9 +5,6 @@ metadata:
   name: nextcloud-app-install-hook
   namespace: nextcloud 
 data:
-  app-start-hook.sh: |
-    #!/usr/bin/env bash
-    nohup bash /app-hook.sh &
   app-hook.sh: |
     #!/usr/bin/env bash
     
@@ -154,26 +151,49 @@ data:
     echo "Running app install hook ..."
 
     # Remove and disable apps
+    echo "### Removing and disabling apps ..."
+    PIDS=()
     for e in ${APPS_TO_REMOVE_AND_DISABLE[@]}; do
-      echo "> Disabling and removing app: $e"
+      (
+        echo "> Disabling and removing app: $e"
 
-      php /var/www/html/occ app:disable "$e"
-      php /var/www/html/occ app:remove "$e"
+        php /var/www/html/occ app:disable "$e"
+        php /var/www/html/occ app:remove "$e"
 
-      echo ""
-    done   
+        echo ""
+      ) &
+      PIDS+=($!)
+    done
+
+    echo "Waiting for all tasks to complete ..."
+    for pid in "${PIDS[@]}"; do
+      wait "$pid"
+    done
 
     # Install and enable apps
+    echo "### Installing and enabling apps ..."
+    PIDS=()
     for e in ${APPS_TO_INSTALL_AND_ENABLE[@]}; do
-      echo "> Installing and enabling app: $e"
+      (
+        echo "> Installing and enabling app: $e"
 
-      php /var/www/html/occ app:install "$e"
-      php /var/www/html/occ app:enable "$e"
+        php /var/www/html/occ app:install "$e"
+        php /var/www/html/occ app:enable "$e"
 
-      echo ""
+        echo ""
+      ) &
+      PIDS+=($!)
+    done
+
+    echo "Waiting for all tasks to complete ..."
+    for pid in "${PIDS[@]}"; do
+      wait "$pid"
     done
 
     # App settings 
+    echo "### Configuring app settings ..."
+    PIDS=()
+
     APP_CONFIG_KEYS_COUNT=${#APP_CONFIG_APP_KEYS[@]}
     APP_CONFIG_VALUE_KEYS_COUNT=${#APP_CONFIG_VALUE_KEYS[@]}
     APP_CONFIG_VALUES_COUNT=${#APP_CONFIG_VALUES[@]}
@@ -191,9 +211,19 @@ data:
       VALUE_KEY=${APP_CONFIG_VALUE_KEYS[i]}
       VALUE=${APP_CONFIG_VALUES[i]}
 
-      echo "Setting '$VALUE_KEY' for app '$KEY' to '$VALUE'!"
+      (
+        echo "Setting '$VALUE_KEY' for app '$KEY' to '$VALUE'!"
 
-      php /var/www/html/occ config:app:set "$KEY" "$VALUE_KEY" --value "$VALUE"
+        php /var/www/html/occ config:app:set "$KEY" "$VALUE_KEY" --value "$VALUE" 
     
-      echo ""
-    done 
+        echo ""
+      ) &
+      PIDS+=($!)
+    done
+
+    echo "Waiting for all tasks to complete ..."
+    for pid in "${PIDS[@]}"; do
+      wait "$pid"
+    done
+
+    echo "### DONE ###"

@@ -102,12 +102,8 @@ spec:
             defaultMode: 0777
 
       extraVolumeMounts:
-        - name: app-install-hook
+        - name: app-hook
           mountPath: /docker-entrypoint-hooks.d/before-starting/app-start-hook.sh
-          subPath: app-start-hook.sh
-          readOnly: true
-        - name: app-install-hook          
-          mountPath: /app-hook.sh
           subPath: app-hook.sh
           readOnly: true
 
