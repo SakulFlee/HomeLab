@@ -9,7 +9,7 @@ spec:
     stsSeconds: 15552000
     stsIncludeSubdomains: true
     forceSTSHeader: true
-    # CORS
+    # CORS (possibly not needed, but just-in-case)
     accessControlAllowMethods:
       - GET
       - POST
