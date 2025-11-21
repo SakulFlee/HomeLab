@@ -95,7 +95,7 @@ spec:
       extraEnv:
         # Set cluster CIDR as trusted
         - name: TRUSTED_PROXIES
-          value: "10.0.0.0/8,192.168.0.0/16"
+          value: "10.0.0.0/8"
     
       extraVolumes:
         - name: app-hook
