@@ -14,7 +14,8 @@ spec:
       - GET
       - OPTIONS
       - PUT
-    accessControlAllowHeaders: "*"
+    accessControlAllowHeaders: 
+      - '*'
     accessControlAllowOriginList:
       - self
       - https://nextcloud.sakul-flee.de
