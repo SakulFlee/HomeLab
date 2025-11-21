@@ -15,7 +15,7 @@ resources:
 - middleware.yaml
 - configmap-app-hook.yaml
 - helm-repository-redis.yaml
-- helm-release-redis.yaml 
+- helm-release-redis.yaml
 - helm-repository-clamav.yaml
 - helm-release-clamav.yaml
 - helm-repository-nextcloud.yaml
