@@ -1,0 +1,52 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kube-prometheus
+  namespace: flux-system
+spec:
+  interval: 15m
+  timeout: 5m
+  chart:
+    spec:
+      chart: kube-prometheus
+      version: '79.6.*'
+      sourceRef:
+        kind: HelmRepository
+        name: kube-prometheus
+      interval: 5m
+  releaseName: kube-prometheus
+  targetNamespace: kube-prometheus
+  install:
+    createNamespace: true
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  test:
+    enable: true
+  driftDetection:
+    mode: enabled
+    ignore:
+    - paths: ["/spec/replicas"]
+      target:
+        kind: Deployment
+  values:
+    grafana:
+      ingress:
+        enabled: true      
+        ingressClassName: traefik
+        annotations:
+          cert-manager.io/cluster-issuer: zerossl-production
+          traefik.ingress.kubernetes.io/router.entrypoints: websecure
+        hosts:
+          - grafana.sakul-flee.de
+        tls:
+          - secretName: grafana-sakul-flee-de-tls
+            hosts:
+              - grafana.sakul-flee.de
+      admin:
+        existingSecret: kube-prometheus-secret
+        userKey: username
+        passwordKey: password
+
