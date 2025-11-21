@@ -11,8 +11,8 @@ spec:
   chartRef:
     kind: OCIRepository
     name: kube-prometheus-stack
-  releaseName: kube-prometheus-stack
-  targetNamespace: kube-prometheus-stack
+  releaseName: kube-prometheus
+  targetNamespace: kube-prometheus
   install:
     createNamespace: true
     remediation:
