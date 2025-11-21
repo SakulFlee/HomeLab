@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: nextcloud-app-install-hook
+  name: nextcloud-app-hook
   namespace: nextcloud 
 data:
   app-hook.sh: |

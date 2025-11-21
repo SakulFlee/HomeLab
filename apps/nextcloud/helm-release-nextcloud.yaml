@@ -96,9 +96,9 @@ spec:
           value: "10.0.0.0/8"
     
       extraVolumes:
-        - name: app-install-hook
+        - name: app-hook
           configMap:
-            name: nextcloud-app-install-hook
+            name: nextcloud-app-hook
             defaultMode: 0777
 
       extraVolumeMounts:
