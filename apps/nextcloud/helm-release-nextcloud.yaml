@@ -90,11 +90,6 @@ spec:
               'HTTP_X_FORWARDED_PROTO'
             ],
           );
-        # csp.config.php: |-
-        #   <?php
-        #   $CONFIG = array(
-        #     'content-security-policy' => "default-src 'none'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; media-src 'self'; frame-src 'self' https://collabora.sakul-flee.de; child-src 'self' https://collabora.sakul-flee.de; object-src 'self' blob:; form-action 'self' https://collabora.sakul-flee.de; frame-ancestors 'self' https://collabora.sakul-flee.de;",
-        #   );
       trustedDomains:
         - nextcloud.sakul-flee.de
       extraEnv:
