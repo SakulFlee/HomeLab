@@ -165,10 +165,12 @@ data:
       PIDS+=($!)
     done
 
-    echo "Waiting for all tasks to complete ..."
+    echo ""
+    echo "### Waiting for all tasks to complete ..."
     for pid in "${PIDS[@]}"; do
       wait "$pid"
     done
+    echo ""
 
     # Install and enable apps
     echo "### Installing and enabling apps ..."
@@ -185,10 +187,12 @@ data:
       PIDS+=($!)
     done
 
-    echo "Waiting for all tasks to complete ..."
+    echo ""
+    echo "### Waiting for all tasks to complete ..."
     for pid in "${PIDS[@]}"; do
       wait "$pid"
     done
+    echo ""
 
     # App settings 
     echo "### Configuring app settings ..."
@@ -221,9 +225,11 @@ data:
       PIDS+=($!)
     done
 
+    echo ""
     echo "Waiting for all tasks to complete ..."
     for pid in "${PIDS[@]}"; do
       wait "$pid"
     done
+    echo ""
 
     echo "### DONE ###"
