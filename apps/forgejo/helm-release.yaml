@@ -6,14 +6,9 @@ metadata:
 spec:
   interval: 15m
   timeout: 5m
-  chart:
-    spec:
-      chart: forgejo
-      version: '15.0.*'
-      sourceRef:
-        kind: HelmRepository
-        name: forgejo
-      interval: 5m
+  chartRef:
+    kind: OCIRepository
+    name: forgejo
   releaseName: forgejo
   targetNamespace: forgejo
   install:

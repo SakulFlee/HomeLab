@@ -6,14 +6,9 @@ metadata:
 spec:
   interval: 15m
   timeout: 5m
-  chart:
-    spec:
-      chart: kube-prometheus-stack
-      version: '79.6.*'
-      sourceRef:
-        kind: HelmRepository
-        name: kube-prometheus-stack
-      interval: 5m
+  chartRef:
+    kind: OCIRepository
+    name: kube-prometheus-stack
   releaseName: kube-prometheus-stack
   targetNamespace: kube-prometheus-stack
   install:
