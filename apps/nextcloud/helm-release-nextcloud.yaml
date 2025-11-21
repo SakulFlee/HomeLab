@@ -74,25 +74,25 @@ spec:
               'OC\Preview\PDF'
             ),
           );
-        https.config.php: |-
-          <?php
-          $CONFIG = array(
-            'overwriteprotocol' => 'https',
-            'overwritehost' => 'nextcloud.sakul-flee.de',
-            'trusted_proxies' => [
-              '10.0.0.0/8',
-            ],
-            'forwarded_for_headers' => [
-              'HTTP_X_FORWARDED_FOR',
-              'HTTP_X_FORWARDED_HOST',
-              'HTTP_X_FORWARDED_PROTO'
-            ],
-          );
-        csp.config.php: |-
-          <?php
-          $CONFIG = array(
-            'content-security-policy' => "default-src 'none'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; media-src 'self'; frame-src 'self' https://collabora.sakul-flee.de; child-src 'self' https://collabora.sakul-flee.de; object-src 'self' blob:; form-action 'self' https://collabora.sakul-flee.de; frame-ancestors 'self' https://collabora.sakul-flee.de;",
-          );
+        # https.config.php: |-
+        #   <?php
+        #   $CONFIG = array(
+        #     'overwriteprotocol' => 'https',
+        #     'overwritehost' => 'nextcloud.sakul-flee.de',
+        #     'trusted_proxies' => [
+        #       '10.0.0.0/8',
+        #     ],
+        #     'forwarded_for_headers' => [
+        #       'HTTP_X_FORWARDED_FOR',
+        #       'HTTP_X_FORWARDED_HOST',
+        #       'HTTP_X_FORWARDED_PROTO'
+        #     ],
+        #   );
+        # csp.config.php: |-
+        #   <?php
+        #   $CONFIG = array(
+        #     'content-security-policy' => "default-src 'none'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; media-src 'self'; frame-src 'self' https://collabora.sakul-flee.de; child-src 'self' https://collabora.sakul-flee.de; object-src 'self' blob:; form-action 'self' https://collabora.sakul-flee.de; frame-ancestors 'self' https://collabora.sakul-flee.de;",
+        #   );
       trustedDomains:
         - nextcloud.sakul-flee.de
       extraEnv:
@@ -123,7 +123,7 @@ spec:
       annotations:
         cert-manager.io/cluster-issuer: zerossl-production
         traefik.ingress.kubernetes.io/router.entrypoints: websecure
-        traefik.ingress.kubernetes.io/router.middlewares: nextcloud-middleware-nextcloud@kubernetescrd
+        # traefik.ingress.kubernetes.io/router.middlewares: nextcloud-middleware-nextcloud@kubernetescrd
       hosts:
         - nextcloud.sakul-flee.de
       tls:
@@ -187,6 +187,9 @@ spec:
     
       image:
         tag: 25.04.7.1.1 # Bug fix for permission issues ...
+
+      autoscaling:
+        enabled: true
     
       collabora:
         existingSecret:
@@ -194,7 +197,7 @@ spec:
           secretName: secret-nextcloud-collabora
           usernameKey: username
           passwordKey: password
-        server_name: collabora.sakul-flee.de:443
+        server_name: collabora.sakul-flee.de
         aliasgroups:
           - host: https://nextcloud.sakul-flee.de    
         extra_params: --o:ssl.enable=false --o:ssl.termination=true 
@@ -205,7 +208,7 @@ spec:
         annotations:
           cert-manager.io/cluster-issuer: zerossl-production
           traefik.ingress.kubernetes.io/router.entrypoints: websecure
-          traefik.ingress.kubernetes.io/router.middlewares: nextcloud-middleware-nextcloud@kubernetescrd
+          # traefik.ingress.kubernetes.io/router.middlewares: nextcloud-middleware-nextcloud@kubernetescrd
         hosts:
           - host: collabora.sakul-flee.de
             paths:
