@@ -180,8 +180,8 @@ spec:
     collabora:
       enabled: true
     
-      # image:
-      #   tag: 25.04.7.1.1 # Bug fix for permission issues ...
+      image:
+        tag: 25.04.7.1.1 # Bug fix for permission issues ...
     
       collabora:
         existingSecret:
