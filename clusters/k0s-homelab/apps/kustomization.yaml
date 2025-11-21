@@ -10,5 +10,5 @@ resources:
 - longhorn-config.yaml
 - cloudnative-pg.yaml
 - pgadmin.yaml
-- prometheus.yaml
+- kube-prometheus.yaml
 - nextcloud.yaml
