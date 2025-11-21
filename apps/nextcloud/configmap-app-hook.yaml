@@ -196,6 +196,12 @@ data:
     done
     echo ""
 
+    # App updates
+    echo ""
+    echo "Updating all apps ..."
+    php /var/www/html/occ app:update --all
+    echo ""
+
     # App settings 
     echo "### Configuring app settings ..."
     PIDS=()
