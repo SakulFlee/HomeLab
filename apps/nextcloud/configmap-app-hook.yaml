@@ -146,7 +146,7 @@ data:
       "https://nextcloud.sakul-flee.de"
       "https://nextcloud.sakul-flee.de"
       "https://collabora.sakul-flee.de"
-      "192.168.0.0/16"
+      "192.168.0.0/16,10.0.0.0/8,127.0.0.1,::1"
     )
 
     # --- Script --- 
