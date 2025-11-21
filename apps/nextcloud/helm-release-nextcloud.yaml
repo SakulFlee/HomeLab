@@ -3,13 +3,15 @@ kind: HelmRelease
 metadata:
   name: nextcloud
   namespace: flux-system
+  labels:
+    reconcile.fluxcd.io/watch: Enabled
 spec:
   interval: 15m
   timeout: 5m
   chart:
     spec:
       chart: nextcloud
-      version: '8.5.*'
+      version: '8.5.x'
       sourceRef:
         kind: HelmRepository
         name: nextcloud

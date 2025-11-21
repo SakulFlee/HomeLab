@@ -3,6 +3,8 @@ kind: HelmRelease
 metadata:
   name: nextcloud-redis
   namespace: flux-system
+  labels:
+    reconcile.fluxcd.io/watch: Enabled
 spec:
   interval: 15m
   timeout: 5m
