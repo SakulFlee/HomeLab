@@ -55,8 +55,8 @@ spec:
     #       secretKeyRef:
     #         name: postgres-secret
     #         key: password
-    #   admin:
-    #     existingSecret: forgejo-secret
+      admin:
+        existingSecret: forgejo-secret
     #   metrics:
     #     enabled: true
     #   environment:
