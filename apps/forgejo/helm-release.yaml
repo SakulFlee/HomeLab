@@ -40,16 +40,12 @@ spec:
         cache:
           ADAPTER: redis
           INTERVAL: 60
-          HOST: redis://:$(REDIS_PASSWORD)@forgejo-redis-master:6379
         queue:
           TYPE: redis
-          CONN_STR: redis://:$(REDIS_PASSWORD)@forgejo-redis-master:6379
         session:
           PROVIDER: redis
-          PROVIDER_CONFIG: redis://:$(REDIS_PASSWORD)@forgejo-redis-master:6379
         "cron.task.queue":
           TYPE: redis
-          CONN_STR: redis://:$(REDIS_PASSWORD)@forgejo-redis-master:6379
       additionalConfigSources:
       - secret:
         secretName: forgejo-postgres-app
@@ -63,6 +59,14 @@ spec:
             secretKeyRef:
               name: forgejo-redis
               key: redis-password
+        - name: FORGEJO__CACHE__HOST
+          value: "redis://:$(REDIS_PASSWORD)@forgejo-redis-master:6379"
+        - name: FORGEJO__QUEUE__CONN_STR
+          value: "redis://:$(REDIS_PASSWORD)@forgejo-redis-master:6379"
+        - name: FORGEJO__SESSION__PROVIDER_CONFIG
+          value: "redis://:$(REDIS_PASSWORD)@forgejo-redis-master:6379"
+        - name: FORGEJO__CRON_TASK_QUEUE__CONN_STR
+          value: "redis://:$(REDIS_PASSWORD)@forgejo-redis-master:6379"
     
     signing:
       enabled: true     
