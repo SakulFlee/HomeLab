@@ -72,25 +72,25 @@ spec:
     #     - name: FORGEJO__SESSION__PROVIDER_CONFIG
     #       value: "redis://:$(REDIS_PASSWORD)@forgejo-redis-master:6379"
     #     - name: FORGEJO__CRON_TASK_QUEUE__CONN_STR
-          value: "redis://:$(REDIS_PASSWORD)@forgejo-redis-master:6379"
-    
-    signing:
-      enabled: true     
-      existingSecret: forgejo-gpg-secret
-  
-    ingress:
-      enabled: true
-      className: traefik
-      annotations: 
-        cert-manager.io/cluster-issuer: zerossl-production
-        traefik.ingress.kubernetes.io/router.entrypoints: websecure
-      hosts:
-      - host: forgejo.sakul-flee.de
-        paths:
-          - path: /
-            pathType: Prefix
-            port: http
-      tls:
-       - secretName: forgejo-sakul-flee-de-tls
-         hosts:
-           - forgejo.sakul-flee.de
+          # value: "redis://:$(REDIS_PASSWORD)@forgejo-redis-master:6379"
+    #
+    # signing:
+    #   enabled: true     
+    #   existingSecret: forgejo-gpg-secret
+    #
+    # ingress:
+    #   enabled: true
+    #   className: traefik
+    #   annotations: 
+    #     cert-manager.io/cluster-issuer: zerossl-production
+    #     traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    #   hosts:
+    #   - host: forgejo.sakul-flee.de
+    #     paths:
+    #       - path: /
+    #         pathType: Prefix
+    #         port: http
+    #   tls:
+    #    - secretName: forgejo-sakul-flee-de-tls
+    #      hosts:
+    #        - forgejo.sakul-flee.de
