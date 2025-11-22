@@ -42,19 +42,19 @@ spec:
         secretName: forgejo-postgres-app
       admin:
         existingSecret: forgejo-secret
-      signing:
-        enabled: true
       metrics:
         enabled: true
-      íngress:
-        enabled: true
-        className: traefik
-        annotations:
-          cert-manager.io/cluster-issuer: zerossl-production
-          traefik.ingress.kubernetes.io/router.entrypoints: websecure
-        hosts:
+    signing:
+      enabled: true     
+    íngress:
+      enabled: true
+      className: traefik
+      annotations:
+        cert-manager.io/cluster-issuer: zerossl-production
+        traefik.ingress.kubernetes.io/router.entrypoints: websecure
+      hosts:
+        - forgejo.sakul-flee.de
+      tls:
+        - secretName: forgejo-sakul-flee-de-tls
+          hosts:
           - forgejo.sakul-flee.de
-        tls:
-          - secretName: forgejo-sakul-flee-de-tls
-            hosts:
-            - forgejo.sakul-flee.de
