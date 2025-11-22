@@ -36,7 +36,20 @@ spec:
     gitea:
       config:
         indexer:
-          REPO_INDEXER_ENABLED: true  
+          REPO_INDEXER_ENABLED: true
+        cache:
+          ADAPTER: redis
+          INTERVAL: 60
+          HOST: redis://:$(REDIS_PASSWORD)@forgejo-redis-master:6379
+        queue:
+          TYPE: redis
+          CONN_STR: redis://:$(REDIS_PASSWORD)@forgejo-redis-master:6379
+        session:
+          PROVIDER: redis
+          PROVIDER_CONFIG: redis://:$(REDIS_PASSWORD)@forgejo-redis-master:6379
+        "cron.task.queue":
+          TYPE: redis
+          CONN_STR: redis://:$(REDIS_PASSWORD)@forgejo-redis-master:6379
       additionalConfigSources:
       - secret:
         secretName: forgejo-postgres-app
@@ -44,6 +57,12 @@ spec:
         existingSecret: forgejo-secret
       metrics:
         enabled: true
+      environment:
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: forgejo-redis
+              key: redis-password
     
     signing:
       enabled: true     

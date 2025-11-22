@@ -6,8 +6,11 @@ metadata:
 dependsOn:
 - cert-manager-cluster-issuer
 - traefik
+- redis
 resources:
 - namespace.yaml
-- helm-repository.yaml
-- helm-release.yaml
 - database-postgres.yaml
+- helm-repository-redis.yaml
+- helm-repository.yaml
+- helm-release-redis.yaml
+- helm-release.yaml
