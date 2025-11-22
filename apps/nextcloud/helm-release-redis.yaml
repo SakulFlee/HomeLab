@@ -34,4 +34,8 @@ spec:
     sentinel:
       enabled: false
     auth:
-      enabled: true
+      enabled: true    
+    persistence:
+      # Redis is only used for e.g. file locks, sessions, etc.
+      # We do not need to store this information across restarts!
+      enabled: false 
