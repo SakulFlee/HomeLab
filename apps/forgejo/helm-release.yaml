@@ -44,9 +44,11 @@ spec:
         existingSecret: forgejo-secret
       metrics:
         enabled: true
+    
     signing:
       enabled: true     
       existingSecret: forgejo-gpg-secret
+    
     íngress:
       enabled: true
       className: traefik
