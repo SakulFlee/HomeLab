@@ -28,3 +28,9 @@ spec:
     - paths: ["/spec/replicas"]
       target:
         kind: Deployment
+  values:
+    autoscaling:
+      enabled: true
+      minReplicas: 1
+      maxReplicas: 3
+      targetCPUUtilizationPercentage: 80
