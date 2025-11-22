@@ -28,44 +28,50 @@ spec:
     - paths: ["/spec/replicas"]
       target:
         kind: Deployment
-  values:
-    persistence:
-      enabled: true
-      storageClass: longhorn-replicated
-    
-    gitea:
-      config:
-        indexer:
-          REPO_INDEXER_ENABLED: true
-        cache:
-          ADAPTER: redis
-          INTERVAL: 60
-        queue:
-          TYPE: redis
-        session:
-          PROVIDER: redis
-        "cron.task.queue":
-          TYPE: redis
-      additionalConfigSources:
-      - secret:
-        secretName: forgejo-postgres-app
-      admin:
-        existingSecret: forgejo-secret
-      metrics:
-        enabled: true
-      environment:
-        - name: REDIS_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: forgejo-redis
-              key: redis-password
-        - name: FORGEJO__CACHE__HOST
-          value: "redis://:$(REDIS_PASSWORD)@forgejo-redis-master:6379"
-        - name: FORGEJO__QUEUE__CONN_STR
-          value: "redis://:$(REDIS_PASSWORD)@forgejo-redis-master:6379"
-        - name: FORGEJO__SESSION__PROVIDER_CONFIG
-          value: "redis://:$(REDIS_PASSWORD)@forgejo-redis-master:6379"
-        - name: FORGEJO__CRON_TASK_QUEUE__CONN_STR
+  # values:
+    # persistence:
+    #   enabled: true
+    #   storageClass: longhorn-replicated
+    #
+    # gitea:
+    #   config:
+    #     indexer:
+    #       REPO_INDEXER_ENABLED: true
+    #     cache:
+    #       ADAPTER: redis
+    #       INTERVAL: 60
+    #     queue:
+    #       TYPE: redis
+    #     session:
+    #       PROVIDER: redis
+    #     "cron.task.queue":
+    #       TYPE: redis
+    #   additionalConfigSources:
+    #   - secret:
+    #     secretName: forgejo-postgres-app
+    #   additionalConfigFromEnvs:
+    #   - name: FORGEJO__DATABASE__PASSWD
+    #     valueFrom:
+    #       secretKeyRef:
+    #         name: postgres-secret
+    #         key: password
+    #   admin:
+    #     existingSecret: forgejo-secret
+    #   metrics:
+    #     enabled: true
+    #   environment:
+    #     - name: REDIS_PASSWORD
+    #       valueFrom:
+    #         secretKeyRef:
+    #           name: forgejo-redis
+    #           key: redis-password
+    #     - name: FORGEJO__CACHE__HOST
+    #       value: "redis://:$(REDIS_PASSWORD)@forgejo-redis-master:6379"
+    #     - name: FORGEJO__QUEUE__CONN_STR
+    #       value: "redis://:$(REDIS_PASSWORD)@forgejo-redis-master:6379"
+    #     - name: FORGEJO__SESSION__PROVIDER_CONFIG
+    #       value: "redis://:$(REDIS_PASSWORD)@forgejo-redis-master:6379"
+    #     - name: FORGEJO__CRON_TASK_QUEUE__CONN_STR
           value: "redis://:$(REDIS_PASSWORD)@forgejo-redis-master:6379"
     
     signing:
