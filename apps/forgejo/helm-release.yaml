@@ -29,10 +29,10 @@ spec:
       target:
         kind: Deployment
   values:
-    # persistence:
-    #   enabled: true
-    #   storageClass: longhorn-replicated
-    #
+    persistence:
+      enabled: true
+      storageClass: longhorn-replicated
+
     # gitea:
     #   config:
     #     indexer:
