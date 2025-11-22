@@ -73,10 +73,10 @@ spec:
     #       value: "redis://:$(REDIS_PASSWORD)@forgejo-redis-master:6379"
     #     - name: FORGEJO__CRON_TASK_QUEUE__CONN_STR
           # value: "redis://:$(REDIS_PASSWORD)@forgejo-redis-master:6379"
-    #
-    # signing:
-    #   enabled: true     
-    #   existingSecret: forgejo-gpg-secret
+
+    signing:
+      enabled: true     
+      existingSecret: forgejo-gpg-secret
 
     ingress:
       enabled: true
