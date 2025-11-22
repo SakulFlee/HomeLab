@@ -33,7 +33,7 @@ spec:
       enabled: true
       storageClass: longhorn-replicated
 
-    # gitea:
+    gitea:
     #   config:
     #     indexer:
     #       REPO_INDEXER_ENABLED: true
@@ -46,9 +46,9 @@ spec:
     #       PROVIDER: redis
     #     "cron.task.queue":
     #       TYPE: redis
-    #   additionalConfigSources:
-    #   - secret:
-    #     secretName: forgejo-postgres-app
+      additionalConfigSources:
+      - secret:
+        secretName: forgejo-postgres-app
     #   additionalConfigFromEnvs:
     #   - name: FORGEJO__DATABASE__PASSWD
     #     valueFrom:
