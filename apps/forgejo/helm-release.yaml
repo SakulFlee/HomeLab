@@ -58,9 +58,9 @@ spec:
       hosts:
         - host: forgejo.sakul-flee.de
           paths:
-            path: /
-            pathType: Prefix
-            port: forgejo-http 
+            - path: /
+              pathType: Prefix
+              port: http
       tls:
         - secretName: forgejo-sakul-flee-de-tls
           hosts:
