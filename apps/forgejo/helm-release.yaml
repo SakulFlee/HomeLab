@@ -50,7 +50,7 @@ spec:
       existingSecret: forgejo-gpg-secret
   
     ingress:
-      enabled: false
+      enabled: true
       className: traefik
       annotations: 
         cert-manager.io/cluster-issuer: zerossl-production
