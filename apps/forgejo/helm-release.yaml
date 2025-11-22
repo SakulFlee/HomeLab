@@ -49,7 +49,7 @@ spec:
       enabled: true     
       existingSecret: forgejo-gpg-secret
     
-    íngress:
+    ingress:
       enabled: true
       className: traefik
       annotations:
