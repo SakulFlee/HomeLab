@@ -11,7 +11,7 @@ spec:
   chart:
     spec:
       chart: jenkins
-      version: '5.8.*'
+      version: '5.8.x'
       sourceRef:
         kind: HelmRepository
         name: jenkins
