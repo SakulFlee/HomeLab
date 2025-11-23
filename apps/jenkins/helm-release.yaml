@@ -83,7 +83,7 @@ spec:
           globalMatrix:
             entries:
               - user:
-                  name: "admin"
+                  name: "${chart-admin-username}"
                   permissions:
                     - "Overall/Administer"
               - user:
