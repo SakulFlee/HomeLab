@@ -68,7 +68,7 @@ spec:
         - blueocean
         - job-dsl
 
-      # JCasC:
+      JCasC:
       #   securityRealm: |-
       #     local:
       #       allowsSignup: false
@@ -77,26 +77,26 @@ spec:
       #       - id: "${chart-admin-username}"
       #         name: "Jenkins Admin"
       #         password: "${chart-admin-password}"
-      #   authorizationStrategy: |-
-      #     loggedInUsersCanDoAnything:
-      #       allowAnonymousRead: true
-      #     globalMatrix:
-      #       entries:
-      #         - user:
-      #             name: "admin"
-      #             permissions:
-      #               - "Overall/Administer"
-      #         - user:
-      #             name: "anonymous"
-      #             permissions:
-      #               - "Overall/Read"
-      #               - "Job/Read"
-      #         - group:
-      #             name: "authenticated"
-      #             permissions:
-      #               - "Overall/Read"
-      #               - "Job/Build"
-      #               - "Job/Create"
+       #     loggedInUsersCanDoAnything:
+      #       allowAnonymousRead: true       
+        authorizationStrategy: |-
+          globalMatrix:
+            entries:
+              - user:
+                  name: "admin"
+                  permissions:
+                    - "Overall/Administer"
+              - user:
+                  name: "anonymous"
+                  permissions:
+                    - "Overall/Read"
+                    - "Job/Read"
+              - group:
+                  name: "authenticated"
+                  permissions:
+                    - "Overall/Read"
+                    - "Job/Build"
+                    - "Job/Create"
         # configScripts:
         #   jobs:
         #   - script: >
