@@ -47,6 +47,7 @@ spec:
           cert-manager.io/cluster-issuer: zerossl-production
           traefik.ingress.kubernetes.io/router.entrypoints: websecure
         hostname: jenkins.sakul-flee.de
+        path: /
         tls:
          - secretName: jenkins-sakul-flee-de-tls
            hosts:
