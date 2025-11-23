@@ -147,7 +147,7 @@ spec:
       nextcloudData:
         enabled: true
         storageClass: longhorn-replicated 
-        size: 128Gi
+        size: 256Gi
         accessMode: ReadWriteOnce 
     
     # Database 
