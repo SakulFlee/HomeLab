@@ -62,11 +62,11 @@ spec:
         enabled: true
 
       additionalPlugins:
-      - locale
+      # - locale
       - matrix-auth
-      - dark-theme
-      - blueocean
-      - job-dsl
+      # - dark-theme
+      # - blueocean
+      # - job-dsl
 
       JCasC:
         securityRealm: |-
