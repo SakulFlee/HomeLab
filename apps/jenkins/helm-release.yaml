@@ -61,13 +61,13 @@ spec:
       prometheus:
         enabled: true
 
-      # additionalPlugins:
-      # # - locale
-      # # - matrix-auth
-      # # - dark-theme
-      # # - blueocean
-      # # - job-dsl
-      #
+      additionalPlugins:
+        - locale
+        - matrix-auth
+        - dark-theme
+        - blueocean
+        - job-dsl
+
       # JCasC:
       #   securityRealm: |-
       #     local:
