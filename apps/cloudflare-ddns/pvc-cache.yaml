@@ -4,6 +4,7 @@ metadata:
   name: cloudflare-ddns-cache
   namespace: cloudflare-ddns
 spec:
+  storageClass: longhorn-volatile
   accessModes:
     - ReadWriteOnce
   resources:
