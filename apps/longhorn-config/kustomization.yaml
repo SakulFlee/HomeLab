@@ -10,7 +10,5 @@ resources:
 - node-k0s-controller.yaml
 - node-k0s-worker-1.yaml
 - node-k0s-worker-2.yaml
-- delete-storage-class-longhorn.yaml
-- delete-storage-class-longhorn-static.yaml
 - storage-class-longhorn-replicated.yaml
 - storage-class-longhorn-volatile.yaml
