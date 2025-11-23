@@ -1,0 +1,16 @@
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: jenkins 
+  namespace: flux-system
+spec:
+  interval: 30m0s
+  prune: true
+  retryInterval: 2m0s
+  sourceRef:
+    kind: GitRepository
+    name: flux-system 
+  targetNamespace: jenkins
+  timeout: 3m0s
+  wait: true
+  path: ./apps/jenkins/
