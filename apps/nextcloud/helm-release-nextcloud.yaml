@@ -90,6 +90,11 @@ spec:
               'HTTP_X_FORWARDED_PROTO'
             ],
           );
+        trash.config.php: |-
+          <?php
+          $CONFIG = array (
+            'trashbin_retention_obligation' => 'auto'
+          );
       trustedDomains:
         - nextcloud.sakul-flee.de
       extraEnv:
