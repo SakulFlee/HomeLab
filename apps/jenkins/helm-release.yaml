@@ -61,42 +61,42 @@ spec:
       prometheus:
         enabled: true
 
-      additionalPlugins:
-      # - locale
-      - matrix-auth
-      # - dark-theme
-      # - blueocean
-      # - job-dsl
-
-      JCasC:
-        securityRealm: |-
-          local:
-            allowsSignup: false
-            enableCaptcha: false
-            users:
-            - id: "${chart-admin-username}"
-              name: "Jenkins Admin"
-              password: "${chart-admin-password}"
-        authorizationStrategy: |-
-          loggedInUsersCanDoAnything:
-            allowAnonymousRead: true
-          globalMatrix:
-            entries:
-              - user:
-                  name: "admin"
-                  permissions:
-                    - "Overall/Administer"
-              - user:
-                  name: "anonymous"
-                  permissions:
-                    - "Overall/Read"
-                    - "Job/Read"
-              - group:
-                  name: "authenticated"
-                  permissions:
-                    - "Overall/Read"
-                    - "Job/Build"
-                    - "Job/Create"
+      # additionalPlugins:
+      # # - locale
+      # # - matrix-auth
+      # # - dark-theme
+      # # - blueocean
+      # # - job-dsl
+      #
+      # JCasC:
+      #   securityRealm: |-
+      #     local:
+      #       allowsSignup: false
+      #       enableCaptcha: false
+      #       users:
+      #       - id: "${chart-admin-username}"
+      #         name: "Jenkins Admin"
+      #         password: "${chart-admin-password}"
+      #   authorizationStrategy: |-
+      #     loggedInUsersCanDoAnything:
+      #       allowAnonymousRead: true
+      #     globalMatrix:
+      #       entries:
+      #         - user:
+      #             name: "admin"
+      #             permissions:
+      #               - "Overall/Administer"
+      #         - user:
+      #             name: "anonymous"
+      #             permissions:
+      #               - "Overall/Read"
+      #               - "Job/Read"
+      #         - group:
+      #             name: "authenticated"
+      #             permissions:
+      #               - "Overall/Read"
+      #               - "Job/Build"
+      #               - "Job/Create"
         # configScripts:
         #   jobs:
         #   - script: >
