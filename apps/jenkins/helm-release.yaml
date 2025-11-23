@@ -34,6 +34,11 @@ spec:
       target:
         kind: Deployment
   values:
+    persistence:
+      enabled: true
+      storageClass: longhorn-volatile
+      size: 32Gi
+
     controller:
       admin:
         username: SakulFlee
@@ -55,3 +60,62 @@ spec:
 
       prometheus:
         enabled: true
+
+      additionalPlugins:
+      - locale
+      - matrix-auth
+      - dark-theme
+      - blueocean
+      - job-dsl
+
+      JCasC:
+        securityRealm: |-
+          local:
+            allowsSignup: false
+            enableCaptcha: false
+            users:
+            - id: "${chart-admin-username}"
+              name: "Jenkins Admin"
+              password: "${chart-admin-password}"
+        authorizationStrategy: |-
+          loggedInUsersCanDoAnything:
+            allowAnonymousRead: true
+          globalMatrix:
+            entries:
+              - user:
+                  name: "admin"
+                  permissions:
+                    - "Overall/Administer"
+              - user:
+                  name: "anonymous"
+                  permissions:
+                    - "Overall/Read"
+                    - "Job/Read"
+              - group:
+                  name: "authenticated"
+                  permissions:
+                    - "Overall/Read"
+                    - "Job/Build"
+                    - "Job/Create"
+        configScripts:
+          jobs:
+          - script: >
+              folder('testjobs')
+          - script: >
+              pipelineJob('testjobs/default-agent') {
+                definition {
+                  cps {
+                    script("""\
+                      pipeline {
+                        agent any
+                        stages {
+                          stage ('test') {
+                            steps {
+                              echo "hello"
+                            }
+                          }
+                        }
+                      }""".stripIndent())
+                  }
+                }
+              }
