@@ -63,22 +63,12 @@ spec:
 
       additionalPlugins:
         - locale
-        - matrix-auth
         - dark-theme
-        - blueocean
+        - matrix-auth
         - job-dsl
+        - blueocean
 
       JCasC:
-      #   securityRealm: |-
-      #     local:
-      #       allowsSignup: false
-      #       enableCaptcha: false
-      #       users:
-      #       - id: "${chart-admin-username}"
-      #         name: "Jenkins Admin"
-      #         password: "${chart-admin-password}"
-       #     loggedInUsersCanDoAnything:
-      #       allowAnonymousRead: true       
         authorizationStrategy: |-
           globalMatrix:
             entries:
@@ -97,25 +87,26 @@ spec:
                     - "Overall/Read"
                     - "Job/Build"
                     - "Job/Create"
-        # configScripts:
-        #   jobs:
-        #   - script: >
-        #       folder('testjobs')
-        #   - script: >
-        #       pipelineJob('testjobs/default-agent') {
-        #         definition {
-        #           cps {
-        #             script("""\
-        #               pipeline {
-        #                 agent any
-        #                 stages {
-        #                   stage ('test') {
-        #                     steps {
-        #                       echo "hello"
-        #                     }
-        #                   }
-        #                 }
-        #               }""".stripIndent())
-        #           }
-        #         }
-        #       }
+        configScripts:
+          seed-job-config: |
+            jobs:
+              - script: >
+                job('Job-Seeder') {
+                  description('Job that runs all Job DSL Groovy scripts from SCM.')
+
+                  scm {
+                    git('https://github.com/myorg/jenkins-jobs.git', 'main')
+                  }
+
+                  steps {
+                    jobDsl {
+                      // Process all Groovy Job definition files in the repository.
+                      // This will add each Job definition to Jenkins.
+                      targets('**/*.groovy') 
+                    }
+                  }
+
+                  triggers {
+                    cron('H/15 * * * *') # Run every 15 minutes
+                  }
+                }
