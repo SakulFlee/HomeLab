@@ -17,7 +17,7 @@ spec:
         name: alekc
       interval: 5m
   releaseName: sonarr
-  targetNamespace: sonarr
+  targetNamespace: media
   install:
     createNamespace: true
     remediation:
