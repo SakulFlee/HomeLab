@@ -63,7 +63,6 @@ spec:
 
       additionalPlugins:
         - locale
-        - dark-theme
         - matrix-auth
         - job-dsl
         - blueocean
@@ -93,6 +92,10 @@ spec:
           #     languageCode: "en"
           #     ignoreAcceptLanguage: false
           #     countryCode: "US"
+          allow-pipeline-scripts: |
+            jenkins:
+              globalJobDslSecurityConfiguration:
+                useScriptSecurity: false
           seed-job-config: |
             jobs:
               - script: >
