@@ -11,7 +11,7 @@ spec:
   chart:
     spec:
       chart: prowlarr
-      version: '1.8.x'
+      version: '2.2.x'
       sourceRef:
         kind: HelmRepository
         name: alekc
