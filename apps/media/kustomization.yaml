@@ -13,3 +13,4 @@ resources:
 - persistent-volume-claim.yaml
 - helm-repository.yaml
 - helm-release-sonarr.yaml
+- helm-release-radarr.yaml
