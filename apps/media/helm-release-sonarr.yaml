@@ -47,6 +47,10 @@ spec:
       - name: media
         mountPath: /mnt/media
 
+    service:
+      type: "ClusterIP"
+      port: 8989
+
     ingress:
       enabled: true
       className: traefik        
