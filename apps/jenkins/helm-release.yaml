@@ -92,24 +92,12 @@ spec:
                     - "Job/Build"
                     - "Job/Create"
         configScripts:
-<<<<<<< HEAD
           locale-config: |
             appearance:
               locale:
                 allowUserPreferences: true
                 ignoreAcceptLanguage: true
                 systemLocale: "en"
-          allow-pipeline-scripts: |
-            jenkins:
-              globalJobDslSecurityConfiguration:
-                useScriptSecurity: false
-=======
-          # locale-config: |
-          #   locale:
-          #     languageCode: "en"
-          #     ignoreAcceptLanguage: false
-          #     countryCode: "US"
->>>>>>> parent of d3d06ef (Added option to allow pipeline scripts by default)
           seed-job-config: |
             jobs:
               - script: >
