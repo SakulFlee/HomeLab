@@ -99,6 +99,10 @@ spec:
                 allowUserPreferences: true
                 ignoreAcceptLanguage: true
                 systemLocale: "en"
+          job-security-config: |
+            security:
+              globalJobDslSecurityConfiguration:
+                useScriptSecurity: true
           seed-job-config: |
             jobs:
               - script: >
