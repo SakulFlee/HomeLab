@@ -188,7 +188,7 @@ spec:
       enabled: true
 
       autoscaling:
-        enabled: true
+        enabled: false
     
       collabora:
         existingSecret:
