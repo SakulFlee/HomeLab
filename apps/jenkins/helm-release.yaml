@@ -101,7 +101,11 @@ spec:
 
                     scm {
                       git {
-                        url('https://forgejo.sakul-flee.de/SakulFlee/Jenkins-Job-Configurations')
+                        remote {
+                          name('origin')
+                          url('https://forgejo.sakul-flee.de/SakulFlee/Jenkins-Job-Configurations')
+                        }
+
                         branch('main')
 
                         extensions {}
