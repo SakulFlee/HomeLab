@@ -61,7 +61,11 @@ spec:
       prometheus:
         enabled: true
 
-      additionalPlugins:
+      installPlugins:
+        - kubernetes
+        - workflow-aggregator
+        - git
+        - configuration-as-code
         - locale
         - dark-theme
         - matrix-auth
