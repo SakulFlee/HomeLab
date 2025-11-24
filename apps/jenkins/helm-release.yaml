@@ -88,7 +88,7 @@ spec:
                     - "Job/Build"
                     - "Job/Create"
         configScripts:
-          jenkins-locale-config: |
+          locale-config: |
             locale:
               languageCode: "en"
               ignoreAcceptLanguage: false
