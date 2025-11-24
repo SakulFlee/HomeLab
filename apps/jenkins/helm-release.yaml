@@ -67,6 +67,7 @@ spec:
 
       additionalPlugins:
         - locale
+        - dark-theme
         - matrix-auth
         - job-dsl
         - blueocean
@@ -91,6 +92,7 @@ spec:
                     - "Job/Build"
                     - "Job/Create"
         configScripts:
+<<<<<<< HEAD
           locale-config: |
             appearance:
               locale:
@@ -101,6 +103,13 @@ spec:
             jenkins:
               globalJobDslSecurityConfiguration:
                 useScriptSecurity: false
+=======
+          # locale-config: |
+          #   locale:
+          #     languageCode: "en"
+          #     ignoreAcceptLanguage: false
+          #     countryCode: "US"
+>>>>>>> parent of d3d06ef (Added option to allow pipeline scripts by default)
           seed-job-config: |
             jobs:
               - script: >
