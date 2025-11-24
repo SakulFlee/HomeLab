@@ -43,6 +43,10 @@ spec:
       admin:
         username: SakulFlee
         createSecret: true
+  
+      jenkinsUrl: jenkins.sakul-flee.de
+      jenkinsUrlProtocol: https
+      jenkinsAdminEmail: jenkins@sakul-flee.de
 
       # Ingress
       ingress:
