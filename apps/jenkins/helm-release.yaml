@@ -88,6 +88,11 @@ spec:
                     - "Job/Build"
                     - "Job/Create"
         configScripts:
+          jenkins-locale-config: |
+            locale:
+              languageCode: "en"
+              ignoreAcceptLanguage: false
+              countryCode: "US"
           seed-job-config: |
             jobs:
               - script: >
