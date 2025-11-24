@@ -37,7 +37,7 @@ spec:
     persistence:
       enabled: true
       storageClass: longhorn-volatile
-      size: 32Gi
+      size: 8Gi
 
     controller:
       admin:
