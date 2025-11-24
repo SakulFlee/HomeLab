@@ -91,11 +91,12 @@ spec:
                     - "Job/Build"
                     - "Job/Create"
         configScripts:
-          # locale-config: |
-          #   locale:
-          #     languageCode: "en"
-          #     ignoreAcceptLanguage: false
-          #     countryCode: "US"
+          locale-config: |
+            appearance:
+              locale:
+                allowUserPreferences: true
+                ignoreAcceptLanguage: true
+                systemLocale: "en"
           allow-pipeline-scripts: |
             jenkins:
               globalJobDslSecurityConfiguration:
