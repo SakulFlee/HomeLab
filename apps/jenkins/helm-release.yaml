@@ -91,23 +91,23 @@ spec:
           seed-job-config: |
             jobs:
               - script: >
-                job('Job-Seeder') {
-                  description('Job that runs all Job DSL Groovy scripts from SCM.')
+                  job('Job-Seeder') {
+                    description('Job that runs all Job DSL Groovy scripts from SCM.')
 
-                  scm {
-                    git('https://github.com/myorg/jenkins-jobs.git', 'main')
-                  }
+                    scm {
+                      git('https://github.com/myorg/jenkins-jobs.git', 'main')
+                    }
 
-                  steps {
-                    jobDsl {
-                      // Process all Groovy Job definition files in the repository.
-                      // This will add each Job definition to Jenkins.
-                      targets('**/*.groovy') 
+                    steps {
+                      jobDsl {
+                        // Process all Groovy Job definition files in the repository.
+                        // This will add each Job definition to Jenkins.
+                        targets('**/*.groovy') 
+                      }
+                    }
+
+                    triggers {
+                      // Run every 5 minutes
+                      cron('H/5 * * * *')
                     }
                   }
-
-                  triggers {
-                    // Run every 5 minutes
-                    cron('H/5 * * * *')
-                  }
-                }
