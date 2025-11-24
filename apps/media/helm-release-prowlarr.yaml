@@ -38,6 +38,10 @@ spec:
       enabled: true
       storageClass: longhorn-replicated
 
+    service:
+      type: "ClusterIP"
+      port: 9696
+
     ingress:
       enabled: true
       className: traefik        
