@@ -1,0 +1,55 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: prowlarr
+  namespace: flux-system
+  labels:
+    reconcile.fluxcd.io/watch: Enabled
+spec:
+  interval: 15m
+  timeout: 5m
+  chart:
+    spec:
+      chart: prowlarr
+      version: '1.8.x'
+      sourceRef:
+        kind: HelmRepository
+        name: alekc
+      interval: 5m
+  releaseName: prowlarr
+  targetNamespace: media
+  install:
+    createNamespace: true
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  test:
+    enable: true
+  driftDetection:
+    mode: enabled
+    ignore:
+    - paths: ["/spec/replicas"]
+      target:
+        kind: Deployment
+  values:
+    persistence:
+      enabled: true
+      storageClass: longhorn-replicated
+
+    ingress:
+      enabled: true
+      className: traefik        
+      annotations: 
+        cert-manager.io/cluster-issuer: zerossl-production
+        traefik.ingress.kubernetes.io/router.entrypoints: websecure
+      hosts:
+      - host: prowlarr.sakul-flee.de
+        paths:
+        - path: /
+          pathType: ImplementationSpecific
+      tls:
+      - secretName: prowlarr-sakul-flee-de-tls
+        hosts:
+        - prowlarr.sakul-flee.de
