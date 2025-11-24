@@ -105,7 +105,7 @@ spec:
                         branch('main')
 
                         extensions {
-                          skipTag()
+                          userDetails('Job-Seeder', 'jenkins@sakul-flee.de')
                         }
                       }
                     }
