@@ -55,7 +55,6 @@ spec:
         annotations: 
           cert-manager.io/cluster-issuer: zerossl-production
           traefik.ingress.kubernetes.io/router.entrypoints: websecure
-        resourceRootUrl: https://jenkins.sakul-flee.de
         hostname: jenkins.sakul-flee.de
         path: /
         tls:
