@@ -1,0 +1,61 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: sonarr
+  namespace: flux-system
+  labels:
+    reconcile.fluxcd.io/watch: Enabled
+spec:
+  interval: 15m
+  timeout: 5m
+  chart:
+    spec:
+      chart: sonarr
+      version: '1.8.x'
+      sourceRef:
+        kind: HelmRepository
+        name: alekc
+      interval: 5m
+  releaseName: sonarr
+  targetNamespace: sonarr
+  install:
+    createNamespace: true
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  test:
+    enable: true
+  driftDetection:
+    mode: enabled
+    ignore:
+    - paths: ["/spec/replicas"]
+      target:
+        kind: Deployment
+  values:
+    persistence:
+      enabled: true
+      storageClass: longhorn-replicated
+
+      # Media mount
+      additionalVolumes:
+      - name: media
+        persistentVolumeClaim:
+          claimName: media
+      additionalMounts:
+      - name: media
+        mountPath: /mnt/media
+
+    ingress:
+      enabled: true
+      className: traefik
+      hosts:
+      - host: sonarr.sakul-flee.de
+        paths:
+        - path: /
+          pathType: ImplementationSpecific
+      tls:
+      - secretName: sonarr-sakul-flee-de-tls
+        hosts:
+        - sonarr.sakul-flee.de
