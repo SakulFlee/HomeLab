@@ -100,7 +100,14 @@ spec:
                     description('Job that runs all Job DSL Groovy scripts from SCM.')
 
                     scm {
-                      git('https://forgejo.sakul-flee.de/SakulFlee/Jenkins-Job-Configurations', 'main')
+                      git {
+                        url('https://forgejo.sakul-flee.de/SakulFlee/Jenkins-Job-Configurations')
+                        branch('main')
+
+                        extensions {
+                          skipTag()
+                        }
+                      }
                     }
 
                     steps {
