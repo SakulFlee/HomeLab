@@ -36,7 +36,7 @@ spec:
   values:
     persistence:
       enabled: true
-      storageClass: longhorn-volatile
+      storageClass: longhorn-replicated
       size: 8Gi
 
     controller:
