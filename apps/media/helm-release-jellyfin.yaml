@@ -47,15 +47,10 @@ spec:
       additionalVolumes:
       - name: media
         persistentVolumeClaim:
-          claimName: media     
-      - name: nextcloud-data
-        persistentVolumeClaim:
-          claimName: nextcloud-data
+          claimName: media
       additionalMounts:
       - name: media
         mountPath: /mnt/media
-      - name: nextcloud
-        mountPath: /mnt/nextcloud
 
     service:
       type: "ClusterIP"
