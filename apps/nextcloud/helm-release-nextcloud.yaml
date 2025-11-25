@@ -66,6 +66,7 @@ spec:
               'OC\Preview\Movie',
               'OC\Preview\PNG',
               'OC\Preview\JPEG',
+              'OC\Preview\HEIC',
               'OC\Preview\GIF',
               'OC\Preview\BMP',
               'OC\Preview\XBitmap',
