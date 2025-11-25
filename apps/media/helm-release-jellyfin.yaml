@@ -36,7 +36,12 @@ spec:
   values:
     persistence:
       enabled: true
-      storageClass: longhorn-replicated
+      config:
+        storageClass: longhorn-replicated
+        size: 8Gi
+      cache:
+        storageClass: longhorn-volatile
+        size: 8Gi
 
       # Media mount
       additionalVolumes:
