@@ -44,7 +44,15 @@ spec:
       volumeMounts:
       - name: media
         mountPath: /mnt/media
-  
+
+      service:
+        web:
+          type: ClusterIP
+          port: 80
+        torrent:
+          type: ClusterIP
+          port: 8388
+
       ingress:
         enabled: true
         className: traefik        
