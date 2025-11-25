@@ -1,0 +1,91 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qbittorrent-vpn
+  namespace: media
+  labels:
+    app: qbittorrent-vpn
+spec:
+  replicas: 1 
+  selector:
+    matchLabels:
+      app: qbittorrent-vpn
+  template:
+    metadata:
+      labels:
+        app: qbittorrent-vpn
+    spec:
+      # Ensures DNS lookups go through the VPN.
+      # This should prevent DNS leaks.
+      # This is only a placeholder and should replaced by gluetun automatically with the correct DNS server.
+      dnsPolicy: "None"
+      dnsConfig:
+        nameservers:
+          - 10.8.0.1 # Placeholder! See above.
+
+      volumes:
+        - name: qbittorrent-config
+          persistentVolumeClaim:
+            claimName: qbittorrent-config-pvc        
+        - name: media-storage
+          persistentVolumeClaim:
+            claimName: media
+      
+      containers:
+      # --- VPN SIDECAR CONTAINER (GLUETUN) ---
+      - name: gluetun
+        image: qmcgaw/gluetun:latest
+        imagePullPolicy: IfNotPresent
+        
+        # Required for changing the network settings for the whole pod (i.e. both containers)
+        securityContext:
+          capabilities:
+            add: ["NET_ADMIN"]
+        
+        env:
+          - name: VPN_SERVICE_PROVIDER
+            value: "pia"
+          - name: SERVER_COUNTRIES
+            value: "Switzerland" 
+          # Kill-Switch firewall rules:
+          - name: FIREWALL
+            value: "on"
+          - name: TZ
+            value: "Europe/Berlin"
+            
+        # Credentials in secret
+        envFrom:
+          - secretRef:
+              name: qbittorrent-vpn-creds
+              
+        # Expose qBittorrent ports through the Gluetun firewall
+        ports:
+          - name: webui-port
+            containerPort: 8080
+          - name: torrent-port-tcp
+            containerPort: 6881
+            protocol: TCP
+          - name: torrent-port-udp
+            containerPort: 6881
+            protocol: UDP
+      
+      # --- APPLICATION CONTAINER (QBITTORRENT) ---
+      - name: qbittorrent
+        image: lscr.io/linuxserver/qbittorrent:latest
+        imagePullPolicy: IfNotPresent
+        
+        # Traffic should be routed through gluetun, thus no network stack definition here.
+        
+        env:
+          - name: PUID
+            value: "1000"
+          - name: PGID
+            value: "1000"
+          - name: TZ
+            value: "Europe/Berlin"
+            
+        volumeMounts:
+          - name: qbittorrent-config
+            mountPath: /config
+          - name: media-storage
+            mountPath: /mnt/media 

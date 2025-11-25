@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: qbittorrent-vpn-ingress
+  namespace: media
+  annotations:
+    cert-manager.io/cluster-issuer: zerossl
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure 
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: qbittorrent.sakul-flee.de
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: qbittorrent-vpn-svc
+                port:
+                  number: 8080
+  tls:
+    - hosts:
+        - qbittorrent.sakul-flee.de 
+      secretName: qbittorrent-sakul-flee-de-tls

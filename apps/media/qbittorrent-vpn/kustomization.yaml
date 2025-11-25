@@ -1,7 +1,7 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 metadata:
-  name: media
+  name: media-qbittorrent
   namespace: media
 dependsOn:
 - longhorn
@@ -9,10 +9,7 @@ dependsOn:
 - cloudflare-ddns
 - traefik
 resources:
-- namespace.yaml
+- deployment.yaml
+- ingress.yaml
 - persistent-volume-claim.yaml
-- helm-repository-alekc.yaml
-- helm-release-sonarr.yaml
-- helm-release-radarr.yaml
-- helm-release-prowlarr.yaml
-- qbittorrent-vpn/
+- service.yaml
