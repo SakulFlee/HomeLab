@@ -56,7 +56,7 @@ spec:
         # Credentials in secret
         envFrom:
           - secretRef:
-              name: qbittorrent-vpn-creds
+              name: secret-env-qbittorrent
               
         # Expose qBittorrent ports through the Gluetun firewall
         ports:
