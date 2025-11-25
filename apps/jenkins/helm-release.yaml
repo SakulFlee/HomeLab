@@ -71,6 +71,7 @@ spec:
         - matrix-auth
         - job-dsl
         - blueocean
+        - pipeline-stage-view
 
       JCasC:
         authorizationStrategy: |-
