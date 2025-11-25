@@ -8,14 +8,9 @@ metadata:
 spec:
   interval: 15m
   timeout: 5m
-  chart:
-    spec:
-      chart: qbittorrent
-      version: '1.2.x'
-      sourceRef:
-        kind: HelmRepository
-        name: alekc
-      interval: 5m
+  chartRef:
+    kind: OCIRepository
+    name: qbittorrent
   releaseName: qbittorrent
   targetNamespace: media
   install:
@@ -34,47 +29,40 @@ spec:
       target:
         kind: Deployment
   values:
-    persistence:
-      enabled: true
-      storageClass: longhorn-replicated
-
+    qbittorrent:
+      config:
+        persistence:
+          enabled: true
+          storageClass: longhorn-replicated
+  
       # Media mount
-      additionalVolumes:
+      volumes:
       - name: media
         persistentVolumeClaim:
           claimName: media     
-      - name: wg0            
-        secret:
-          secretName: secret-vpn-pia
-          items:
-          - key: wg0
-            path: wg0
-      additionalMounts:
+
+      volumeMounts:
       - name: media
         mountPath: /mnt/media
-      - name: wg0
-        mountPath: /config/wireguard/wg0.conf
-
-    service:
-      type: "ClusterIP"
-      port: 8989
-
-    ingress:
-      enabled: true
-      className: traefik        
-      annotations: 
-        cert-manager.io/cluster-issuer: zerossl-production
-        traefik.ingress.kubernetes.io/router.entrypoints: websecure
-      hosts:
-      - host: qbittorrent.sakul-flee.de
-        paths:
-        - path: /
-          pathType: ImplementationSpecific
-      tls:
-      - secretName: qbittorrent-sakul-flee-de-tls
+  
+      ingress:
+        enabled: true
+        className: traefik        
+        annotations: 
+          cert-manager.io/cluster-issuer: zerossl-production
+          traefik.ingress.kubernetes.io/router.entrypoints: websecure
         hosts:
-        - qbittorrent.sakul-flee.de
+        - host: qbittorrent.sakul-flee.de
+          paths:
+          - path: /
+            pathType: ImplementationSpecific
+        tls:
+        - secretName: qbittorrent-sakul-flee-de-tls
+          hosts:
+          - qbittorrent.sakul-flee.de
 
-    vpn:
-      enabled: true
-
+      gluetun:
+        enabled: true
+        extraEnvFrom:
+        - secretRef:
+            name: secret-env-qbittorrent

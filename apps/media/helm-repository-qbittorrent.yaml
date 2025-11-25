@@ -1,0 +1,13 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: qbittorrent
+  namespace: media
+spec:
+  interval: 5m0s
+  url: oci://ghcr.io/m0nsterrr/helm-charts/qbittorrent  
+  layerSelector:
+    mediaType: "application/vnd.cncf.helm.chart.content.v1.tar+gzip"
+    operation: copy
+  ref:
+    semver: "^5.1.4"
