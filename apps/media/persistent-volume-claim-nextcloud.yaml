@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nextcloud-data
+  namespace: media
+spec:
+  storageClassName: longhorn-replicated
+  accessModes:
+    - ReadWriteMany
+  volumeMode: Filesystem
+  resources:
+    requests:
+      storage: 256Gi
+  volumeName: pvc-8f7be037-0128-4e47-8580-fe0d10da61a1
+

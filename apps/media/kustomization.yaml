@@ -10,7 +10,8 @@ dependsOn:
 - traefik
 resources:
 - namespace.yaml
-- persistent-volume-claim.yaml
+- persistent-volume-claim-media.yaml
+- persistent-volume-claim-nextcloud.yaml
 - helm-repository-alekc.yaml
 - helm-release-sonarr.yaml
 - helm-release-radarr.yaml
