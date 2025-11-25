@@ -45,7 +45,7 @@ spec:
         env:
           - name: VPN_SERVICE_PROVIDER
             value: "pia"
-          - name: SERVER_COUNTRIES
+          - name: SERVER_REGIONS
             value: "Switzerland" 
           # Kill-Switch firewall rules:
           - name: FIREWALL
