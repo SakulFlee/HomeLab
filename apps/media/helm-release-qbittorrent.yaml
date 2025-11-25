@@ -7,7 +7,7 @@ metadata:
     reconcile.fluxcd.io/watch: Enabled
 spec:
   interval: 15m
-  timeout: 5m
+  timeout: 10m
   chartRef:
     kind: OCIRepository
     name: qbittorrent
@@ -72,6 +72,4 @@ spec:
             - NET_ADMIN
           sysctls:
           - name: net.ipv6.conf.all.disable_ipv6
-            value: "1"
-          - name: net.ipv6.conf.default.disable_ipv6
             value: "1"
