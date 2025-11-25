@@ -101,7 +101,7 @@ spec:
           job-security-config: |
             security:
               globalJobDslSecurityConfiguration:
-                useScriptSecurity: true
+                useScriptSecurity: false
           seed-job-config: |
             jobs:
               - script: >
