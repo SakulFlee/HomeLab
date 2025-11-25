@@ -6,10 +6,14 @@ metadata:
   labels:
     app: qbittorrent-vpn
 spec:
-  replicas: 1 
   selector:
     matchLabels:
       app: qbittorrent-vpn
+  
+  replicas: 1 
+  strategy:
+    type: Recreate
+
   template:
     metadata:
       labels:
