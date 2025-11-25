@@ -3,11 +3,6 @@ kind: Kustomization
 metadata:
   name: media
   namespace: media
-dependsOn:
-- longhorn
-- cert-manager
-- cloudflare-ddns
-- traefik
 resources:
 - persistent-volume-claim.yaml
 - deployment.yaml
