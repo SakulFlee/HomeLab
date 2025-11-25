@@ -46,6 +46,7 @@ spec:
         mountPath: /mnt/media
 
       service:
+        port: 80 # Required for tests?
         web:
           type: ClusterIP
           port: 80
