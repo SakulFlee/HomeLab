@@ -70,7 +70,6 @@ spec:
         - dark-theme
         - matrix-auth
         - job-dsl
-        - blueocean
         - pipeline-stage-view
         - pipeline-graph-view
 
