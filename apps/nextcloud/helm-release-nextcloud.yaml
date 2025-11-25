@@ -148,7 +148,7 @@ spec:
         enabled: true
         storageClass: longhorn-replicated 
         size: 256Gi
-        accessMode: ReadWriteOnce 
+        accessMode: ReadWriteMany
     
     # Database 
     internalDatabase:
