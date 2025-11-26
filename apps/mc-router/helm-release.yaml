@@ -34,7 +34,8 @@ spec:
       target:
         kind: Deployment
   values:
-    nodeSelector: kubernetes.io/hostname=k0s-controller 
+    nodeSelector: 
+      kubernetes.io/hostname: k0s-controller 
     minecraftRouter:
       autoScale:
         up:
