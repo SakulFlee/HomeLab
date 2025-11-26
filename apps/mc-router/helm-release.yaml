@@ -37,9 +37,6 @@ spec:
     nodeSelector: 
       kubernetes.io/hostname: k0s-controller 
 
-    extraEnv:
-      CLIENTS_TO_ALLOW: 0.0.0.0/0
-
     services:
       minecraft:
         type: NodePort
