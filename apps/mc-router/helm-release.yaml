@@ -36,6 +36,10 @@ spec:
   values:
     nodeSelector: 
       kubernetes.io/hostname: k0s-controller 
+
+    extraEnv:
+      CLIENTS_TO_ALLOW: 0.0.0.0/0
+
     services:
       minecraft:
         type: NodePort
@@ -48,6 +52,10 @@ spec:
         down:
           enabled: true
           after: 5s
+        allowDeny:
+          global:
+            allowlist:
+
       connectionRateLimit: 4
       defaultServer:
         host: minecraft.minecraft.svc.cluster.local
