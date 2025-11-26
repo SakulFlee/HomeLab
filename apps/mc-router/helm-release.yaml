@@ -40,7 +40,7 @@ spec:
       minecraft:
         type: NodePort
         port: 25565
-        nodePort: 25565
+        nodePort: 30001
     minecraftRouter:
       autoScale:
         up:
