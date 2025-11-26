@@ -47,7 +47,7 @@ spec:
           enabled: true
         down:
           enabled: true
-          after: 300s
+          after: 5s
       connectionRateLimit: 4
       defaultServer:
         host: minecraft.minecraft.svc.cluster.local
