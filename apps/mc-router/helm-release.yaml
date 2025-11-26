@@ -36,6 +36,11 @@ spec:
   values:
     nodeSelector: 
       kubernetes.io/hostname: k0s-controller 
+    services:
+      minecraft:
+        type: NodePort
+        port: 25565
+        nodePort: 25565
     minecraftRouter:
       autoScale:
         up:
