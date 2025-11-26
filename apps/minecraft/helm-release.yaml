@@ -61,8 +61,14 @@ spec:
         Size: 8Gi
 
     livenessProbe:
-      enabled: false
+      initialDelaySeconds: 900
+      periodSeconds: 30
+      failureThreshold: 500
     readinessProbe:
-      enabled: false
+      initialDelaySeconds: 600
+      periodSeconds: 30
+      failureThreshold: 500
     startupProbe:
-      enabled: false
+      enabled: true
+      periodSeconds: 10
+      failureThreshold: 300
