@@ -40,9 +40,6 @@ spec:
     extraEnv:
       CLIENTS_TO_ALLOW: 0.0.0.0/0
 
-    debug:
-      enabled: true
-
     services:
       minecraft:
         type: NodePort
