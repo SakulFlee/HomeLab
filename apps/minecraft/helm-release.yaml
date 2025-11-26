@@ -62,5 +62,10 @@ spec:
 
     livenessProbe:
       initialDelaySeconds: 900
+      periodSeconds: 20
     readinessProbe:
-      initialDelaySeconds: 900
+      initialDelaySeconds: 600
+      periodSeconds: 10
+    startupProbe:
+      periodSeconds: 10
+      failureThreshold: 300
