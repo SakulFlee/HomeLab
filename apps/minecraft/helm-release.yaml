@@ -57,4 +57,4 @@ spec:
       storageClass: longhorn-replicated
       dataDir:
         enabled: true
-        size: 8Gi
+        Size: 8Gi
