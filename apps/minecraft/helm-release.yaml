@@ -59,16 +59,3 @@ spec:
       dataDir:
         enabled: true
         Size: 8Gi
-
-    livenessProbe:
-      initialDelaySeconds: 900
-      periodSeconds: 30
-      failureThreshold: 500
-    readinessProbe:
-      initialDelaySeconds: 600
-      periodSeconds: 30
-      failureThreshold: 500
-    startupProbe:
-      enabled: true
-      periodSeconds: 10
-      failureThreshold: 300
