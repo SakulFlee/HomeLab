@@ -34,6 +34,8 @@ spec:
       target:
         kind: Deployment
   values:
+    workloadAsStatefulSet: true
+    strategyType: OnDelete
     minecraftServer:
       eula: "TRUE"
       version: LATEST
