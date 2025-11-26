@@ -52,7 +52,6 @@ spec:
       # - https://hangarcdn.papermc.io/plugins/EngineHub/WorldEdit/versions/7.3.17/PAPER/worldedit-bukkit-7.3.17.jar
       - https://hangarcdn.papermc.io/plugins/kennytv/WorldEditSUI/versions/1.7.4/PAPER/WorldEditSUI-1.7.4.jar
       - https://ci.athion.net/job/FastAsyncWorldEdit/lastStableBuild/artifact/artifacts/FastAsyncWorldEdit-Paper-2.14.2-SNAPSHOT-1224.jar
-      downloadWorldUrl: https://nextcloud.sakul-flee.de/public.php/dav/files/qmcyfTQ467kmNcX
 
     persistence:
       storageClass: longhorn-replicated
