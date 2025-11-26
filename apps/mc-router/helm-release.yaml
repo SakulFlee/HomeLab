@@ -51,7 +51,7 @@ spec:
           enabled: true
         down:
           enabled: true
-          after: 5m
+          after: 1m
 
       connectionRateLimit: 4
       defaultServer:
