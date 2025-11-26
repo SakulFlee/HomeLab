@@ -11,7 +11,7 @@ spec:
   chart:
     spec:
       chart: mc-router
-      version: '5.0.x'
+      version: '1.4.x'
       sourceRef:
         kind: HelmRepository
         name: minecraft-server-charts
