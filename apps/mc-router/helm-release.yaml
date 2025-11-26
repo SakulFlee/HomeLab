@@ -45,12 +45,12 @@ spec:
           after: 300s
       connectionRateLimit: 4
       defaultServer:
-        host: minecraft
+        host: minecraft.minecraft.svc.cluster.local
         port: 25565
       mappings:
         - externalHostname: minecraft.sakul-flee.de
-          host: minecraft
+          host: minecraft.minecraft.svc.cluster.local
           port: 25565       
         - externalHostname: mc.sakul-flee.de
-          host: minecraft
+          host: minecraft.minecraft.svc.cluster.local
           port: 25565
