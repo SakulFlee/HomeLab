@@ -36,6 +36,13 @@ spec:
   values:
     workloadAsStatefulSet: true
     strategyType: OnDelete
+    nameOverride: "minecraft"
+    fullnameOverride: "minecraft.sakul-flee.de"
+    serviceAnnotations:
+      "mc-router.itzg.me/defaultServer": "true"
+      "mc-router.itzg.me/externalServerName": "minecraft.sakul-flee.de"
+      "mc-router.itzg.me/autoScaleUp": "true"
+      "mc-router.itzg.me/autoScaleDown": "true"
     minecraftServer:
       eula: "TRUE"
       version: LATEST
