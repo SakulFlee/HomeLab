@@ -51,10 +51,7 @@ spec:
           enabled: true
         down:
           enabled: true
-          after: 5s
-        allowDeny:
-          global:
-            allowlist:
+          after: 5m
 
       connectionRateLimit: 4
       defaultServer:
