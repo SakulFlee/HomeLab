@@ -49,7 +49,7 @@ spec:
       - https://download.geysermc.org/v2/projects/floodgate/versions/2.2.5/builds/121/downloads/spigot
       - https://hangarcdn.papermc.io/plugins/pop4959/Chunky/versions/1.4.40/PAPER/Chunky-Bukkit-1.4.40.jar
       - https://hangarcdn.papermc.io/plugins/KingTheGuy/Portalis/versions/1.0/PAPER/portalis-1.0.jar
-      - https://hangarcdn.papermc.io/plugins/EngineHub/WorldEdit/versions/7.3.17/PAPER/worldedit-bukkit-7.3.17.jar
+      # - https://hangarcdn.papermc.io/plugins/EngineHub/WorldEdit/versions/7.3.17/PAPER/worldedit-bukkit-7.3.17.jar
       - https://hangarcdn.papermc.io/plugins/kennytv/WorldEditSUI/versions/1.7.4/PAPER/WorldEditSUI-1.7.4.jar
       - https://ci.athion.net/job/FastAsyncWorldEdit/lastStableBuild/artifact/artifacts/FastAsyncWorldEdit-Paper-2.14.2-SNAPSHOT-1224.jar
     
