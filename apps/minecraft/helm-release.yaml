@@ -36,10 +36,6 @@ spec:
   values:
     workloadAsStatefulSet: true
     strategyType: OnDelete
-
-    serviceAnnotations:
-      "mc-router.itzg.me/defaultServer": "true"
-      "mc-router.itzg.me/externalServerName": "minecraft.sakul-flee.de"
     
     minecraftServer:
       eula: "TRUE"
