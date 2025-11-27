@@ -52,6 +52,3 @@ spec:
         - externalHostname: minecraft.sakul-flee.de
           host: minecraft.minecraft.svc.cluster.local
           port: 25565       
-        - externalHostname: mc.sakul-flee.de
-          host: minecraft.minecraft.svc.cluster.local
-          port: 25565
