@@ -33,9 +33,6 @@ spec:
     - paths: ["/spec/replicas"]
       target:
         kind: Deployment
-  postRenderers:
-    - kustomize:
-      path: ./post-renderer
   values:
     workloadAsStatefulSet: true
     strategyType: OnDelete
