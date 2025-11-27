@@ -42,17 +42,9 @@ spec:
         type: NodePort
         port: 25565
         nodePort: 30001
-    minecraftRouter:
-      debug:
-        enabled: true
-      autoScale:
-        up:
-          enabled: true
-        down:
-          enabled: true
-          after: 1m
 
       connectionRateLimit: 4
+      
       defaultServer:
         host: minecraft.minecraft.svc.cluster.local
         port: 25565
