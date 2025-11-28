@@ -33,8 +33,3 @@ spec:
     - paths: ["/spec/replicas"]
       target:
         kind: Deployment
-  values:
-    jenkins:
-      plugins: []
-      seedJobs: []
-    configurationAsCode: {}

@@ -8,6 +8,6 @@ dependsOn:
 - traefik
 resources:
 - namespace.yaml
-- helm-repository.yaml
-- helm-release.yaml
+- helm-repository-jenkins-operator.yaml
+- helm-release-jenkins-operator.yaml
 - jenkins-instance.yaml
