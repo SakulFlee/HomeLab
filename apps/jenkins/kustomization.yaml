@@ -11,3 +11,4 @@ resources:
 - helm-repository-jenkins-operator.yaml
 - helm-release-jenkins-operator.yaml
 - jenkins-instance.yaml
+- ingress.yaml
