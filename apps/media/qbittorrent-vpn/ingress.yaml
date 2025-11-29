@@ -4,7 +4,7 @@ metadata:
   name: qbittorrent-vpn-ingress
   namespace: media
   annotations:
-    cert-manager.io/cluster-issuer: zerossl
+    cert-manager.io/cluster-issuer: zerossl-production
     traefik.ingress.kubernetes.io/router.entrypoints: websecure 
 spec:
   ingressClassName: traefik
