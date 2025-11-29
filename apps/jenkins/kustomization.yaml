@@ -7,6 +7,6 @@ dependsOn:
 - cert-manager-cluster-issuer
 - traefik
 resources:
-- namespace.yaml
-- jenkins-instance.yaml
+- helm-repository.yaml
+- helm-release.yaml
 - ingress.yaml
