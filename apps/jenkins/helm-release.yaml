@@ -54,11 +54,17 @@ spec:
         version: "1.299.v610fa_e76761a_"
       plugins:
       - name: locale
+        version: "614.va_6a_5a_1a_f2b_38" 
       - name: dark-theme
+        version: "574.va_19f05d54df5"
       - name: matrix-auth
+        version: "3.2.9"
       - name: job-dsl
+        version: "1.93"
       - name: pipeline-stage-view
+        version: "2.38"
       - name: pipeline-graph-view
+        version: "712.v9ea_78cc1e8a_4"
       configuration:
         configurationAsCode:
         - configMapName: jenkins-casc
