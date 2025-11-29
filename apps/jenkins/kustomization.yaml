@@ -11,3 +11,4 @@ resources:
 - helm-repository.yaml
 - helm-release.yaml
 - ingress.yaml
+- configmap-jenkins-casc.yaml
