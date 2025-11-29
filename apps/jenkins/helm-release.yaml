@@ -32,10 +32,8 @@ spec:
     ignore:
     - paths: []
       target:
-        apiVersion: jenkins.io/v1alpha2 
         kind: Jenkins 
         name: jenkins
-        namespace: jenkins
   values:
     jenkins:
       enabled: true
