@@ -56,7 +56,6 @@ spec:
         version: "2006.v001a_2ca_6b_574"
       - name: kubernetes-credentials-provider
         version: "1.299.v610fa_e76761a_"
-    #   configuration:
-    #     configurationAsCode: []
-    # #    - configMapName: jenkins-casc
-    # #      content: {}
+      configuration:
+        configurationAsCode:
+        - configMapName: jenkins-casc
