@@ -10,36 +10,33 @@ data:
       description('Scans a Forgejo Organization for Jenkinsfiles.')
 
       organizations {
-        fromSource {}
         gitea { 
           serverUrl('https://forgejo.sakul-flee.de')
           repoOwner('Jenkins')
           credentialsId('forgejo-credentials') 
 
-          traits {
-            gitBranchDiscovery()
-            gitTagDiscovery()
-      
-            giteaPullRequestDiscovery()
-
-            giteaExcludeArchivedRepositories()
-
-            giteaWebhookRegistration() 
-            
-            lfs()
-          }
-
-
+          # traits {
+          #   gitBranchDiscovery()
+          #   gitTagDiscovery()
+          #
+          #   giteaPullRequestDiscovery()
+          #
+          #   giteaExcludeArchivedRepositories()
+          #
+          #   giteaWebhookRegistration() 
+          #
+          #   lfs()
+          # }
         }
       }
 
-      orphanedItemStrategy {
-        discardOldItems {
-          daysToKeep(90)
-        }
-      
-      triggers {
-        periodicFolderTrigger('1d')
-        pollScm {}
-      }
+      # orphanedItemStrategy {
+      #   discardOldItems {
+      #     daysToKeep(90)
+      #   }
+      #
+      # triggers {
+      #   periodicFolderTrigger('1d')
+      #   pollScm {}
+      # }
     }
