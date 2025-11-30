@@ -9,24 +9,34 @@ data:
       displayName('Forgejo Organization Pipeline Discovery')
       description('Scans a Forgejo Organization for Jenkinsfiles.')
 
-      sources {
-        gitea {
-          id('forgejo-scm-source')
-          credentialsId('forgejo-credentials') 
+      organizations {
+        gitea { 
           serverUrl('https://forgejo.sakul-flee.de')
           repoOwner('Jenkins')
+          credentialsId('forgejo-credentials') 
 
           traits {
-            git.discoverBranches()
-            gitea.discoverPullRequests() {
-              strategyId('merge') 
-              trustSource('authenticatedUsers') 
-            }
+            giteaBranchDiscovery {}
+            giteaExcludeArchivedRepositories()
+            giteaForkDiscovery {}
+            giteaPullRequestDiscovery {}
+            giteaReleaseDiscovery {}
+            giteaTagDiscovery()
+            giteaWebhookRegistration {} 
+            lfs()
           }
+
+
         }
       }
+
+      orphanedItemStrategy {
+        discardOldItems {
+          daysToKeep(90)
+        }
       
       triggers {
-        periodic(5) 
+        periodicFolderTrigger('1d')
+        pollScm {}
       }
     }
