@@ -65,6 +65,10 @@ spec:
         version: "2.38"
       - name: pipeline-graph-view
         version: "712.v9ea_78cc1e8a_4"
+      - name: gitea
+        version: "250.v76a_0b_d4fef5b_"
+      - name: gitea-checks
+        version: "601.607.vcea_0049b_27e5"
       configuration:
         configurationAsCode:
         - configMapName: jenkins-casc
