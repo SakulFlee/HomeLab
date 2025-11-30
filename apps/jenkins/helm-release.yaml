@@ -73,5 +73,9 @@ spec:
         configurationAsCode:
         - configMapName: jenkins-casc
         - configMapName: jenkins-casc-auth
-        groovyScripts:
-        - configMapName: jenkins-forgejo-seeder
+      seedJobs:
+      - id: jenkins-operator
+        targets: "jobs/*.jenkins"
+        description: "Jenkins Operator repository"
+        repositoryBranch: main
+        repositoryUrl: https://forgejo.sakul-flee.de/SakulFlee/Jenkins-Operator
