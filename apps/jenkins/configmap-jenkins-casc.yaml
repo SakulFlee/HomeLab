@@ -18,3 +18,9 @@ data:
                 name: "authenticated"
                 permissions:
                   - "Overall/Administer"
+  2-locale.yaml: |
+    appearance:
+      locale:
+        allowUserPreferences: true
+        ignoreAcceptLanguage: false
+        systemLocale: "en"
