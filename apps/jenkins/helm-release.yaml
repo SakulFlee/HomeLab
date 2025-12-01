@@ -68,4 +68,3 @@ spec:
       configuration:
         configurationAsCode:
         - configMapName: jenkins-casc
-        - configMapName: jenkins-casc-auth
