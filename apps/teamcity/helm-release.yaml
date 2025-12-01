@@ -36,11 +36,7 @@ spec:
   values:
     server:
       containers:
-        server:
-          image:
-            repository: jetbrains/teamcity-server
-            tag: "2025.11"
-
+        server:      
           volumeMounts:
           - name: teamcity-server
             mountPath: /data/teamcity_server/datadir
@@ -83,12 +79,6 @@ spec:
 
     agent:
       replicaCount: 3
-
-      containers:
-        image:
-          repository: jetbrains/teamcity-agent
-          tag: "2025.11"
-
       volumeClaimTemplates:
       - metadata:
           name: teamcity-agent
