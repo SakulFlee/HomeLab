@@ -16,15 +16,13 @@ data:
           credentialsId('forgejo-credentials') 
 
           traits {
-            gitBranchDiscovery()
-            gitTagDiscovery()
-      
-            giteaPullRequestDiscovery()
-
+            giteaBranchDiscovery {}
             giteaExcludeArchivedRepositories()
-
-            giteaWebhookRegistration() 
-            
+            giteaForkDiscovery {}
+            giteaPullRequestDiscovery {}
+            giteaReleaseDiscovery {}
+            giteaTagDiscovery()
+            giteaWebhookRegistration {} 
             lfs()
           }
 
