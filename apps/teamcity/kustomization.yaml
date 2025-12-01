@@ -12,6 +12,3 @@ resources:
 - helm-release.yaml
 - pvc-teamcity-server.yaml
 - pvc-teamcity-database.yaml
-- service-account.yaml
-- role.yaml
-- role-binding.yaml
