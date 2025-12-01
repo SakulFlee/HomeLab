@@ -19,7 +19,7 @@ spec:
     containers:
       - name: jenkins-master
         image: jenkins/jenkins:2.539-slim-jdk21
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         livenessProbe:
           failureThreshold: 12
           httpGet:
