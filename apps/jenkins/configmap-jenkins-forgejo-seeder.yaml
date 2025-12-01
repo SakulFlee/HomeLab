@@ -10,7 +10,6 @@ data:
       description('Scans a Forgejo Organization for Jenkinsfiles.')
 
       organizations {
-        fromSource {}
         gitea { 
           serverUrl('https://forgejo.sakul-flee.de')
           repoOwner('Jenkins')
