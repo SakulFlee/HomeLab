@@ -35,6 +35,16 @@ spec:
         kind: Deployment
   values:
     server:
+      volumeMounts:
+      - name: teamcity
+        mountPath: /data/teamcity_server/datadir
+        subPath: server/data
+
+      volumes:
+      - name: teamcity
+        persistentVolumeClaim:
+          claimName: teamcity
+
       ingress:
         annotations:
           cert-manager.io/cluster-issuer: zerossl-production
@@ -55,6 +65,7 @@ spec:
                       name: teamcity-server
                       port:
                         number: 8111
+
     agent:
       replicaCount: 3
       volumeClaimTemplates:
