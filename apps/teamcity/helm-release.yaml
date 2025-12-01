@@ -35,15 +35,26 @@ spec:
         kind: Deployment
   values:
     server:
-      volumeMounts:
-      - name: teamcity
-        mountPath: /data/teamcity_server/datadir
-        subPath: server/data
+      containers:
+        server:      
+          volumeMounts:
+          - name: teamcity-server
+            mountPath: /data/teamcity_server/datadir
+            subPath: server/data
+
+        database:
+          volumeMounts:
+          - name: teamcity-database
+            mountPath: /var/lib/postgresql/data
+            subPath: postgresql/data
 
       volumes:
-      - name: teamcity
+      - name: teamcity-server
         persistentVolumeClaim:
-          claimName: teamcity
+          claimName: teamcity-server     
+      - name: teamcity-database
+        persistentVolumeClaim:
+          claimName: teamcity-database
 
       ingress:
         annotations:
