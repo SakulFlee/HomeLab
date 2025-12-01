@@ -36,25 +36,25 @@ spec:
   values:
     server:
       ingress:
-        annotations:
-          cert-manager.io/cluster-issuer: zerossl-production
-          traefik.ingress.kubernetes.io/router.entrypoints: websecure
-        className: traefik
-        tls:
-          - hosts:
-              - teamcity.sakul-flee.de
-            secretName: teamcity-tls
-        rules:
-          - host: teamcity.sakul-flee.de
-            http:
-              paths:
-                - path: /
-                  pathType: Prefix
-                  backend:
-                    service:
-                      name: teamcity-server
-                      port:
-                        number: 8111
+      annotations:
+        cert-manager.io/cluster-issuer: zerossl-production
+        traefik.ingress.kubernetes.io/router.entrypoints: websecure
+      className: traefik
+      tls:
+        - hosts:
+            - teamcity.sakul-flee.de
+          secretName: teamcity-tls
+      rules:
+        - host: teamcity.sakul-flee.de
+          http:
+            paths:
+              - path: /
+                pathType: Prefix
+                backend:
+                  service:
+                    name: teamcity-server
+                    port:
+                      number: 8111
     agent:
       replicaCount: 3
       volumeClaimTemplates:
