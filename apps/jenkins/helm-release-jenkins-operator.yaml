@@ -17,7 +17,7 @@ spec:
         name: jenkins-operator
       interval: 5m
   releaseName: jenkins-operator
-  targetNamespace: jenkins-operator
+  targetNamespace: jenkins
   install:
     createNamespace: true
     remediation:
