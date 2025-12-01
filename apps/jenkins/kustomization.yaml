@@ -12,4 +12,3 @@ resources:
 - helm-release.yaml
 - ingress.yaml
 - configmap-jenkins-casc.yaml
-- configmap-jenkins-forgejo-seeder.yaml

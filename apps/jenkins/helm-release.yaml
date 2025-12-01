@@ -73,5 +73,3 @@ spec:
         configurationAsCode:
         - configMapName: jenkins-casc
         - configMapName: jenkins-casc-auth
-        groovyScripts:
-        - configMapName: jenkins-forgejo-seeder
