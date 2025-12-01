@@ -78,4 +78,4 @@ spec:
         targets: "jobs/*.jenkins"
         description: "Jenkins Operator repository"
         repositoryBranch: main
-        repositoryUrl: https://forgejo.sakul-flee.de/SakulFlee/Jenkins-Operator.git
+        repositoryUrl: https://forgejo.sakul-flee.de/SakulFlee/Jenkins-Operator
