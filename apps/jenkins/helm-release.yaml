@@ -30,12 +30,9 @@ spec:
   driftDetection:
     mode: enabled
     ignore:
-    - paths: []
+    - paths: ["/spec/replicas"]
       target:
-        apiVersion: jenkins.io/v1alpha2 
-        kind: Jenkins 
-        name: jenkins
-        namespace: jenkins
+        kind: Deployment
   values:
     jenkins:
       enabled: true
