@@ -8,7 +8,7 @@ rules:
   resources: ["namespaces"]
   verbs: ["get", "list", "watch"] 
 - apiGroups: [""]
-  resources: ["pods", "pods/exec", "podtemplates"]
+  resources: ["pods", "pods/exec"]
   verbs: ["get", "list", "watch", "create", "delete"]
 - apiGroups: [""]
   resources: ["pods/log"]
