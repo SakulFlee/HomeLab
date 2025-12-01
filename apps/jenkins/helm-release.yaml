@@ -1,7 +1,7 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: jenkins-operator
+  name: jenkins
   namespace: flux-system
   labels:
     reconcile.fluxcd.io/watch: Enabled
@@ -10,14 +10,14 @@ spec:
   timeout: 5m
   chart:
     spec:
-      chart: jenkins-operator
+      chart: jenkins
       version: '5.8.x'
       sourceRef:
         kind: HelmRepository
-        name: jenkins-operator
+        name: jenkins
       interval: 5m
-  releaseName: jenkins-operator
-  targetNamespace: jenkins-operator
+  releaseName: jenkins
+  targetNamespace: jenkins
   install:
     createNamespace: true
     remediation:
@@ -34,7 +34,104 @@ spec:
       target:
         kind: Deployment
   values:
-    jenkins:
-      plugins: []
-      seedJobs: []
-    configurationAsCode: {}
+    persistence:
+      enabled: true
+      storageClass: longhorn-replicated
+      size: 8Gi
+
+    controller:
+      admin:
+        username: SakulFlee
+        createSecret: true
+  
+      jenkinsUrl: jenkins.sakul-flee.de
+      jenkinsUrlProtocol: https
+      jenkinsAdminEmail: jenkins@sakul-flee.de
+
+      # Ingress
+      ingress:
+        enabled: true
+        className: traefik
+        annotations: 
+          cert-manager.io/cluster-issuer: zerossl-production
+          traefik.ingress.kubernetes.io/router.entrypoints: websecure
+        hostname: jenkins.sakul-flee.de
+        path: /
+        tls:
+         - secretName: jenkins-sakul-flee-de-tls
+           hosts:
+             - jenkins.sakul-flee.de
+
+      prometheus:
+        enabled: true
+
+      additionalPlugins:
+        - locale
+        - dark-theme
+        - matrix-auth
+        - job-dsl
+        - pipeline-stage-view
+        - pipeline-graph-view
+
+      JCasC:
+        authorizationStrategy: |-
+          globalMatrix:
+            entries:
+              - user:
+                  name: "${chart-admin-username}"
+                  permissions:
+                    - "Overall/Administer"
+              - user:
+                  name: "anonymous"
+                  permissions:
+                    - "Overall/Read"
+                    - "Job/Read"
+              - group:
+                  name: "authenticated"
+                  permissions:
+                    - "Overall/Read"
+                    - "Job/Build"
+                    - "Job/Create"
+        configScripts:
+          locale-config: |
+            appearance:
+              locale:
+                allowUserPreferences: true
+                ignoreAcceptLanguage: true
+                systemLocale: "en"
+          job-security-config: |
+            security:
+              globalJobDslSecurityConfiguration:
+                useScriptSecurity: false
+          seed-job-config: |
+            jobs:
+              - script: >
+                  job('Job-Seeder') {
+                    description('Job that runs all Job DSL Groovy scripts from SCM.')
+
+                    scm {
+                      git {
+                        remote {
+                          name('origin')
+                          url('https://forgejo.sakul-flee.de/SakulFlee/Jenkins-Job-Configurations')
+                        }
+
+                        branch('main')
+
+                        extensions {}
+                      }
+                    }
+
+                    steps {
+                      jobDsl {
+                        // Process all Groovy Job definition files in the repository.
+                        // This will add each Job definition to Jenkins.
+                        targets('**/*.groovy') 
+                      }
+                    }
+
+                    triggers {
+                      // Run every 5 minutes
+                      cron('H/5 * * * *')
+                    }
+                  }
