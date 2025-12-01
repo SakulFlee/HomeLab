@@ -55,14 +55,3 @@ spec:
                     name: teamcity-server
                     port:
                       number: 8111
-    agent:
-      replicaCount: 3
-      volumeClaimTemplates:
-      - metadata:
-          name: teamcity-agent
-        spec:
-          accessModes: ["ReadWriteOnce"]
-          resources:
-            requests:
-              storage: 4Gi
-          storageClassName: longhorn-volatile
