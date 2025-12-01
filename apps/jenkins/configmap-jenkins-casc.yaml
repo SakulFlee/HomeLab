@@ -24,10 +24,3 @@ data:
         allowUserPreferences: true
         ignoreAcceptLanguage: false
         systemLocale: "en"
-  forgejo-server.yaml: |
-    unclassified:
-      servers:
-      - credentialsId: "forgejo-credentials"
-        displayName: "Forgejo"
-        manageHooks: true
-        serverUrl: "https://forgejo.sakul-flee.de"
