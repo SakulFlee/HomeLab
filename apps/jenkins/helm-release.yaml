@@ -40,8 +40,6 @@ spec:
       name: jenkins
       namespace: jenkins
       image: jenkins/jenkins:2.539-slim-jdk21
-      annotations:
-        fluxcd.io/ignore: "true"
       basePlugins:
       - name: kubernetes
         version: "4392.v19cea_fdb_5913"
