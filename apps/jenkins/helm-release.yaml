@@ -39,21 +39,6 @@ spec:
       name: jenkins
       namespace: jenkins
       image: jenkins/jenkins:2.539-slim-jdk21
-      basePlugins:
-      - name: kubernetes
-        version: 4392.v19cea_fdb_5913
-      - name: workflow-job
-        version: 1559.va_a_533730b_ea_d
-      - name: workflow-aggregator
-        version: 608.v67378e9d3db_1
-      - name: git
-        version: 5.8.0
-      - name: job-dsl
-        version: 1.93 
-      - name: configuration-as-code
-        version: 2006.v001a_2ca_6b_574      
-      - name: kubernetes-credentials-provider
-        version: 1.299.v610fa_e76761a_
     #   configuration:
     #     configurationAsCode: []
     # #    - configMapName: jenkins-casc
