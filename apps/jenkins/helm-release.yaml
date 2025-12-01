@@ -47,6 +47,11 @@ spec:
       jenkinsUrl: jenkins.sakul-flee.de
       jenkinsUrlProtocol: https
       jenkinsAdminEmail: jenkins@sakul-flee.de
+  
+      image:
+        registry: "docker.io"
+        repository: "jenkins/jenkins"
+        tag: "2.539-slim-jdk21"
 
       # Ingress
       ingress:
