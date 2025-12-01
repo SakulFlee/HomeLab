@@ -108,6 +108,26 @@ spec:
             security:
               globalJobDslSecurityConfiguration:
                 useScriptSecurity: false
+          pipeline-graph-view-config: |
+            appearance:
+              pipelineGraphView:
+                showGraphOnBuildPage: true
+                showGraphOnJobPage: true
+                showStageDurations: true
+                showStageNames: true
+          theme-config: |
+            appearance:
+              themeManager:
+                disableUserThemes: false
+                theme: "dark"
+          content-security-policy-config: |
+            security:
+              contentSecurityPolicy:
+                enforce: true
+          jenkins-url-config: |
+            unclassified:
+              location:
+                url: "https://jenkins.sakul-flee.de/"
           seed-job-config: |
             jobs:
               - script: >
