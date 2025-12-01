@@ -30,9 +30,10 @@ spec:
   driftDetection:
     mode: enabled
     ignore:
-    - paths: ["/spec/replicas"]
+    - paths: []
       target:
-        kind: Deployment    
+        kind: Jenkins 
+        name: jenkins
   values:
     jenkins:
       enabled: true
