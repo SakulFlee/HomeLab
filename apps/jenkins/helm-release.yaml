@@ -102,7 +102,7 @@ spec:
             appearance:
               locale:
                 allowUserPreferences: true
-                ignoreAcceptLanguage: true
+                ignoreAcceptLanguage: false
                 systemLocale: "en"
           job-security-config: |
             security:
