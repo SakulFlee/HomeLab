@@ -70,6 +70,10 @@ spec:
       prometheus:
         enabled: true
 
+      additionalExistingSecrets:
+      - name: secret-jenkins-forgejo
+        keyName: password
+
       additionalPlugins:
         - locale
         - dark-theme
@@ -79,7 +83,9 @@ spec:
         - pipeline-graph-view
         - gitea
 
-      JCasC:
+      JCasC: 
+        defaultConfig: true
+        overwriteConfiguration: true
         authorizationStrategy: |-
           globalMatrix:
             entries:
@@ -125,6 +131,17 @@ spec:
             security:
               contentSecurityPolicy:
                 enforce: true
+          credentials-forgejo: |
+            credentials:
+              system:
+                domainCredentials:
+                - credentials:
+                  - usernamePassword:
+                      scope: GLOBAL
+                      id: "forgejo-credentials"
+                      username: "Jenkins"
+                      password: "${secret-jenkins-forgejo}"
+                      description: "API PAT Token for Forgejo Organization Folder Scan"
           seed-job-config: |
             jobs:
               - script: >
