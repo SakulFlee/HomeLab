@@ -15,3 +15,4 @@ resources:
 - service-account.yaml
 - role.yaml
 - role-binding.yaml
+- configmap-pod-templates.yaml
