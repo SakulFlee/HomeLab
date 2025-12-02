@@ -82,7 +82,7 @@ spec:
                         number: 8111
 
     agent:
-      replicaCount: 0
+      replicaCount: 3
 
       containers:
         image:
