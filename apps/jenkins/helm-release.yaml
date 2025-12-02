@@ -125,10 +125,6 @@ spec:
             security:
               contentSecurityPolicy:
                 enforce: true
-          jenkins-url-config: |
-            unclassified:
-              location:
-                url: "https://jenkins.sakul-flee.de/"
           seed-job-config: |
             jobs:
               - script: >
