@@ -10,4 +10,5 @@ resources:
 - namespace.yaml
 - helm-repository.yaml
 - helm-release.yaml
-- pvc-teamcity.yaml
+- pvc-teamcity-server.yaml
+- pvc-teamcity-database.yaml
