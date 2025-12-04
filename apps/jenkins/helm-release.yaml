@@ -146,27 +146,27 @@ spec:
             jobs:
               - script: >
                 organizationFolder('forgejo') {
-                  # orphanedItemStrategy {
-                  #     discardOldItems {
-                  #         numToKeep(-1)
-                  #         daysToKeep(-1)
-                  #         pruneDeadBranches(true)
-                  #     }
-                  # }
+                  // orphanedItemStrategy {
+                  //     discardOldItems {
+                  //         numToKeep(-1)
+                  //         daysToKeep(-1)
+                  //         pruneDeadBranches(true)
+                  //     }
+                  // }
                   triggers {
                       periodicFolderTrigger {
                           cron('H H/4 * * *')
                       }
                   }
-                  # properties {
-                  #     organizationChildOrphanedItemsProperty {
-                  #         strategy(inherit())
-                  #     }
-                  #     noTriggerOrganizationFolderProperty {
-                  #         branches('.*')
-                  #         strategy('NONE')
-                  #     }
-                  # }
+                  // properties {
+                  //     organizationChildOrphanedItemsProperty {
+                  //         strategy(inherit())
+                  //     }
+                  //     noTriggerOrganizationFolderProperty {
+                  //         branches('.*')
+                  //         strategy('NONE')
+                  //     }
+                  // }
                   navigators {
                       gitea {
                           serverUrl('https://forgejo.sakul-flee.de')
@@ -179,10 +179,10 @@ spec:
                               originPullRequestDiscoveryTrait {
                                   strategyId(1)
                               }
-                              # forkPullRequestDiscoveryTrait {
-                              #     strategyId(1)
-                              #     trust(class: 'org.jenkinsci.plugin.gitea.ForkPullRequestDiscoveryTrait$TrustContributors')
-                              # }
+                              // forkPullRequestDiscoveryTrait {
+                              //     strategyId(1)
+                              //     trust(class: 'org.jenkinsci.plugin.gitea.ForkPullRequestDiscoveryTrait$TrustContributors')
+                              // }
                           }
                       }
                   }
@@ -192,33 +192,34 @@ spec:
                       }
                   }
               }
-              # - script: >
-              #     job('Job-Seeder') {
-              #       description('Job that runs all Job DSL Groovy scripts from SCM.')
-              #
-              #       scm {
-              #         git {
-              #           remote {
-              #             name('origin')
-              #             url('https://forgejo.sakul-flee.de/SakulFlee/Jenkins-Job-Configurations')
-              #           }
-              #
-              #           branch('main')
-              #
-              #           extensions {}
-              #         }
-              #       }
-              #
-              #       steps {
-              #         jobDsl {
-              #           // Process all Groovy Job definition files in the repository.
-              #           // This will add each Job definition to Jenkins.
-              #           targets('**/*.groovy') 
-              #         }
-              #       }
-              #
-              #       triggers {
-              #         // Run every 5 minutes
-              #         cron('H/5 * * * *')
-              #       }
-              #     }
+
+# - script: >
+#     job('Job-Seeder') {
+#       description('Job that runs all Job DSL Groovy scripts from SCM.')
+#
+#       scm {
+#         git {
+#           remote {
+#             name('origin')
+#             url('https://forgejo.sakul-flee.de/SakulFlee/Jenkins-Job-Configurations')
+#           }
+#
+#           branch('main')
+#
+#           extensions {}
+#         }
+#       }
+#
+#       steps {
+#         jobDsl {
+#           // Process all Groovy Job definition files in the repository.
+#           // This will add each Job definition to Jenkins.
+#           targets('**/*.groovy') 
+#         }
+#       }
+#
+#       triggers {
+#         // Run every 5 minutes
+#         cron('H/5 * * * *')
+#       }
+#     }
