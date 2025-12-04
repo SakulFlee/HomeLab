@@ -145,53 +145,32 @@ spec:
           seed-job-config: |
             jobs:
               - script: >
-                organizationFolder('forgejo') {
-                  // orphanedItemStrategy {
-                  //     discardOldItems {
-                  //         numToKeep(-1)
-                  //         daysToKeep(-1)
-                  //         pruneDeadBranches(true)
-                  //     }
-                  // }
-                  triggers {
-                      periodicFolderTrigger {
-                          cron('H H/4 * * *')
-                      }
+                organizationFolder('forgejo') {                                                                                                                      triggers {
+                  periodicFolderTrigger {
+                      cron('H H/4 * * *')
                   }
-                  // properties {
-                  //     organizationChildOrphanedItemsProperty {
-                  //         strategy(inherit())
-                  //     }
-                  //     noTriggerOrganizationFolderProperty {
-                  //         branches('.*')
-                  //         strategy('NONE')
-                  //     }
-                  // }
-                  navigators {
-                      gitea {
-                          serverUrl('https://forgejo.sakul-flee.de')
-                          repoOwner('Jenkins')
-                          credentialsId('forgejo-credentials')
-                          traits {
-                              branchDiscoveryTrait {
-                                  strategyId(1)
-                              }
-                              originPullRequestDiscoveryTrait {
-                                  strategyId(1)
-                              }
-                              // forkPullRequestDiscoveryTrait {
-                              //     strategyId(1)
-                              //     trust(class: 'org.jenkinsci.plugin.gitea.ForkPullRequestDiscoveryTrait$TrustContributors')
-                              // }
-                          }
+                                                                                                                                                                                navigators {
+                  gitea {
+                    serverUrl('https://forgejo.sakul-flee.de')
+                    repoOwner('Jenkins')
+                    credentialsId('forgejo-credentials')
+                    
+                    traits {
+                      branchDiscoveryTrait {
+                        strategyId(1)
                       }
+                      originPullRequestDiscoveryTrait {
+                        strategyId(1)
+                      }
+                    }
                   }
+                
                   projectFactories {
-                      workflowMultiBranchProjectFactory {
-                          scriptPath('Jenkinsfile')
-                      }
+                    workflowMultiBranchProjectFactory {
+                      scriptPath('Jenkinsfile')
+                    }
                   }
-              }
+                }
 
 # - script: >
 #     job('Job-Seeder') {
@@ -223,3 +202,51 @@ spec:
 #         cron('H/5 * * * *')
 #       }
 #     }
+
+#                 organizationFolder('forgejo') {
+#                   // orphanedItemStrategy {
+#                   //     discardOldItems {
+#                   //         numToKeep(-1)
+#                   //         daysToKeep(-1)
+#                   //         pruneDeadBranches(true)
+#                   //     }
+#                   // }
+#                   triggers {
+#                       periodicFolderTrigger {
+#                           cron('H H/4 * * *')
+#                       }
+#                   }
+#                   // properties {
+#                   //     organizationChildOrphanedItemsProperty {
+#                   //         strategy(inherit())
+#                   //     }
+#                   //     noTriggerOrganizationFolderProperty {
+#                   //         branches('.*')
+#                   //         strategy('NONE')
+#                   //     }
+#                   // }
+#                   navigators {
+#                       gitea {
+#                           serverUrl('https://forgejo.sakul-flee.de')
+#                           repoOwner('Jenkins')
+#                           credentialsId('forgejo-credentials')
+#                           traits {
+#                               branchDiscoveryTrait {
+#                                   strategyId(1)
+#                               }
+#                               originPullRequestDiscoveryTrait {
+#                                   strategyId(1)
+#                               }
+#                               // forkPullRequestDiscoveryTrait {
+#                               //     strategyId(1)
+#                               //     trust(class: 'org.jenkinsci.plugin.gitea.ForkPullRequestDiscoveryTrait$TrustContributors')
+#                               // }
+#                           }
+#                       }
+#                   }
+#                   projectFactories {
+#                       workflowMultiBranchProjectFactory {
+#                           scriptPath('Jenkinsfile')
+#                       }
+#                   }
+#               }
