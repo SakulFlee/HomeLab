@@ -142,36 +142,36 @@ spec:
                       username: "Jenkins"
                       password: "${secret-jenkins-forgejo}"
                       description: "API PAT Token for Forgejo Organization Folder Scan"
-          seed-job-config: |
-            jobs:
-              - script: >
-                  organizationFolder('forgejo') {
-                    triggers {
-                      cron('H H/4 * * *')
-                    }
-                      
-                    organizations {
-                      gitea {
-                        serverUrl('https://forgejo.sakul-flee.de')
-                        repoOwner('Jenkins')
-                        credentialsId('forgejo-credentials')
-                        traits {
-                          giteaBranchDiscoveryTrait {
-                            strategyId(1)
-                          }
-                          giteaOriginPullRequestDiscoveryTrait {
-                            strategyId(1)
-                          }
-                        }
-                      }
-                    }
-
-                    projectFactories {
-                      workflowMultiBranchProjectFactory {
-                        scriptPath('Jenkinsfile')
-                      }
-                    }
-                  }
+          # seed-job-config: |
+          #   jobs:
+          #     - script: >
+          #         organizationFolder('forgejo') {
+          #           triggers {
+          #             cron('H H/4 * * *')
+          #           }
+          #
+          #           organizations {
+          #             gitea {
+          #               serverUrl('https://forgejo.sakul-flee.de')
+          #               repoOwner('Jenkins')
+          #               credentialsId('forgejo-credentials')
+          #               traits {
+          #                 giteaBranchDiscoveryTrait {
+          #                   strategyId(1)
+          #                 }
+          #                 giteaOriginPullRequestDiscoveryTrait {
+          #                   strategyId(1)
+          #                 }
+          #               }
+          #             }
+          #           }
+          #
+          #           projectFactories {
+          #             workflowMultiBranchProjectFactory {
+          #               scriptPath('Jenkinsfile')
+          #             }
+          #           }
+          #         }
 
 # - script: >
 #     job('Job-Seeder') {
