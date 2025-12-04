@@ -145,32 +145,32 @@ spec:
           seed-job-config: |
             jobs:
               - script: >
-                organizationFolder('forgejo') {                                                                                                                      triggers {
-                  periodicFolderTrigger {
-                      cron('H H/4 * * *')
-                  }
-                                                                                                                                                                                navigators {
-                  gitea {
-                    serverUrl('https://forgejo.sakul-flee.de')
-                    repoOwner('Jenkins')
-                    credentialsId('forgejo-credentials')
-                    
-                    traits {
-                      branchDiscoveryTrait {
-                        strategyId(1)
+                  organizationFolder('forgejo') {                                                                                                                      triggers {
+                    periodicFolderTrigger {
+                        cron('H H/4 * * *')
+                    }
+                                                                                                                                                                                  navigators {
+                    gitea {
+                      serverUrl('https://forgejo.sakul-flee.de')
+                      repoOwner('Jenkins')
+                      credentialsId('forgejo-credentials')
+                      
+                      traits {
+                        branchDiscoveryTrait {
+                          strategyId(1)
+                        }
+                        originPullRequestDiscoveryTrait {
+                          strategyId(1)
+                        }
                       }
-                      originPullRequestDiscoveryTrait {
-                        strategyId(1)
+                    }
+                  
+                    projectFactories {
+                      workflowMultiBranchProjectFactory {
+                        scriptPath('Jenkinsfile')
                       }
                     }
                   }
-                
-                  projectFactories {
-                    workflowMultiBranchProjectFactory {
-                      scriptPath('Jenkinsfile')
-                    }
-                  }
-                }
 
 # - script: >
 #     job('Job-Seeder') {
