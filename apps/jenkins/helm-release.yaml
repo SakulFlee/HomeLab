@@ -156,10 +156,10 @@ spec:
                         repoOwner('Jenkins')
                         credentialsId('forgejo-credentials')
                         traits {
-                          branchDiscoveryTrait {
+                          org.jenkinsci.plugin.gitea.BranchDiscoveryTrait {
                             strategyId(1)
                           }
-                          originPullRequestDiscoveryTrait {
+                          org.jenkinsci.plugin.gitea.OriginPullRequestDiscoveryTrait {
                             strategyId(1)
                           }
                         }
