@@ -147,9 +147,7 @@ spec:
               - script: >
                   organizationFolder('forgejo') {
                     triggers {
-                      periodicFolderTrigger {
-                        cron('H H/4 * * *')
-                      }
+                      cron('H H/4 * * *')
                     }
                       
                     navigators {
