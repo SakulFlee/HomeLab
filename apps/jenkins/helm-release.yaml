@@ -150,7 +150,7 @@ spec:
                       cron('H H/4 * * *')
                     }
                       
-                    navigators {
+                    organizations {
                       gitea {
                         serverUrl('https://forgejo.sakul-flee.de')
                         repoOwner('Jenkins')
