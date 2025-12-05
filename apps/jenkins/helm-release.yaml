@@ -157,7 +157,7 @@ spec:
                             strategyId(1)
                           }
 
-                          giteaOriginPullRequestDiscovery {
+                          giteaPullRequestDiscovery {
                             strategyId(1)
                           }
                         }
