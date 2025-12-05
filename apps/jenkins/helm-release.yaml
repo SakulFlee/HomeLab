@@ -131,6 +131,9 @@ spec:
             security:
               contentSecurityPolicy:
                 enforce: true
+          build-resource-url: |
+            resourceRoot:
+              url: "https://jenkins.sakul-flee.de/"
           credentials-forgejo: |
             credentials:
               system:
