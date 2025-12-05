@@ -133,6 +133,8 @@ spec:
                 enforce: true
           build-resource-url: |
             unclassified:
+              location:
+                url: "https://jenkins.sakul-flee.de/"
               resourceRoot:
                 url: "https://jenkins.sakul-flee.de/"
           forgejo-server: |
