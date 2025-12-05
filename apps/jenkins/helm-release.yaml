@@ -193,3 +193,35 @@ spec:
                       }
                     }
                   }
+              - script: >
+                  organizationFolder('Forgejo - University') {
+                    organizations {
+                      gitea {
+                        serverUrl('https://forgejo.sakul-flee.de')
+                        repoOwner('University')
+                        credentialsId('forgejo-credentials')
+
+                        traits {
+                          giteaBranchDiscovery {
+                            strategyId(3)
+                          }
+
+                          giteaPullRequestDiscovery {
+                            strategyId(1)
+                          }
+                        }
+                      }
+                    }
+ 
+                    projectFactories {
+                      workflowMultiBranchProjectFactory {
+                        scriptPath('Jenkinsfile')
+                      }
+                    }                  
+                    
+                    triggers {
+                      periodicFolderTrigger {
+                        interval('30m')
+                      }
+                    }
+                  }
