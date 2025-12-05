@@ -80,7 +80,6 @@ spec:
         - dark-theme
         - matrix-auth
         - job-dsl
-        - pipeline-stage-view
         - pipeline-graph-view
         - gitea
 
