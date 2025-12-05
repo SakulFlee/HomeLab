@@ -166,7 +166,7 @@ spec:
 
                         traits {
                           giteaBranchDiscovery {
-                            strategyId(1)
+                            strategyId(3)
                           }
 
                           giteaPullRequestDiscovery {
