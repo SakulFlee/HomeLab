@@ -165,7 +165,7 @@ spec:
                     organizations {
                       gitea {
                         serverUrl('https://forgejo.sakul-flee.de')
-                        repoOwner('Jenkins')
+                        repoOwner('SakulFlee')
                         credentialsId('forgejo-credentials')
 
                         traits {
