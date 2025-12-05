@@ -45,7 +45,7 @@ spec:
         userKey: username
         passwordKey: password
 
-      jenkinsUrl: jenkins.sakul-flee.de
+      jenkinsUrl: "https://jenkins.sakul-flee.de"
       jenkinsUrlProtocol: https
       jenkinsAdminEmail: jenkins@sakul-flee.de
   
