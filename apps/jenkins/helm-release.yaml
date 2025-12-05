@@ -165,6 +165,7 @@ spec:
                   organizationFolder('Forgejo - SakulFlee') {
                     organizations {
                       gitea {
+                        displayName('Forgejo: @SakulFlee projects')
                         serverUrl('https://forgejo.sakul-flee.de')
                         repoOwner('SakulFlee')
                         credentialsId('forgejo-credentials')
@@ -194,9 +195,10 @@ spec:
                     }
                   }
               - script: >
-                  organizationFolder('Forgejo - University') {
+                  organizationFolder('Forgejo - SakulFlee University') {
                     organizations {
                       gitea {
+                        displayName('Forgejo: @SakulFlee University projects')
                         serverUrl('https://forgejo.sakul-flee.de')
                         repoOwner('University')
                         credentialsId('forgejo-credentials')
