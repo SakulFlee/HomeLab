@@ -153,11 +153,11 @@ spec:
                         credentialsId('forgejo-credentials')
 
                         traits {
-                          giteaBranchDiscoveryTrait {
+                          giteaBranchDiscovery {
                             strategyId(1)
                           }
 
-                          giteaOriginPullRequestDiscoveryTrait {
+                          giteaOriginPullRequestDiscovery {
                             strategyId(1)
                           }
                         }
