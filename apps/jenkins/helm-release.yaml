@@ -73,7 +73,7 @@ spec:
 
       additionalExistingSecrets:
       - name: secret-jenkins-forgejo
-        keyName: password
+        keyName: token
 
       additionalPlugins:
         - locale
