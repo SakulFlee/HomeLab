@@ -135,6 +135,14 @@ spec:
             unclassified:
               resourceRoot:
                 url: "https://jenkins.sakul-flee.de/"
+          forgejo-server: |
+            unclassified:
+              giteaServers:
+                servers:
+                - credentialsId: "forgejo-credentials"
+                  displayName: "Forgejo"
+                  manageHooks: true
+                  serverUrl: "https://forgejo.sakul-flee.de"
           credentials-forgejo: |
             credentials:
               system:
