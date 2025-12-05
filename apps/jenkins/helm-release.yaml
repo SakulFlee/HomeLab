@@ -157,7 +157,7 @@ spec:
           seed-job-config: |
             jobs:
               - script: >
-                  organizationFolder('forgejo') {
+                  organizationFolder('Forgejo') {
                     organizations {
                       gitea {
                         serverUrl('https://forgejo.sakul-flee.de')
