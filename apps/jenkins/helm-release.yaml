@@ -71,6 +71,8 @@ spec:
         enabled: true
 
       additionalExistingSecrets:
+      - name: secret-jenkins-admin
+        keyName: password
       - name: secret-jenkins-forgejo
         keyName: password
 
@@ -105,6 +107,13 @@ spec:
                     - "Job/Build"
                     - "Job/Create"
         configScripts:
+          admin-user: |
+            jenkins:
+              securityRealm:
+                local:
+                  users:
+                  - id: "SakulFlee
+                    password: "${secret-jenkins-admin}"
           locale-config: |
             appearance:
               locale:
