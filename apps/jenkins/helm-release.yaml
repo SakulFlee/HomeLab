@@ -149,12 +149,11 @@ spec:
               system:
                 domainCredentials:
                 - credentials:
-                  - usernamePassword:
+                  - giteaAccessToken:
                       scope: GLOBAL
                       id: "forgejo-credentials"
-                      username: "Jenkins"
-                      password: "${secret-jenkins-forgejo}"
                       description: "API PAT Token for Forgejo Organization Folder Scan"
+                      token: "${secret-jenkins-forgejo}"
           seed-job-config: |
             jobs:
               - script: >
