@@ -136,6 +136,10 @@ spec:
             unclassified:
               resourceRoot:
                 url: "https://jenkins.sakul-flee.de/"
+          performance-optimization: |
+            unclassified:
+              globalDefaultFlowDurabilityLevel:
+                durabilityHint: PERFORMANCE_OPTIMIZED
           forgejo-server: |
             unclassified:
               giteaServers:
