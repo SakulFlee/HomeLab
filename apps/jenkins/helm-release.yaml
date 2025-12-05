@@ -112,7 +112,7 @@ spec:
               securityRealm:
                 local:
                   users:
-                  - id: "SakulFlee
+                  - id: "SakulFlee"
                     password: "${secret-jenkins-admin}"
           locale-config: |
             appearance:
