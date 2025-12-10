@@ -38,8 +38,7 @@ spec:
     # Image
     image:
       repository: forgejo.sakul-flee.de/container/nextcloud-ffmpeg
-      flavor: apache
-      tag: latest
+      tag: latest-apache
     # Nextcloud settings
     nextcloud:
       host: nextcloud.sakul-flee.de
