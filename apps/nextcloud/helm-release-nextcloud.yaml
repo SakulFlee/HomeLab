@@ -40,6 +40,7 @@ spec:
       registry: forgejo.sakul-flee.de
       repository: container/nextcloud-ffmpeg
       tag: latest
+      pullPolicy: Always
     # Nextcloud settings
     nextcloud:
       host: nextcloud.sakul-flee.de
