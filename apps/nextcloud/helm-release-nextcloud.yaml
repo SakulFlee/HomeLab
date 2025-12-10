@@ -1,3 +1,4 @@
+---
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -11,7 +12,7 @@ spec:
   chart:
     spec:
       chart: nextcloud
-      version: '8.5.x'
+      version: 8.5.x
       sourceRef:
         kind: HelmRepository
         name: nextcloud
@@ -30,10 +31,15 @@ spec:
   driftDetection:
     mode: enabled
     ignore:
-    - paths: ["/spec/replicas"]
-      target:
-        kind: Deployment
+      - paths: [/spec/replicas]
+        target:
+          kind: Deployment
   values:
+    # Image
+    image:
+      repository: forgejo.sakul-flee.de/container/nextcloud-ffmpeg
+      flavor: apache
+      tag: latest
     # Nextcloud settings
     nextcloud:
       host: nextcloud.sakul-flee.de
@@ -47,15 +53,15 @@ spec:
         smtpHostKey: smtpHost
       mail:
         enabled: true
-        fromAddress: 'nextcloud'
-        domain: 'sakul-flee.de'
+        fromAddress: nextcloud
+        domain: sakul-flee.de
         smtp:
           secure: ''
-          authType: 'LOGIN'
+          authType: LOGIN
           port: 587
       defaultConfigs:
-        s3.config.php: false 
-        swift.config.php: false 
+        s3.config.php: false
+        swift.config.php: false
         imaginary.config.php: true
       configs:
         previews.config.php: |-
@@ -96,29 +102,24 @@ spec:
           $CONFIG = array (
             'trashbin_retention_obligation' => 'auto'
           );
-      trustedDomains:
-        - nextcloud.sakul-flee.de
+      trustedDomains: [nextcloud.sakul-flee.de]
       extraEnv:
         # Set cluster CIDR as trusted
         - name: TRUSTED_PROXIES
-          value: "10.0.0.0/8"
-    
+          value: 10.0.0.0/8
       extraVolumes:
         - name: app-hook
           configMap:
             name: nextcloud-app-hook
             defaultMode: 0777
-
       extraVolumeMounts:
         - name: app-hook
           mountPath: /docker-entrypoint-hooks.d/before-starting/app-start-hook.sh
           subPath: app-hook.sh
           readOnly: true
-
     startupProbe:
       enabled: true
       initialDelaySeconds: 45
-
     # Ingress 
     ingress:
       enabled: true
@@ -127,34 +128,29 @@ spec:
         cert-manager.io/cluster-issuer: zerossl-production
         traefik.ingress.kubernetes.io/router.entrypoints: websecure
         traefik.ingress.kubernetes.io/router.middlewares: nextcloud-middleware-nextcloud@kubernetescrd
-      hosts:
-        - nextcloud.sakul-flee.de
+      hosts: [nextcloud.sakul-flee.de]
       tls:
         - secretName: nextcloud-tls
           hosts:
             - nextcloud.sakul-flee.de
-    
     # Service 
     service:
       annotations:
-        traefik.ingress.kubernetes.io/service.sticky.cookie: "true"
-    
+        traefik.ingress.kubernetes.io/service.sticky.cookie: 'true'
     # Persistence 
     persistence:
       enabled: true
       storageClass: longhorn-replicated
       size: 8Gi
-      accessMode: ReadWriteOnce 
+      accessMode: ReadWriteOnce
       nextcloudData:
         enabled: true
-        storageClass: longhorn-replicated 
+        storageClass: longhorn-replicated
         size: 256Gi
         accessMode: ReadWriteMany
-    
     # Database 
     internalDatabase:
       enabled: false
-    
     externalDatabase:
       enabled: true
       type: postgresql
@@ -165,32 +161,26 @@ spec:
         passwordKey: password
         hostKey: host
         databaseKey: dbname
-
     # Redis 
     externalRedis:
       enabled: true
       existingSecret:
         enabled: true
-        secretName: nextcloud-redis 
+        secretName: nextcloud-redis
         passwordKey: redis-password
       host: nextcloud-redis-master
-    
     # Cron 
     cronjob:
       enabled: true
       type: sidecar
-    
     # Imaginary (Galery)
     imaginary:
       enabled: true
-    
     # Collabora (Office)
     collabora:
       enabled: true
-
       autoscaling:
         enabled: false
-    
       collabora:
         existingSecret:
           enabled: true
@@ -199,9 +189,8 @@ spec:
           passwordKey: password
         server_name: collabora.sakul-flee.de
         aliasgroups:
-          - host: https://nextcloud.sakul-flee.de    
-        extra_params: --o:ssl.enable=false --o:ssl.termination=true 
-    
+          - host: https://nextcloud.sakul-flee.de
+        extra_params: --o:ssl.enable=false --o:ssl.termination=true
       ingress:
         enabled: true
         ingressClassName: traefik
@@ -218,8 +207,6 @@ spec:
           - secretName: collabora-tls
             hosts:
               - collabora.sakul-flee.de
-    
     # Metrics (Prometheus Exporter)
     metrics:
       enabled: true
-    
