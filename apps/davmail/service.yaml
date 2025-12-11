@@ -1,0 +1,26 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: davmail
+  namespace: davmail
+spec:
+  type: ClusterIP
+  selector:
+    app: davmail
+  ports:
+    - name: caldav
+      port: 1080
+      targetPort: 1080
+    - name: imap
+      port: 1143
+      targetPort: 1143
+    - name: ldap
+      port: 1389
+      targetPort: 1389
+    - name: pop
+      port: 1110
+      targetPort: 1110
+    - name: smtp
+      port: 1025
+      targetPort: 1025
