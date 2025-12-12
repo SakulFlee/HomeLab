@@ -42,7 +42,6 @@ spec:
         cert-manager.io/cluster-issuer: zerossl-production
         traefik.ingress.kubernetes.io/router.entrypoints: websecure
       host: open-webui.sakul-flee.de
-      resourceRootUrl: open-webui.sakul-flee.de
       tls: true
       managedCertificate:
         enabled: true
