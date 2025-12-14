@@ -70,6 +70,8 @@ spec:
       additionalExistingSecrets:
         - name: secret-jenkins-forgejo
           keyName: token
+      installLatestPlugins: true
+      installLatestSpecifiedPlugins: true
       additionalPlugins:
         - locale
         - dark-theme
@@ -141,7 +143,7 @@ spec:
                   displayName: "Forgejo"
                   manageHooks: true
                   serverUrl: "https://forgejo.sakul-flee.de"
-          credentials-forgejo: |
+          credentials-forgejo: |-
             credentials:
               system:
                 domainCredentials:
@@ -151,36 +153,104 @@ spec:
                       id: "forgejo-credentials"
                       description: "API PAT Token for Forgejo Organization Folder Scan"
                       token: "${secret-jenkins-forgejo-token}"
-          seed-job-config: "jobs:\n  - script: >\n      organizationFolder('Forgejo\
-            \ - SakulFlee') {\n        organizations {\n          gitea {\n      \
-            \      displayName('Forgejo: @SakulFlee projects')\n            serverUrl('https://forgejo.sakul-flee.de')\n\
-            \            repoOwner('SakulFlee')\n            credentialsId('forgejo-credentials')\n\
-            \n            traits {\n              giteaBranchDiscovery {\n       \
-            \         strategyId(3)\n              }\n\n              giteaPullRequestDiscovery\
-            \ {\n                strategyId(1)\n              }\n            }\n \
-            \         }\n        }\n\n        projectFactories {\n          workflowMultiBranchProjectFactory\
-            \ {\n            scriptPath('Jenkinsfile')\n          }\n        }   \
-            \               \n        \n        triggers {\n          periodicFolderTrigger\
-            \ {\n            interval('30m')\n          }\n        }\n      }\n  -\
-            \ script: >\n      organizationFolder('Forgejo - SakulFlee University')\
-            \ {\n        organizations {\n          gitea {\n            displayName('Forgejo:\
-            \ @SakulFlee University projects')\n            serverUrl('https://forgejo.sakul-flee.de')\n\
-            \            repoOwner('University')\n            credentialsId('forgejo-credentials')\n\
-            \n            traits {\n              giteaBranchDiscovery {\n       \
-            \         strategyId(3)\n              }\n\n              giteaPullRequestDiscovery\
-            \ {\n                strategyId(1)\n              }\n            }\n \
-            \         }\n        }\n\n        projectFactories {\n          workflowMultiBranchProjectFactory\
-            \ {\n            scriptPath('Jenkinsfile')\n          }\n        }   \
-            \               \n        \n        triggers {\n          periodicFolderTrigger\
-            \ {\n            interval('30m')\n          }\n        }\n      }\n  -\
-            \ script: >\n      organizationFolder('Forgejo - SakulFlee Container')\
-            \ {\n        organizations {\n          gitea {\n            displayName('Forgejo:\
-            \ @SakulFlee Container projects')\n            serverUrl('https://forgejo.sakul-flee.de')\n\
-            \            repoOwner('Container')\n            credentialsId('forgejo-credentials')\n\
-            \n            traits {\n              giteaBranchDiscovery {\n       \
-            \         strategyId(3)\n              }\n\n              giteaPullRequestDiscovery\
-            \ {\n                strategyId(1)\n              }\n            }\n \
-            \         }\n        }\n\n        projectFactories {\n          workflowMultiBranchProjectFactory\
-            \ {\n            scriptPath('Jenkinsfile')\n          }\n        }   \
-            \               \n        \n        triggers {\n          periodicFolderTrigger\
-            \ {\n            interval('30m')\n          }\n        }\n      }\n"
+          seed-job-config: |
+            jobs:
+              - script: >
+                  organizationFolder('Forgejo - SakulFlee') {
+                    organizations {
+                      gitea {
+                        displayName('Forgejo: @SakulFlee projects')
+                        serverUrl('https://forgejo.sakul-flee.de')
+                        repoOwner('SakulFlee')
+                        credentialsId('forgejo-credentials')
+
+                        traits {
+                          giteaBranchDiscovery {
+                            strategyId(3)
+                          }
+
+                          giteaPullRequestDiscovery {
+                            strategyId(1)
+                          }
+                        }
+                      }
+                    }
+ 
+                    projectFactories {
+                      workflowMultiBranchProjectFactory {
+                        scriptPath('Jenkinsfile')
+                      }
+                    }                  
+                    
+                    triggers {
+                      periodicFolderTrigger {
+                        interval('30m')
+                      }
+                    }
+                  }
+              - script: >
+                  organizationFolder('Forgejo - SakulFlee University') {
+                    organizations {
+                      gitea {
+                        displayName('Forgejo: @SakulFlee University projects')
+                        serverUrl('https://forgejo.sakul-flee.de')
+                        repoOwner('University')
+                        credentialsId('forgejo-credentials')
+
+                        traits {
+                          giteaBranchDiscovery {
+                            strategyId(3)
+                          }
+
+                          giteaPullRequestDiscovery {
+                            strategyId(1)
+                          }
+                        }
+                      }
+                    }
+ 
+                    projectFactories {
+                      workflowMultiBranchProjectFactory {
+                        scriptPath('Jenkinsfile')
+                      }
+                    }                  
+                    
+                    triggers {
+                      periodicFolderTrigger {
+                        interval('30m')
+                      }
+                    }
+                  }
+              - script: >
+                  organizationFolder('Forgejo - SakulFlee Container') {
+                    organizations {
+                      gitea {
+                        displayName('Forgejo: @SakulFlee Container projects')
+                        serverUrl('https://forgejo.sakul-flee.de')
+                        repoOwner('Container')
+                        credentialsId('forgejo-credentials')
+
+                        traits {
+                          giteaBranchDiscovery {
+                            strategyId(3)
+                          }
+
+                          giteaPullRequestDiscovery {
+                            strategyId(1)
+                          }
+                        }
+                      }
+                    }
+ 
+                    projectFactories {
+                      workflowMultiBranchProjectFactory {
+                        scriptPath('Jenkinsfile')
+                      }
+                    }                  
+                    
+                    triggers {
+                      periodicFolderTrigger {
+                        interval('30m')
+                      }
+                    }
+                  }
