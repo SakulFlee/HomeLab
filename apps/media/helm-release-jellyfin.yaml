@@ -42,7 +42,7 @@ spec:
         size: 8Gi
       cache:
         storageClass: longhorn-volatile
-        size: 2.15Gi
+        size: 4Gi
       # Media mount
       additionalVolumes:
         - name: media
