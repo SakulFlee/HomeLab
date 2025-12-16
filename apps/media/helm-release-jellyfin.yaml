@@ -48,13 +48,13 @@ spec:
         - name: media
           persistentVolumeClaim:
             claimName: media
-        - name: cache
+        - name: empty-cache
           emptyDir:
             sizeLimit: 8Gi
       additionalMounts:
         - name: media
           mountPath: /mnt/media
-        - name: cache
+        - name: empty-cache
           mountPath: /cache
     service:
       type: ClusterIP
