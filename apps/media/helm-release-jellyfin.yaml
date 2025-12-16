@@ -42,20 +42,23 @@ spec:
         size: 8Gi
       cache:
         storageClass: longhorn-volatile
-        size: 1Ki
+        size: 64Mi
       # Media mount
       additionalVolumes:
         - name: media
           persistentVolumeClaim:
             claimName: media
-        - name: empty-cache
+        - name: cache-images
           emptyDir:
-            sizeLimit: 8Gi
+        - name: cache-transcodes
+          emptyDir:
       additionalMounts:
         - name: media
           mountPath: /mnt/media
-        - name: empty-cache
-          mountPath: /cache
+        - name: cache-images
+          mountPath: /cache/images
+        - name: cache-transcodes
+          mountPath: /cache/transcodes
     service:
       type: ClusterIP
       port: 8096
