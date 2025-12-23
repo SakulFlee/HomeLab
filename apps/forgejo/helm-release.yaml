@@ -38,15 +38,27 @@ spec:
       enabled: true
       storageClass: longhorn-replicated
     gitea:
-      # Postgres
       additionalConfigSources:
         - secret:
           secretName: forgejo-postgres-app
-        - secret:
-          secretName: forgejo-mailer
+      additionalConfigFromEnvs:
+        - name: FORGEJO__MAILER__PASSWD
+          valueFrom:
+            secretKeyRef:
+              name: forgejo-mailer
+              key: password
       # Admin user
       admin:
         existingSecret: forgejo-secret
+      # Additional config
+      config:
+        mailer:
+          ENABLED: true
+          PROTOCOL: smtps
+          SMTP_ADDR: smtp.purelymail.com
+          SMTP_PORT: 465
+          USER: dev@sakul-flee.de
+          FROM: forgejo@sakul-flee.de
     # GPG signing support
     signing:
       enabled: true
