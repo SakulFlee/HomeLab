@@ -1,3 +1,4 @@
+---
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: OCIRepository
 metadata:
@@ -5,9 +6,9 @@ metadata:
   namespace: forgejo
 spec:
   interval: 5m0s
-  url: oci://code.forgejo.org/forgejo-helm/forgejo  
+  url: oci://code.forgejo.org/forgejo-helm/forgejo
   layerSelector:
-    mediaType: "application/vnd.cncf.helm.chart.content.v1.tar+gzip"
+    mediaType: application/vnd.cncf.helm.chart.content.v1.tar+gzip
     operation: copy
   ref:
-    semver: "^15.0.2"
+    semver: ^15.0.2
