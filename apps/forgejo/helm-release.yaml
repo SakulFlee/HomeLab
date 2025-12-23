@@ -42,6 +42,8 @@ spec:
       additionalConfigSources:
         - secret:
           secretName: forgejo-postgres-app
+        - secret:
+          secretName: forgejo-mailer
       # Admin user
       admin:
         existingSecret: forgejo-secret
