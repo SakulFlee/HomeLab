@@ -1,8 +1,8 @@
+---
 apiVersion: metallb.io/v1beta1
 kind: IPAddressPool
 metadata:
   name: exposed-pool
   namespace: metallb-system
 spec:
-  addresses:
-    - 192.168.255.255/18
+  addresses: [192.168.178.200-192.168.178.254]
