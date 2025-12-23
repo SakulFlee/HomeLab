@@ -5,6 +5,6 @@ metadata:
   name: metallb
   namespace: metallb-system
 resources:
-  - github.com/metallb/metallb/config/native?ref=v0.15.2
+  - github.com/metallb/metallb/config/native?ref=v0.15.3
   - ip-address-pool.yaml
   - l2-advertisement.yaml
