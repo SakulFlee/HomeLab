@@ -79,6 +79,6 @@ spec:
         type: ClusterIP
         port: 3000
       ssh:
-        type: LoadBalancer
-        port: 2222
-        targetPort: 22
+        type: NodePort
+        port: 22
+        nodePort: 32222
