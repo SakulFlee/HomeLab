@@ -1,3 +1,4 @@
+---
 apiVersion: traefik.io/v1alpha1
 kind: Middleware
 metadata:
@@ -17,8 +18,7 @@ spec:
       - PATCH
       - DELETE
       - OPTIONS
-    accessControlAllowHeaders:
-      - '*'
+    accessControlAllowHeaders: ['*']
     accessControlAllowOriginList:
       - self
       - https://nextcloud.sakul-flee.de

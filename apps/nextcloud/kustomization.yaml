@@ -1,22 +1,17 @@
+---
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 metadata:
   name: nextcloud
   namespace: nextcloud
-dependsOn:
-- cert-manager
-- cert-manager-cluster-issuer
-- longhorn
-- longhorn-config
-- cloudnative-pg
 resources:
-- namespace.yaml
-- database-postgres.yaml
-- middleware.yaml
-- configmap-app-hook.yaml
-- helm-repository-redis.yaml
-- helm-release-redis.yaml
-- helm-repository-clamav.yaml
-- helm-release-clamav.yaml
-- helm-repository-nextcloud.yaml
-- helm-release-nextcloud.yaml
+  - namespace.yaml
+  - database-postgres.yaml
+  - middleware.yaml
+  - configmap-app-hook.yaml
+  - helm-repository-redis.yaml
+  - helm-release-redis.yaml
+  - helm-repository-clamav.yaml
+  - helm-release-clamav.yaml
+  - helm-repository-nextcloud.yaml
+  - helm-release-nextcloud.yaml
