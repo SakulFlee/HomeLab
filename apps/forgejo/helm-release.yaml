@@ -30,6 +30,9 @@ spec:
         target:
           kind: Deployment
   values:
+    # Upgrade strategy
+    strategy:
+      type: Recreate
     # Persistence
     persistence:
       enabled: true
