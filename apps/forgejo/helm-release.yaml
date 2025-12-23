@@ -73,3 +73,11 @@ spec:
       tls:
         - secretName: forgejo-sakul-flee-de-tls
           hosts: [forgejo.sakul-flee.de]
+    # Service
+    service:
+      http:
+        type: ClusterIP
+        port: 3000
+      ssh:
+        type: LoadBalancer
+        port: 2222
