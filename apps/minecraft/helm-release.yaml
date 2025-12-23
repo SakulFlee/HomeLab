@@ -1,3 +1,4 @@
+---
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -11,7 +12,7 @@ spec:
   chart:
     spec:
       chart: minecraft
-      version: '5.0.x'
+      version: 5.0.x
       sourceRef:
         kind: HelmRepository
         name: minecraft-server-charts
@@ -30,38 +31,36 @@ spec:
   driftDetection:
     mode: enabled
     ignore:
-    - paths: ["/spec/replicas"]
-      target:
-        kind: Deployment
+      - paths: [/spec/replicas]
+        target:
+          kind: Deployment
   values:
     workloadAsStatefulSet: true
     strategyType: OnDelete
-    
     minecraftServer:
-      eula: "TRUE"
+      eula: 'TRUE'
       version: LATEST
       type: PAPER
       difficulty: normal
       whitelist: SakulFlee,jendrik12799,Lennart116002,Fisch246,DarkRune2214,_MinaChan_,Froggy189,zero_MB
       ops: SakulFlee,jendrik12799
-      motd: "Conduit @ K0s by SakulFlee"
+      motd: Conduit @ K0s by SakulFlee
       pluginUrls:
-      - https://hangarcdn.papermc.io/plugins/ViaVersion/ViaVersion/versions/5.5.1/PAPER/ViaVersion-5.5.1.jar
-      - https://hangarcdn.papermc.io/plugins/ViaVersion/ViaBackwards/versions/5.5.1/PAPER/ViaBackwards-5.5.1.jar
-      - https://download.geysermc.org/v2/projects/geyser/versions/2.9.1/builds/999/downloads/spigot
-      - https://download.geysermc.org/v2/projects/floodgate/versions/2.2.5/builds/121/downloads/spigot
-      - https://hangarcdn.papermc.io/plugins/KingTheGuy/Portalis/versions/1.0/PAPER/portalis-1.0.jar
-      - https://hangarcdn.papermc.io/plugins/EngineHub/WorldEdit/versions/7.3.17/PAPER/worldedit-bukkit-7.3.17.jar
-      - https://hangarcdn.papermc.io/plugins/kennytv/WorldEditSUI/versions/1.7.4/PAPER/WorldEditSUI-1.7.4.jar
-
+        - https://hangarcdn.papermc.io/plugins/ViaVersion/ViaVersion/versions/5.5.1/PAPER/ViaVersion-5.5.1.jar
+        - https://hangarcdn.papermc.io/plugins/ViaVersion/ViaBackwards/versions/5.5.1/PAPER/ViaBackwards-5.5.1.jar
+        - https://download.geysermc.org/v2/projects/geyser/versions/latest/builds/latest/downloads/spigot
+        - https://download.geysermc.org/v2/projects/floodgate/versions/2.2.5/builds/121/downloads/spigot
+        - https://download.geysermc.org/v2/projects/floodgate/versions/latest/builds/latest/downloads/spigot
+        - https://hangarcdn.papermc.io/plugins/KingTheGuy/Portalis/versions/1.0/PAPER/portalis-1.0.jar
+        - https://hangarcdn.papermc.io/plugins/EngineHub/WorldEdit/versions/7.3.17/PAPER/worldedit-bukkit-7.3.17.jar
+        - https://hangarcdn.papermc.io/plugins/kennytv/WorldEditSUI/versions/1.7.4/PAPER/WorldEditSUI-1.7.4.jar
     resources:
       requests:
         memory: 512Mi
-        cpu: 500m     
+        cpu: 500m
       limits:
         memory: 2048Mi
         cpu: 2000m
-
     persistence:
       storageClass: longhorn-replicated
       dataDir:
