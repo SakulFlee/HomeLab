@@ -47,14 +47,6 @@ spec:
       # Admin user
       admin:
         existingSecret: forgejo-secret
-      # Custom config
-      config:
-        # Mailer
-        mailer:
-          ENABLED: true
-          PROTOCOL: smtps
-          SMTP_ADDR:
-          SMTP_PORT:
     # GPG signing support
     signing:
       enabled: true
