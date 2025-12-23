@@ -1,3 +1,4 @@
+---
 apiVersion: k0sctl.k0sproject.io/v1beta1
 kind: Cluster
 metadata:
@@ -7,19 +8,19 @@ spec:
   hosts:
     - role: controller+worker
       ssh:
-        address: 192.168.1.12
-        user: debian
-        port: 22
-        keyPath: ~/.ssh/id_ed25519   
-    - role: worker
-      ssh:
-        address: 192.168.1.11
+        address: 192.168.178.199
         user: debian
         port: 22
         keyPath: ~/.ssh/id_ed25519
     - role: worker
       ssh:
-        address: 192.168.1.10
+        address: 192.168.178.198
+        user: debian
+        port: 22
+        keyPath: ~/.ssh/id_ed25519
+    - role: worker
+      ssh:
+        address: 192.168.178.197
         user: debian
         port: 22
         keyPath: ~/.ssh/id_ed25519
@@ -50,8 +51,8 @@ spec:
           kuberouter:
             autoMTU: true
             mtu: 0
-            peerRouterASNs: ""
-            peerRouterIPs: ""
+            peerRouterASNs: ''
+            peerRouterIPs: ''
           podCIDR: 10.244.0.0/16
           provider: kuberouter
           serviceCIDR: 10.96.0.0/12
@@ -71,7 +72,7 @@ spec:
       force: true
       ignoreDaemonSets: true
       deleteEmptyDirData: true
-      podSelector: ""
+      podSelector: ''
       skipWaitForDeleteTimeout: 0s
     concurrency:
       limit: 30
