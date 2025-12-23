@@ -52,6 +52,16 @@ spec:
         existingSecret: forgejo-secret
       # Additional config
       config:
+        admin:
+          DEFAULT_EMAIL_NOTIFICATIONS: enabled
+          DISABLE_REGULAR_ORG_CREATION: true
+          SEND_NOTIFICATION_EMAIL_ON_NEW_USER: true
+        service:
+          REGISTER_EMAIL_CONFIRM: true
+          DISABLE_REGISTRATION: false
+          ENABLE_NOTIFY_MAIL: true
+        repository:
+          MAX_CREATION_LIMIT: 0
         mailer:
           ENABLED: true
           PROTOCOL: smtps
