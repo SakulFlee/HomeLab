@@ -37,7 +37,7 @@ spec:
     persistence:
       enabled: true
       storageClass: longhorn-replicated
-      size: 32Gb
+      size: 30Gi
     gitea:
       additionalConfigSources:
         - secret:
