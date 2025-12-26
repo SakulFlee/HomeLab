@@ -153,14 +153,21 @@ spec:
                       id: "forgejo-credentials"
                       description: "API PAT Token for Forgejo Organization Folder Scan"
                       token: "${secret-jenkins-forgejo-token}"
-          seed-job-config: |
+          seed-job-config: |-
             jobs:
               - script: >
-                  multibranchPipelineJob('configuration-as-code-seed-job') {
-                      branchSources {
-                          git {
-                              id('configuration-as-code-seed-job')
-                              remote('https://forgejo.sakul-flee.de/Jenkins/ConfigurationAsCode-SeedJob.git')
-                          }
+                job('ConfigurationAsCode-SeedJob') {
+                  scm {
+                    git {
+                      remote {
+                        url 'ssh://git@forgejo.sakul-flee.de/Jenkins/ConfigurationAsCode-SeedJob.git'
                       }
+                    }
                   }
+                  steps {
+                    jobDsl {
+                      targets 'jobs/**/*.groovy'
+                    }
+                  }
+                }
+              }
