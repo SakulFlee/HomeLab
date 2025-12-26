@@ -155,12 +155,12 @@ spec:
                       token: "${secret-jenkins-forgejo-token}"
           seed-job-config: |-
             jobs:
-            - script: >
-              multibranchPipelineJob('configuration-as-code-seed-job') {
-                branchSources {
-                    git {
+              - script: |
+                  multibranchPipelineJob('configuration-as-code-seed-job') {
+                    branchSources {
+                      git {
                         id = 'configuration-as-code-seed-job'
                         remote('https://forgejo.sakul-flee.de/Jenkins/ConfigurationAsCode-SeedJob.git')
+                      }
                     }
-                }
-            }
+                  }
