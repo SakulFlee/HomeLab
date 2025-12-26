@@ -155,7 +155,7 @@ spec:
                       token: "${secret-jenkins-forgejo-token}"
           seed-job-config: |
             jobs:
-              - script: |
+              - script: >
                   multibranchPipelineJob('configuration-as-code-seed-job') {
                       branchSources {
                           git {
