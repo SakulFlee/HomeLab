@@ -166,7 +166,7 @@ spec:
                   }
                   steps {
                     jobDsl {
-                      targets 'jobs/**/*.groovy'
+                      targets '**/*.groovy'
                     }
                   }
                 }
