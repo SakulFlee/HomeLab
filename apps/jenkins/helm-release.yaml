@@ -159,7 +159,7 @@ spec:
                   multibranchPipelineJob('configuration-as-code-seed-job') {
                     branchSources {
                       git {
-                        id = 'configuration-as-code-seed-job'
+                        id('configuration-as-code-seed-job')
                         remote('https://forgejo.sakul-flee.de/Jenkins/ConfigurationAsCode-SeedJob.git')
                       }
                     }
