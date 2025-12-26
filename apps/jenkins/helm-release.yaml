@@ -155,19 +155,18 @@ spec:
                       token: "${secret-jenkins-forgejo-token}"
           seed-job-config: |-
             jobs:
-              - script: >
-                job('ConfigurationAsCode-SeedJob') {
-                  scm {
-                    git {
-                      remote {
-                        url 'ssh://git@forgejo.sakul-flee.de/Jenkins/ConfigurationAsCode-SeedJob.git'
+              - script: |
+                  job('ConfigurationAsCode-SeedJob') {
+                    scm {
+                      git {
+                        remote {
+                          url 'ssh://git@forgejo.sakul-flee.de/Jenkins/ConfigurationAsCode-SeedJob.git'
+                        }
+                      }
+                    }
+                    steps {
+                      jobDsl {
+                        targets '**/*.groovy'
                       }
                     }
                   }
-                  steps {
-                    jobDsl {
-                      targets '**/*.groovy'
-                    }
-                  }
-                }
-              }
