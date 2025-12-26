@@ -153,104 +153,14 @@ spec:
                       id: "forgejo-credentials"
                       description: "API PAT Token for Forgejo Organization Folder Scan"
                       token: "${secret-jenkins-forgejo-token}"
-          seed-job-config: |
+          seed-job-config: |-
             jobs:
-              - script: >
-                  organizationFolder('Forgejo - SakulFlee') {
-                    organizations {
-                      gitea {
-                        displayName('Forgejo: @SakulFlee projects')
-                        serverUrl('https://forgejo.sakul-flee.de')
-                        repoOwner('SakulFlee')
-                        credentialsId('forgejo-credentials')
-
-                        traits {
-                          giteaBranchDiscovery {
-                            strategyId(3)
-                          }
-
-                          giteaPullRequestDiscovery {
-                            strategyId(1)
-                          }
-                        }
+              - script: |
+                multibranchPipelineJob('configuration-as-code-seed-job') {
+                  branchSources {
+                      git {
+                          id = 'configuration-as-code-seed-job'
+                          remote('https://forgejo.sakul-flee.de/Jenkins/ConfigurationAsCode-SeedJob.git')
                       }
-                    }
- 
-                    projectFactories {
-                      workflowMultiBranchProjectFactory {
-                        scriptPath('Jenkinsfile')
-                      }
-                    }                  
-                    
-                    triggers {
-                      periodicFolderTrigger {
-                        interval('30m')
-                      }
-                    }
                   }
-              - script: >
-                  organizationFolder('Forgejo - SakulFlee University') {
-                    organizations {
-                      gitea {
-                        displayName('Forgejo: @SakulFlee University projects')
-                        serverUrl('https://forgejo.sakul-flee.de')
-                        repoOwner('University')
-                        credentialsId('forgejo-credentials')
-
-                        traits {
-                          giteaBranchDiscovery {
-                            strategyId(3)
-                          }
-
-                          giteaPullRequestDiscovery {
-                            strategyId(1)
-                          }
-                        }
-                      }
-                    }
- 
-                    projectFactories {
-                      workflowMultiBranchProjectFactory {
-                        scriptPath('Jenkinsfile')
-                      }
-                    }                  
-                    
-                    triggers {
-                      periodicFolderTrigger {
-                        interval('30m')
-                      }
-                    }
-                  }
-              - script: >
-                  organizationFolder('Forgejo - SakulFlee Container') {
-                    organizations {
-                      gitea {
-                        displayName('Forgejo: @SakulFlee Container projects')
-                        serverUrl('https://forgejo.sakul-flee.de')
-                        repoOwner('Container')
-                        credentialsId('forgejo-credentials')
-
-                        traits {
-                          giteaBranchDiscovery {
-                            strategyId(3)
-                          }
-
-                          giteaPullRequestDiscovery {
-                            strategyId(1)
-                          }
-                        }
-                      }
-                    }
- 
-                    projectFactories {
-                      workflowMultiBranchProjectFactory {
-                        scriptPath('Jenkinsfile')
-                      }
-                    }                  
-                    
-                    triggers {
-                      periodicFolderTrigger {
-                        interval('30m')
-                      }
-                    }
-                  }
+              }
