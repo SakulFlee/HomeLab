@@ -11,7 +11,7 @@ spec:
   timeout: 5m
   chart:
     spec:
-      chart: palworld
+      chart: palworld-server
       version: 1.0.8
       sourceRef:
         kind: HelmRepository
