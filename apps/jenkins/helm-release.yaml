@@ -50,7 +50,7 @@ spec:
       image:
         registry: docker.io
         repository: jenkins/jenkins
-        tag: jdk21
+        tag: 2.543-slim-jdk21
         pullPolicy: Always
       # Ingress
       ingress:
