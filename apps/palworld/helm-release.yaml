@@ -1,0 +1,67 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: palworld
+  namespace: flux-system
+  labels:
+    reconcile.fluxcd.io/watch: Enabled
+spec:
+  interval: 15m
+  timeout: 5m
+  chart:
+    spec:
+      chart: palworld
+      version: 5.8.x
+      sourceRef:
+        kind: HelmRepository
+        name: palworld
+      interval: 5m
+  releaseName: palworld
+  targetNamespace: palworld
+  install:
+    createNamespace: true
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  test:
+    enable: true
+  driftDetection:
+    mode: enabled
+    ignore:
+      - paths: [/spec/replicas]
+        target:
+          kind: Deployment
+  valuesFrom:
+    - kind: Secret
+      name: palworld-credentials
+      valuesKey: password
+      targetPath: server.password
+    - kind: Secret
+      name: palworld-credentials
+      valuesKey: admin-password
+      targetPath: server.adminPassword
+  values:
+    resources:
+      limits:
+        memory: 4Gi
+        cpu: 2000m
+      requests:
+        memory: 2Gi
+        cpu: 500m
+    persistence:
+      enabled: true
+      storageClassName: longhorn-replicated
+      size: 20Gi
+    server:
+      community: false
+      name: Palworld-DS-K0s-EU-SakulFlee
+      description: 'Palworld DS @ K0s-EU :: SakulFlee'
+      multithreading: true
+      port: 8211
+    service:
+      port: 8211
+      portUDP: 8211
+      type: NodePort
