@@ -41,7 +41,7 @@ spec:
       targetPath: server.password
     - kind: Secret
       name: palworld-credentials
-      valuesKey: admin-password
+      valuesKey: adminPassword
       targetPath: server.adminPassword
   values:
     resources:
