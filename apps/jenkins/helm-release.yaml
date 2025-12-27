@@ -47,6 +47,9 @@ spec:
       jenkinsUrl: https://jenkins.sakul-flee.de
       jenkinsUrlProtocol: https
       jenkinsAdminEmail: jenkins@sakul-flee.de
+      csrf:
+        defaultCrumIssuer:
+          neabled: false
       image:
         registry: docker.io
         repository: jenkins/jenkins
@@ -127,10 +130,6 @@ spec:
             security:
               contentSecurityPolicy:
                 enforce: true
-          fix-crumb-error: |
-            security:
-              crumbIssuer:
-                standard: {}
           build-resource-url: |
             unclassified:
               resourceRoot:
