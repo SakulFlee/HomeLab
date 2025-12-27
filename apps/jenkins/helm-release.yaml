@@ -163,7 +163,8 @@ spec:
                     scm {
                       git {
                         remote {
-                          url 'ssh://git@forgejo.sakul-flee.de/Jenkins/ConfigurationAsCode-SeedJob.git'
+                          url('ssh://git@forgejo.sakul-flee.de/Jenkins/ConfigurationAsCode-SeedJob.git')
+                          credentials('forgejo-credentials')
                         }
                       }
                     }
