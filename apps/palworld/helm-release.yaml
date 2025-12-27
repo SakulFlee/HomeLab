@@ -12,7 +12,7 @@ spec:
   chart:
     spec:
       chart: palworld
-      version: 5.8.x
+      version: 1.0.8
       sourceRef:
         kind: HelmRepository
         name: palworld
