@@ -127,6 +127,10 @@ spec:
             security:
               contentSecurityPolicy:
                 enforce: true
+          fix-crumb-error: |
+            security:
+              crumbIssuer:
+                standard: {}
           build-resource-url: |
             unclassified:
               resourceRoot:
