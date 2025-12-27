@@ -83,7 +83,7 @@ spec:
         - pipeline-graph-view
         - gitea
       JCasC:
-        defaultConfig: true
+        defaultConfig: false
         overwriteConfiguration: true
         authorizationStrategy: |-
           globalMatrix:
