@@ -114,6 +114,9 @@ spec:
             security:
               globalJobDslSecurityConfiguration:
                 useScriptSecurity: false
+          crumb-config: |
+            jenkins:
+              crumbIssuer: "standard"
           pipeline-graph-view-config: |
             appearance:
               pipelineGraphView:
