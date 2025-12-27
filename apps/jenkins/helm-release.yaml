@@ -52,6 +52,10 @@ spec:
         repository: jenkins/jenkins
         tag: 2.542-slim-jdk21
         pullPolicy: Always
+      csrf:
+        defaultCrumbIssuer:
+          enabled: false
+          proxyCompatability: false
       # Ingress
       ingress:
         enabled: true
