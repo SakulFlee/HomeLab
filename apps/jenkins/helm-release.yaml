@@ -116,7 +116,10 @@ spec:
                 useScriptSecurity: false
           crumb-config: |
             jenkins:
-              crumbIssuer: "standard"
+              crumbIssuer:
+                standard: {}
+            security:
+              crumb: {}
           pipeline-graph-view-config: |
             appearance:
               pipelineGraphView:
