@@ -153,6 +153,23 @@ spec:
                       id: "forgejo-credentials"
                       description: "API PAT Token for Forgejo Organization Folder Scan"
                       token: "${secret-jenkins-forgejo-token}"
+          views: |-
+            jenkins:
+              views:
+              - list:
+                columns:
+                - "status"
+                - "weather"
+                - "jobName"
+                - "lastSuccess"
+                - "lastFailure"
+                - "lastDuration"
+                - "buildButton"
+                includeRegex: "(.*)main"
+                jobNames:
+                - "ConfigurationAsCode-SeedJob"
+                name: "Branches - Main"
+                recurse: true
           seed-job-config: |-
             jobs:
               - script: |
