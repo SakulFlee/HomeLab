@@ -156,20 +156,20 @@ spec:
           views: |-
             jenkins:
               views:
-              - list:
-                columns:
-                - "status"
-                - "weather"
-                - "jobName"
-                - "lastSuccess"
-                - "lastFailure"
-                - "lastDuration"
-                - "buildButton"
-                includeRegex: "(.*)main"
-                jobNames:
-                - "ConfigurationAsCode-SeedJob"
-                name: "Branches - Main"
-                recurse: true
+                - list:
+                  columns:
+                    - "status"
+                    - "weather"
+                    - "jobName"
+                    - "lastSuccess"
+                    - "lastFailure"
+                    - "lastDuration"
+                    - "buildButton"
+                  includeRegex: "(.*)main"
+                  jobNames:
+                    - "ConfigurationAsCode-SeedJob"
+                  name: "Branches - Main"
+                  recurse: true
           seed-job-config: |-
             jobs:
               - script: |
