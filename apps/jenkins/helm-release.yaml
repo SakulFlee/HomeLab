@@ -156,6 +156,8 @@ spec:
           views: |-
             jenkins:
               views:
+                - all:
+                    name: "all"
                 - list:
                     columns:
                       - "status"
