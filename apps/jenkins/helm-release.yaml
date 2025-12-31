@@ -79,6 +79,8 @@ spec:
         - job-dsl
         - pipeline-graph-view
         - gitea
+        - lockable-resources
+        - matrix-project
       JCasC:
         defaultConfig: true
         overwriteConfiguration: true
