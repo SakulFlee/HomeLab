@@ -37,7 +37,7 @@ spec:
   values:
     defaultSettings:
       taintToleration: node-role.kubernetes.io/control-plane:NoSchedule
-      storageReservedPercentageForDefaultDisk: 10
+      storageReservedPercentageForDefaultDisk: 5
       storageMinimalAvailablePercentage: 5
     global:
       tolerations:
