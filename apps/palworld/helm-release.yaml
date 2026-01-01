@@ -46,10 +46,10 @@ spec:
   values:
     resources:
       limits:
-        memory: 4Gi
+        memory: 2Gi
         cpu: 2000m
       requests:
-        memory: 2Gi
+        memory: 512Mi
         cpu: 500m
     persistence:
       enabled: true
