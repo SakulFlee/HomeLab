@@ -39,7 +39,7 @@ spec:
       taintToleration: node-role.kubernetes.io/control-plane:NoSchedule
       storageReservedPercentageForDefaultDisk: 5
       storageMinimalAvailablePercentage: 5
-      storageOverProvisioningPercentage: 125
+      storageOverProvisioningPercentage: 200
       defaultLocality: strict-local
     global:
       tolerations:
