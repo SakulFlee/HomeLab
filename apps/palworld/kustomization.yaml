@@ -4,4 +4,8 @@ kind: Kustomization
 metadata:
   name: jenkins
   namespace: jenkins
-resources: [namespace.yaml, helm-repository.yaml, helm-release.yaml]
+resources:
+  - namespace.yaml
+  - helm-repository.yaml
+  - helm-release.yaml
+  - cronjob-restarter.yaml
