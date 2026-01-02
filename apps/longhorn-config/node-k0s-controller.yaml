@@ -1,4 +1,3 @@
----
 apiVersion: longhorn.io/v1beta2
 kind: Node
 metadata:
@@ -11,5 +10,4 @@ spec:
       path: /mnt/longhorn-data/
       allowScheduling: true
       storageReserved: 0
-      overProvisioningPercentage: 200
-      minimalAvailablePercentage: 5
+
