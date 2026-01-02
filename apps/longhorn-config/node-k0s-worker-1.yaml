@@ -1,7 +1,8 @@
+---
 apiVersion: longhorn.io/v1beta2
 kind: Node
 metadata:
-  name: k0s-worker-1  
+  name: k0s-worker-1
   namespace: longhorn-system
 spec:
   allowScheduling: true
