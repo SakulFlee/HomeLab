@@ -1,14 +1,14 @@
+---
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 metadata:
   name: longhorn-config
   namespace: longhorn-system
-dependsOn:
-- longhorn
 resources:
-- backup-target.yaml
-- node-k0s-controller.yaml
-- node-k0s-worker-1.yaml
-- node-k0s-worker-2.yaml
-- storage-class-longhorn-replicated.yaml
-- storage-class-longhorn-volatile.yaml
+  - backup-target.yaml
+  - node-k0s-controller.yaml
+  - node-k0s-worker-1.yaml
+  - node-k0s-worker-2.yaml
+  - storage-class-longhorn-replicated.yaml
+  - storage-class-longhorn-volatile.yaml
+  - recurring-job-snapshot-hourly.yaml
