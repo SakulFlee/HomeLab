@@ -1,7 +1,8 @@
+---
 apiVersion: longhorn.io/v1beta2
 kind: Node
 metadata:
-  name: k0s-worker-1  
+  name: k0s-worker-1
   namespace: longhorn-system
 spec:
   allowScheduling: true
@@ -10,3 +11,5 @@ spec:
       path: /mnt/longhorn-data/
       allowScheduling: true
       storageReserved: 0
+      overProvisioningPercentage: 200
+      minimalAvailablePercentage: 5
