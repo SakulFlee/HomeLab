@@ -121,7 +121,7 @@ spec:
     startupProbe:
       enabled: true
       initialDelaySeconds: 45
-    # Ingress 
+    # Ingress
     ingress:
       enabled: true
       ingressClassName: traefik
@@ -134,22 +134,26 @@ spec:
         - secretName: nextcloud-tls
           hosts:
             - nextcloud.sakul-flee.de
-    # Service 
+    # Service
     service:
       annotations:
         traefik.ingress.kubernetes.io/service.sticky.cookie: 'true'
-    # Persistence 
+    # Persistence
     persistence:
       enabled: true
       storageClass: longhorn-replicated
       size: 8Gi
       accessMode: ReadWriteOnce
+      labels:
+        recurring-job.longhorn.io/default: enabled
       nextcloudData:
         enabled: true
         storageClass: longhorn-replicated
         size: 256Gi
         accessMode: ReadWriteMany
-    # Database 
+        labels:
+          recurring-job.longhorn.io/default: enabled
+    # Database
     internalDatabase:
       enabled: false
     externalDatabase:
