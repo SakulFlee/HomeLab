@@ -39,9 +39,6 @@ spec:
       storageClass: longhorn-replicated
       size: 60Gi
     gitea:
-      additionalConfigSources:
-        - secret:
-          secretName: forgejo-postgres-app
       additionalConfigFromEnvs:
         - name: FORGEJO__MAILER__PASSWD
           valueFrom:
