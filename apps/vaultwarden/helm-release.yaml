@@ -49,7 +49,7 @@ spec:
         - secretName: vaultwarden-sakul-flee-de-tls
           hosts: [vaultwarden.sakul-flee.de]
     vaultwarden:
-      allowSignups: false
+      allowSignups: true
       requireEmail: true
       admin:
         enabled: true
