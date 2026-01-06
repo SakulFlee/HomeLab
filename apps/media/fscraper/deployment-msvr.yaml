@@ -39,5 +39,6 @@ spec:
           volumeMounts:
             - name: fscraper-config
               mountPath: /root/.config/fansly-scraper/config.toml
+              subPath: config.toml
             - name: media-storage
               mountPath: /mnt/media
