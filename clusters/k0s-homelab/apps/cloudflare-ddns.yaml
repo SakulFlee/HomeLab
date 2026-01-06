@@ -1,3 +1,4 @@
+---
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
@@ -9,8 +10,8 @@ spec:
   retryInterval: 2m0s
   sourceRef:
     kind: GitRepository
-    name: flux-system 
-  targetNamespace: cloudflare-ddns  
+    name: flux-system
+  targetNamespace: cloudflare-ddns
   timeout: 3m0s
   wait: true
   path: ./apps/cloudflare-ddns/
