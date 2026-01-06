@@ -52,7 +52,7 @@ spec:
       allowSignups: true
       requireEmail: true
       admin:
-        enabled: true
+        enabled: false
       smtp:
         enabled: true
         existingSecret: vaultwarden-smtp
