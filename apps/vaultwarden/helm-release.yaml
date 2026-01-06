@@ -55,5 +55,5 @@ spec:
         enabled: true
         existingSecret: vaultwarden-smtp
         host: smtp.purelymail.com
-        port: 465
+        port: '465'
         fromName: vaultwarden@sakul-flee.de
