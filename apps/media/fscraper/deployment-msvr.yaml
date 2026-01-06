@@ -25,6 +25,8 @@ spec:
       containers:
         - name: qbittorrent
           image: forgejo.sakul-flee.de/container/fscraper:latest
+          stdin: true
+          tty: true
           imagePullPolicy: Always
           command: [fansly-scraper, -m, MsSkylarVR]
           volumeMounts:
