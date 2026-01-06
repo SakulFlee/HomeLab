@@ -1,0 +1,59 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: vaultwarden
+  namespace: flux-system
+  labels:
+    reconcile.fluxcd.io/watch: Enabled
+spec:
+  interval: 15m
+  timeout: 5m
+  chart:
+    spec:
+      chart: vaultwarden
+      version: 1.3.x
+      sourceRef:
+        kind: HelmRepository
+        name: vaultwarden
+      interval: 5m
+  releaseName: vaultwarden
+  targetNamespace: vaultwarden
+  install:
+    createNamespace: true
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  test:
+    enable: true
+  driftDetection:
+    mode: enabled
+    ignore:
+      - paths: [/spec/replicas]
+        target:
+          kind: Deployment
+  values:
+    persistence:
+      enabled: true
+      storageClass: longhorn-replicated
+    ingress:
+      enabled: true
+      host: vaultwarden.sakul-flee.de
+      className: traefik
+      annotations:
+        cert-manager.io/cluster-issuer: zerossl-production
+        traefik.ingress.kubernetes.io/router.entrypoints: websecure
+      tls:
+        - secretName: vaultwarden-sakul-flee-de-tls
+          hosts: [vaultwarden.sakul-flee.de]
+    vaultwarden:
+      allowSignups: false
+      requireEmail: true
+      smtp:
+        enabled: true
+        existingSecret: vaultwarden-smtp
+        host: smtp.purelymail.com
+        port: 465
+        fromName: vaultwarden@sakul-flee.de
