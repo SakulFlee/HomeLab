@@ -1,0 +1,44 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fscraper-lin
+  namespace: media
+  labels:
+    app: fscraper-lin
+spec:
+  selector:
+    matchLabels:
+      app: fscraper-lin
+  replicas: 1
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: fscraper-lin
+    spec:
+      volumes:
+        - name: media-storage
+          persistentVolumeClaim:
+            claimName: media
+        - name: fscraper-config
+          configMap:
+            name: fscraper-config
+            defaultMode: 0777
+      containers:
+        - name: qbittorrent
+          image: forgejo.sakul-flee.de/container/fscraper:latest
+          stdin: true
+          tty: true
+          imagePullPolicy: Always
+          command:
+            - sh
+            - -c
+            - fansly-scraper -m LittleNii && fansly-scraper monitor start
+          volumeMounts:
+            - name: fscraper-config
+              mountPath: /root/.config/fansly-scraper/config.toml
+              subPath: config.toml
+            - name: media-storage
+              mountPath: /mnt/media
