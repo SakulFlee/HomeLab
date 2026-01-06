@@ -49,8 +49,11 @@ spec:
         - secretName: vaultwarden-sakul-flee-de-tls
           hosts: [vaultwarden.sakul-flee.de]
     vaultwarden:
-      allowSignups: false
+      allowSignups: true
       requireEmail: true
+      signupDomains: [sakul-flee.de]
+      push:
+        enabled: true
       smtp:
         enabled: true
         existingSecret: vaultwarden-smtp
