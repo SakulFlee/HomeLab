@@ -51,6 +51,7 @@ spec:
     vaultwarden:
       allowSignups: true
       requireEmail: true
+      domain: https://vaultwarden.sakul-flee.de
       admin:
         enabled: false
       smtp:
