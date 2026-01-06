@@ -1,0 +1,32 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fscraper-msvr
+  namespace: media
+  labels:
+    app: fscraper-msvr
+spec:
+  selector:
+    matchLabels:
+      app: fscraper-msvr
+  replicas: 1
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: fscraper-msvr
+    spec:
+      volumes:
+        - name: media-storage
+          persistentVolumeClaim:
+            claimName: media
+      containers:
+        - name: qbittorrent
+          image: forgejo.sakul-flee.de/container/fscraper:latest
+          imagePullPolicy: Always
+          command: [fansly-scraper, -m, MsSkylarVR]
+          volumeMounts:
+            - name: media-storage
+              mountPath: /mnt/media
