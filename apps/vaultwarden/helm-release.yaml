@@ -52,8 +52,6 @@ spec:
       allowSignups: true
       requireEmail: true
       signupDomains: [sakul-flee.de]
-      push:
-        enabled: true
       smtp:
         enabled: true
         existingSecret: vaultwarden-smtp
