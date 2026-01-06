@@ -26,7 +26,7 @@ spec:
         - name: qbittorrent
           image: forgejo.sakul-flee.de/container/fscraper:latest
           imagePullPolicy: Always
-          command: [fansly-scraper -m MsSkylarVR]
+          command: [fansly-scraper, -m, MsSkylarVR]
           volumeMounts:
             - name: media-storage
               mountPath: /mnt/media
