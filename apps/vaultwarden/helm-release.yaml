@@ -57,7 +57,8 @@ spec:
         enabled: true
         existingSecret: vaultwarden-smtp
         host: smtp.purelymail.com
-        authMechanism: Login
         port: '465'
+        authMechanism: Login
+        security: force_tls
         from: vaultwarden@sakul-flee.de
         fromName: VaultWarden
