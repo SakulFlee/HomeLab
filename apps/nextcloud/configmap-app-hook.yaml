@@ -3,12 +3,12 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: nextcloud-app-hook
-  namespace: nextcloud 
+  namespace: nextcloud
 data:
   app-hook.sh: |
     #!/usr/bin/env bash
     
-    # --- Config --- 
+    # --- Config ---
     # Apps to be removed (if possible) and disabled
     APPS_TO_REMOVE_AND_DISABLE=(
       "app_api"
@@ -16,18 +16,17 @@ data:
       "user_ldap"
     )
 
-    # Apps to install and enable 
+    # Apps to install and enable
     APPS_TO_INSTALL_AND_ENABLE=(
       "activity"
       "admin_audit"
-      "assistant"
       "bruteforcesettings"
       "calendar"
       "calendar_resource_management"
       "camerarawpreviews"
       "checksum"
       "circles"
-      "cloud_federation_api"
+      # "cloud_federation_api"
       "comments"
       "contacts"
       "contactsinteraction"
@@ -67,7 +66,6 @@ data:
       "nextcloud_announcements"
       "notifications"
       "oauth2"
-      "onlyoffice"
       "password_policy"
       "photos"
       "privacy"
@@ -76,7 +74,7 @@ data:
       "quota_warning"
       "recommendations"
       "related_resources"
-      "richdocuments"
+      # "richdocuments"
       "serverinfo"
       "settings"
       "sharebymail"
@@ -113,11 +111,11 @@ data:
       "files_antivirus"
       "files_antivirus"
       "files_antivirus"
-      "richdocuments"
-      "richdocuments"
-      "richdocuments"
-      "richdocuments"
-      "richdocuments"
+      # "richdocuments"
+      # "richdocuments"
+      # "richdocuments"
+      # "richdocuments"
+      # "richdocuments"
     )
 
     # 2. Value keys 
@@ -128,11 +126,11 @@ data:
       "av_block_unreachable"
       "av_infected_action"
       "av_stream_max_length"
-      "enabled"
-      "public_wopi_url"
-      "wopi_callback_url"
-      "wopi_url"
-      "wopi_allowlist"
+      # "enabled"
+      # "public_wopi_url"
+      # "wopi_callback_url"
+      # "wopi_url"
+      # "wopi_allowlist"
     )
 
     # 3. Actual values
@@ -143,11 +141,11 @@ data:
       "yes"
       "only_log"
       "52428800"
-      "yes"
-      "https://nextcloud.sakul-flee.de"
-      "https://nextcloud.sakul-flee.de"
-      "https://collabora.sakul-flee.de"
-      "192.168.0.0/16,10.0.0.0/8,127.0.0.1,::1"
+      # "yes"
+      # "https://nextcloud.sakul-flee.de"
+      # "https://nextcloud.sakul-flee.de"
+      # "https://collabora.sakul-flee.de"
+      # "192.168.0.0/16,10.0.0.0/8,127.0.0.1,::1"
     )
 
     # --- Script --- 

@@ -183,19 +183,19 @@ spec:
       enabled: true
     # Collabora (Office)
     collabora:
-      enabled: true
-      autoscaling:
-        enabled: false
-      collabora:
-        existingSecret:
-          enabled: true
-          secretName: secret-nextcloud-collabora
-          usernameKey: username
-          passwordKey: password
-        server_name: collabora.sakul-flee.de
-        aliasgroups:
-          - host: https://nextcloud.sakul-flee.de
-        extra_params: --o:ssl.enable=false --o:ssl.termination=true
+      enabled: false
+      # autoscaling:
+      #   enabled: false
+      # collabora:
+      #   existingSecret:
+      #     enabled: true
+      #     secretName: secret-nextcloud-collabora
+      #     usernameKey: username
+      #     passwordKey: password
+      #   server_name: collabora.sakul-flee.de
+      #   aliasgroups:
+      #     - host: https://nextcloud.sakul-flee.de
+      #   extra_params: --o:ssl.enable=false --o:ssl.termination=true
       ingress:
         enabled: true
         ingressClassName: traefik
