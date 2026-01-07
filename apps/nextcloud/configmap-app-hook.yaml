@@ -67,6 +67,7 @@ data:
       "nextcloud_announcements"
       "notifications"
       "oauth2"
+      "onlyoffice"
       "password_policy"
       "photos"
       "privacy"
