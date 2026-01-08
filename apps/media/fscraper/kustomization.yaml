@@ -4,4 +4,10 @@ kind: Kustomization
 metadata:
   name: fscraper
   namespace: media
-resources: [configmap.yaml, deployment-msvr.yaml]
+resources:
+  - configmap.yaml
+  - deployment-msvr.yaml
+  - deployment-cmvr.yaml
+  - deployment-kai.yaml
+  - deployment-lin.yaml
+  - deployment-nuk.yaml
