@@ -4,5 +4,8 @@ kind: Kustomization
 metadata:
   name: jenkins
   namespace: jenkins
-dependsOn: [cert-manager-cluster-issuer, traefik]
-resources: [namespace.yaml, helm-repository.yaml, helm-release.yaml]
+resources:
+  - namespace.yaml
+  - helm-repository.yaml
+  - helm-release.yaml
+  - limit-range.yaml
