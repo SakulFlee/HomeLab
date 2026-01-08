@@ -108,16 +108,16 @@ spec:
         # Set cluster CIDR as trusted
         - name: TRUSTED_PROXIES
           value: 10.0.0.0/8
-      extraVolumes:
-        - name: app-hook
-          configMap:
-            name: nextcloud-app-hook
-            defaultMode: 0777
-      extraVolumeMounts:
-        - name: app-hook
-          mountPath: /docker-entrypoint-hooks.d/before-starting/app-start-hook.sh
-          subPath: app-hook.sh
-          readOnly: true
+          # extraVolumes:
+          #   - name: app-hook
+          #     configMap:
+          #       name: nextcloud-app-hook
+          #       defaultMode: 0777
+          # extraVolumeMounts:
+          #   - name: app-hook
+          #     mountPath: /docker-entrypoint-hooks.d/before-starting/app-start-hook.sh
+          #     subPath: app-hook.sh
+          #     readOnly: true
     startupProbe:
       enabled: true
       initialDelaySeconds: 45
