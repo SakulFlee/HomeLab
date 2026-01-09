@@ -1,7 +1,9 @@
+---
 apiVersion: longhorn.io/v1beta2
 kind: BackupTarget
 metadata:
   name: default
   namespace: longhorn-system
 spec:
-  backupTargetURL: "" # Empty backup target to get rid of the PVC creation warning, THERE IS NO BACKUP THEN THOUGH!
+  backupTargetURL: s3://longhorn@us-west-1/
+  backupTargetCredentialSecret: longhorn-rustfs-credentials
