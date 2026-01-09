@@ -36,17 +36,17 @@ spec:
           kind: Deployment
   postRenderers:
     - kustomize:
-      patches:
-        - target:
-            kind: PersistentVolumeClaim
-          patch: |
-            apiVersion: v1
-            kind: PersistentVolumeClaim
-            metadata:
-              name: unused
-              labels:
-                recurring-job-group.longhorn.io/snapshot: enabled
-                recurring-job-group.longhorn.io/backup: enabled
+        patches:
+          - target:
+              kind: PersistentVolumeClaim
+            patch: |
+              apiVersion: v1
+              kind: PersistentVolumeClaim
+              metadata:
+                name: any
+                labels:
+                  recurring-job-group.longhorn.io/snapshot: enabled
+                  recurring-job-group.longhorn.io/backup: enabled
   values:
     # Image
     image:
