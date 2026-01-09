@@ -6,4 +6,5 @@ metadata:
   namespace: longhorn-system
 spec:
   backupTargetURL: s3://longhorn@us-west-1/
-  backupTargetCredentialSecret: longhorn-rustfs-credentials
+  credentialSecret: longhorn-rustfs-credentials
+  pollInterval: 300s
