@@ -34,6 +34,19 @@ spec:
       - paths: [/spec/replicas]
         target:
           kind: Deployment
+  postRenderers:
+    - kustomize:
+      patches:
+        - target:
+            kind: PersistentVolumeClaim
+          patch: |
+            apiVersion: v1
+            kind: PersistentVolumeClaim
+            metadata:
+              name: unused
+              labels:
+                recurring-job-group.longhorn.io/snapshot: enabled
+                recurring-job-group.longhorn.io/backup: enabled
   values:
     # Image
     image:
