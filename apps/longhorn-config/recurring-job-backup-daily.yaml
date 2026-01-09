@@ -9,3 +9,4 @@ spec:
   task: backup
   retain: 7
   concurrency: 1
+  groups: [backup]
