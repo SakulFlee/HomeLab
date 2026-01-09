@@ -47,7 +47,6 @@ spec:
                 labels:
                   recurring-job-group.longhorn.io/trim: enabled
                   recurring-job-group.longhorn.io/snapshot: enabled
-                  recurring-job-group.longhorn.io/backup: enabled
   values:
     # Image
     image:
