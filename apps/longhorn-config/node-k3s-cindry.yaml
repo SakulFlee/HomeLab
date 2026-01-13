@@ -1,8 +1,7 @@
----
 apiVersion: longhorn.io/v1beta2
 kind: Node
 metadata:
-  name: k0s-controller
+  name: k3s-cindry
   namespace: longhorn-system
 spec:
   allowScheduling: true
