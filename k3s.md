@@ -1,5 +1,4 @@
-# K3s Setup
-## Aeris ("Seeder")
+# Aeris ("Seeder")
 
    bash
 curl -sfL https://get.k3s.io | doas sh -s - server \
@@ -15,7 +14,7 @@ curl -sfL https://get.k3s.io | doas sh -s - server \
   --node-name k3s-aeris && tail -f /var/log/k3s.log
    
 
-## Blyze
+# Blyze
 
    bash
 curl -sfL https://get.k3s.io | doas sh -s - server \
@@ -30,7 +29,7 @@ curl -sfL https://get.k3s.io | doas sh -s - server \
   --node-name k3s-blyze && tail -f /var/log/k3s.log
    
 
-## Cindry
+# Cindry
 
    bash
 curl -sfL https://get.k3s.io | doas sh -s - server \
@@ -43,14 +42,4 @@ curl -sfL https://get.k3s.io | doas sh -s - server \
   --service-cidr=10.43.0.0/16,fd43::/112 \
   --kubelet-arg="node-ip=0.0.0.0" \
   --node-name k3s-blyze && tail -f /var/log/k3s.log
-   
-
-# Flux setup
-
-   bash
-flux bootstrap git --url=ssh://git@github.com/SakulFlee/HomeLab --branch=main --path=./clusters/homelab --private-key-file=$HOME/.ssh/id_ed25519
-   
-
-   bash
-flux bootstrap git --url=ssh://git@github.com/SakulFlee/HomeLab-Secrets --branch=main --path=./clusters/homelab --private-key-file=$HOME/.ssh/id_ed25519
    
