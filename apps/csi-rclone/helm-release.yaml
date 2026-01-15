@@ -14,7 +14,7 @@ spec:
       version: '3.0.x'
       sourceRef:
         kind: HelmRepository
-        name: minecraft-server-charts
+        name: csi-rclone
       interval: 5m
   releaseName: csi-rclone
   targetNamespace: csi-rclone
@@ -34,22 +34,3 @@ spec:
         target:
           kind: Deployment
   values:
-    nodeSelector:
-      kubernetes.io/hostname: k0s-controller
-    services:
-      minecraft:
-        type: NodePort
-        port: 25565
-        nodePort: 30001
-    minecraftRouter:
-      connectionRateLimit: 4
-      defaultServer:
-        host: minecraft.minecraft.svc.cluster.local
-        port: 25565
-      mappings:
-        - externalHostname: minecraft.sakul-flee.de
-          host: minecraft.minecraft.svc.cluster.local
-          port: 25565
-        - externalHostname: mc.sakul-flee.de
-          host: minecraft.minecraft.svc.cluster.local
-          port: 25565
