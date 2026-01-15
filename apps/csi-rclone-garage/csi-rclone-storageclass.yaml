@@ -2,6 +2,8 @@ apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:
   name: rclone-garage
+  anotations:
+    storageclass.kubernetes.io/is-default-class: 'true'
 provisioner: csi-rclone
 # parameters:
 #   pathPattern: "${.PVC.namespace}/${.PVC.annotations.csi-rclone/storage-path}"
