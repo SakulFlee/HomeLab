@@ -7,3 +7,5 @@ resources:
   - namespace.yaml
   - helm-repository.yaml
   - helm-release.yaml
+  - service.yaml
+  - endpoints.yaml

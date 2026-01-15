@@ -39,5 +39,5 @@ spec:
       name: secret-csi-s3
       accessKey: accessKey
       secretKey: secretKey
-      endpoint: 192.168.178.151:3900
+      endpoint: garage-cluster.csi-s3.svc.cluster.local:3900
       region: garage
