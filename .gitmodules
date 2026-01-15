@@ -1,7 +1,0 @@
-[submodule "Secrets"]
-	path = secrets
-	url = git@github.com:SakulFlee/HomeLab-Secrets.git
-[submodule "external/csi-rclone"]
-	path = external/csi-rclone
-	url = git@github.com:wunderio/csi-rclone.git
-	branch = master
