@@ -40,4 +40,4 @@ spec:
       accessKey: accessKey
       secretKey: secretKey
       endpoint: garage-cluster.csi-s3.svc.cluster.local:3900
-      region: garage
+      region: us-east-1
