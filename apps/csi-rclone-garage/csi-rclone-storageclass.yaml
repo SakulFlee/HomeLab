@@ -5,5 +5,6 @@ metadata:
   anotations:
     storageclass.kubernetes.io/is-default-class: 'true'
 provisioner: csi-rclone
+reclaimPolicy: Retain
 # parameters:
 #   pathPattern: "${.PVC.namespace}/${.PVC.annotations.csi-rclone/storage-path}"
