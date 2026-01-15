@@ -8,6 +8,7 @@ provisioner: csi-rclone
 parameters:
   element: "garage:" # ":" for Rclone syntax <remote>:<path>
   remote: "garage"
+  remotePath: "k3s"
   secretName: "csi-rclone-garage"
   secretNamespace: "csi-rclone"
 reclaimPolicy: Retain
