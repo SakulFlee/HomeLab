@@ -1,7 +1,7 @@
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization
 metadata:
-  name: csi-rclone-garage
+  name: csi-s3
   namespace: flux-system
 spec:
   interval: 30m0s
@@ -10,7 +10,7 @@ spec:
   sourceRef:
     kind: GitRepository
     name: flux-system
-  targetNamespace: csi-rclone-garage
+  targetNamespace: csi-s3
   timeout: 3m0s
   wait: true
-  path: ./apps/csi-rclone-garage/
+  path: ./apps/csi-s3/
