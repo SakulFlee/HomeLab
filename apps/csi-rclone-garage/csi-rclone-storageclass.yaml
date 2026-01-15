@@ -6,5 +6,6 @@ metadata:
     storageclass.kubernetes.io/is-default-class: 'true'
 provisioner: csi-rclone
 reclaimPolicy: Retain
-# parameters:
-#   pathPattern: "${.PVC.namespace}/${.PVC.annotations.csi-rclone/storage-path}"
+parameters:
+  csi.storage.k8s.io/node-publish-secret-name: "csi-rclone-garage"
+  csi.storage.k8s.io/node-publish-secret-namespace: "kube-system"
