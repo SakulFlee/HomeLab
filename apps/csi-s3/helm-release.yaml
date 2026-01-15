@@ -1,0 +1,43 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: csi-s3
+  namespace: flux-system
+  labels:
+    reconcile.fluxcd.io/watch: Enabled
+spec:
+  interval: 15m
+  timeout: 5m
+  chart:
+    spec:
+      chart: csi-s3
+      version: '0.43.*'
+      sourceRef:
+        kind: HelmRepository
+        name: csi-s3
+      interval: 5m
+  releaseName: csi-s3
+  targetNamespace: csi-s3
+  install:
+    createNamespace: true
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  test:
+    enable: true
+  driftDetection:
+    mode: enabled
+    ignore:
+      - paths: ["/spec/replicas"]
+        target:
+          kind: Deployment
+  values:
+    secret:
+      create: false
+      name: secret-csi-s3
+      accessKey: accessKey
+      secretKey: secretKey
+      endpoint: http://192.168.178.151:3900
+      region: garage
