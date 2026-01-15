@@ -7,4 +7,4 @@ metadata:
 provisioner: csi-rclone
 reclaimPolicy: Retain
 parameters:
-  pathPattern: "garage"
+  pathPattern: "${.PVC.namespace}/${.PVC.annotations.csi-rclone/storage-path}"
