@@ -36,7 +36,7 @@ spec:
   values:
     storageClass:
       mounter: geesefs
-      mountOptions: "--no-systemd --memory-limit 1000 --dir-mode 0777 --file-mode 0666"
+      mountOptions: "--no-systemd --memory-limit 1000 --dir-mode 0777 --file-mode 0666 --debug_s3 --debug_fuse --log-file /dev/stdout"
       reclaimPolicy: Retain
     secret:
       create: false
