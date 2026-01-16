@@ -1,4 +1,3 @@
----
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -50,8 +49,8 @@ spec:
     # Persistence
     persistence:
       enabled: true
-      storageClass: longhorn-replicated
-      size: 60Gi
+      storageClass: csi-s3
+      size: 16Gi
     gitea:
       additionalConfigFromEnvs:
         - name: FORGEJO__MAILER__PASSWD
