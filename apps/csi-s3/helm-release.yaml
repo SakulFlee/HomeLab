@@ -37,6 +37,7 @@ spec:
     storageClass:
       mounter: geesefs
       mountOptions: "--no-systemd --memory-limit 1000 --dir-mode 0777 --file-mode 0666"
+      reclaimPolicy: Retain
     secret:
       create: false
       name: secret-csi-s3
