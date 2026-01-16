@@ -37,7 +37,3 @@ spec:
     secret:
       create: false
       name: secret-csi-s3
-      accessKey: accessKey
-      secretKey: secretKey
-      endpoint: garage-cluster.csi-s3.svc.cluster.local:3900
-      region: us-east-1
