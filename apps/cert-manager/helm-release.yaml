@@ -38,7 +38,3 @@ spec:
     crds:
       enabled: true
       keep: true
-    # prometheus:
-    #   enabled: true
-    #   servicemonitor:
-    #     enabled: true
