@@ -1,0 +1,50 @@
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: longhorn
+  namespace: flux-system
+  labels:
+    reconcile.fluxcd.io/watch: Enabled
+spec:
+  interval: 15m
+  timeout: 5m
+  chart:
+    spec:
+      chart: longhorn
+      version: 1.10.*
+      sourceRef:
+        kind: HelmRepository
+        name: longhorn
+      interval: 5m
+  releaseName: longhorn
+  targetNamespace: longhorn-system
+  install:
+    createNamespace: true
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  test:
+    enable: true
+  driftDetection:
+    mode: enabled
+    ignore:
+      - paths: [/spec/replicas]
+        target:
+          kind: Deployment
+  values:
+    defaultSettings:
+      taintToleration: node-role.kubernetes.io/control-plane:NoSchedule
+      storageReservedPercentageForDefaultDisk: 5
+      storageMinimalAvailablePercentage: 5
+      storageOverProvisioningPercentage: 200
+      defaultLocality: strict-local
+    global:
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+    persistence:
+      defaultClass: false
