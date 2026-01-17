@@ -5,9 +5,9 @@ metadata:
   namespace: kube-prometheus
 spec:
   interval: 5m0s
-  url: oci://quay.io/jetstack/charts
+  url: oci://quay.io/jetstack/charts/cert-manager
   layerSelector:
     mediaType: "application/vnd.cncf.helm.chart.content.v1.tar+gzip"
     operation: copy
   ref:
-    semver: "^1.19.0"
+    semver: "^1.19.2"
