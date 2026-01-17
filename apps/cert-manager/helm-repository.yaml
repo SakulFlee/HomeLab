@@ -1,9 +1,13 @@
-apiVersion: source.toolkit.fluxcd.io/v1beta2
-kind: HelmRepository
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
 metadata:
   name: cert-manager
-  namespace: flux-system
+  namespace: kube-prometheus
 spec:
-  interval: 24h
-  url: https://charts.jetstack.io
-
+  interval: 5m0s
+  url: oci://quay.io/jetstack/charts
+  layerSelector:
+    mediaType: "application/vnd.cncf.helm.chart.content.v1.tar+gzip"
+    operation: copy
+  ref:
+    semver: "^1.19.0"
