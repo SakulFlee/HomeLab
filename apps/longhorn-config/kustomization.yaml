@@ -5,9 +5,9 @@ metadata:
   namespace: longhorn-system
 resources:
   - backup-target.yaml
-  # - node-k3s-aeris.yaml
-  # - node-k3s-blyze.yaml
-  # - node-k3s-cindry.yaml
+  - node-k3s-aeris.yaml
+  - node-k3s-blyze.yaml
+  - node-k3s-cindry.yaml
   - storage-class-longhorn-replicated.yaml
   - storage-class-longhorn-volatile.yaml
   - recurring-job-snapshot-hourly.yaml

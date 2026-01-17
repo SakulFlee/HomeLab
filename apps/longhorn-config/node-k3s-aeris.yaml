@@ -7,6 +7,6 @@ spec:
   allowScheduling: true
   disks:
     storage:
-      path: /mnt/longhorn-data/
+      path: /mnt/longhorn/
       allowScheduling: true
       storageReserved: 0
