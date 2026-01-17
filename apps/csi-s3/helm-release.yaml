@@ -36,7 +36,7 @@ spec:
   values:
     storageClass:
       mounter: geesefs
-      mountOptions: "-o allow_other --enable-perms"
+      mountOptions: "--memory-limit 1000 --dir-mode 0777 --file-mode 0666 --uid 1000 --gid 1000 --setuid 1000 --setgid 1000 --enable-perms -o allow_other"
       reclaimPolicy: Retain
     secret:
       create: false
