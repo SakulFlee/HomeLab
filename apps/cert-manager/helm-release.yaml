@@ -30,14 +30,13 @@ spec:
   driftDetection:
     mode: enabled
     ignore:
-      - paths: ["/spec/replicas"]
-        target:
-          kind: Deployment
+    - paths: ["/spec/replicas"]
+      target:
+        kind: Deployment
   values:
-    installCRDs: true
     crds:
       enabled: true
     prometheus:
       enabled: true
-      servicemonitor:
+      servicemonitor: 
         enabled: true
