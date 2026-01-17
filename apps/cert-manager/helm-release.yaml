@@ -8,14 +8,9 @@ metadata:
 spec:
   interval: 15m
   timeout: 5m
-  chart:
-    spec:
-      chart: cert-manager
-      version: '1.19.x'
-      sourceRef:
-        kind: HelmRepository
-        name: cert-manager
-      interval: 5m
+  chartRef:
+    kind: OCIRepository
+    name: cert-manager
   releaseName: cert-manager
   targetNamespace: cert-manager
   install:
