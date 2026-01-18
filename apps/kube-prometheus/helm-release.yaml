@@ -25,13 +25,13 @@ spec:
   driftDetection:
     mode: enabled
     ignore:
-    - paths: ["/spec/replicas"]
-      target:
-        kind: Deployment
+      - paths: ["/spec/replicas"]
+        target:
+          kind: Deployment
   values:
     grafana:
       ingress:
-        enabled: true      
+        enabled: true
         ingressClassName: traefik
         annotations:
           cert-manager.io/cluster-issuer: zerossl-production
@@ -46,4 +46,3 @@ spec:
         existingSecret: kube-prometheus-secret
         userKey: username
         passwordKey: password
-
