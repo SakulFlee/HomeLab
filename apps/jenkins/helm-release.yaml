@@ -1,4 +1,3 @@
----
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -66,7 +65,7 @@ spec:
           - secretName: jenkins-sakul-flee-de-tls
             hosts: [jenkins.sakul-flee.de]
       prometheus:
-        enabled: true
+        enabled: false
       additionalExistingSecrets:
         - name: secret-jenkins-forgejo
           keyName: token
