@@ -1,4 +1,3 @@
----
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
@@ -71,8 +70,8 @@ spec:
       size: 20Gi
     server:
       community: false
-      name: Palworld-DS-K0s-EU-SakulFlee
-      description: 'Palworld DS @ K0s-EU :: SakulFlee'
+      name: Palworld-DS-K3s-EU-SakulFlee
+      description: 'Palworld DS @ K3s-EU :: SakulFlee'
       multithreading: true
       port: 8211
     service:
