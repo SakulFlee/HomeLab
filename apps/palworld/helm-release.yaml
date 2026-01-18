@@ -77,4 +77,5 @@ spec:
     service:
       port: 8211
       portUDP: 8211
+      nodePort: 30211
       type: NodePort
