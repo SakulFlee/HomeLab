@@ -3,6 +3,10 @@ kind: PersistentVolumeClaim
 metadata:
   name: qbittorrent-config-pvc
   namespace: media
+  labels:
+    recurring-job-group.longhorn.io/trim: enabled
+    recurring-job-group.longhorn.io/snapshot: enabled
+    recurring-job-group.longhorn.io/backup: enabled
 spec:
   storageClass: longhorn-replicated
   accessModes:
