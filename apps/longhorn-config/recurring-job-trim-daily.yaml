@@ -1,11 +1,10 @@
----
 apiVersion: longhorn.io/v1beta2
 kind: RecurringJob
 metadata:
   name: daily-trim
   namespace: longhorn-system
 spec:
-  cron: 23 0 * * *
+  cron: 0 23 * * *
   task: filesystem-trim
   retain: 0
   concurrency: 3
