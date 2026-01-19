@@ -1,4 +1,3 @@
----
 kind: StorageClass
 apiVersion: storage.k8s.io/v1
 metadata:
@@ -9,5 +8,5 @@ provisioner: driver.longhorn.io
 allowVolumeExpansion: true
 reclaimPolicy: Retain
 parameters:
-  numberOfReplicas: '2'
+  numberOfReplicas: '3'
   fsType: ext4
