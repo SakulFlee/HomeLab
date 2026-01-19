@@ -30,39 +30,50 @@ spec:
   driftDetection:
     mode: enabled
     ignore:
-    - paths: ["/spec/replicas"]
-      target:
-        kind: Deployment
+      - paths: ["/spec/replicas"]
+        target:
+          kind: Deployment
+  postRenderers:
+    - kustomize:
+        patches:
+          - target:
+              kind: PersistentVolumeClaim
+            patch: |
+              apiVersion: v1
+              kind: PersistentVolumeClaim
+              metadata:
+                name: any
+                labels:
+                  recurring-job-group.longhorn.io/trim: enabled
+                  recurring-job-group.longhorn.io/snapshot: enabled
+                  recurring-job-group.longhorn.io/backup: enabled
   values:
     persistence:
       enabled: true
       storageClass: longhorn-replicated
-
       # Media mount
       additionalVolumes:
-      - name: media
-        persistentVolumeClaim:
-          claimName: media
+        - name: media
+          persistentVolumeClaim:
+            claimName: media
       additionalMounts:
-      - name: media
-        mountPath: /mnt/media
-
+        - name: media
+          mountPath: /mnt/media
     service:
       type: "ClusterIP"
       port: 8989
-
     ingress:
       enabled: true
-      className: traefik        
-      annotations: 
+      className: traefik
+      annotations:
         cert-manager.io/cluster-issuer: zerossl-production
         traefik.ingress.kubernetes.io/router.entrypoints: websecure
       hosts:
-      - host: sonarr.sakul-flee.de
-        paths:
-        - path: /
-          pathType: ImplementationSpecific
+        - host: sonarr.sakul-flee.de
+          paths:
+            - path: /
+              pathType: ImplementationSpecific
       tls:
-      - secretName: sonarr-sakul-flee-de-tls
-        hosts:
-        - sonarr.sakul-flee.de
+        - secretName: sonarr-sakul-flee-de-tls
+          hosts:
+            - sonarr.sakul-flee.de
