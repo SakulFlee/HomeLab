@@ -27,7 +27,7 @@ spec:
             name: fscraper-config
             defaultMode: 0777
       containers:
-        - name: qbittorrent
+        - name: fscraper-nuk
           image: forgejo.sakul-flee.de/container/fscraper:latest
           stdin: true
           tty: true
