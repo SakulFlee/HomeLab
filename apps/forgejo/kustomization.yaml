@@ -1,8 +1,6 @@
----
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 metadata:
   name: forgejo
   namespace: forgejo
-dependsOn: [cert-manager-cluster-issuer, traefik]
-resources: [namespace.yaml, helm-repository.yaml, helm-release.yaml]
+resources: [namespace.yaml, helm-repository.yaml, helm-release.yaml, database.yaml]

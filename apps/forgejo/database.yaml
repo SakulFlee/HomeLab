@@ -1,0 +1,9 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: forgejo
+  namespace: forgejo
+spec:
+  instances: 3
+  storage:
+    size: 2Gi
