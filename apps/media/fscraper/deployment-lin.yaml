@@ -34,7 +34,7 @@ spec:
           command:
             - sh
             - -c
-            - fansly-scraper -m LittleNii && fansly-scraper monitor start
+            - fansly-scraper -m LittleNii; fansly-scraper monitor start
           volumeMounts:
             - name: fscraper-config
               mountPath: /root/.config/fansly-scraper/config.toml

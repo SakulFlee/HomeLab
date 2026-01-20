@@ -34,7 +34,7 @@ spec:
           command:
             - sh
             - -c
-            - cat
+            - fansly-scraper -m Kaimiho; fansly-scraper monitor start
           volumeMounts:
             - name: fscraper-config
               mountPath: /root/.config/fansly-scraper/config.toml
