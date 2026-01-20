@@ -1,4 +1,3 @@
----
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 metadata:
@@ -6,12 +5,12 @@ metadata:
   namespace: nextcloud
 resources:
   - namespace.yaml
-  - database-postgres.yaml
-  - middleware.yaml
+  # - database-postgres.yaml
+  # - middleware.yaml
   # - configmap-app-hook.yaml
-  - helm-repository-redis.yaml
-  - helm-release-redis.yaml
-  - helm-repository-clamav.yaml
-  - helm-release-clamav.yaml
-  - helm-repository-nextcloud.yaml
-  - helm-release-nextcloud.yaml
+  # - helm-repository-redis.yaml
+  # - helm-release-redis.yaml
+  # - helm-repository-clamav.yaml
+  # - helm-release-clamav.yaml
+  - helm-repository-nextcloud-aio.yaml
+  - helm-release-nextcloud-aio.yaml
