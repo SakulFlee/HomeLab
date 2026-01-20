@@ -1,0 +1,57 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: syncthing
+  namespace: flux-system
+  labels:
+    reconcile.fluxcd.io/watch: Enabled
+spec:
+  interval: 15m
+  timeout: 5m
+  chart:
+    spec:
+      chart: syncthing
+      version: 2.0.0
+      sourceRef:
+        kind: HelmRepository
+        name: syncthing
+      interval: 5m
+  releaseName: syncthing
+  targetNamespace: syncthing
+  install:
+    createNamespace: true
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  test:
+    enable: true
+  driftDetection:
+    mode: enabled
+    ignore:
+      - paths: ["/spec/replicas"]
+        target:
+          kind: Deployment
+  values:
+    persistence:
+      config:
+        enabled: true
+        storageClass: longhorn-replicated
+        size: 150Gi
+        retain: true
+    ingress:
+      enabled: true
+      className: traefik
+      annotations:
+        cert-manager.io/cluster-issuer: zerossl-production
+        traefik.ingress.kubernetes.io/router.entrypoints: websecure
+      hosts:
+        - host: syncthing.sakul-flee.de
+          paths:
+            - path: /
+              pathType: Prefix
+              port: http
+      tls:
+        - secretName: syncthing-sakul-flee-de-tls
+          hosts: [syncthing.sakul-flee.de]
