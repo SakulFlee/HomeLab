@@ -82,6 +82,7 @@ spec:
       config:
         database:
           DB_TYPE: postgres
+          SCHEMA: public
           # Rest injected above!
         admin:
           DEFAULT_EMAIL_NOTIFICATIONS: enabled
