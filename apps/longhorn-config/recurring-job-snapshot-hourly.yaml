@@ -8,4 +8,4 @@ spec:
   task: snapshot
   retain: 12
   concurrency: 1
-  groups: [snapshot]
+  groups: [default, snapshot]
