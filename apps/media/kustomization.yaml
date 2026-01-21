@@ -7,8 +7,10 @@ resources:
   - namespace.yaml
   - persistent-volume-claim.yaml
   - helm-repository-alekc.yaml
+  - helm-repository-flaresolverr.yaml
   - helm-release-sonarr.yaml
   - helm-release-radarr.yaml
   - helm-release-prowlarr.yaml
   - helm-release-jellyfin.yaml
+  - helm-release-flaresolverr.yaml
   - qbittorrent-vpn/
