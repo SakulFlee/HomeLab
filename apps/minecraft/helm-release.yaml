@@ -37,16 +37,18 @@ spec:
     - kustomize:
         patches:
           - target:
-              kind: PersistentVolumeClaim
+              kind: StatefulSet
+              name: minecraft
             patch: |
-              apiVersion: v1
-              kind: PersistentVolumeClaim
-              metadata:
-                name: any
-                labels:
-                  recurring-job-group.longhorn.io/trim: enabled
-                  recurring-job-group.longhorn.io/snapshot: enabled
-                  recurring-job-group.longhorn.io/backup: enabled
+              - op: add
+                path: /spec/volumeClaimTemplates/0/metadata/labels/recurring-job-group.longhorn.io~1trim
+                value: "enabled"
+              - op: add
+                path: /spec/volumeClaimTemplates/0/metadata/labels/recurring-job-group.longhorn.io~1snapshot
+                value: "enabled"
+              - op: add
+                path: /spec/volumeClaimTemplates/0/metadata/labels/recurring-job-group.longhorn.io~1backup
+                value: "enabled"
   values:
     workloadAsStatefulSet: true
     strategyType: OnDelete
