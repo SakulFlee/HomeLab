@@ -42,6 +42,23 @@ spec:
                   recurring-job-group.longhorn.io/trim: enabled
                   recurring-job-group.longhorn.io/snapshot: enabled
                   recurring-job-group.longhorn.io/backup: enabled
+  valuesFrom:
+    - kind: Secret
+      name: forgejo-app
+      valuesKey: host
+      targetPath: gitea.config.database.HOST
+    - kind: Secret
+      name: forgejo-app
+      valuesKey: dbname
+      targetPath: gitea.config.database.NAME
+    - kind: Secret
+      name: forgejo-app
+      valuesKey: user
+      targetPath: gitea.config.database.USER
+    - kind: Secret
+      name: forgejo-app
+      valuesKey: password
+      targetPath: gitea.config.database.PASSWD
   values:
     # Upgrade strategy
     strategy:
@@ -63,6 +80,9 @@ spec:
         existingSecret: forgejo-secret
       # Additional config
       config:
+        database:
+          DB_TYPE: postgres
+          # Rest injected above!
         admin:
           DEFAULT_EMAIL_NOTIFICATIONS: enabled
           DISABLE_REGULAR_ORG_CREATION: true
