@@ -12,4 +12,3 @@ resources:
   - helm-release-prowlarr.yaml
   - helm-release-jellyfin.yaml
   - qbittorrent-vpn/
-  # - fscraper/
