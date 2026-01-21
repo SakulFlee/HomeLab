@@ -12,5 +12,5 @@ resources:
   - helm-release-radarr.yaml
   - helm-release-prowlarr.yaml
   - helm-release-jellyfin.yaml
-  # - helm-release-flaresolverr.yaml
+  - helm-release-flaresolverr.yaml
   - qbittorrent-vpn/
