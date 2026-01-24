@@ -87,7 +87,6 @@ spec:
         - gitea
         - lockable-resources
         - matrix-project
-        - proxmox
       JCasC:
         defaultConfig: true
         overwriteConfiguration: true
