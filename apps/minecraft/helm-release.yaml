@@ -60,8 +60,7 @@ spec:
       whitelist: SakulFlee,jendrik12799,Lennart116002,Fisch246,DarkRune2214,_MinaChan_,Froggy189,zero_MB
       ops: SakulFlee,jendrik12799
       motd: Conduit Network @ SakulFlee
-      serviceType: NodePort
-      nodePort: 30565
+      serviceType: LoadBalancer
       pluginUrls:
         - https://hangarcdn.papermc.io/plugins/ViaVersion/ViaVersion/versions/5.5.1/PAPER/ViaVersion-5.5.1.jar
         - https://hangarcdn.papermc.io/plugins/ViaVersion/ViaBackwards/versions/5.5.1/PAPER/ViaBackwards-5.5.1.jar
