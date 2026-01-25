@@ -10,14 +10,12 @@
    bash
 curl -sfL https://get.k3s.io | sudo sh -s - server \
   --cluster-init \
-  --node-ip=192.168.178.101,fd00:10::101 \
+  --node-ip=192.168.178.101,fd00::101 \
   --advertise-address=192.168.178.101 \
   --flannel-iface=eth0 \
-  --bind-address=0.0.0.0 \
-  --tls-san=192.168.178.101 \
+  --flannel-ipv6-masq \
   --cluster-cidr=10.42.0.0/16,fd42::/56 \
   --service-cidr=10.43.0.0/16,fd43::/112 \
-  --kubelet-arg="node-ip=0.0.0.0" \
   --node-name k3s-aeris
    
 
@@ -32,14 +30,13 @@ curl -sfL https://get.k3s.io | sudo sh -s - server \
 > 4. node-name
 
    bash
-  curl -sfL https://get.k3s.io | sudo sh -s - server \
-  --token <token at /var/lib/rancher/server/token on seeder> \
+curl -sfL https://get.k3s.io | sudo sh -s - server \
+  --token <token at /var/lib/rancher/k3s/server/token on seeder> \
   --server https://192.168.178.101:6443 \
-  --node-ip=192.168.178.102,fd00:10::102 \
-  --advertise-address=192.168.178.102 \
+  --node-ip=192.168.178.102,fd00::102 \
   --flannel-iface=eth0 \
+  --flannel-ipv6-masq \
   --cluster-cidr=10.42.0.0/16,fd42::/56 \
   --service-cidr=10.43.0.0/16,fd43::/112 \
-  --kubelet-arg="node-ip=0.0.0.0" \
   --node-name k3s-blyze
- 
+
