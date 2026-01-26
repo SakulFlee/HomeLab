@@ -75,7 +75,4 @@ spec:
       multithreading: true
       port: 8211
     service:
-      port: 8211
-      portUDP: 8211
-      nodePort: 30211
-      type: NodePort
+      type: LoadBalancer
