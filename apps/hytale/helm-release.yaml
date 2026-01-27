@@ -1,0 +1,37 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: hytale
+  namespace: flux-system
+  labels:
+    reconcile.fluxcd.io/watch: Enabled
+spec:
+  interval: 15m
+  timeout: 5m
+  chart:
+    spec:
+      chart: hytale
+      sourceRef:
+        kind: HelmRepository
+        name: hytale
+  releaseName: hytale
+  targetNamespace: hytale
+  install:
+    crds: CreateReplace
+    remediation:
+      retries: 3
+  upgrade:
+    crds: CreateReplace
+    remediation:
+      retries: 3
+  test:
+    enable: true
+  driftDetection:
+    mode: enabled
+    ignore:
+      - paths: ["/spec/replicas"]
+        target:
+          kind: Deployment
+  values:
+    image:
+      repository: forgejo.sakul-flee.de/containers/hytale
