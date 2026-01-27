@@ -1,9 +1,9 @@
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: HelmRepository
 metadata:
-name: hytale
-namespace: flux-system
+  name: hytale
+  namespace: flux-system
 spec:
-interval: 1h
-type: oci
-url: oci://ghcr.io/sakulflee/charts
+  interval: 1h
+  type: oci
+  url: oci://ghcr.io/sakulflee/charts
