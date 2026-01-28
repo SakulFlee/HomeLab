@@ -35,4 +35,3 @@ spec:
   values:
     image:
       repository: forgejo.sakul-flee.de/containers/hytale
-      pullPolicy: Always
