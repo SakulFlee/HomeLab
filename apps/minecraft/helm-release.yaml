@@ -65,7 +65,6 @@ spec:
         - https://hangarcdn.papermc.io/plugins/ViaVersion/ViaVersion/versions/5.5.1/PAPER/ViaVersion-5.5.1.jar
         - https://hangarcdn.papermc.io/plugins/ViaVersion/ViaBackwards/versions/5.5.1/PAPER/ViaBackwards-5.5.1.jar
         - https://download.geysermc.org/v2/projects/geyser/versions/latest/builds/latest/downloads/spigot
-        - https://download.geysermc.org/v2/projects/floodgate/versions/2.2.5/builds/121/downloads/spigot
         - https://download.geysermc.org/v2/projects/floodgate/versions/latest/builds/latest/downloads/spigot
         - https://hangarcdn.papermc.io/plugins/KingTheGuy/Portalis/versions/1.0/PAPER/portalis-1.0.jar
         - https://hangarcdn.papermc.io/plugins/EngineHub/WorldEdit/versions/7.3.17/PAPER/worldedit-bukkit-7.3.17.jar
