@@ -34,5 +34,5 @@ spec:
           kind: Deployment
   values:
     image:
-      repository: forgejo.sakul-flee.de/containers/hytale
+      # repository: forgejo.sakul-flee.de/containers/hytale
       pullPolicy: Always
