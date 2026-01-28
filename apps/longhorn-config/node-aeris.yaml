@@ -1,7 +1,7 @@
 apiVersion: longhorn.io/v1beta2
 kind: Node
 metadata:
-  name: k3s-aeris
+  name: aeris
   namespace: longhorn-system
 spec:
   allowScheduling: true
