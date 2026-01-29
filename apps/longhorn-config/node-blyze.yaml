@@ -4,6 +4,7 @@ metadata:
   name: blyze
   namespace: longhorn-system
 spec:
+  name: blyze
   allowScheduling: true
   disks:
     storage:
