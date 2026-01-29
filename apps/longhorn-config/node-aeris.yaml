@@ -4,6 +4,7 @@ metadata:
   name: aeris
   namespace: longhorn-system
 spec:
+  name: aeris
   allowScheduling: true
   disks:
     storage:
