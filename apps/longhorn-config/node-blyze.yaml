@@ -1,7 +1,7 @@
 apiVersion: longhorn.io/v1beta2
 kind: Node
 metadata:
-  name: k3s-blyze
+  name: blyze
   namespace: longhorn-system
 spec:
   allowScheduling: true

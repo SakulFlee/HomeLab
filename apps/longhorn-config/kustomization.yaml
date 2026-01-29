@@ -6,7 +6,7 @@ metadata:
 resources:
   - backup-target.yaml
   - node-aeris.yaml
-  - node-k3s-blyze.yaml
+  - node-blyze.yaml
   - node-k3s-cindry.yaml
   - storage-class-longhorn-replicated.yaml
   - storage-class-longhorn-volatile.yaml
