@@ -1,9 +1,10 @@
 apiVersion: longhorn.io/v1beta2
 kind: Node
 metadata:
-  name: k3s-cindry
+  name: cindry
   namespace: longhorn-system
 spec:
+  name: cindry
   allowScheduling: true
   disks:
     storage:
