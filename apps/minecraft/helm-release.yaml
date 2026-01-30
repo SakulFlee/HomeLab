@@ -50,6 +50,11 @@ spec:
                 path: /spec/volumeClaimTemplates/0/metadata/labels/recurring-job-group.longhorn.io~1backup
                 value: "enabled"
   values:
+    dnsPolicy: ClusterFirst
+    dnsConfig:
+      options:
+        - name: ndots
+          value: '1'
     workloadAsStatefulSet: true
     strategyType: OnDelete
     minecraftServer:
