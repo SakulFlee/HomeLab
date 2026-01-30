@@ -50,8 +50,6 @@ spec:
                 path: /spec/volumeClaimTemplates/0/metadata/labels/recurring-job-group.longhorn.io~1backup
                 value: "enabled"
   values:
-    extraEnv:
-      JVM_OPTS: "-Djava.net.preferIPv4Stack=true -Djava.net.preferIPv4Addresses=true"
     workloadAsStatefulSet: true
     strategyType: OnDelete
     minecraftServer:
