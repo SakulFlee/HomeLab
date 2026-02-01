@@ -11,5 +11,5 @@ resources:
   - storage-class-longhorn-replicated.yaml
   - storage-class-longhorn-volatile.yaml
   - recurring-job-snapshot-hourly.yaml
-  # - recurring-job-backup-daily.yaml
+  - recurring-job-backup-daily.yaml
   - recurring-job-trim-daily.yaml
