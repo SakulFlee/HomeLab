@@ -4,4 +4,4 @@ metadata:
   name: default
   namespace: longhorn-system
 spec:
-  backupTargetURL:
+  backupTargetURL: ""
