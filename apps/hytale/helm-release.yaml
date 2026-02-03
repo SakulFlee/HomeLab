@@ -37,4 +37,5 @@ spec:
       repository: forgejo.sakul-flee.de/containers/hytale
     persistence:
       size: 32Gi
+      existingClaim: "hytale-hytale-0"
     mods:
