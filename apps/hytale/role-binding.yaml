@@ -1,0 +1,14 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: deployment-restarter-rb
+  namespace: palworld
+subjects:
+  - kind: ServiceAccount
+    name: deployment-restarter-sa
+    namespace: palworld
+roleRef:
+  kind: Role
+  name: deployment-restarter-role
+  apiGroup: rbac.authorization.k8s.io
