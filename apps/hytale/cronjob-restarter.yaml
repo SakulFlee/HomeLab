@@ -6,7 +6,7 @@ metadata:
   namespace: palworld
 spec:
   concurrencyPolicy: Forbid
-  schedule: 0 */4 * * *
+  schedule: 0 6 * * *
   jobTemplate:
     spec:
       backoffLimit: 1
