@@ -101,6 +101,8 @@ spec:
           SMTP_PORT: 465
           USER: dev@sakul-flee.de
           FROM: forgejo@sakul-flee.de
+        server:
+          LFS_START_SERVER: true
     # GPG signing support
     signing:
       enabled: true
