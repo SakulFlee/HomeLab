@@ -4,6 +4,7 @@ metadata:
   name: website
   namespace: website
 resources:
+  - namespace.yaml
   - deployment.yaml
   - service.yaml
   - ingress.yaml
