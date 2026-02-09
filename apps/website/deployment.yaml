@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: website
+  namespace: website
+  labels:
+    app: website
+spec:
+  selector:
+    matchLabels:
+      app: website
+  replicas: 3
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: website
+    spec:
+      containers:
+        - name: website
+          image: forgejo.sakul-flee.de/containers/website:latest
+          imagePullPolicy: always
