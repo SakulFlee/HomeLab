@@ -44,9 +44,6 @@ spec:
               value: matrix.sakul-flee.de
             - name: TUWUNEL_TRUSTED_SERVERS
               value: '["matrix.org"]'
-          envFrom:
-            - secretRef:
-                name: secret-qbittorrent-vpn
           ports:
             - name: tuwunel
               containerPort: 6167
