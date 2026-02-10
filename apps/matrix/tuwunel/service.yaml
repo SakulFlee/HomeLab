@@ -4,7 +4,7 @@ metadata:
   name: tuwunel
   namespace: matrix
 spec:
-  type: ClusterIP
+  type: LoadBalancer
   selector:
     app: tuwunel
   ports:
