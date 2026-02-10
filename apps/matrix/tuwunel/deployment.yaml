@@ -50,7 +50,7 @@ spec:
             - name: tuwunel
               containerPort: 6167
               protocol: TCP
-            - name: tuwunel-federation
+            - name: tuwunel-fed
               containerPort: 8448
               protocol: TCP
           volumeMounts:
