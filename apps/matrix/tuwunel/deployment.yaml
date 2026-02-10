@@ -50,9 +50,6 @@ spec:
             - name: tuwunel
               containerPort: 6167
               protocol: TCP
-            - name: tuwunel-fed
-              containerPort: 8448
-              protocol: TCP
           volumeMounts:
             - name: tuwunel-db
               mountPath: /var/lib/tuwunel

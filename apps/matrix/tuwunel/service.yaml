@@ -13,4 +13,4 @@ spec:
       targetPort: 6167
     - name: tuwunel-fed
       port: 8448
-      targetPort: 8448
+      targetPort: 6167
