@@ -3,4 +3,4 @@ kind: Kustomization
 metadata:
   name: matrix
   namespace: matrix
-resources: [namespace.yaml, tuwunel/, well-known/]
+resources: [namespace.yaml, tuwunel/]
