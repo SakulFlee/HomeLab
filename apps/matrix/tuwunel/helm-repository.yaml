@@ -5,5 +5,4 @@ metadata:
   namespace: matrix
 spec:
   interval: 5m0s
-  type: helm
   url: https://github.com/AreYouLoco/tuwunel-helm/
