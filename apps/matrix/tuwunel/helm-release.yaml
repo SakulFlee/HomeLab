@@ -17,7 +17,7 @@ spec:
         name: tuwunel
       interval: 5m
   releaseName: tuwunel
-  targetNamespace: tuwunel
+  targetNamespace: matrix
   install:
     createNamespace: true
     remediation:
