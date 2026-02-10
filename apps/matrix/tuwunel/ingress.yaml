@@ -19,6 +19,16 @@ spec:
                 name: tuwunel
                 port:
                   number: 6167
+    - host: matrix.sakul-flee.de
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: tuwunel-federation
+                port:
+                  number: 8448
   tls:
     - hosts:
         - matrix.sakul-flee.de

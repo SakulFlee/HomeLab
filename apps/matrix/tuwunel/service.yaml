@@ -8,6 +8,9 @@ spec:
   selector:
     app: tuwunel
   ports:
-    - name: http
+    - name: tuwunel
       port: 6167
       targetPort: 6167
+    - name: tuwunel-federation
+      port: 8448
+      targetPort: 8448
