@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: tuwunel
+  namespace: matrix
+  annotations:
+    cert-manager.io/cluster-issuer: zerossl-production
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: matrix.sakul-flee.de
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: tuwunel
+                port:
+                  number: 6167
+  tls:
+    - hosts:
+        - matrix.sakul-flee.de
+      secretName: matrix-sakul-flee-de-tls
