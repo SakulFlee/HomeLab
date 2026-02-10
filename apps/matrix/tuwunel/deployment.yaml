@@ -43,7 +43,7 @@ spec:
             - name: TUWUNEL_REGISTRATION_TOKEN
               value: YOUR_TOKEN
             - name: TUWUNEL_SERVER_NAME
-              value: matrix.sakul-flee.de
+              value: sakul-flee.de
             - name: TUWUNEL_TRUSTED_SERVERS
               value: '["matrix.org"]'
           ports:
