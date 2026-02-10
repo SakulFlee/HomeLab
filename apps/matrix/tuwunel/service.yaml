@@ -11,6 +11,6 @@ spec:
     - name: tuwunel
       port: 6167
       targetPort: 6167
-    - name: tuwunel-federation
+    - name: tuwunel-fed
       port: 8448
       targetPort: 8448
