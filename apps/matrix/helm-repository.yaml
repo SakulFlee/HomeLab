@@ -1,9 +1,8 @@
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: HelmRepository
 metadata:
-  name: matrix-stack
+  name: synapse
   namespace: flux-system
 spec:
   interval: 1h
-  type: oci
-  url: oci://ghcr.io/element-hq/ess-helm/matrix-stack
+  url: https://charts.sudermanjr.com
