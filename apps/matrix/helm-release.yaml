@@ -67,6 +67,10 @@ spec:
     serverName: sakul-flee.de
     replicaCount: 3
     storageClass: longhorn-replicated
+    image:
+      pullPolicy: "Always"
+      repository: "matrixdotorg/synapse"
+      tag: "v1.147.0"
     service:
       port: 8008
       type: LoadBalancer
