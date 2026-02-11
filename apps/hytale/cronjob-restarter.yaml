@@ -1,9 +1,8 @@
----
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: deployment-restarter-palworld
-  namespace: palworld
+  name: deployment-restarter-hytale
+  namespace: hytale
 spec:
   concurrencyPolicy: Forbid
   schedule: 0 6 * * *
