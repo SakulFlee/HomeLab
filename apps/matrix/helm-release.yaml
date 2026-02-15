@@ -36,11 +36,11 @@ spec:
           kind: Deployment
   valuesFrom:
     - kind: Secret
-      name: secret-synapse
+      name: synapse
       valuesKey: signingKeyB64
       targetPath: signingKeyB64
     - kind: Secret
-      name: secret-synapse
+      name: synapse
       valuesKey: regSharedSecret
       targetPath: regSharedSecret
     - kind: Secret
