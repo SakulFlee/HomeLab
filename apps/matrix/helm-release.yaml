@@ -67,9 +67,6 @@ spec:
     serverName: sakul-flee.de
     replicaCount: 3
     storageClass: longhorn-replicated
-    service:
-      port: 8008
-      type: LoadBalancer
     ingress:
       enabled: true
       annotations:
