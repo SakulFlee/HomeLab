@@ -4,6 +4,6 @@ metadata:
   name: synapse-db
   namespace: matrix
 spec:
-  instances: 1
+  instances: 3
   storage:
     size: 4Gi
