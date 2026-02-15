@@ -1,9 +1,9 @@
 apiVersion: postgresql.cnpg.io/v1
 kind: Cluster
 metadata:
-  name: synapse-db
+  name: matrix
   namespace: matrix
 spec:
   instances: 3
   storage:
-    size: 1Gi
+    size: 4Gi
