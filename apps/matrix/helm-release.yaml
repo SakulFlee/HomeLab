@@ -65,7 +65,6 @@ spec:
       targetPath: postgres.user
   values:
     serverName: sakul-flee.de
-    replicaCount: 3
     storageClass: longhorn-replicated
     ingress:
       enabled: true
