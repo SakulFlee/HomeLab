@@ -69,9 +69,6 @@ spec:
     storageClass: longhorn-replicated
     ingress:
       enabled: true
-      annotations:
-        cert-manager.io/cluster-issuer: zerossl-production
-        traefik.ingress.kubernetes.io/router.entrypoints: websecure
       hosts:
         - host: matrix.sakul-flee.de
           paths: ["/"]
