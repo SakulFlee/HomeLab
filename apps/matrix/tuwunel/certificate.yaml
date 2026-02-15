@@ -1,0 +1,12 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: tuwunel-cert
+  namespace: matrix
+spec:
+  secretName: matrix-sakul-flee-de-tls
+  issuerRef:
+    name: zerossl-production
+    kind: ClusterIssuer
+  dnsNames:
+    - matrix.sakul-flee.de

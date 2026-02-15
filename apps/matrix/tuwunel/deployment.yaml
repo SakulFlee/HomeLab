@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tuwunel
+  namespace: matrix
+  labels:
+    app: tuwunel
+spec:
+  selector:
+    matchLabels:
+      app: tuwunel
+  replicas: 1
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: tuwunel
+    spec:
+      volumes:
+        - name: tuwunel-db
+          persistentVolumeClaim:
+            claimName: tuwunel-db
+      containers:
+        - name: tuwunel
+          image: jevolk/tuwunel:latest
+          imagePullPolicy: Always
+          tty: true
+          stdin: true
+          env:
+            - name: TUWUNEL_ADDRESS
+              value: 0.0.0.0
+            - name: TUWUNEL_ALLOW_FEDERATION
+              value: "true"
+            - name: TUWUNEL_ALLOW_REGISTRATION
+              value: "true"
+            - name: TUWUNEL_DATABASE_PATH
+              value: /var/lib/tuwunel
+            - name: TUWUNEL_MAX_REQUEST_SIZE
+              value: "20000000"
+            - name: TUWUNEL_PORT
+              value: "6167"
+            - name: TUWUNEL_REGISTRATION_TOKEN
+              value: YOUR_TOKEN
+            - name: TUWUNEL_SERVER_NAME
+              value: sakul-flee.de
+            - name: TUWUNEL_TRUSTED_SERVERS
+              value: '["matrix.org"]'
+          ports:
+            - name: tuwunel
+              containerPort: 6167
+              protocol: TCP
+          volumeMounts:
+            - name: tuwunel-db
+              mountPath: /var/lib/tuwunel
