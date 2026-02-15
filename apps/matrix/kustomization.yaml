@@ -3,4 +3,4 @@ kind: Kustomization
 metadata:
   name: matrix
   namespace: matrix
-resources: [namespace.yaml, helm-repository.yaml, helm-release.yaml]
+resources: [namespace.yaml, tuwunel/]
