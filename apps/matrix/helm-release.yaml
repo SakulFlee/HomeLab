@@ -1,7 +1,7 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: matrix
+  name: matrix-stack
   namespace: flux-system
   labels:
     reconcile.fluxcd.io/watch: Enabled
@@ -10,14 +10,12 @@ spec:
   timeout: 5m
   chart:
     spec:
-      chart: synapse
-      version: 1.1.x
+      chart: matrix-stack
       sourceRef:
         kind: HelmRepository
-        name: synapse
-      interval: 5m
-  releaseName: matrix
-  targetNamespace: matrix
+        name: matrix-stack
+  releaseName: matrix-stack
+  targetNamespace: matrix-stack
   install:
     crds: CreateReplace
     remediation:
@@ -34,20 +32,74 @@ spec:
       - paths: ["/spec/replicas"]
         target:
           kind: Deployment
-  valuesFrom:
-    - kind: Secret
-      name: synapse
-      valuesKey: signingKeyB64
-      targetPath: signingKeyB64
   values:
-    serverName: sakul-flee.de
-    storageClass: longhorn-replicated
+    serverName: matrix.sakul-flee.de
     ingress:
+      className: traefik
+      annotations:
+        cert-manager.io/cluster-issuer: zerossl-production
+      tlsEnabled: true
+      tlsSecret: matrix-tls
+    synapse:
       enabled: true
-      hosts:
-        - host: matrix.sakul-flee.de
-          paths: ["/"]
-      tls:
-        - secretName: matrix-tls
-          hosts:
-            - matrix.sakul-flee.de
+      ingress:
+        host: synapse.sakul-flee.de
+      workers:
+        account-data:
+          enabled: true
+        appservice:
+          enabled: true
+        background:
+          enabled: true
+        client-reader:
+          enabled: true
+        device-lists:
+          enabled: true
+        encryption:
+          enabled: true
+        event-creator:
+          enabled: true
+        event-persister:
+          enabled: true
+        federation-inbound:
+          enabled: true
+        federation-reader:
+          enabled: true
+        federation-sender:
+          enabled: true
+        initial-synchrotron:
+          enabled: true
+        media-repository:
+          enabled: true
+        presence-writer:
+          enabled: true
+        push-rules:
+          enabled: true
+        pusher:
+          enabled: true
+        receipts:
+          enabled: true
+        sliding-sync:
+          enabled: true
+        sso-login:
+          enabled: true
+        synchrotron:
+          enabled: true
+        typing-persister:
+          enabled: true
+        user-dir:
+          enabled: true
+    matrixAuthenticationService:
+      enabled: true
+      ingress:
+        host: mas.sakul-flee.de
+    matrixRTX:
+      enabled: true
+      ingress:
+        host: mrtc.sakul-flee.de
+    elementWeb:
+      enabled: true
+      ingress:
+        host: element.sakul-flee.de
+    wellKnownDelegation:
+      enabled: true
