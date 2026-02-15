@@ -39,30 +39,6 @@ spec:
       name: synapse
       valuesKey: signingKeyB64
       targetPath: signingKeyB64
-    - kind: Secret
-      name: synapse
-      valuesKey: regSharedSecret
-      targetPath: regSharedSecret
-    - kind: Secret
-      name: synapse-db-app
-      valuesKey: dbname
-      targetPath: postgres.database
-    - kind: Secret
-      name: synapse-db-app
-      valuesKey: host
-      targetPath: postgres.host
-    - kind: Secret
-      name: synapse-db-app
-      valuesKey: password
-      targetPath: postgres.password
-    - kind: Secret
-      name: synapse-db-app
-      valuesKey: port
-      targetPath: postgres.port
-    - kind: Secret
-      name: synapse-db-app
-      valuesKey: user
-      targetPath: postgres.user
   values:
     serverName: sakul-flee.de
     storageClass: longhorn-replicated
