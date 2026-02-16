@@ -12,6 +12,5 @@ spec:
       services:
         - name: tuwunel
           port: 6167
-          serverTransport: matrix-transport
   tls:
     secretName: matrix-sakul-flee-de-tls

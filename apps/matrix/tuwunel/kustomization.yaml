@@ -9,4 +9,3 @@ resources:
   - ingress-route.yaml
   - persistent-volume-claim.yaml
   - service.yaml
-  - servers-transport.yaml
