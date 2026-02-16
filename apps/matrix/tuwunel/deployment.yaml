@@ -58,6 +58,8 @@ spec:
               value: sakul-flee.de
             - name: TUWUNEL_TRUSTED_SERVERS
               value: '["matrix.org"]'
+            - name: RUST_LOG
+              value: "tuwunel=trace,reqwest=trace"
           ports:
             - name: tuwunel
               containerPort: 6167
