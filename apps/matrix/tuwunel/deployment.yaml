@@ -46,8 +46,6 @@ spec:
               value: sakul-flee.de
             - name: TUWUNEL_TRUSTED_SERVERS
               value: '["matrix.org"]'
-            - name: TUWUNEL_FEDERATION_TIMEOUT
-              value: "300"
           ports:
             - name: tuwunel
               containerPort: 6167
