@@ -1,0 +1,9 @@
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata:
+  name: matrix-transport
+  namespace: matrix
+spec:
+  forwardingTimeouts:
+    responseHeaderTimeout: 300s
+    idleConnTimeout: 300s
