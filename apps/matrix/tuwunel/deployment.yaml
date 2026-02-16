@@ -17,6 +17,11 @@ spec:
       labels:
         app: tuwunel
     spec:
+      dnsPolicy: "None"
+      dnsConfig:
+        nameservers:
+          - 9.9.9.9
+          - 1.1.1.1
       volumes:
         - name: tuwunel-db
           persistentVolumeClaim:
