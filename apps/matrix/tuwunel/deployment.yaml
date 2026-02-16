@@ -33,7 +33,7 @@ spec:
             - name: TUWUNEL_ALLOW_FEDERATION
               value: "true"
             - name: TUWUNEL_ALLOW_REGISTRATION
-              value: "true"
+              value: "false"
             - name: TUWUNEL_DATABASE_PATH
               value: /var/lib/tuwunel
             - name: TUWUNEL_MAX_REQUEST_SIZE
