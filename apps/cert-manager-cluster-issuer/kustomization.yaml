@@ -4,5 +4,6 @@ metadata:
   name: cert-manager-cluster-issuer
   namespace: cert-manager
 resources:
-  - cluster-issuer-letsencrypt.yaml
+  - cluster-issuer-letsencrypt-production.yaml
+  - cluster-issuer-letsencrypt-staging.yaml
   - cluster-issuer-zerossl.yaml

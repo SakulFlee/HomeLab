@@ -4,10 +4,10 @@ metadata:
   name: letsencrypt-production
 spec:
   acme:
-    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    server: https://acme-v02.api.letsencrypt.org/directory
     email: dev@sakul-flee.de
     privateKeySecretRef:
-      name: letsencrypt-staging-key
+      name: letsencrypt-production-key
     solvers:
     - http01:
         ingress:
