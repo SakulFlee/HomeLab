@@ -30,19 +30,19 @@ spec:
           kind: Deployment
   valuesFrom:
     - kind: Secret
-      name: forgejo-app
+      name: postgres-app
       valuesKey: host
       targetPath: gitea.config.database.HOST
     - kind: Secret
-      name: forgejo-app
+      name: postgres-app
       valuesKey: dbname
       targetPath: gitea.config.database.NAME
     - kind: Secret
-      name: forgejo-app
+      name: postgres-app
       valuesKey: user
       targetPath: gitea.config.database.USER
     - kind: Secret
-      name: forgejo-app
+      name: postgres-app
       valuesKey: password
       targetPath: gitea.config.database.PASSWD
   values:
