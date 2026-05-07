@@ -34,6 +34,20 @@ spec:
         target:
           kind: Deployment
   values:
-    vault:
-      ingress:
-        annotations: {} 
+    ingress:
+      enabled: true
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-production
+        traefik.ingress.kubernetes.io/router.entrypoints: websecure
+      spec:
+        rules:
+          - host: vault.sakul-flee.de
+            http:
+              paths:
+              - backend:
+                  service:
+                    name: vault
+                    port:
+                      number: 8200
+                path: /
+                pathType: ImplementationSpecific
