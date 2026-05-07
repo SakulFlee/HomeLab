@@ -1,0 +1,13 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: vault-operator
+  namespace: jayex
+spec:
+  interval: 5m0s
+  url: oci://ghcr.io/bank-vaults/helm-charts/vault-operator
+  layerSelector:
+    mediaType: application/vnd.cncf.helm.chart.content.v1.tar+gzip
+    operation: copy
+  ref:
+    semver: ^1.22.0
