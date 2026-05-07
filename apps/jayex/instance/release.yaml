@@ -33,4 +33,7 @@ spec:
       - paths: [/spec/replicas]
         target:
           kind: Deployment
-
+  values:
+    vault:
+      ingress:
+        annotations: {} 
