@@ -1,0 +1,6 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+metadata:
+  name: jayex
+  namespace: jayex
+resources: [namespace.yaml, helm-repository.yaml, helm-release.yaml]
