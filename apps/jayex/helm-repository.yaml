@@ -1,7 +1,7 @@
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: HelmRepository
 metadata:
-  name: jayex
+  name: jxgh
   namespace: jayex
 spec:
   interval: 1h0m0s
