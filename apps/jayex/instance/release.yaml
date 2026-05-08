@@ -40,19 +40,14 @@ spec:
         cert-manager.io/cluster-issuer: letsencrypt-production
         traefik.ingress.kubernetes.io/router.entrypoints: websecure
       spec:
-        ingressClassName: traefik
-        tls:
-          - secretName: vault-tls-secret
-            hosts:
-              - vault.sakul-flee.de
         rules:
           - host: vault.sakul-flee.de
             http:
               paths:
-                - path: /
-                  pathType: ImplementationSpecific
-                  backend:
-                    service:
-                      name: vault
-                      port:
-                        number: 8200
+              - backend:
+                  service:
+                    name: vault
+                    port:
+                      number: 8200
+                path: /
+                pathType: ImplementationSpecific
