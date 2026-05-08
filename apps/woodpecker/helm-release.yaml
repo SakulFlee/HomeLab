@@ -30,6 +30,7 @@ spec:
           kind: Deployment
   values:
     server:
+      enabled: true
       env:
         WOODPECKER_OPEN: "true"        
         WOODPECKER_ADMIN: sakulflee
@@ -53,4 +54,9 @@ spec:
         tls:
           - secretName: woodpecker-sakul-flee-de-tls
             hosts: [woodpecker.sakul-flee.de]
+    agent:
+      enabled: true
+      env:
+        WOODPECKER_SERVER: "woodpecker-server:9000"
+        WOODPECKER_CONNECT_RETRY_COUNT: "10"
 
