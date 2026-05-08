@@ -17,7 +17,7 @@ spec:
         name: jxgh
       interval: 5m
   releaseName: vault-instance
-  targetNamespace: jayex
+  targetNamespace: vault-instance
   install:
     createNamespace: true
     remediation:
