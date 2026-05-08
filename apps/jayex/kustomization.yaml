@@ -3,4 +3,4 @@ kind: Kustomization
 metadata:
   name: jayex
   namespace: jayex
-resources: [namespace.yaml, operator/, instance/]
+resources: [namespace.yaml, helm-repository.yaml, helm-release.yaml]

@@ -1,17 +1,22 @@
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
-  name: vault-operator
+  name: jayex
   namespace: jayex
   labels:
     reconcile.fluxcd.io/watch: Enabled
 spec:
   interval: 15m
   timeout: 5m
-  chartRef:
-    kind: OCIRepository
-    name: vault-operator
-  releaseName: vault-operator
+  chart:
+    spec:
+      chart: jayex
+      version: 1.0.2
+      sourceRef:
+        kind: HelmRepository
+        name: jayex
+      interval: 5m
+  releaseName: jayex
   targetNamespace: jayex
   install:
     createNamespace: true
@@ -25,7 +30,7 @@ spec:
   driftDetection:
     mode: enabled
     ignore:
-      - paths: [/spec/replicas]
+      - paths: ["/spec/replicas"]
         target:
           kind: Deployment
 
