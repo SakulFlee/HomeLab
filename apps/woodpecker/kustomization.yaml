@@ -3,4 +3,4 @@ kind: Kustomization
 metadata:
   name: woodpecker
   namespace: woodpecker
-resources: [helm-repository.yaml, helm-release.yaml]
+resources: [helm-repository.yaml, helm-release.yaml, namespace.yaml]
