@@ -30,6 +30,13 @@ spec:
           kind: Deployment
   values:
     server:
+      env:
+        WOODPECKER_ADMIN: woodpecker,admin
+        WOODPECKER_HOST: https://woodpecker.sakul-flee.de
+        WOODPECKER_FORGEJO: true
+        WOODPECKER_FORGEJO_URL: https://forgejo.sakul-flee.de
+        WOODPECKER_FORGEJO_CLIENT: 2c0dca33-08fe-4fa6-8c6f-33ce3e6833ed
+        WOODPECKER_FORGEJO_SECRET: gto_san7q4odi77kyiceviiid4asf7zsb6boyf6ddqf27p6ufpqefhhq
       ingress:
         enabled: true
         className: traefik
