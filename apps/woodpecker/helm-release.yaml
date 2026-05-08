@@ -31,7 +31,7 @@ spec:
   values:
     server:
       env:
-        WOODPECKER_OPEN: true
+        WOODPECKER_OPEN: "true"        
         WOODPECKER_ADMIN: sakulflee
         WOODPECKER_HOST: https://woodpecker.sakul-flee.de
         WOODPECKER_FORGEJO: "true"
