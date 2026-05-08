@@ -50,6 +50,6 @@ spec:
                 pathType: Prefix
                 port: http
         tls:
-          - secretName: forgejo-sakul-flee-de-tls
+          - secretName: woodpecker-sakul-flee-de-tls
             hosts: [woodpecker.sakul-flee.de]
 
