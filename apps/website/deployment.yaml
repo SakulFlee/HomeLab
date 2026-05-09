@@ -19,5 +19,5 @@ spec:
     spec:
       containers:
         - name: website
-          image: forgejo.sakul-flee.de/containers/website:latest
+          image: forgejo.sakul-flee.de/sakulflee/website:latest
           imagePullPolicy: Always
