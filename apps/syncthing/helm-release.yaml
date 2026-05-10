@@ -38,6 +38,11 @@ spec:
       config:
         enabled: true
         storageClass: local-path
+        size: 5Gi
+        retain: true
+      data:
+        enabled: true
+        storageClass: local-path
         type: hostPath
         hostPath: /mnt/nas_smb_sakulflee/
         retain: true
