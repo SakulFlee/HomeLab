@@ -37,8 +37,9 @@ spec:
     persistence:
       config:
         enabled: true
-        storageClass: longhorn-replicated
-        size: 150Gi
+        storageClass: local-path
+        type: hostPath
+        hostPath: /mnt/nas_smb_sakulflee/
         retain: true
     service:
       main:
@@ -47,7 +48,6 @@ spec:
         type: ClusterIP
         ports:
           http:
-            # -- Enables or disables the port
             enabled: true
             # -- Make this the primary port (used in probes, notes, etc...)
             # If there is more than 1 service, make sure that only 1 port is marked as primary.
@@ -59,7 +59,6 @@ spec:
             # HTTP and HTTPS spawn a TCP service and get used for internal URL and name generation
             protocol: HTTPS
           listen:
-            # -- Enables or disables the port
             enabled: true
             # -- Make this the primary port (used in probes, notes, etc...)
             # If there is more than 1 service, make sure that only 1 port is marked as primary.
@@ -71,7 +70,6 @@ spec:
             # HTTP and HTTPS spawn a TCP service and get used for internal URL and name generation
             protocol: TCP
           discovery:
-            # -- Enables or disables the port
             enabled: true
             # -- Make this the primary port (used in probes, notes, etc...)
             # If there is more than 1 service, make sure that only 1 port is marked as primary.
