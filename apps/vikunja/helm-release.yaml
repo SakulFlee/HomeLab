@@ -51,6 +51,8 @@ spec:
         enabled: true
         data:
           config.yml:
+            cors:
+              enable: true
             service:
               publicurl: "https://vikunja.sakul-flee.de"
               timezone: "DE"
