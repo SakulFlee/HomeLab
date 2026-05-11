@@ -51,7 +51,7 @@ spec:
         config:
           enabled: true
           data:
-            config.yml:
+            config.yml: |
               cors:
                 enable: "true"
               service:
