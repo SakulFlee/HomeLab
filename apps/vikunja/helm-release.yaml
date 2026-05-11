@@ -28,23 +28,19 @@ spec:
     - kind: Secret
       name: postgres-app
       valuesKey: host
-      targetPath: database.host
+      targetPath: env.VIKUNJA_DATABASE_HOST
     - kind: Secret
       name: postgres-app
       valuesKey: dbname
-      targetPath: database.database
+      targetPath: env.VIKUNJA_DATABASE_DATABASE
     - kind: Secret
       name: postgres-app
       valuesKey: user
-      targetPath: database.user
+      targetPath: env.VIKUNJA_DATABASE_USER
     - kind: Secret
       name: postgres-app
       valuesKey: password
-      targetPath: database.password
-    - kind: Secret
-      name: vikunja-mailer
-      valuesKey: password
-      targetPath: mailer.password
+      targetPath: env.VIKUNJA_DATABASE_PASSWORD
   values:
     vikunja:
       configMaps:
@@ -67,16 +63,8 @@ spec:
           size: 1Gi
         database:
           enabled: false
-      database:
-        type: postgres
-        # Rest injected above
-      mailer:
-        enabled: true
-        host: smtp.purelymail.com
-        port: 465
-        username: dev@sakul-flee.de
-        # Password injected above
-        fromemail: vikunja@sakul-flee.de 
+      env:
+        VIKUNJA_DATABASE_TYPE: "postgres"
       ingress:
         main:
           enabled: true
