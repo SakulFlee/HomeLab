@@ -52,7 +52,7 @@ spec:
                 enable: "true"
               service:
                 publicurl: "https://vikunja.sakul-flee.de"
-                timezone: "DE"
+                timezone: "Europe/Berlin"
                 enableregistration: "false"
                 enablelinksharing: "true"
                 defaultlanguage: "en"
