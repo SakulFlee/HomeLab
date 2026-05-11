@@ -46,47 +46,50 @@ spec:
       valuesKey: password
       targetPath: mailer.password
   values:
-    configMaps:
-      config:
-        enabled: true
+    vikunja:
+      configMaps:
+        config:
+          enabled: true
+          data:
+            config.yml:
+              cors:
+                enable: "true"
+              service:
+                publicurl: "https://vikunja.sakul-flee.de"
+                timezone: "DE"
+                enableregistration: "false"
+                enablelinksharing: "true"
+                defaultlanguage: "en"
+      persistence:
         data:
-          config.yml:
-            cors:
-              enable: "true"
-            service:
-              publicurl: "https://vikunja.sakul-flee.de"
-              timezone: "DE"
-              enableregistration: "false"
-              enablelinksharing: "true"
-              defaultlanguage: "en"
-    persistence:
-      data:
+          enabled: true
+          storageClass: local-path
+          size: 1Gi
+        database:
+          enabled: false
+      database:
+        type: postgres
+        # Rest injected above
+      mailer:
         enabled: true
-        storageClass: local-path
-        size: 1Gi
-    database:
-      type: postgres
-      # Rest injected above
-    mailer:
-      enabled: true
-      host: smtp.purelymail.com
-      port: 465
-      username: dev@sakul-flee.de
-      # Password injected above
-      fromemail: vikunja@sakul-flee.de 
-    ingress:
-      main:
-        enabled: true
-        className: traefik
-        annotations:
-          cert-manager.io/cluster-issuer: letsencrypt-production
-          traefik.ingress.kubernetes.io/router.entrypoints: websecure
-        hosts:
-          - host: vikunja.sakul-flee.de
-            paths:
-              - path: /
-                pathType: Prefix
-                port: http
-        tls:
-          - secretName: vikunja-sakul-flee-de-tls
-            hosts: [vikunja.sakul-flee.de]
+        host: smtp.purelymail.com
+        port: 465
+        username: dev@sakul-flee.de
+        # Password injected above
+        fromemail: vikunja@sakul-flee.de 
+      ingress:
+        main:
+          enabled: true
+          className: traefik
+          annotations:
+            cert-manager.io/cluster-issuer: letsencrypt-production
+            traefik.ingress.kubernetes.io/router.entrypoints: websecure
+          hosts:
+            - host: vikunja.sakul-flee.de
+              paths:
+                - path: /
+                  pathType: Prefix
+                  port: http
+          tls:
+            - secretName: vikunja-sakul-flee-de-tls
+              hosts: [vikunja.sakul-flee.de]
