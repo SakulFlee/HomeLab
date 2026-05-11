@@ -52,6 +52,7 @@ spec:
         data:
           config.yml:
             service:
+              publicurl: "https://vikunja.sakul-flee.de"
               enableregistration: false
               enablelinksharing: true
               defaultlanguage: "en"
