@@ -53,6 +53,7 @@ spec:
           config.yml:
             service:
               enbleregistration: false
+              enablelinksharing: true
     persistence:
       data:
         enabled: true
