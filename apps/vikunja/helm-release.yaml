@@ -53,6 +53,7 @@ spec:
           config.yml:
             service:
               publicurl: "https://vikunja.sakul-flee.de"
+              timezone: "DE"
               enableregistration: false
               enablelinksharing: true
               defaultlanguage: "en"
