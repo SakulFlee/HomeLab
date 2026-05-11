@@ -54,6 +54,7 @@ spec:
             service:
               enableregistration: false
               enablelinksharing: true
+              defaultlanguage: "en"
     persistence:
       data:
         enabled: true
