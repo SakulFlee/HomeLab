@@ -35,11 +35,17 @@ spec:
           kind: Deployment
   values:
     persistence:
+      config:
+        enabled: true
+        storageClass: local-path
+        size: 1Gi
+        mountPath: /var/syncthing
       data:
         enabled: true
         storageClass: local-path
         type: hostPath
-        hostPath: /var/lib/rancher/k3s/storage/syncthing
+        hostPath: /mnt/nas_smb_sakulflee/
+        mountPath: /mnt/nas_smb_sakulflee/
         retain: true
     ingress:
       main:
