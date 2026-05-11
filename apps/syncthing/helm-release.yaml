@@ -35,69 +35,24 @@ spec:
           kind: Deployment
   values:
     persistence:
-      config:
-        enabled: true
-        storageClass: local-path
-        size: 5Gi
-        retain: true
       data:
         enabled: true
         storageClass: local-path
         type: hostPath
-        hostPath: /mnt/nas_smb_sakulflee/
+        hostPath: /var/lib/rancher/k3s/storage/syncthing
         retain: true
-    service:
-      main:
-        enabled: true
-        controller: main
-        type: ClusterIP
-        ports:
-          http:
-            enabled: true
-            # -- Make this the primary port (used in probes, notes, etc...)
-            # If there is more than 1 service, make sure that only 1 port is marked as primary.
-            primary: true
-            # -- The port number
-            port: 8384
-            # -- Port protocol.
-            # Support values are `HTTP`, `HTTPS`, `TCP` and `UDP`.
-            # HTTP and HTTPS spawn a TCP service and get used for internal URL and name generation
-            protocol: HTTPS
-          listen:
-            enabled: true
-            # -- Make this the primary port (used in probes, notes, etc...)
-            # If there is more than 1 service, make sure that only 1 port is marked as primary.
-            primary: false
-            # -- The port number
-            port: 22000
-            # -- Port protocol.
-            # Support values are `HTTP`, `HTTPS`, `TCP` and `UDP`.
-            # HTTP and HTTPS spawn a TCP service and get used for internal URL and name generation
-            protocol: TCP
-          discovery:
-            enabled: true
-            # -- Make this the primary port (used in probes, notes, etc...)
-            # If there is more than 1 service, make sure that only 1 port is marked as primary.
-            primary: false
-            # -- The port number
-            port: 21027
-            # -- Port protocol.
-            # Support values are `HTTP`, `HTTPS`, `TCP` and `UDP`.
-            # HTTP and HTTPS spawn a TCP service and get used for internal URL and name generation
-            protocol: UDP
     ingress:
-      main:
-        enabled: true
-        className: traefik
-        annotations:
-          cert-manager.io/cluster-issuer: zerossl-production
-          traefik.ingress.kubernetes.io/router.entrypoints: websecure
-        hosts:
-          - host: syncthing.sakul-flee.de
-            paths:
-              - path: /
-                pathType: Prefix
-                port: http
-        tls:
-          - secretName: syncthing-sakul-flee-de-tls
-            hosts: [syncthing.sakul-flee.de]
+      enabled: true
+      className: traefik
+      annotations:
+        cert-manager.io/cluster-issuer: zerossl-production
+        traefik.ingress.kubernetes.io/router.entrypoints: websecure
+      hosts:
+        - host: syncthing.sakul-flee.de
+          paths:
+            - path: /
+              pathType: Prefix
+              port: http
+      tls:
+        - secretName: syncthing-sakul-flee-de-tls
+          hosts: [syncthing.sakul-flee.de]
