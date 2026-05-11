@@ -52,12 +52,12 @@ spec:
         data:
           config.yml:
             cors:
-              enable: true
+              enable: "true"
             service:
               publicurl: "https://vikunja.sakul-flee.de"
               timezone: "DE"
-              enableregistration: false
-              enablelinksharing: true
+              enableregistration: "false"
+              enablelinksharing: "true"
               defaultlanguage: "en"
     persistence:
       data:
