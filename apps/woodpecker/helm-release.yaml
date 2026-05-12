@@ -63,7 +63,7 @@ spec:
             hosts: [woodpecker.sakul-flee.de]
     agent:
       enabled: true
-      replicaCount: 3
+      replicaCount: 2
       env:
         WOODPECKER_SERVER: "woodpecker-server:9000"
         WOODPECKER_CONNECT_RETRY_COUNT: "10"
