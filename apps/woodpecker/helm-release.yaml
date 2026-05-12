@@ -46,6 +46,9 @@ spec:
         WOODPECKER_HOST: https://woodpecker.sakul-flee.de
         WOODPECKER_FORGEJO: "true"
         WOODPECKER_FORGEJO_URL: https://forgejo.sakul-flee.de
+        WOODPECKER_BACKEND_K8S_VOLUME_SIZE: "8Gi"
+        WOODPECKER_BACKEND_K8S_STORAGE_CLASS: "local-path-volatile"
+        WOODPECKER_BACKEND_K8S_STORAGE_RWX: "false"
       ingress:
         enabled: true
         className: traefik
