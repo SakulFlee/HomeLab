@@ -33,22 +33,6 @@ spec:
       - paths: [/spec/replicas]
         target:
           kind: Deployment
-  postRenderers:
-    - kustomize:
-        patches:
-          - target:
-              kind: StatefulSet
-              name: minecraft
-            patch: |
-              - op: add
-                path: /spec/volumeClaimTemplates/0/metadata/labels/recurring-job-group.longhorn.io~1trim
-                value: "enabled"
-              - op: add
-                path: /spec/volumeClaimTemplates/0/metadata/labels/recurring-job-group.longhorn.io~1snapshot
-                value: "enabled"
-              - op: add
-                path: /spec/volumeClaimTemplates/0/metadata/labels/recurring-job-group.longhorn.io~1backup
-                value: "enabled"
   values:
     dnsPolicy: ClusterFirst
     dnsConfig:
