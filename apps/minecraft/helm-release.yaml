@@ -82,7 +82,7 @@ spec:
         memory: 2048Mi
         cpu: 2000m
     persistence:
-      storageClass: longhorn-replicated
+      storageClass: local-path-persistent
       dataDir:
         enabled: true
         Size: 8Gi
