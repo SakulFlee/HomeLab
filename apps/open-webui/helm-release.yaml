@@ -66,4 +66,5 @@ spec:
     persistence:
       enabled: true
       storageClass: local-path-persistent
+      size: 32Gi
 
