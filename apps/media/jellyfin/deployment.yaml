@@ -25,7 +25,7 @@ spec:
           hostPath:
             path: /mnt/nas/Media
       containers:
-        - name: qbittorrent
+        - name: jellyfin
           image: lscr.io/linuxserver/jellyfin:latest
           imagePullPolicy: IfNotPresent
           env:
