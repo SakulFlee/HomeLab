@@ -44,7 +44,7 @@ spec:
         enabled: true
         storageClass: local-path
         type: hostPath
-        hostPath: /mnt/nas_smb_sakulflee/
+        hostPath: /mnt/nas/SakulFlee/
         mountPath: /mnt/nas_smb_sakulflee/
         retain: true
     ingress:
