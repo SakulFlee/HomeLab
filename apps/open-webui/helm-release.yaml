@@ -32,7 +32,7 @@ spec:
   valuesFrom:
     - kind: Secret
       name: postgres-app
-      valueKey: fqdn-jdbc-uri
+      valuesKey: fqdn-jdbc-uri
       targetPath: databaseUrl
   values:
     enableOpenaiApi: false
