@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jellyfin
+  namespace: media
+  labels:
+    app: jellyfin
+spec:
+  selector:
+    matchLabels:
+      app: jellyfin
+  replicas: 1
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: jellyfin
+    spec:
+      # volumes:
+      #   - name: qbittorrent-config
+      #     persistentVolumeClaim:
+      #       claimName: qbittorrent-config-pvc
+      #   - name: media-storage
+      #     persistentVolumeClaim:
+      #       claimName: media
+      containers:
+        - name: qbittorrent
+          image: lscr.io/linuxserver/jellyfin:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PUID
+              value: '1000'
+            - name: PGID
+              value: '1000'
+            - name: TZ
+              value: Europe/Berlin
+          ports:
+            - name: webui
+              containerPort: 8096
+          # volumeMounts:
+          #   - name: qbittorrent-config
+          #     mountPath: /config
+          #   - name: media-storage
+          #     mountPath: /mnt/media
