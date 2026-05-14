@@ -17,13 +17,13 @@ spec:
       labels:
         app: jellyfin
     spec:
-      # volumes:
-      #   - name: qbittorrent-config
-      #     persistentVolumeClaim:
-      #       claimName: qbittorrent-config-pvc
-      #   - name: media-storage
-      #     persistentVolumeClaim:
-      #       claimName: media
+      volumes:
+        - name: jellyfin-config
+          persistentVolumeClaim:
+            claimName: jellyfin-config-pvc
+        - name: media
+          hostPath:
+            path: /mnt/nas/Media
       containers:
         - name: qbittorrent
           image: lscr.io/linuxserver/jellyfin:latest
@@ -38,8 +38,8 @@ spec:
           ports:
             - name: webui
               containerPort: 8096
-          # volumeMounts:
-          #   - name: qbittorrent-config
-          #     mountPath: /config
-          #   - name: media-storage
-          #     mountPath: /mnt/media
+          volumeMounts:
+            - name: jellyfin-config
+              mountPath: /config
+            - name: media
+              mountPath: /mnt/nas/Media
