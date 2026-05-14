@@ -5,7 +5,7 @@ metadata:
   namespace: media
 resources:
   - namespace.yaml
-  - helm-repository-alekc.yaml
+  # - helm-repository-alekc.yaml
   # - helm-repository-flaresolverr.yaml
   # - helm-release-sonarr.yaml
   # - helm-release-radarr.yaml
