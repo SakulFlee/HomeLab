@@ -51,11 +51,11 @@ spec:
     persistence:
       enabled: true
       config:
-        storageClass: longhorn-replicated
+        storageClass: local-path-persistent
         size: 8Gi
-      cache:
-        storageClass: longhorn-volatile
-        size: 4Gi
+      # cache:
+      #   storageClass: local-path-versatile
+      #   size: 4Gi
       # Media mount
       additionalVolumes:
         - name: media
