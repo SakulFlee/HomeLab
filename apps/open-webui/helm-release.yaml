@@ -43,9 +43,7 @@ spec:
         cert-manager.io/cluster-issuer: letsencrypt-production
         traefik.ingress.kubernetes.io/router.entrypoints: websecure
       host: open-webui.sakul-flee.de
-      tls:
-        - secretName: open-webui-sakul-flee-de-tls
-          hosts: [open-webui.sakul-flee.de]
+      tls: true
     service:
       type: LoadBalancer
     ollama:
