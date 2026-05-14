@@ -36,6 +36,13 @@ spec:
   values:
     image:
       repository: forgejo.sakul-flee.de/containers/hytale
+    resources:
+      limits:
+        cpu: 2000m
+        memory: 8Gi
+      requests:
+        cpu: 250m
+        memory: 2Gi
     persistence:
       size: 32Gi
       existingClaim: "hytale-hytale-0"
