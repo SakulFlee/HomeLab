@@ -1,0 +1,9 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: postgres
+  namespace: open-webui
+spec:
+  instances: 1
+  storage:
+    size: 2Gi
