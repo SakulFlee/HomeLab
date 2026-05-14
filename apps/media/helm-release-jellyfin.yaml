@@ -61,17 +61,17 @@ spec:
         - name: media
           hostPath:
             path: /mnt/nas/Media
-        - name: cache-images
-          emptyDir:
-        - name: cache-transcodes
-          emptyDir:
+        # - name: cache-images
+        #   emptyDir:
+        # - name: cache-transcodes
+        #   emptyDir:
       additionalMounts:
         - name: media
           mountPath: /mnt/media
-        - name: cache-images
-          mountPath: /cache/images
-        - name: cache-transcodes
-          mountPath: /cache/transcodes
+        # - name: cache-images
+        #   mountPath: /cache/images
+        # - name: cache-transcodes
+        #   mountPath: /cache/transcodes
     service:
       type: ClusterIP
       port: 8096
