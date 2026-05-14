@@ -37,12 +37,12 @@ spec:
     persistence:
       config:
         enabled: true
-        storageClass: local-path
+        storageClass: local-path-persistent
         size: 1Gi
         mountPath: /var/syncthing
       data:
         enabled: true
-        storageClass: local-path
+        storageClass: local-path-persistent
         type: hostPath
         hostPath: /mnt/nas/SakulFlee/
         mountPath: /mnt/nas_smb_sakulflee/
