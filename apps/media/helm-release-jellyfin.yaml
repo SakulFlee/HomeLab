@@ -58,9 +58,6 @@ spec:
         #   mountPath: /cache/images
         # - name: cache-transcodes
         #   mountPath: /cache/transcodes
-    service:
-      type: ClusterIP
-      port: 8096
     ingress:
       enabled: true
       className: traefik
