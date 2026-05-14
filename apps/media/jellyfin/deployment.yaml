@@ -36,7 +36,7 @@ spec:
             - name: TZ
               value: Europe/Berlin
           ports:
-            - name: webui
+            - name: http
               containerPort: 8096
           volumeMounts:
             - name: jellyfin-config
