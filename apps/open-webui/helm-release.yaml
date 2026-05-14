@@ -44,6 +44,10 @@ spec:
         traefik.ingress.kubernetes.io/router.entrypoints: websecure
       host: open-webui.sakul-flee.de
       tls: true
+    managedCertificate:
+      enabled: true
+      domains: ["open-webui.sakul-flee.de"]
+      name: open-webui-sakul-flee-de-tls
     service:
       type: LoadBalancer
     ollama:
