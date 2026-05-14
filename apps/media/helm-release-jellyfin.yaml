@@ -59,8 +59,8 @@ spec:
       # Media mount
       additionalVolumes:
         - name: media
-          persistentVolumeClaim:
-            claimName: media
+          hostPath:
+            path: /mnt/nas/Media
         - name: cache-images
           emptyDir:
         - name: cache-transcodes
