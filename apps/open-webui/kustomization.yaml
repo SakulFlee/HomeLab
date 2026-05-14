@@ -3,4 +3,4 @@ kind: Kustomization
 metadata:
   name: open-webui
   namespace: open-webui
-resources: [namespace.yaml, helm-repository.yaml, helm-release.yaml, database.yaml]
+resources: [namespace.yaml, helm-repository.yaml, helm-release.yaml, database.yaml, certificate.yaml]
