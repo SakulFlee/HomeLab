@@ -1,22 +1,21 @@
----
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: qbittorrent-vpn
+  name: qbittorrent
   namespace: media
   labels:
-    app: qbittorrent-vpn
+    app: qbittorrent
 spec:
   selector:
     matchLabels:
-      app: qbittorrent-vpn
+      app: qbittorrent
   replicas: 1
   strategy:
     type: Recreate
   template:
     metadata:
       labels:
-        app: qbittorrent-vpn
+        app: qbittorrent
     spec:
       # Ensures DNS lookups go through the VPN.
       # This should prevent DNS leaks.
@@ -28,7 +27,7 @@ spec:
       volumes:
         - name: qbittorrent-config
           persistentVolumeClaim:
-            claimName: qbittorrent-config-pvc
+            claimName: qbittorrent-config
         - name: media-storage
           persistentVolumeClaim:
             claimName: media
@@ -54,7 +53,7 @@ spec:
           # Credentials in secret
           envFrom:
             - secretRef:
-                name: secret-qbittorrent-vpn
+                name: secret-qbittorrent
           # Expose qBittorrent ports through the Gluetun firewall
           ports:
             - name: webui
