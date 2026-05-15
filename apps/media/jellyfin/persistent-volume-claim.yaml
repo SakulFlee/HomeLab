@@ -4,7 +4,7 @@ metadata:
   name: jellyfin-config-pvc
   namespace: media
 spec:
-  storageClass: local-path-persistent
+  storageClassName: local-path-persistent
   accessModes:
     - ReadWriteOnce
   resources:
