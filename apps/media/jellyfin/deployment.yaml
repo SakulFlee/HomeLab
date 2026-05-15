@@ -20,7 +20,7 @@ spec:
       volumes:
         - name: jellyfin-config
           persistentVolumeClaim:
-            claimName: jellyfin-config-pvc
+            claimName: jellyfin-config
         - name: media
           hostPath:
             path: /mnt/nas/Media
