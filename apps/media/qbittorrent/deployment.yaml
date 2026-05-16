@@ -119,9 +119,9 @@ spec:
           # If Gluetun changes the port later, this probe fails, forcing K8s to 
           # restart ONLY this container.
           livenessProbe:
-            initialDelaySeconds: 20
+            initialDelaySeconds: 45
             periodSeconds: 15
-            failureThreshold: 3
+            failureThreshold: 4
             exec:
               command:
                 - /bin/sh
@@ -130,11 +130,14 @@ spec:
                   [ ! -s /tmp/gluetun/forwarded_port ] && exit 0
                   LIVE_VPN_PORT=$(cat /tmp/gluetun/forwarded_port | tr -d '\r\n ')
 
-                  # Pull active listening ports, ignore the WebUI (8080)
+                  # Extract active listening torrent port from kernel memory space
                   ACTUAL_PORT=$(netstat -tln 2>/dev/null | grep LISTEN | awk '{print $4}' | awk -F: '{print $NF}' | grep -v '8080' | head -n 1 | tr -d '\r\n ')
 
-                  # If qB is cycling or starting up, don't trip a false positive
+                  # If qB hasn't bound to a socket yet, pass safely to prevent race conditions
                   [ -z "$ACTUAL_PORT" ] && exit 0
+
+                  # If it's temporarily showing the safety default port, give it one cycle to reload
+                  [ "$ACTUAL_PORT" = "9999" ] && exit 0
 
                   if [ "$LIVE_VPN_PORT" = "$ACTUAL_PORT" ]; then
                     exit 0

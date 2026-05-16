@@ -7,10 +7,10 @@ data:
   00-vpn-port.sh: |
     #!/bin/sh
     echo "========================================="
-    echo "s6-init: Injecting Gluetun Port..."
+    echo "s6-init: Enforcing Gluetun Port Injection..."
     echo "========================================="
     
-    # 1. Wait until Gluetun has written a valid port file (No timestamp matching)
+    # 1. Wait until Gluetun has written a valid port file
     while [ ! -s /tmp/gluetun/forwarded_port ]; do
       sleep 1
     done
@@ -23,13 +23,17 @@ data:
 
     echo "s6-init: Active Gluetun port verified: $RAW_PORT"
 
-    # 2. Write to the s6 environment paths
+    # 2. Force-inject into the s6 environment configuration space
     mkdir -p /var/run/s6/container_environment/
     mkdir -p /run/s6-overlay/container_environment/
     echo -n "$RAW_PORT" > /var/run/s6/container_environment/TORRENTING_PORT
     echo -n "$RAW_PORT" > /run/s6-overlay/container_environment/TORRENTING_PORT
+    
+    # 3. Force-inject the standard Linuxserver image variable
+    echo -n "$RAW_PORT" > /var/run/s6/container_environment/QBITTORRENT_PORT
+    echo -n "$RAW_PORT" > /run/s6-overlay/container_environment/QBITTORRENT_PORT
 
-    # 3. Patch the file config directly
+    # 4. Patch the text configuration file as a fallback safety measure
     CONFIG_FILE="/config/qBittorrent/qBittorrent.conf"
     if [ -f "$CONFIG_FILE" ]; then
       if grep -q "Session\\\\Port=" "$CONFIG_FILE"; then
@@ -41,18 +45,8 @@ data:
           echo -e "\n[BitTorrent]\nSession\\\\Port=$RAW_PORT" >> "$CONFIG_FILE"
         fi
       fi
-      # Fix permissions back to abc user instantly
       chown 1000:1000 "$CONFIG_FILE"
-      echo "s6-init: Config file patched and ownership set."
     fi
 
-    # 4. SAFE SUPERVISOR RELOAD
-    # Instead of pkill (which breaks s6-rc), we tell s6 to safely restart the 
-    # service ONLY if it's already actively supervised.
-    if [ -d /run/service/svc-qbittorrent ] || [ -d /var/run/s6/services/svc-qbittorrent ]; then
-      echo "s6-init: Application service active. Signaling safe daemon reload..."
-      s6-svc -h /run/service/svc-qbittorrent 2>/dev/null || s6-svc -h /var/run/s6/services/svc-qbittorrent 2>/dev/null
-    fi
-
-    echo "s6-init: Phase complete."
+    echo "s6-init: Port injection completed successfully!"
     exit 0
