@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: radarr
+  namespace: media
+  labels:
+    app: radarr
+spec:
+  selector:
+    matchLabels:
+      app: radarr
+  replicas: 1
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: radarr
+    spec:
+      volumes:
+        - name: radarr
+          persistentVolumeClaim:
+            claimName: radarr
+        - name: media
+          hostPath:
+            path: /mnt/nas/Media
+      containers:
+        - name: radarr
+          image: lscr.io/linuxserver/radarr:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PUID
+              value: '1000'
+            - name: PGID
+              value: '1000'
+            - name: TZ
+              value: Europe/Berlin
+          ports:
+            - name: http
+              containerPort: 8989
+          volumeMounts:
+            - name: radarr
+              mountPath: /config
+            - name: media
+              mountPath: /mnt/nas/Media
