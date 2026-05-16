@@ -17,6 +17,8 @@ spec:
       labels:
         app: qbittorrent
     spec:
+      # Forces Kubernetes to kill faster
+      terminationGracePeriodSeconds: 5
       # Ensures DNS lookups go through the VPN.
       # This should prevent DNS leaks.
       # This is only a placeholder and should replaced by gluetun automatically with the correct DNS server.
