@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prowlarr
+  namespace: media
+  labels:
+    app: prowlarr
+spec:
+  selector:
+    matchLabels:
+      app: prowlarr
+  replicas: 1
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: prowlarr
+    spec:
+      volumes:
+        - name: prowlarr
+          persistentVolumeClaim:
+            claimName: prowlarr
+        - name: media
+          hostPath:
+            path: /mnt/nas/Media
+      containers:
+        - name: prowlarr
+          image: lscr.io/linuxserver/prowlarr:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: PUID
+              value: '1000'
+            - name: PGID
+              value: '1000'
+            - name: TZ
+              value: Europe/Berlin
+          ports:
+            - name: http
+              containerPort: 8096
+          volumeMounts:
+            - name: prowlarr
+              mountPath: /config
+            - name: media
+              mountPath: /mnt/nas/Media

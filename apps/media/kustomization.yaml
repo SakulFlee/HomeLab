@@ -14,3 +14,4 @@ resources:
   # - helm-release-flaresolverr.yaml
   - qbittorrent/
   - jellyfin/
+  - prowlarr/

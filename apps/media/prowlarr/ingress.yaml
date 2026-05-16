@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: prowlarr
+  namespace: media
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-production
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure 
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: prowlarr.sakul-flee.de
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: prowlarr
+                port:
+                  number: 8096
+  tls:
+    - hosts:
+        - prowlarr.sakul-flee.de 
+      secretName: prowlarr-sakul-flee-de-tls
