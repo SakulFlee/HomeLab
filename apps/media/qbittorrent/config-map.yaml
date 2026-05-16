@@ -33,8 +33,6 @@ data:
     mkdir -p /run/s6-overlay/container_environment/
     echo -n "$RAW_PORT" > /var/run/s6/container_environment/TORRENTING_PORT
     echo -n "$RAW_PORT" > /run/s6-overlay/container_environment/TORRENTING_PORT
-    chmod 644 /var/run/s6/container_environment/TORRENTING_PORT
-    chmod 644 /run/s6-overlay/container_environment/TORRENTING_PORT
 
     # 3. Patch the main config file
     CONFIG_FILE="/config/qBittorrent/qBittorrent.conf"
@@ -51,13 +49,5 @@ data:
       echo "s6-init: Config file successfully patched to $RAW_PORT."
     fi
 
-    # 4. --- THE S6 RESPRAWN TRIGGER ---
-    # If qBittorrent raced ahead and is already running, kill it.
-    # The s6 supervisor will instantly bring it back up using our new config.
-    if pkill -f qbittorrent-nox; then
-      echo "s6-init: qBittorrent process detected online. Sent termination signal to force an s6 configuration reload!"
-    else
-      echo "s6-init: qBittorrent has not started yet. It will boot natively with the correct configuration."
-    fi
-
+    echo "s6-init: Done! Allowing s6-rc boot sequence to complete cleanly."
     exit 0
