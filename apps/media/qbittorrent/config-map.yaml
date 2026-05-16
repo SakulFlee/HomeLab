@@ -10,31 +10,28 @@ data:
     echo "s6-init: Syncing Gluetun Port to qBittorrent Config..."
     echo "========================================="
     
-    START_TIME=$(date +%s)
-    
-    # 1. Wait for the fresh Gluetun port file
-    while true; do
-      if [ -s /tmp/gluetun/forwarded_port ]; then
-        FILE_TIME=$(stat -c %Y /tmp/gluetun/forwarded_port 2>/dev/null || echo 0)
-        if [ "$FILE_TIME" -ge "$START_TIME" ]; then
-          RAW_PORT=$(cat /tmp/gluetun/forwarded_port | tr -d '\r\n ')
-          if [ "$RAW_PORT" != "0" ] && [ ! -z "$RAW_PORT" ]; then
-            break
-          fi
-        fi
-      fi
+    # 1. Wait until Gluetun has written a valid port file
+    while [ ! -s /tmp/gluetun/forwarded_port ]; do
       sleep 1
     done
 
-    echo "s6-init: Fresh port found: $RAW_PORT"
+    RAW_PORT=$(cat /tmp/gluetun/forwarded_port | tr -d '\r\n ')
+    
+    # If Gluetun is still initializing and wrote a placeholder '0', wait for the real port
+    while [ "$RAW_PORT" = "0" ] || [ -z "$RAW_PORT" ]; do
+      sleep 1
+      RAW_PORT=$(cat /tmp/gluetun/forwarded_port | tr -d '\r\n ')
+    done
 
-    # 2. Update the s6 environment variables
+    echo "s6-init: Active Gluetun port detected: $RAW_PORT"
+
+    # 2. Update the s6 environment variables just to be thorough
     mkdir -p /var/run/s6/container_environment/
     mkdir -p /run/s6-overlay/container_environment/
     echo -n "$RAW_PORT" > /var/run/s6/container_environment/TORRENTING_PORT
     echo -n "$RAW_PORT" > /run/s6-overlay/container_environment/TORRENTING_PORT
 
-    # 3. Patch the main config file
+    # 3. Patch the main config file before qBittorrent even launches
     CONFIG_FILE="/config/qBittorrent/qBittorrent.conf"
     if [ -f "$CONFIG_FILE" ]; then
       if grep -q "Session\\\\Port=" "$CONFIG_FILE"; then
@@ -47,7 +44,9 @@ data:
         fi
       fi
       echo "s6-init: Config file successfully patched to $RAW_PORT."
+    else
+      echo "s6-init: First boot detected, config will be generated automatically."
     fi
 
-    echo "s6-init: Done! Allowing s6-rc boot sequence to complete cleanly."
+    echo "s6-init: Initialization complete!"
     exit 0
