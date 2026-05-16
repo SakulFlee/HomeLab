@@ -17,6 +17,8 @@ spec:
       labels:
         app: qbittorrent
     spec:
+      # Allows killing other container's processes 
+      shareProcessNamespace: true
       # Ensures DNS lookups go through the VPN.
       # This should prevent DNS leaks.
       # This is only a placeholder and should replaced by gluetun automatically with the correct DNS server.
@@ -26,7 +28,11 @@ spec:
           - 10.8.0.1  # Placeholder! See above.
       volumes:
         - name: gluetun-shared
-          emptyDir: {}
+          emptyDir:
+            medium: Memory
+        - name: s6-env-shared
+          emptyDir:
+            medium: Memory
         - name: qbittorrent-config
           persistentVolumeClaim:
             claimName: qbittorrent-config
@@ -83,86 +89,65 @@ spec:
               value: '1000'
             - name: TZ
               value: Europe/Berlin
+            - name: TORRENTING_PORT
+              value: 
           volumeMounts:
             - name: gluetun-shared
               mountPath: /tmp/gluetun
+            - name: s6-env-shared
+              mountPath: /var/run/s6/container-environment
             - name: qbittorrent-config
               mountPath: /config
             - name: media
               mountPath: /mnt/media
+        # -----------------------------------------------------------------
+        # Port watcher & Restarter
+        # -----------------------------------------------------------------
+        - name: port-watcher
+          image: alpine:latest
+          volumeMounts:
+            - name: gluetun-shared
+              mountPath: /tmp/gluetun
+            - name: s6-env-shared
+              mountPath: /var/run/s6/container-environment
           command: ["/bin/sh", "-c"]
           args:
             - |
               #!/bin/sh
-              # Trap termination signals from Kubernetes so we can cleanly stop our app
-              _term() { 
-                echo "Caught SIGTERM/SIGINT signal! Shutting down gracefully..."
-                kill -TERM "$APP_PID" 2>/dev/null
-                exit 0
-              }
-              trap _term SIGTERM SIGINT
 
-              # Prevent endless-loop configuration
-              LAST_RESTART_TIME=0
-              MIN_RESTART_INTERVAL=300 # Wait at least 5 minutes (300s) between forced restarts
+              CURRENT_PORT=""
 
               while true; do
-                echo "========================================="
-                echo "Waiting for Gluetun to write the forwarded port..."
-                echo "========================================="
-                
-                # Loop until the file exists and is greater than 0 bytes
-                while [ ! -s /tmp/gluetun/forwarded_port ]; do 
-                  sleep 1 
-                done
-                
-                # Settle buffer: gives Gluetun a brief window to finalize routing
-                sleep 2 
-                
-                CURRENT_PORT=$(cat /tmp/gluetun/forwarded_port)
-                echo "Found active Gluetun port: $CURRENT_PORT"
-                
-                # --- START YOUR APPLICATION ---
-                # 1. Inject the port into specific environment variable
-                export TORRENTING_PORT=$CURRENT_PORT
-                
-                # 2. Run your container's original startup command in the background (&)
-                echo "Launching application process..."
-                /init & 
-                APP_PID=$! # Capture the background process ID
+                # 1. Wait for Gluetun to write a valid port
+                while [ ! -s /tmp/gluetun/forwarded_port ]; do sleep 2; done
+                NEW_PORT=$(cat /tmp/gluetun/forwarded_port)
 
-                # --- MONITOR LOOP ---
-                while true; do
-                  sleep 15
-                  NEW_PORT=$(cat /tmp/gluetun/forwarded_port)
-                  CURRENT_TIME=$(date +%s)
+                # 2. If the port is new and valid, update the environment and restart the container
+                if [ "$NEW_PORT" != "$CURRENT_PORT" ] && [ "$NEW_PORT" != "0" ]; then
+                  echo "New Gluetun port detected: $NEW_PORT"
                   
-                  # Verify if a legitimate port change occurred
-                  if [ "$NEW_PORT" != "$CURRENT_PORT" ] && [ ! -z "$NEW_PORT" ] && [ "$NEW_PORT" != "0" ]; then
+                  # Write the environment variable into the shared s6 directory
+                  echo -n "$NEW_PORT" > /var/run/s6/container-environment/TORRENTING_PORT
+                  echo "Wrote ENV variable to shared storage."
+
+                  # If this isn't the first boot, we need to restart the container to apply it
+                  if [ ! -z "$CURRENT_PORT" ]; then
+                    echo "Port changed from $CURRENT_PORT to $NEW_PORT. Sniper targeting service container..."
                     
-                    # Calculate how long we've been running on this port
-                    TIME_SINCE_LAST_RESTART=$((CURRENT_TIME - LAST_RESTART_TIME))
+                    # Find the s6 supervisor process inside the shared namespace and kill it.
+                    # This kills the service container, but leaves Gluetun completely untouched.
+                    TARGET_PID=$(ps -ef | grep -E 's6-svscan|s6-supervise' | grep -v grep | awk '{print $2}' | head -n 1)
                     
-                    if [ "$TIME_SINCE_LAST_RESTART" -lt "$MIN_RESTART_INTERVAL" ]; then
-                      echo "WARNING: Port changed to $NEW_PORT, but we restarted too recently ($TIME_SINCE_LAST_RESTART seconds ago)."
-                      echo "Throttling restart to prevent an endless loop. Holding current process..."
-                      sleep 60
-                      continue
+                    if [ ! -z "$TARGET_PID" ]; then
+                      echo "Killing s6-svscan (PID: $TARGET_PID) to force container restart..."
+                      kill -15 "$TARGET_PID"
                     fi
+                  else
+                    echo "First boot baseline established. If your app crashed initially, Kubernetes is restarting it now."
+                  fi
 
-                    echo "CRITICAL: Gluetun port changed from $CURRENT_PORT to $NEW_PORT!"
-                    echo "Stopping application to apply new configuration..."
-                    
-                    LAST_RESTART_TIME=$CURRENT_TIME
-                    kill -TERM "$APP_PID"
-                    wait "$APP_PID"
-                    break # Breaks the inner loop, causing the outer loop to re-read the file
-                  fi
-                  
-                  # Self-healing check: If your app crashes on its own, restart it
-                  if ! kill -0 "$APP_PID" 2>/dev/null; then
-                    echo "Application process exited unexpectedly. Restarting wrapper loop..."
-                    break
-                  fi
-                done
+                  CURRENT_PORT=$NEW_PORT
+                fi
+
+                sleep 15
               done
