@@ -119,7 +119,7 @@ spec:
           # If Gluetun changes the port later, this probe fails, forcing K8s to 
           # restart ONLY this container.
           livenessProbe:
-            initialDelaySeconds: 30
+            initialDelaySeconds: 20
             periodSeconds: 15
             failureThreshold: 3
             exec:
@@ -127,21 +127,18 @@ spec:
                 - /bin/sh
                 - -c
                 - |
-                  # 1. Get the current active port from Gluetun
                   [ ! -s /tmp/gluetun/forwarded_port ] && exit 0
                   LIVE_VPN_PORT=$(cat /tmp/gluetun/forwarded_port | tr -d '\r\n ')
 
-                  # 2. Query the Linux kernel network stack for qB's active listening port
-                  # We list listening ports, ignore 8080 (WebUI), and isolate the torrent port
+                  # Pull active listening ports, ignore the WebUI (8080)
                   ACTUAL_PORT=$(netstat -tln 2>/dev/null | grep LISTEN | awk '{print $4}' | awk -F: '{print $NF}' | grep -v '8080' | head -n 1 | tr -d '\r\n ')
 
-                  # 3. If qB hasn't opened its listening socket yet, let it slide until next check
+                  # If qB is cycling or starting up, don't trip a false positive
                   [ -z "$ACTUAL_PORT" ] && exit 0
 
-                  # 4. Compare the real active memory port against Gluetun
                   if [ "$LIVE_VPN_PORT" = "$ACTUAL_PORT" ]; then
                     exit 0
                   else
-                    echo "Port mismatch detected! Gluetun is on $LIVE_VPN_PORT but qB is actively listening on $ACTUAL_PORT. Forcing safe K8s restart."
+                    echo "Port mismatch! Gluetun: $LIVE_VPN_PORT, qB: $ACTUAL_PORT"
                     exit 1
                   fi
