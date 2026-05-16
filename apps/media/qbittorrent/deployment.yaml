@@ -50,6 +50,8 @@ spec:
               value: 'on'
             - name: TZ
               value: Europe/Berlin
+            - name: VPN_PORT_FORWARDING
+              value: on
           # Credentials in secret
           envFrom:
             - secretRef:
