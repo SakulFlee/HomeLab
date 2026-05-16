@@ -17,8 +17,6 @@ spec:
       labels:
         app: qbittorrent
     spec:
-      # Allows killing other container's processes 
-      shareProcessNamespace: true
       # Ensures DNS lookups go through the VPN.
       # This should prevent DNS leaks.
       # This is only a placeholder and should replaced by gluetun automatically with the correct DNS server.
@@ -30,9 +28,9 @@ spec:
         - name: gluetun-shared
           emptyDir:
             medium: Memory
-        - name: s6-env-shared
-          emptyDir:
-            medium: Memory
+        - name: configmap-volume
+          configMap:
+            name: s6-vpn-injector
         - name: qbittorrent-config
           persistentVolumeClaim:
             claimName: qbittorrent-config
@@ -94,60 +92,34 @@ spec:
           volumeMounts:
             - name: gluetun-shared
               mountPath: /tmp/gluetun
-            - name: s6-env-shared
-              mountPath: /var/run/s6/container-environment
+            - name: configmap-volume
+              mountPath: /etc/cont-init.d/00-vpn-port.sh
+              subPath: 00-vpn-port.sh
             - name: qbittorrent-config
               mountPath: /config
             - name: media
               mountPath: /mnt/media
-        # -----------------------------------------------------------------
-        # Port watcher & Restarter
-        # -----------------------------------------------------------------
-        - name: port-watcher
-          image: alpine:latest
-          volumeMounts:
-            - name: gluetun-shared
-              mountPath: /tmp/gluetun
-            - name: s6-env-shared
-              mountPath: /var/run/s6/container-environment
-          command: ["/bin/sh", "-c"]
-          args:
-            - |
-              #!/bin/sh
-
-              CURRENT_PORT=""
-
-              while true; do
-                # 1. Wait for Gluetun to write a valid port
-                while [ ! -s /tmp/gluetun/forwarded_port ]; do sleep 2; done
-                NEW_PORT=$(cat /tmp/gluetun/forwarded_port)
-
-                # 2. If the port is new and valid, update the environment and restart the container
-                if [ "$NEW_PORT" != "$CURRENT_PORT" ] && [ "$NEW_PORT" != "0" ]; then
-                  echo "New Gluetun port detected: $NEW_PORT"
+          # If Gluetun changes the port later, this probe fails, forcing K8s to 
+          # restart ONLY this container.
+          livenessProbe:
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  # 1. If Gluetun hasn't written a port yet, don't crash yet
+                  [ ! -s /tmp/gluetun/forwarded_port ] && exit 0
                   
-                  # Write the environment variable into the shared s6 directory
-                  echo -n "$NEW_PORT" > /var/run/s6/container-environment/TORRENTING_PORT
-                  echo "Wrote ENV variable to shared storage."
-
-                  # If this isn't the first boot, we need to restart the container to apply it
-                  if [ ! -z "$CURRENT_PORT" ]; then
-                    echo "Port changed from $CURRENT_PORT to $NEW_PORT. Sniper targeting service container..."
-                    
-                    # Find the s6 supervisor process inside the shared namespace and kill it.
-                    # This kills the service container, but leaves Gluetun completely untouched.
-                    TARGET_PID=$(ps -ef | grep -E 's6-svscan|s6-supervise' | grep -v grep | awk '{print $2}' | head -n 1)
-                    
-                    if [ ! -z "$TARGET_PID" ]; then
-                      echo "Killing s6-svscan (PID: $TARGET_PID) to force container restart..."
-                      kill -15 "$TARGET_PID"
-                    fi
+                  # 2. Compare the active Gluetun port with the port s6 gave our app
+                  LIVE_VPN_PORT=$(cat /tmp/gluetun/forwarded_port)
+                  CURRENT_APP_PORT=$(cat /var/run/s6/container-environment/YOUR_ENV_VAR_NAME 2>/dev/null)
+                  
+                  # 3. If they match, the container is healthy (exit 0). If not, kill it (exit 1)
+                  if [ "$LIVE_VPN_PORT" = "$CURRENT_APP_PORT" ]; then
+                    exit 0
                   else
-                    echo "First boot baseline established. If your app crashed initially, Kubernetes is restarting it now."
+                    echo "Port mismatch detected! Forcing container restart."
+                    exit 1
                   fi
-
-                  CURRENT_PORT=$NEW_PORT
-                fi
-
-                sleep 15
-              done
