@@ -7,27 +7,29 @@ data:
   00-vpn-port.sh: |
     #!/bin/sh
     echo "========================================="
-    echo "s6-init: Syncing Gluetun Port to qBittorrent Config..."
+    echo "s6-init: Injecting Gluetun Port..."
     echo "========================================="
     
+    # 1. Wait until Gluetun has written a valid port file (No timestamp matching)
     while [ ! -s /tmp/gluetun/forwarded_port ]; do
       sleep 1
     done
 
     RAW_PORT=$(cat /tmp/gluetun/forwarded_port | tr -d '\r\n ')
-    
     while [ "$RAW_PORT" = "0" ] || [ -z "$RAW_PORT" ]; do
       sleep 1
       RAW_PORT=$(cat /tmp/gluetun/forwarded_port | tr -d '\r\n ')
     done
 
-    echo "s6-init: Active Gluetun port detected: $RAW_PORT"
+    echo "s6-init: Active Gluetun port verified: $RAW_PORT"
 
+    # 2. Write to the s6 environment paths
     mkdir -p /var/run/s6/container_environment/
     mkdir -p /run/s6-overlay/container_environment/
     echo -n "$RAW_PORT" > /var/run/s6/container_environment/TORRENTING_PORT
     echo -n "$RAW_PORT" > /run/s6-overlay/container_environment/TORRENTING_PORT
 
+    # 3. Patch the file config directly
     CONFIG_FILE="/config/qBittorrent/qBittorrent.conf"
     if [ -f "$CONFIG_FILE" ]; then
       if grep -q "Session\\\\Port=" "$CONFIG_FILE"; then
@@ -39,16 +41,18 @@ data:
           echo -e "\n[BitTorrent]\nSession\\\\Port=$RAW_PORT" >> "$CONFIG_FILE"
         fi
       fi
-      echo "s6-init: Config file successfully patched to $RAW_PORT."
-      
-      # --- CRITICAL FIX: RESTORE OWNERSHIP ---
-      # Revert the root ownership changes caused by 'sed -i' back to the 'abc' user
-      chown ${PUID:-1000}:${PGID:-1000} "$CONFIG_FILE"
-      chmod 644 "$CONFIG_FILE"
-      echo "s6-init: Restored permissions and 'abc' user ownership to $CONFIG_FILE"
-    else
-      echo "s6-init: First boot detected, config will be generated automatically."
+      # Fix permissions back to abc user instantly
+      chown 1000:1000 "$CONFIG_FILE"
+      echo "s6-init: Config file patched and ownership set."
     fi
 
-    echo "s6-init: Initialization complete!"
+    # 4. SAFE SUPERVISOR RELOAD
+    # Instead of pkill (which breaks s6-rc), we tell s6 to safely restart the 
+    # service ONLY if it's already actively supervised.
+    if [ -d /run/service/svc-qbittorrent ] || [ -d /var/run/s6/services/svc-qbittorrent ]; then
+      echo "s6-init: Application service active. Signaling safe daemon reload..."
+      s6-svc -h /run/service/svc-qbittorrent 2>/dev/null || s6-svc -h /var/run/s6/services/svc-qbittorrent 2>/dev/null
+    fi
+
+    echo "s6-init: Phase complete."
     exit 0
