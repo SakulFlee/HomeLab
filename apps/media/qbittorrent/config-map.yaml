@@ -10,14 +10,12 @@ data:
     echo "s6-init: Syncing Gluetun Port to qBittorrent Config..."
     echo "========================================="
     
-    # 1. Wait until Gluetun has written a valid port file
     while [ ! -s /tmp/gluetun/forwarded_port ]; do
       sleep 1
     done
 
     RAW_PORT=$(cat /tmp/gluetun/forwarded_port | tr -d '\r\n ')
     
-    # If Gluetun is still initializing and wrote a placeholder '0', wait for the real port
     while [ "$RAW_PORT" = "0" ] || [ -z "$RAW_PORT" ]; do
       sleep 1
       RAW_PORT=$(cat /tmp/gluetun/forwarded_port | tr -d '\r\n ')
@@ -25,13 +23,11 @@ data:
 
     echo "s6-init: Active Gluetun port detected: $RAW_PORT"
 
-    # 2. Update the s6 environment variables just to be thorough
     mkdir -p /var/run/s6/container_environment/
     mkdir -p /run/s6-overlay/container_environment/
     echo -n "$RAW_PORT" > /var/run/s6/container_environment/TORRENTING_PORT
     echo -n "$RAW_PORT" > /run/s6-overlay/container_environment/TORRENTING_PORT
 
-    # 3. Patch the main config file before qBittorrent even launches
     CONFIG_FILE="/config/qBittorrent/qBittorrent.conf"
     if [ -f "$CONFIG_FILE" ]; then
       if grep -q "Session\\\\Port=" "$CONFIG_FILE"; then
@@ -44,6 +40,12 @@ data:
         fi
       fi
       echo "s6-init: Config file successfully patched to $RAW_PORT."
+      
+      # --- CRITICAL FIX: RESTORE OWNERSHIP ---
+      # Revert the root ownership changes caused by 'sed -i' back to the 'abc' user
+      chown ${PUID:-1000}:${PGID:-1000} "$CONFIG_FILE"
+      chmod 644 "$CONFIG_FILE"
+      echo "s6-init: Restored permissions and 'abc' user ownership to $CONFIG_FILE"
     else
       echo "s6-init: First boot detected, config will be generated automatically."
     fi
