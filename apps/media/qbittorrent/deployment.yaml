@@ -102,6 +102,20 @@ spec:
               mountPath: /config
             - name: media
               mountPath: /mnt/media
+          # Lock "started" status until we actually have a port forwarding port set.
+          startupProbe:
+            periodSeconds: 10
+            failureThreshold: 30 
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  # The container is only considered "started" once the TORRENTING_PORT 
+                  # file exists and has actual data written by our init script.
+                  [ -s /var/run/s6/container_environment/TORRENTING_PORT ] && exit 0
+                  [ -s /run/s6-overlay/container_environment/TORRENTING_PORT ] && exit 0
+                  exit 1
           # If Gluetun changes the port later, this probe fails, forcing K8s to 
           # restart ONLY this container.
           livenessProbe:
