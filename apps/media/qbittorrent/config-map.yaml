@@ -7,20 +7,51 @@ data:
   00-vpn-port.sh: |
     #!/bin/sh
     echo "========================================="
-    echo "s6-init: Waiting for Gluetun port file..."
+    echo "s6-init: Syncing Gluetun Port to qBittorrent Config..."
     echo "========================================="
     
-    # Wait for Gluetun to write the port to the shared volume
-    while [ ! -s /tmp/gluetun/forwarded_port ]; do
+    START_TIME=$(date +%s)
+    
+    # 1. Wait for the fresh Gluetun port file
+    while true; do
+      if [ -s /tmp/gluetun/forwarded_port ]; then
+        FILE_TIME=$(stat -c %Y /tmp/gluetun/forwarded_port 2>/dev/null || echo 0)
+        if [ "$FILE_TIME" -ge "$START_TIME" ]; then
+          RAW_PORT=$(cat /tmp/gluetun/forwarded_port | tr -d '\r\n ')
+          if [ "$RAW_PORT" != "0" ] && [ ! -z "$RAW_PORT" ]; then
+            break
+          fi
+        fi
+      fi
       sleep 1
     done
 
-    # Grab the port
-    VPN_PORT=$(cat /tmp/gluetun/forwarded_port)
-    echo "s6-init: Found port $VPN_PORT. Injecting environment variable..."
+    echo "s6-init: Fresh port found: $RAW_PORT"
 
-    # s6-overlay natively reads this directory to populate environment variables
-    mkdir -p /var/run/s6/container-environment
-    echo -n "$VPN_PORT" > /var/run/s6/container_environment/TORRENTING_PORT
-    
+    # 2. Update the s6 environment variables just to keep things clean
+    mkdir -p /var/run/s6/container_environment/
+    echo -n "$RAW_PORT" > /var/run/s6/container_environment/TORRENTING_PORT
+    chmod 644 /var/run/s6/container_environment/TORRENTING_PORT
+
+    # 3. --- DIRECT QBITTORRENT CONFIG PATCH ---
+    CONFIG_FILE="/config/qBittorrent/qBittorrent.conf"
+
+    if [ -f "$CONFIG_FILE" ]; then
+      echo "s6-init: Found existing qBittorrent configuration file."
+      
+      # Check if the Session\Port property already exists in the file
+      if grep -q "Session\\\\Port=" "$CONFIG_FILE"; then
+        echo "s6-init: Patching existing Session\Port to $RAW_PORT"
+        # Safely replace the line using sed
+        sed -i "s/Session\\\\Port=.*/Session\\\\Port=$RAW_PORT/" "$CONFIG_FILE"
+      else
+        echo "s6-init: Session\Port not found in config. Appending it..."
+        # If it doesn't exist (rare), make sure the BitTorrent section exists and append it
+        echo "Session\\Port=$RAW_PORT" >> "$CONFIG_FILE"
+      fi
+    else
+      echo "s6-init: No config file found yet (First boot). qBittorrent will generate it using the env-var."
+    fi
+
+    echo "s6-init: Configuration sync complete. Starting qBittorrent!"
     exit 0
