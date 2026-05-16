@@ -30,10 +30,6 @@ spec:
         - name: gluetun-shared
           emptyDir:
             medium: Memory
-        - name: configmap-volume
-          configMap:
-            name: s6-vpn-injector
-            defaultMode: 0755
         - name: qbittorrent-config
           persistentVolumeClaim:
             claimName: qbittorrent-config
@@ -80,68 +76,78 @@ spec:
               mountPath: /tmp/gluetun
         # --- APPLICATION CONTAINER (QBITTORRENT) ---
         - name: qbittorrent
-          image: lscr.io/linuxserver/qbittorrent:latest
+          image: qbittorrentofficial/qbittorrent-nox:latest
           imagePullPolicy: IfNotPresent
-          # Traffic should be routed through gluetun, thus no network stack definition here.          # 
-          env:
-            - name: PUID
-              value: '1000'
-            - name: PGID
-              value: '1000'
-            - name: TZ
-              value: Europe/Berlin
-            - name: TORRENTING_PORT
-              value: 
+          # Traffic should be routed through gluetun, thus no network stack definition here.          
+          # This INCLUDES ports!
           volumeMounts:
             - name: gluetun-shared
               mountPath: /tmp/gluetun
-            - name: configmap-volume
-              mountPath: /etc/cont-init.d/00-vpn-port.sh
-              subPath: 00-vpn-port.sh
             - name: qbittorrent-config
               mountPath: /config
             - name: media
               mountPath: /mnt/nas/Media
-          # Lock "started" status until we actually have a port forwarding port set.
-          startupProbe:
-            periodSeconds: 10
-            failureThreshold: 30 
-            exec:
-              command:
-                - /bin/sh
-                - -c
-                - |
-                  # The container is only considered "started" once the TORRENTING_PORT 
-                  # file exists and has actual data written by our init script.
-                  [ -s /var/run/s6/container_environment/TORRENTING_PORT ] && exit 0
-                  [ -s /run/s6-overlay/container_environment/TORRENTING_PORT ] && exit 0
-                  exit 1
           # If Gluetun changes the port later, this probe fails, forcing K8s to 
           # restart ONLY this container.
           livenessProbe:
-            initialDelaySeconds: 45
-            periodSeconds: 15
-            failureThreshold: 4
+            initialDelaySeconds: 30
+            periodSeconds: 20
             exec:
               command:
                 - /bin/sh
                 - -c
                 - |
-                  [ ! -s /tmp/gluetun/forwarded_port ] && exit 0
-                  LIVE_VPN_PORT=$(cat /tmp/gluetun/forwarded_port | tr -d '\r\n ')
-
-                  # Extract active listening torrent port from kernel memory space
+                  # Extract active listening port from kernel memory space
                   ACTUAL_PORT=$(netstat -tln 2>/dev/null | grep LISTEN | awk '{print $4}' | awk -F: '{print $NF}' | grep -v '8080' | head -n 1 | tr -d '\r\n ')
+                  LIVE_VPN_PORT=$(cat /tmp/gluetun/forwarded_port | tr -d '\r\n ')
+                  
+                  [ -z "$ACTUAL_PORT" ] || [ -z "$LIVE_VPN_PORT" ] && exit 0
+                  [ "$ACTUAL_PORT" = "$LIVE_VPN_PORT" ] && exit 0
+                  exit 1
+        - name: port-syncer
+          image: alpine:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+              CONFIG_FILE="/config/qBittorrent/config/qBittorrent.conf"
+              LAST_PORT=""
 
-                  # If qB hasn't bound to a socket yet, pass safely to prevent race conditions
-                  [ -z "$ACTUAL_PORT" ] && exit 0
-
-                  # If it's temporarily showing the safety default port, give it one cycle to reload
-                  [ "$ACTUAL_PORT" = "9999" ] && exit 0
-
-                  if [ "$LIVE_VPN_PORT" = "$ACTUAL_PORT" ]; then
-                    exit 0
-                  else
-                    echo "Port mismatch! Gluetun: $LIVE_VPN_PORT, qB: $ACTUAL_PORT"
-                    exit 1
+              echo "Port Syncer Sidecar Active."
+              
+              while true; do
+                if [ -s /tmp/gluetun/forwarded_port ]; then
+                  CURRENT_PORT=$(cat /tmp/gluetun/forwarded_port | tr -d '\r\n ')
+                  
+                  if [ "$CURRENT_PORT" != "0" ] && [ "$CURRENT_PORT" != "$LAST_PORT" ] && [ ! -z "$CURRENT_PORT" ]; then
+                    echo "Gluetun port changed from '$LAST_PORT' to '$CURRENT_PORT'. Patching config..."
+                    
+                    # Ensure config directories exist
+                    mkdir -p /config/qBittorrent/config
+                    
+                    # Update config file
+                    if [ -f "$CONFIG_FILE" ]; then
+                      if grep -q "Session\\\\Port=" "$CONFIG_FILE"; then
+                        sed -i "s/Session\\\\Port=.*/Session\\\\Port=$CURRENT_PORT/" "$CONFIG_FILE"
+                      else
+                        sed -i "/\[BitTorrent\]/a Session\\\\Port=$CURRENT_PORT" "$CONFIG_FILE" 2>/dev/null || echo -e "[BitTorrent]\nSession\\\\Port=$CURRENT_PORT" >> "$CONFIG_FILE"
+                      fi
+                    else
+                      echo -e "[BitTorrent]\nSession\\\\Port=$CURRENT_PORT" > "$CONFIG_FILE"
+                    fi
+                    
+                    echo "Config file updated."
+                    LAST_PORT="$CURRENT_PORT"
+                    
+                    # Tell qBittorrent to gracefully reload configuration without killing the container
+                    # The official image responds perfectly to standard process hangup signals
+                    pkill -HUP qbittorrent-nox 2>/dev/null && echo "Sent SIGHUP to qBittorrent to apply changes dynamically."
                   fi
+                fi
+                sleep 10
+              done
+          volumeMounts:
+            - name: gluetun-shared
+              mountPath: /tmp/gluetun
+            - name: qbittorrent-config
+              mountPath: /config
