@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: sonarr
+  namespace: media
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-production
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure 
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: sonarr.sakul-flee.de
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: sonarr
+                port:
+                  number: 7878
+  tls:
+    - hosts:
+        - sonarr.sakul-flee.de 
+      secretName: sonarr-sakul-flee-de-tls
