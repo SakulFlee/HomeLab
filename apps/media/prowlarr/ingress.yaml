@@ -18,7 +18,7 @@ spec:
               service:
                 name: prowlarr
                 port:
-                  number: 8096
+                  number: 9696
   tls:
     - hosts:
         - prowlarr.sakul-flee.de 

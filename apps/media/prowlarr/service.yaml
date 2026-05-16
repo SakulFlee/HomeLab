@@ -9,5 +9,5 @@ spec:
     app: prowlarr
   ports:
     - name: http
-      port: 8096
-      targetPort: 8096
+      port: 9696
+      targetPort: 9696

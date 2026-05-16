@@ -37,7 +37,7 @@ spec:
               value: Europe/Berlin
           ports:
             - name: http
-              containerPort: 8096
+              containerPort: 9696
           volumeMounts:
             - name: prowlarr
               mountPath: /config
