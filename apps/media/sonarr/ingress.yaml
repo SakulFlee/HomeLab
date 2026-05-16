@@ -18,7 +18,7 @@ spec:
               service:
                 name: sonarr
                 port:
-                  number: 7878
+                  number: 8989
   tls:
     - hosts:
         - sonarr.sakul-flee.de 

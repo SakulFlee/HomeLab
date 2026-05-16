@@ -37,7 +37,7 @@ spec:
               value: Europe/Berlin
           ports:
             - name: http
-              containerPort: 7878
+              containerPort: 8989
           volumeMounts:
             - name: sonarr
               mountPath: /config
