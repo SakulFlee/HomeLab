@@ -21,6 +21,6 @@ data:
 
     # s6-overlay natively reads this directory to populate environment variables
     mkdir -p /var/run/s6/container-environment
-    echo -n "$VPN_PORT" > /var/run/s6/container-environment/TORRENTING_PORT
+    echo -n "$VPN_PORT" > /var/run/s6/container_environment/TORRENTING_PORT
     
     exit 0
