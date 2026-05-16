@@ -116,7 +116,7 @@ spec:
                   
                   # 2. Compare the active Gluetun port with the port s6 gave our app
                   LIVE_VPN_PORT=$(cat /tmp/gluetun/forwarded_port)
-                  CURRENT_APP_PORT=$(cat /var/run/s6/container-environment/YOUR_ENV_VAR_NAME 2>/dev/null)
+                  CURRENT_APP_PORT=$(cat /var/run/s6/container-environment/TORRENTING_PORT 2>/dev/null)
                   
                   # 3. If they match, the container is healthy (exit 0). If not, kill it (exit 1)
                   if [ "$LIVE_VPN_PORT" = "$CURRENT_APP_PORT" ]; then
