@@ -52,6 +52,8 @@ spec:
               value: Europe/Berlin
             - name: VPN_PORT_FORWARDING
               value: on
+            - name: PORT_FORWARD_ONLY
+              value: "true"
           # Credentials in secret
           envFrom:
             - secretRef:
