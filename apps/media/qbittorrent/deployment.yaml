@@ -25,6 +25,8 @@ spec:
         nameservers:
           - 10.8.0.1  # Placeholder! See above.
       volumes:
+        - name: gluetun-shared
+          emptyDir: {}
         - name: qbittorrent-config
           persistentVolumeClaim:
             claimName: qbittorrent-config
@@ -66,11 +68,14 @@ spec:
             - name: torrent-udp
               containerPort: 6881
               protocol: UDP
+          volumeMounts:
+            - name: gluetun-shared
+              mountPath: /tmp/gluetun
         # --- APPLICATION CONTAINER (QBITTORRENT) ---
         - name: qbittorrent
           image: lscr.io/linuxserver/qbittorrent:latest
           imagePullPolicy: IfNotPresent
-          # Traffic should be routed through gluetun, thus no network stack definition here.
+          # Traffic should be routed through gluetun, thus no network stack definition here.          # 
           env:
             - name: PUID
               value: '1000'
@@ -79,7 +84,85 @@ spec:
             - name: TZ
               value: Europe/Berlin
           volumeMounts:
+            - name: gluetun-shared
+              mountPath: /tmp/gluetun
             - name: qbittorrent-config
               mountPath: /config
             - name: media
               mountPath: /mnt/media
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              #!/bin/sh
+              # Trap termination signals from Kubernetes so we can cleanly stop our app
+              _term() { 
+                echo "Caught SIGTERM/SIGINT signal! Shutting down gracefully..."
+                kill -TERM "$APP_PID" 2>/dev/null
+                exit 0
+              }
+              trap _term SIGTERM SIGINT
+
+              # Prevent endless-loop configuration
+              LAST_RESTART_TIME=0
+              MIN_RESTART_INTERVAL=300 # Wait at least 5 minutes (300s) between forced restarts
+
+              while true; do
+                echo "========================================="
+                echo "Waiting for Gluetun to write the forwarded port..."
+                echo "========================================="
+                
+                # Loop until the file exists and is greater than 0 bytes
+                while [ ! -s /tmp/gluetun/forwarded_port ]; do 
+                  sleep 1 
+                done
+                
+                # Settle buffer: gives Gluetun a brief window to finalize routing
+                sleep 2 
+                
+                CURRENT_PORT=$(cat /tmp/gluetun/forwarded_port)
+                echo "Found active Gluetun port: $CURRENT_PORT"
+                
+                # --- START YOUR APPLICATION ---
+                # 1. Inject the port into specific environment variable
+                export TORRENTING_PORT=$CURRENT_PORT
+                
+                # 2. Run your container's original startup command in the background (&)
+                echo "Launching application process..."
+                /entrypoint.sh & 
+                APP_PID=$! # Capture the background process ID
+
+                # --- MONITOR LOOP ---
+                while true; do
+                  sleep 15
+                  NEW_PORT=$(cat /tmp/gluetun/forwarded_port)
+                  CURRENT_TIME=$(date +%s)
+                  
+                  # Verify if a legitimate port change occurred
+                  if [ "$NEW_PORT" != "$CURRENT_PORT" ] && [ ! -z "$NEW_PORT" ] && [ "$NEW_PORT" != "0" ]; then
+                    
+                    # Calculate how long we've been running on this port
+                    TIME_SINCE_LAST_RESTART=$((CURRENT_TIME - LAST_RESTART_TIME))
+                    
+                    if [ "$TIME_SINCE_LAST_RESTART" -lt "$MIN_RESTART_INTERVAL" ]; then
+                      echo "WARNING: Port changed to $NEW_PORT, but we restarted too recently ($TIME_SINCE_LAST_RESTART seconds ago)."
+                      echo "Throttling restart to prevent an endless loop. Holding current process..."
+                      sleep 60
+                      continue
+                    fi
+
+                    echo "CRITICAL: Gluetun port changed from $CURRENT_PORT to $NEW_PORT!"
+                    echo "Stopping application to apply new configuration..."
+                    
+                    LAST_RESTART_TIME=$CURRENT_TIME
+                    kill -TERM "$APP_PID"
+                    wait "$APP_PID"
+                    break # Breaks the inner loop, causing the outer loop to re-read the file
+                  fi
+                  
+                  # Self-healing check: If your app crashes on its own, restart it
+                  if ! kill -0 "$APP_PID" 2>/dev/null; then
+                    echo "Application process exited unexpectedly. Restarting wrapper loop..."
+                    break
+                  fi
+                done
+              done
