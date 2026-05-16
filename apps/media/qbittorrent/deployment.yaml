@@ -33,6 +33,7 @@ spec:
         - name: configmap-volume
           configMap:
             name: s6-vpn-injector
+            defaultMode: 0755
         - name: qbittorrent-config
           persistentVolumeClaim:
             claimName: qbittorrent-config
