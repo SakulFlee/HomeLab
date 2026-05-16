@@ -119,24 +119,29 @@ spec:
           # If Gluetun changes the port later, this probe fails, forcing K8s to 
           # restart ONLY this container.
           livenessProbe:
-            initialDelaySeconds: 15
-            periodSeconds: 10
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            failureThreshold: 3
             exec:
               command:
                 - /bin/sh
                 - -c
                 - |
-                  # 1. If Gluetun hasn't written a port yet, don't crash yet
+                  # 1. Get the current active port from Gluetun
                   [ ! -s /tmp/gluetun/forwarded_port ] && exit 0
-                  
-                  # 2. Compare the active Gluetun port with the port s6 gave our app
-                  LIVE_VPN_PORT=$(cat /tmp/gluetun/forwarded_port)
-                  CURRENT_APP_PORT=$(cat /var/run/s6/container_environment/TORRENTING_PORT 2>/dev/null)
-                  
-                  # 3. If they match, the container is healthy (exit 0). If not, kill it (exit 1)
-                  if [ "$LIVE_VPN_PORT" = "$CURRENT_APP_PORT" ]; then
+                  LIVE_VPN_PORT=$(cat /tmp/gluetun/forwarded_port | tr -d '\r\n ')
+
+                  # 2. Query the Linux kernel network stack for qB's active listening port
+                  # We list listening ports, ignore 8080 (WebUI), and isolate the torrent port
+                  ACTUAL_PORT=$(netstat -tln 2>/dev/null | grep LISTEN | awk '{print $4}' | awk -F: '{print $NF}' | grep -v '8080' | head -n 1 | tr -d '\r\n ')
+
+                  # 3. If qB hasn't opened its listening socket yet, let it slide until next check
+                  [ -z "$ACTUAL_PORT" ] && exit 0
+
+                  # 4. Compare the real active memory port against Gluetun
+                  if [ "$LIVE_VPN_PORT" = "$ACTUAL_PORT" ]; then
                     exit 0
                   else
-                    echo "Port mismatch detected! Forcing container restart."
+                    echo "Port mismatch detected! Gluetun is on $LIVE_VPN_PORT but qB is actively listening on $ACTUAL_PORT. Forcing safe K8s restart."
                     exit 1
                   fi
