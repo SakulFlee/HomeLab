@@ -101,7 +101,7 @@ spec:
             - name: qbittorrent-config
               mountPath: /config
             - name: media
-              mountPath: /mnt/media
+              mountPath: /mnt/nas/Media
           # Lock "started" status until we actually have a port forwarding port set.
           startupProbe:
             periodSeconds: 10
