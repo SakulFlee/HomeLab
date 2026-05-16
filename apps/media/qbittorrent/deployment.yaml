@@ -96,7 +96,7 @@ spec:
             - name: gluetun-shared
               mountPath: /tmp/gluetun
             - name: configmap-volume
-              mountPath: /etc/cont-init.d/00-vpn-port.sh
+              mountPath: /custom-cont-init.d/00-vpn-port.sh
               subPath: 00-vpn-port.sh
             - name: qbittorrent-config
               mountPath: /config
