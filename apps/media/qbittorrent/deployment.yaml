@@ -128,7 +128,7 @@ spec:
                 
                 # 2. Run your container's original startup command in the background (&)
                 echo "Launching application process..."
-                /entrypoint.sh & 
+                /init & 
                 APP_PID=$! # Capture the background process ID
 
                 # --- MONITOR LOOP ---
