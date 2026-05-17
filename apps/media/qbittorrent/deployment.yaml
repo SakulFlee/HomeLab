@@ -110,7 +110,7 @@ spec:
             - /bin/sh
             - -c
             - |
-              CONFIG_FILE="/config/qBittorrent/config/qBittorrent.conf"
+              CONFIG_FILE="/config/qBittorrent/qBittorrent.conf"
               LAST_PORT=""
 
               echo "Port Syncer Sidecar Active."
@@ -121,9 +121,6 @@ spec:
                   
                   if [ "$CURRENT_PORT" != "0" ] && [ "$CURRENT_PORT" != "$LAST_PORT" ] && [ ! -z "$CURRENT_PORT" ]; then
                     echo "Gluetun port changed from '$LAST_PORT' to '$CURRENT_PORT'. Patching config..."
-                    
-                    # Ensure config directories exist
-                    mkdir -p /config/qBittorrent/config
                     
                     # Update config file
                     if [ -f "$CONFIG_FILE" ]; then
