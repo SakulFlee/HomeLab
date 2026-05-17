@@ -30,5 +30,5 @@ spec:
               containerPort: 9000
           volumeMounts:
             - name: mealie
-              mountPath: /config
+              mountPath: /app/data/
 
