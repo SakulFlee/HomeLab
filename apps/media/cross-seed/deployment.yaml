@@ -24,7 +24,9 @@ spec:
         - name: cross-seed-config
           configMap:
             name: config-map-cross-seed-config
-            subPath: config.js
+            items:
+              - key: config.js
+                path: config.js
       containers:
         - name: cross-seed
           image: ghcr.io/cross-seed/cross-seed:6
