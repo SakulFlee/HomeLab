@@ -18,9 +18,9 @@ spec:
         app: mealie
     spec:
       volumes:
-        - name: mealie-config
+        - name: mealie
           persistentVolumeClaim:
-            claimName: mealie-config
+            claimName: mealie
       containers:
         - name: mealie
           image: ghcr.io/mealie-recipes/mealie:v3.17.0
@@ -30,6 +30,6 @@ spec:
             - name: webui
               containerPort: 9000
           volumeMounts:
-            - name: mealie-config
+            - name: mealie
               mountPath: /config
 
