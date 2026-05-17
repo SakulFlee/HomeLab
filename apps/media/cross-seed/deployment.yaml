@@ -28,6 +28,7 @@ spec:
         - name: cross-seed
           image: ghcr.io/cross-seed/cross-seed:6
           imagePullPolicy: IfNotPresent
+          command: daemon
           ports:
             - name: webui
               containerPort: 2468
