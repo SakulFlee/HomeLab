@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mealie
+  namespace: media
+  labels:
+    app: mealie
+spec:
+  selector:
+    matchLabels:
+      app: mealie
+  replicas: 1
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: mealie
+    spec:
+      volumes:
+        - name: mealie-config
+          persistentVolumeClaim:
+            claimName: mealie-config
+      containers:
+        - name: mealie
+          image: ghcr.io/mealie-recipes/mealie:v3.17.0
+          imagePullPolicy: IfNotPresent
+          command: ["daemon"]
+          ports:
+            - name: webui
+              containerPort: 9000
+          volumeMounts:
+            - name: mealie-config
+              mountPath: /config
+

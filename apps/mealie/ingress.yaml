@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: mealie
+  namespace: media
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-production
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure 
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: mealie.sakul-flee.de
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: mealie
+                port:
+                  number: 9000
+  tls:
+    - hosts:
+        - mealie.sakul-flee.de 
+      secretName: mealie-sakul-flee-de-tls
