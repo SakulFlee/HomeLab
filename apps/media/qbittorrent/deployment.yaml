@@ -83,6 +83,19 @@ spec:
           env:
             - name: QBT_LEGAL_NOTICE 
               value: confirm
+          command:
+            - /bin/sh
+            - -c
+            - |
+              # Read the forwarded port file if it exists, otherwise default to a fallback
+              if [ -s /tmp/gluetun/active_port ]; then
+                PORT=$(cat /tmp/gluetun/active_port | tr -d '\r\n ')
+              else
+                PORT=6881 # Default fallback port
+              fi
+              
+              echo "Launching qBittorrent with active port: $PORT"
+              exec bittorrent-nox --torrenting-port=$PORT
           volumeMounts:
             - name: gluetun-shared
               mountPath: /tmp/gluetun
@@ -112,7 +125,6 @@ spec:
             - /bin/sh
             - -c
             - |
-              CONFIG_FILE="/config/qBittorrent/config/qBittorrent.conf"
               LAST_PORT=""
 
               echo "Port Syncer Sidecar Active."
@@ -122,26 +134,23 @@ spec:
                   CURRENT_PORT=$(cat /tmp/gluetun/forwarded_port | tr -d '\r\n ')
                   
                   if [ "$CURRENT_PORT" != "0" ] && [ "$CURRENT_PORT" != "$LAST_PORT" ] && [ ! -z "$CURRENT_PORT" ]; then
-                    echo "Gluetun port changed from '$LAST_PORT' to '$CURRENT_PORT'. Updating config..."
+                    echo "Gluetun port changed from '$LAST_PORT' to '$CURRENT_PORT'."
                     
-                    sed -i "s/Session\\\\Port=.*/Session\\\\Port=$CURRENT_PORT/" "$CONFIG_FILE"
+                    # Write to our isolated, safe text file
+                    echo "$CURRENT_PORT" > /tmp/gluetun/active_port
+                    echo "Active port file updated."
                     
-                    echo "Config file updated."
-                    LAST_PORT="$CURRENT_PORT"
-                    
-                    # DROP THE POISON PILL BELOW:
-                    # If this is the initial boot, we don't want to restart right away.
-                    # We only drop the pill if we already had a previous port recorded.
+                    # Drop the poison pill if this isn't the first boot tracking loop
                     if [ ! -z "$LAST_PORT" ]; then
                       echo "Creating restart flag file for qBittorrent container..."
                       touch /tmp/gluetun/force_restart
                     fi
+
+                    LAST_PORT="$CURRENT_PORT"
                   fi
                 fi
-                sleep 30
+                sleep 10
               done          
           volumeMounts:
             - name: gluetun-shared
               mountPath: /tmp/gluetun
-            - name: qbittorrent-config
-              mountPath: /config
