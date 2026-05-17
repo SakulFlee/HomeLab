@@ -137,11 +137,9 @@ spec:
                     echo "$CURRENT_PORT" > /tmp/gluetun/active_port
                     echo "Active port file updated."
                     
-                    # Drop the poison pill if this isn't the first boot tracking loop
-                    if [ ! -z "$LAST_PORT" ]; then
-                      echo "Creating restart flag file for qBittorrent container..."
-                      touch /tmp/gluetun/force_restart
-                    fi
+                    # Drop the poison pill
+                    echo "Creating restart flag file for qBittorrent container..."
+                    touch /tmp/gluetun/force_restart
 
                     LAST_PORT="$CURRENT_PORT"
                   fi
