@@ -25,6 +25,45 @@ spec:
         - name: mealie
           image: ghcr.io/mealie-recipes/mealie:v3.17.0
           imagePullPolicy: IfNotPresent
+          env:
+            - name: ALLOW_SIGNUP
+              value: "false"
+            - name: PUID
+              value: 1000
+            - name: PGID
+              value: 1000
+            - name: TZ
+              value: Europe/Berlin
+            - name: BASE_URL
+              value: https://mealie.sakul-flee.de
+            # Database
+            - name: DB_ENGINE
+              value: postgres
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-app
+                  key: user
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-app
+                  key: password
+            - name: POSTGRES_SERVER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-app
+                  key: host
+            - name: POSTGRES_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-app
+                  key: port
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-app
+                  key: dbname
           ports:
             - name: webui
               containerPort: 9000
