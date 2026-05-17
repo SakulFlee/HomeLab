@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: cross-seed-config
+  name: cross-seed-data
   namespace: media
 spec:
   storageClassName: local-path-persistent
