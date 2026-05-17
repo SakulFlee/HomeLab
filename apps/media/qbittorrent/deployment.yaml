@@ -100,20 +100,11 @@ spec:
                 - /bin/sh
                 - -c
                 - |
-                  # 1. Look for the sidecar's trigger file
                   if [ -f /tmp/gluetun/force_restart ]; then
                     echo "Poison Pill found! Removing flag and triggering container restart."
                     rm -f /tmp/gluetun/force_restart
                     exit 1
                   fi
-
-                  # 2. Fall back to standard port match logic
-                  ACTUAL_PORT=$(netstat -tln 2>/dev/null | grep LISTEN | awk '{print $4}' | awk -F: '{print $NF}' | grep -v '8080' | head -n 1 | tr -d '\r\n ')
-                  LIVE_VPN_PORT=$(cat /tmp/gluetun/forwarded_port | tr -d '\r\n ')
-                  
-                  [ -z "$ACTUAL_PORT" ] || [ -z "$LIVE_VPN_PORT" ] && exit 0
-                  [ "$ACTUAL_PORT" = "$LIVE_VPN_PORT" ] && exit 0
-                  exit 1        
         - name: port-syncer
           image: alpine:latest
           command:
