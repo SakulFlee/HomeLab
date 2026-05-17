@@ -80,6 +80,9 @@ spec:
           imagePullPolicy: IfNotPresent
           # Traffic should be routed through gluetun, thus no network stack definition here.          
           # This INCLUDES ports!
+          env:
+            - name: QBT_LEGAL_NOTICE 
+              value: confirm
           volumeMounts:
             - name: gluetun-shared
               mountPath: /tmp/gluetun
