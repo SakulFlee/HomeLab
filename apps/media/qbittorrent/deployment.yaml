@@ -124,17 +124,7 @@ spec:
                   if [ "$CURRENT_PORT" != "0" ] && [ "$CURRENT_PORT" != "$LAST_PORT" ] && [ ! -z "$CURRENT_PORT" ]; then
                     echo "Gluetun port changed from '$LAST_PORT' to '$CURRENT_PORT'. Updating config..."
                     
-                    mkdir -p /config/qBittorrent/config
-                    
-                    if [ -f "$CONFIG_FILE" ]; then
-                      if grep -q "Session\\\\Port=" "$CONFIG_FILE"; then
-                        sed -i "s/Session\\\\Port=.*/Session\\\\Port=$CURRENT_PORT/" "$CONFIG_FILE"
-                      else
-                        sed -i "/\[BitTorrent\]/a Session\\\\Port=$CURRENT_PORT" "$CONFIG_FILE" 2>/dev/null || echo -e "[BitTorrent]\nSession\\\\Port=$CURRENT_PORT" >> "$CONFIG_FILE"
-                      fi
-                    else
-                      echo -e "[BitTorrent]\nSession\\\\Port=$CURRENT_PORT" > "$CONFIG_FILE"
-                    fi
+                    sed -i "s/Session\\\\Port=.*/Session\\\\Port=$CURRENT_PORT/" "$CONFIG_FILE"
                     
                     echo "Config file updated."
                     LAST_PORT="$CURRENT_PORT"
@@ -148,7 +138,7 @@ spec:
                     fi
                   fi
                 fi
-                sleep 10
+                sleep 30
               done          
           volumeMounts:
             - name: gluetun-shared
