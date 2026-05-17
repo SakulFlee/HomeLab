@@ -95,7 +95,7 @@ spec:
               fi
               
               echo "Launching qBittorrent with active port: $PORT"
-              exec bittorrent-nox --torrenting-port=$PORT
+              exec qbittorrent-nox --torrenting-port=$PORT
           volumeMounts:
             - name: gluetun-shared
               mountPath: /tmp/gluetun
