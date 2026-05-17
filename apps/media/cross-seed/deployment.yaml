@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cross-seed
+  namespace: media
+  labels:
+    app: cross-seed
+spec:
+  selector:
+    matchLabels:
+      app: cross-seed
+  replicas: 1
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: cross-seed
+    spec:
+      volumes:
+        - name: cross-seed-data
+          persistentVolumeClaim:
+            claimName: cross-seed-data
+        - name: cross-seed-config
+          configMap:
+            name: config-map-cross-seed-config
+            subPath: config.js
+      containers:
+        - name: cross-seed
+          image: ghcr.io/cross-seed/cross-seed:6
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: webui
+              containerPort: 2468
+          volumeMounts:
+            - name: cross-seed-data
+              mountPath: /config
+            - name: cross-seed-config
+              mountPath: /config/config.js
+
