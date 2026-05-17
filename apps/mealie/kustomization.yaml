@@ -4,6 +4,7 @@ metadata:
   name: mealie
   namespace: mealie
 resources:
+  - namespace.yaml
   - database.yaml
   - deployment.yaml
   - persistent-volume-claim.yaml
