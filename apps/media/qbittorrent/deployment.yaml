@@ -17,8 +17,6 @@ spec:
       labels:
         app: qbittorrent
     spec:
-      # Makes us able to kill processes from another container 
-      shareProcessNamespace: true
       # Forces Kubernetes to kill faster
       terminationGracePeriodSeconds: 5
       # Ensures DNS lookups go through the VPN.
@@ -96,19 +94,26 @@ spec:
           # restart ONLY this container.
           livenessProbe:
             initialDelaySeconds: 30
-            periodSeconds: 20
+            periodSeconds: 15
             exec:
               command:
                 - /bin/sh
                 - -c
                 - |
-                  # Extract active listening port from kernel memory space
+                  # 1. Look for the sidecar's trigger file
+                  if [ -f /tmp/gluetun/force_restart ]; then
+                    echo "Poison Pill found! Removing flag and triggering container restart."
+                    rm -f /tmp/gluetun/force_restart
+                    exit 1
+                  fi
+
+                  # 2. Fall back to standard port match logic
                   ACTUAL_PORT=$(netstat -tln 2>/dev/null | grep LISTEN | awk '{print $4}' | awk -F: '{print $NF}' | grep -v '8080' | head -n 1 | tr -d '\r\n ')
                   LIVE_VPN_PORT=$(cat /tmp/gluetun/forwarded_port | tr -d '\r\n ')
                   
                   [ -z "$ACTUAL_PORT" ] || [ -z "$LIVE_VPN_PORT" ] && exit 0
                   [ "$ACTUAL_PORT" = "$LIVE_VPN_PORT" ] && exit 0
-                  exit 1
+                  exit 1        
         - name: port-syncer
           image: alpine:latest
           command:
@@ -125,12 +130,10 @@ spec:
                   CURRENT_PORT=$(cat /tmp/gluetun/forwarded_port | tr -d '\r\n ')
                   
                   if [ "$CURRENT_PORT" != "0" ] && [ "$CURRENT_PORT" != "$LAST_PORT" ] && [ ! -z "$CURRENT_PORT" ]; then
-                    echo "Gluetun port changed from '$LAST_PORT' to '$CURRENT_PORT'. Patching config..."
+                    echo "Gluetun port changed from '$LAST_PORT' to '$CURRENT_PORT'. Updating config..."
                     
-                    # Ensure config directories exist
                     mkdir -p /config/qBittorrent/config
                     
-                    # Update config file
                     if [ -f "$CONFIG_FILE" ]; then
                       if grep -q "Session\\\\Port=" "$CONFIG_FILE"; then
                         sed -i "s/Session\\\\Port=.*/Session\\\\Port=$CURRENT_PORT/" "$CONFIG_FILE"
@@ -144,13 +147,17 @@ spec:
                     echo "Config file updated."
                     LAST_PORT="$CURRENT_PORT"
                     
-                    # Tell qBittorrent to gracefully reload configuration without killing the container
-                    # The official image responds perfectly to standard process hangup signals
-                    pkill -HUP qbittorrent-nox 2>/dev/null && echo "Sent SIGHUP to qBittorrent to apply changes dynamically."
+                    # DROP THE POISON PILL BELOW:
+                    # If this is the initial boot, we don't want to restart right away.
+                    # We only drop the pill if we already had a previous port recorded.
+                    if [ ! -z "$LAST_PORT" ]; then
+                      echo "Creating restart flag file for qBittorrent container..."
+                      touch /tmp/gluetun/force_restart
+                    fi
                   fi
                 fi
                 sleep 10
-              done
+              done          
           volumeMounts:
             - name: gluetun-shared
               mountPath: /tmp/gluetun
