@@ -1,0 +1,145 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: slskd
+  namespace: media
+  labels:
+    app: slskd
+spec:
+  selector:
+    matchLabels:
+      app: slskd
+  replicas: 1
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: slskd
+    spec:
+      # Forces Kubernetes to kill faster
+      terminationGracePeriodSeconds: 5
+      # Ensures DNS lookups go through the VPN.
+      # This should prevent DNS leaks.
+      # This is only a placeholder and should replaced by gluetun automatically with the correct DNS server.
+      dnsPolicy: None
+      dnsConfig:
+        nameservers:
+          - 10.8.0.1  # Placeholder! See above.
+      volumes:
+        - name: gluetun-shared
+          emptyDir:
+            medium: Memory
+        - name: slskd
+          persistentVolumeClaim:
+            claimName: slskd
+        - name: media
+          hostPath:
+            path: /mnt/nas/Media
+      containers:
+        # --- VPN SIDECAR CONTAINER (GLUETUN) ---
+        - name: gluetun
+          image: qmcgaw/gluetun:latest
+          imagePullPolicy: IfNotPresent
+          # Required for changing the network settings for the whole pod (i.e. both containers)
+          securityContext:
+            capabilities:
+              add: [NET_ADMIN]
+          env:
+            - name: VPN_SERVICE_PROVIDER
+              value: pia
+            # Kill-Switch firewall rules:
+            - name: FIREWALL
+              value: 'on'
+            - name: TZ
+              value: Europe/Berlin
+            - name: VPN_PORT_FORWARDING
+              value: on
+            - name: PORT_FORWARD_ONLY
+              value: "true"
+          # Credentials in secret
+          envFrom:
+            - secretRef:
+                name: secret-vpn
+          # Expose slskd ports through the Gluetun firewall
+          ports:
+            - name: webui
+              containerPort: 5030
+          volumeMounts:
+            - name: gluetun-shared
+              mountPath: /tmp/gluetun
+        # --- APPLICATION CONTAINER (slskd) ---
+        - name: slskd
+          image: slskdofficial/slskd-nox:latest
+          imagePullPolicy: IfNotPresent
+          # Traffic should be routed through gluetun, thus no network stack definition here.          
+          # This INCLUDES ports!
+          command:
+            - /bin/sh
+            - -c
+            - |
+              # Read the forwarded port file if it exists, otherwise default to a fallback
+              if [ -s /tmp/gluetun/active_port ]; then
+                PORT=$(cat /tmp/gluetun/active_port | tr -d '\r\n ')
+              else
+                PORT=6881 # Default fallback port
+              fi
+              
+              echo "Launching slskd with active port: $PORT"
+              exec slskd-nox --confirm-legal-notice --torrenting-port=$PORT --profile="/config"
+          volumeMounts:
+            - name: gluetun-shared
+              mountPath: /tmp/gluetun
+            - name: slskd-config
+              mountPath: /config
+            - name: media
+              mountPath: /mnt/nas/Media
+          # If Gluetun changes the port later, this probe fails, forcing K8s to 
+          # restart ONLY this container.
+          livenessProbe:
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            failureThreshold: 1
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  if [ -f /tmp/gluetun/force_restart ]; then
+                    echo "Poison Pill found! Removing flag and triggering container restart."
+                    rm -f /tmp/gluetun/force_restart
+                    exit 1
+                  fi
+        # - name: port-syncer
+        #   image: alpine:latest
+        #   command:
+        #     - /bin/sh
+        #     - -c
+        #     - |
+        #       LAST_PORT=""
+        #
+        #       echo "Port Syncer Sidecar Active."
+        #
+        #       while true; do
+        #         if [ -s /tmp/gluetun/forwarded_port ]; then
+        #           CURRENT_PORT=$(cat /tmp/gluetun/forwarded_port | tr -d '\r\n ')
+        #
+        #           if [ "$CURRENT_PORT" != "0" ] && [ "$CURRENT_PORT" != "$LAST_PORT" ] && [ ! -z "$CURRENT_PORT" ]; then
+        #             echo "Gluetun port changed from '$LAST_PORT' to '$CURRENT_PORT'."
+        #
+        #             # Write to our isolated, safe text file
+        #             echo "$CURRENT_PORT" > /tmp/gluetun/active_port
+        #             echo "Active port file updated."
+        #
+        #             # Drop the poison pill
+        #             echo "Creating restart flag file for slskd container..."
+        #             touch /tmp/gluetun/force_restart
+        #
+        #             LAST_PORT="$CURRENT_PORT"
+        #           fi
+        #         fi
+        #         sleep 10
+        #       done          
+        #   volumeMounts:
+        #     - name: gluetun-shared
+        #       mountPath: /tmp/gluetun
