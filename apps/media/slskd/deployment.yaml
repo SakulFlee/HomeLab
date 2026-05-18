@@ -149,4 +149,4 @@ spec:
               done          
           volumeMounts:
             - name: gluetun-shared
-              mountpath: /tmp/gluetun
+              mountPath: /tmp/gluetun
