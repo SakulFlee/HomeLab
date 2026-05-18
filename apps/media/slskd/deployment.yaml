@@ -86,7 +86,7 @@ spec:
               fi
               
               echo "Launching slskd with active port: $PORT"
-              exec slskd
+              exec /usr/bin/tini -- /entrypoint.sh ./slskd
           env:
             - name: SLSKD_REMOTE_CONFIGURATION
               value: "true"
