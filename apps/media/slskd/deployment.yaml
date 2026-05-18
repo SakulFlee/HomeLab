@@ -93,9 +93,6 @@ spec:
               ps -aux
               netstat -tulpn
               exec /usr/bin/tini -- /entrypoint.sh ./slskd
-          env:
-            - name: SLSKD_REMOTE_CONFIGURATION
-              value: "true"
           volumeMounts:
             - name: gluetun-shared
               mountPath: /tmp/gluetun
