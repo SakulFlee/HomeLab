@@ -89,7 +89,7 @@ spec:
               exec slskd
           env:
             - name: SLSKD_REMOTE_CONFIGURATION
-              value: true
+              value: "true"
           volumeMounts:
             - name: gluetun-shared
               mountPath: /tmp/gluetun
