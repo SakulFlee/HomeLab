@@ -89,7 +89,7 @@ spec:
               fi
 
               echo "Launching slskd with active port: $PORT"
-              export SLSKD_SOULSEEK_LISTEN_PORT=$PORT
+              export SLSKD_SLSK_LISTEN_PORT=$PORT
               exec /usr/bin/tini -- /entrypoint.sh ./slskd
           volumeMounts:
             - name: gluetun-shared
