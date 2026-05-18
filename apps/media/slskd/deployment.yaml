@@ -33,6 +33,9 @@ spec:
         - name: slskd
           persistentVolumeClaim:
             claimName: slskd
+        - name: slskd-config
+          configMap:
+            name: config-map-slskd-config
         - name: media
           hostPath:
             path: /mnt/nas/Media
@@ -82,10 +85,11 @@ spec:
               if [ -s /tmp/gluetun/active_port ]; then
                 PORT=$(cat /tmp/gluetun/active_port | tr -d '\r\n ')
               else
-                PORT=6881 # Default fallback port
+                PORT=30050 # Default fallback port
               fi
-              
+
               echo "Launching slskd with active port: $PORT"
+              sed -i "s/listen_port:.*/listen_port: $PORT/g" /app/slskd.yml
               exec /usr/bin/tini -- /entrypoint.sh ./slskd
           env:
             - name: SLSKD_REMOTE_CONFIGURATION
@@ -97,6 +101,9 @@ spec:
               mountPath: /app
             - name: media
               mountPath: /mnt/nas/Media
+            - name: slskd-config
+              mountPath: /app/slskd.yml
+              subPath: slskd.yml
           # If Gluetun changes the port later, this probe fails, forcing K8s to 
           # restart ONLY this container.
           livenessProbe:
@@ -113,36 +120,36 @@ spec:
                     rm -f /tmp/gluetun/force_restart
                     exit 1
                   fi
-        # - name: port-syncer
-        #   image: alpine:latest
-        #   command:
-        #     - /bin/sh
-        #     - -c
-        #     - |
-        #       LAST_PORT=""
-        #
-        #       echo "Port Syncer Sidecar Active."
-        #
-        #       while true; do
-        #         if [ -s /tmp/gluetun/forwarded_port ]; then
-        #           CURRENT_PORT=$(cat /tmp/gluetun/forwarded_port | tr -d '\r\n ')
-        #
-        #           if [ "$CURRENT_PORT" != "0" ] && [ "$CURRENT_PORT" != "$LAST_PORT" ] && [ ! -z "$CURRENT_PORT" ]; then
-        #             echo "Gluetun port changed from '$LAST_PORT' to '$CURRENT_PORT'."
-        #
-        #             # Write to our isolated, safe text file
-        #             echo "$CURRENT_PORT" > /tmp/gluetun/active_port
-        #             echo "Active port file updated."
-        #
-        #             # Drop the poison pill
-        #             echo "Creating restart flag file for slskd container..."
-        #             touch /tmp/gluetun/force_restart
-        #
-        #             LAST_PORT="$CURRENT_PORT"
-        #           fi
-        #         fi
-        #         sleep 10
-        #       done          
-        #   volumeMounts:
-        #     - name: gluetun-shared
-        #       mountPath: /tmp/gluetun
+        - name: port-syncer
+          image: alpine:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+              last_port=""
+
+              echo "port syncer sidecar active."
+
+              while true; do
+                if [ -s /tmp/gluetun/forwarded_port ]; then
+                  current_port=$(cat /tmp/gluetun/forwarded_port | tr -d '\r\n ')
+
+                  if [ "$current_port" != "0" ] && [ "$current_port" != "$last_port" ] && [ ! -z "$current_port" ]; then
+                    echo "gluetun port changed from '$last_port' to '$current_port'."
+
+                    # write to our isolated, safe text file
+                    echo "$current_port" > /tmp/gluetun/active_port
+                    echo "active port file updated."
+
+                    # drop the poison pill
+                    echo "creating restart flag file for slskd container..."
+                    touch /tmp/gluetun/force_restart
+
+                    last_port="$current_port"
+                  fi
+                fi
+                sleep 10
+              done          
+          volumemounts:
+            - name: gluetun-shared
+              mountpath: /tmp/gluetun
