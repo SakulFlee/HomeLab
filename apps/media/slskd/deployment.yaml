@@ -86,7 +86,7 @@ spec:
               fi
               
               echo "Launching slskd with active port: $PORT"
-              exec slskd-nox --confirm-legal-notice --torrenting-port=$PORT --profile="/config"
+              exec slskd
           volumeMounts:
             - name: gluetun-shared
               mountPath: /tmp/gluetun
