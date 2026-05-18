@@ -87,6 +87,9 @@ spec:
               
               echo "Launching slskd with active port: $PORT"
               exec slskd
+          env:
+            - name: SLSKD_REMOTE_CONFIGURATION
+              value: true
           volumeMounts:
             - name: gluetun-shared
               mountPath: /tmp/gluetun
