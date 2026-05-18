@@ -93,8 +93,8 @@ spec:
           volumeMounts:
             - name: gluetun-shared
               mountPath: /tmp/gluetun
-            - name: slskd-config
-              mountPath: /config
+            - name: slskd
+              mountPath: /app
             - name: media
               mountPath: /mnt/nas/Media
           # If Gluetun changes the port later, this probe fails, forcing K8s to 
