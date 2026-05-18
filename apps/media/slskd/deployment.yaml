@@ -147,6 +147,6 @@ spec:
                 fi
                 sleep 10
               done          
-          volumemounts:
+          volumeMounts:
             - name: gluetun-shared
               mountpath: /tmp/gluetun
