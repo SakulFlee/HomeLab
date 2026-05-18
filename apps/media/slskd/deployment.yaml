@@ -88,11 +88,8 @@ spec:
                 PORT=4321 # Default fallback port
               fi
 
-              # Copy ConfigMap config, then replace the port mapping
-              cp /tmp/slskd.yml /app/slskd.yml
-              sed -i "s/listen_port:.*/listen_port: $PORT/g" /app/slskd.yml
-              
               echo "Launching slskd with active port: $PORT"
+              export SLSKD_SOULSEEK_LISTEN_PORT=$PORT
               exec /usr/bin/tini -- /entrypoint.sh ./slskd
           volumeMounts:
             - name: gluetun-shared
@@ -102,7 +99,7 @@ spec:
             - name: media
               mountPath: /mnt/nas/Media
             - name: slskd-config
-              mountPath: /tmp/slskd.yml
+              mountPath: /app/slskd.yml
               subPath: slskd.yml
           # If Gluetun changes the port later, this probe fails, forcing K8s to 
           # restart ONLY this container.
