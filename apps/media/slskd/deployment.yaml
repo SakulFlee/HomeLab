@@ -82,8 +82,8 @@ spec:
             - -c
             - |
               # Read the forwarded port file if it exists, otherwise default to a fallback
-              if [ -s /tmp/gluetun/active_port ]; then
-                PORT=$(cat /tmp/gluetun/active_port | tr -d '\r\n ')
+              if [ -s /tmp/gluetun/forwarded_port ]; then
+                PORT=$(cat /tmp/gluetun/forwarded_port | tr -d '\r\n ')
               else
                 PORT=4321 # Default fallback port
               fi
@@ -133,10 +133,6 @@ spec:
 
                   if [ "$current_port" != "0" ] && [ "$current_port" != "$last_port" ] && [ ! -z "$current_port" ]; then
                     echo "gluetun port changed from '$last_port' to '$current_port'."
-
-                    # write to our isolated, safe text file
-                    echo "$current_port" > /tmp/gluetun/active_port
-                    echo "active port file updated."
 
                     # drop the poison pill
                     echo "creating restart flag file for slskd container..."
