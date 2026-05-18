@@ -70,7 +70,7 @@ spec:
               mountPath: /tmp/gluetun
         # --- APPLICATION CONTAINER (slskd) ---
         - name: slskd
-          image: slskdofficial/slskd-nox:latest
+          image: slskd/slskd:latest
           imagePullPolicy: IfNotPresent
           # Traffic should be routed through gluetun, thus no network stack definition here.          
           # This INCLUDES ports!
