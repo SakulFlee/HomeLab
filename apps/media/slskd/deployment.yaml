@@ -60,7 +60,7 @@ spec:
           # Credentials in secret
           envFrom:
             - secretRef:
-                name: secret-vpn
+                name: secret-media-vpn
           # Expose slskd ports through the Gluetun firewall
           ports:
             - name: webui

@@ -60,7 +60,7 @@ spec:
           # Credentials in secret
           envFrom:
             - secretRef:
-                name: secret-qbittorrent
+                name: secret-media-vpn
           # Expose qBittorrent ports through the Gluetun firewall
           ports:
             - name: webui
