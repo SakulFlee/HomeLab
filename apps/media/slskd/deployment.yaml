@@ -91,7 +91,7 @@ spec:
               echo "Launching slskd with active port: $PORT"
               sed -i "s/listen_port:.*/listen_port: $PORT/g" /app/slskd.yml
               ps -aux
-              ss -tulpn
+              netstat -tulpn
               exec /usr/bin/tini -- /entrypoint.sh ./slskd
           env:
             - name: SLSKD_REMOTE_CONFIGURATION
