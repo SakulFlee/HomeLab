@@ -85,7 +85,7 @@ spec:
               if [ -s /tmp/gluetun/active_port ]; then
                 PORT=$(cat /tmp/gluetun/active_port | tr -d '\r\n ')
               else
-                PORT=30050 # Default fallback port
+                PORT=1234 # Default fallback port
               fi
 
               echo "Launching slskd with active port: $PORT"
