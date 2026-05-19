@@ -45,8 +45,6 @@ spec:
       host: open-webui.sakul-flee.de
       tls: true
       existingSecret: open-webui-sakul-flee-de-tls
-    service:
-      type: LoadBalancer
     ollama:
       enabled: false
     pipelines:
