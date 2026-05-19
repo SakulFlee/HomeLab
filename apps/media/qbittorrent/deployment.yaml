@@ -85,8 +85,8 @@ spec:
             - -c
             - |
               # Read the forwarded port file if it exists, otherwise default to a fallback
-              if [ -s /tmp/gluetun/active_port ]; then
-                PORT=$(cat /tmp/gluetun/active_port | tr -d '\r\n ')
+              if [ -s /tmp/gluetun/forwarded_port ]; then
+                PORT=$(cat /tmp/gluetun/forwarded_port | tr -d '\r\n ')
               else
                 PORT=6881 # Default fallback port
               fi
@@ -132,10 +132,6 @@ spec:
                   
                   if [ "$CURRENT_PORT" != "0" ] && [ "$CURRENT_PORT" != "$LAST_PORT" ] && [ ! -z "$CURRENT_PORT" ]; then
                     echo "Gluetun port changed from '$LAST_PORT' to '$CURRENT_PORT'."
-                    
-                    # Write to our isolated, safe text file
-                    echo "$CURRENT_PORT" > /tmp/gluetun/active_port
-                    echo "Active port file updated."
                     
                     # Drop the poison pill
                     echo "Creating restart flag file for qBittorrent container..."
