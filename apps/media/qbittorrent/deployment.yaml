@@ -108,35 +108,35 @@ spec:
             periodSeconds: 30
             failureThreshold: 10
         # --- PORT SYNCER SIDECAR ---
-        # - name: port-syncer
-        #   image: alpine:latest
-        #   command:
-        #     - /bin/sh
-        #     - -c
-        #     - |
-        #       LAST_PORT=""
-        #       echo "Port Syncer Sidecar Active."
-        #
-        #       while true; do
-        #         if [ -s /tmp/gluetun/forwarded_port ]; then
-        #           CURRENT_PORT=$(cat /tmp/gluetun/forwarded_port | tr -d '\r\n ')
-        #
-        #           if [ "$CURRENT_PORT" != "0" ] && [ "$CURRENT_PORT" != "$LAST_PORT" ] && [ ! -z "$CURRENT_PORT" ]; then
-        #
-        #             # Skip killing on the very first boot loop discovery
-        #             if [ -z "$LAST_PORT" ]; then
-        #               echo "Initial Gluetun port detected: $CURRENT_PORT"
-        #               LAST_PORT="$CURRENT_PORT"
-        #             else
-        #               echo "Gluetun port changed from '$LAST_PORT' to '$CURRENT_PORT'."
-        #               echo "Killing qbittorrent-nox to force restart..."
-        #               pkill -f qbittorrent-nox
-        #               LAST_PORT="$CURRENT_PORT"
-        #             fi
-        #           fi
-        #         fi
-        #         sleep 10
-        #       done          
-        #   volumeMounts:
-        #     - name: gluetun-shared
-        #       mountPath: /tmp/gluetun
+        - name: port-syncer
+          image: alpine:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+              LAST_PORT=""
+              echo "Port Syncer Sidecar Active."
+              
+              while true; do
+                if [ -s /tmp/gluetun/forwarded_port ]; then
+                  CURRENT_PORT=$(cat /tmp/gluetun/forwarded_port | tr -d '\r\n ')
+                  
+                  if [ "$CURRENT_PORT" != "0" ] && [ "$CURRENT_PORT" != "$LAST_PORT" ] && [ ! -z "$CURRENT_PORT" ]; then
+                    
+                    # Skip killing on the very first boot loop discovery
+                    if [ -z "$LAST_PORT" ]; then
+                      echo "Initial Gluetun port detected: $CURRENT_PORT"
+                      LAST_PORT="$CURRENT_PORT"
+                    else
+                      echo "Gluetun port changed from '$LAST_PORT' to '$CURRENT_PORT'."
+                      echo "Killing qbittorrent-nox to force restart..."
+                      pkill -f qbittorrent-nox
+                      LAST_PORT="$CURRENT_PORT"
+                    fi
+                  fi
+                fi
+                sleep 10
+              done          
+          volumeMounts:
+            - name: gluetun-shared
+              mountPath: /tmp/gluetun
