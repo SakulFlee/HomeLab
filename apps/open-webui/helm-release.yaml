@@ -57,6 +57,9 @@ spec:
         enabled: true
         size: 32Gi
         storageClass: local-path-persistent
+      extraEnvFrom:
+        - secretRef:
+          name: ollama-cloud
     pipelines:
       enabled: true
     tika:
