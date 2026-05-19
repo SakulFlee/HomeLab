@@ -119,6 +119,12 @@ spec:
                     rm -f /tmp/gluetun/force_restart
                     exit 1
                   fi
+
+                  STATUS_CODE=$(curl -o /dev/null -s -w "%{http_code}" http://127.0.0.1:8080)
+                  if [ $STATUS_CODE -ne 200 ]; then
+                    echo "Health check failed ... killing!"
+                    exit 2
+                  fi
         - name: port-syncer
           image: alpine:latest
           command:
