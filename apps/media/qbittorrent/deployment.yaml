@@ -92,7 +92,12 @@ spec:
               fi
               
               echo "Launching qBittorrent with active port: $PORT"
+              ss -tulpn
+              netstat -tulpn
+              ps -aux
               exec qbittorrent-nox --confirm-legal-notice --torrenting-port=$PORT --profile="/config"
+
+              echo "EXITED"
           volumeMounts:
             - name: gluetun-shared
               mountPath: /tmp/gluetun
