@@ -29,11 +29,6 @@ spec:
     enable: true
   driftDetection:
     mode: enabled
-  valuesFrom:
-    - kind: Secret
-      name: postgres-app
-      valuesKey: fqdn-uri
-      targetPath: databaseUrl
   values:
     extraEnvFrom:
       - secretRef:
