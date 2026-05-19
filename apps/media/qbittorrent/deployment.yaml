@@ -92,12 +92,7 @@ spec:
               fi
               
               echo "Launching qBittorrent with active port: $PORT"
-
-              ps
               exec qbittorrent-nox --confirm-legal-notice --torrenting-port=$PORT --profile="/config"
-              ps
-
-              echo "EXITED"
           volumeMounts:
             - name: gluetun-shared
               mountPath: /tmp/gluetun
@@ -109,8 +104,9 @@ spec:
             httpGet:
               path: /
               port: 8080
-            initialDelaySeconds: 30
-            periodSeconds: 15
+            initialDelaySeconds: 150
+            periodSeconds: 30
+            failureThreshold: 10
         # --- PORT SYNCER SIDECAR ---
         - name: port-syncer
           image: alpine:latest
