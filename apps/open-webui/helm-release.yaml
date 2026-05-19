@@ -62,6 +62,3 @@ spec:
       enabled: true
       storageClass: local-path-persistent
       size: 32Gi
-    extraEnvFrom:
-      - secretRef:
-        name: ollama-cloud
