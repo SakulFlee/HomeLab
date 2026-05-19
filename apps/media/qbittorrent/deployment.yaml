@@ -93,9 +93,9 @@ spec:
               
               echo "Launching qBittorrent with active port: $PORT"
 
-              ps -ax
+              ps
               exec qbittorrent-nox --confirm-legal-notice --torrenting-port=$PORT --profile="/config"
-              ps -ax
+              ps
 
               echo "EXITED"
           volumeMounts:
