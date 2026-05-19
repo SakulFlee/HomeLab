@@ -104,7 +104,7 @@ spec:
             httpGet:
               path: /
               port: 8080
-            initialDelaySeconds: 150
+            initialDelaySeconds: 30
             periodSeconds: 30
             failureThreshold: 10
         # --- PORT SYNCER SIDECAR ---
