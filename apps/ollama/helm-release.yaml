@@ -38,10 +38,6 @@ spec:
       size: 32Gi
       storageClass: local-path-persistent
     ollama:
-      gpu:
-        enabled: true
-        type: 'amd'
-        number: 1
       models:
         clean: true
         pull:
