@@ -1,0 +1,56 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: ollama
+  namespace: flux-system
+  labels:
+    reconcile.fluxcd.io/watch: Enabled
+spec:
+  interval: 15m
+  timeout: 5m
+  chart:
+    spec:
+      chart: ollama
+      version: 1.*
+      sourceRef:
+        kind: HelmRepository
+        name: ollama
+      interval: 5m
+  releaseName: ollama
+  targetNamespace: ollama
+  install:
+    createNamespace: true
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  test:
+    enable: true
+  driftDetection:
+    mode: enabled
+  valuesFrom:
+    - kind: Secret
+      name: postgres-app
+      valuesKey: fqdn-uri
+      targetPath: databaseUrl
+  values:
+    extraEnvFrom:
+      - secretRef:
+          name: ollama-cloud
+    persistentVolume:
+      enabled: true
+      size: 32Gi
+      storageClass: local-path-persistent
+    ollama:
+      gpu:
+        enabled: true
+        type: 'amd'
+        number: 1
+      models:
+        clean: true
+        pull:
+          - gemma3
+          - gemma4
+          - qwen3.5
+
