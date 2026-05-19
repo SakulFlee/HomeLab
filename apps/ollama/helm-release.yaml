@@ -30,11 +30,14 @@ spec:
   driftDetection:
     mode: enabled
   values:
-    extraEnvFrom:
-      - secretRef:
-          name: ollama-cloud
     persistentVolume:
       enabled: true
       size: 32Gi
       storageClass: local-path-persistent
+    extraEnv:
+      - name: OLLAMA_API_KEY
+        valueFrom:
+          secretKeyRef:
+            name: OLLAMA_API_KEY
+            key: OLLAMA_API_KEY
 
