@@ -37,11 +37,4 @@ spec:
       enabled: true
       size: 32Gi
       storageClass: local-path-persistent
-    ollama:
-      models:
-        clean: true
-        pull:
-          - gemma3
-          - gemma4
-          - qwen3.5
 
