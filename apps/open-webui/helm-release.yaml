@@ -57,12 +57,6 @@ spec:
         enabled: true
         size: 32Gi
         storageClass: local-path-persistent
-      extraEnv:
-        - name: OLLAMA_API_KEY
-          valueFrom:
-            secretKeyRef:
-              name: ollama-cloud
-              key: OLLAMA_API_KEY
     pipelines:
       enabled: true
     tika:
@@ -76,4 +70,6 @@ spec:
       enabled: true
       storageClass: local-path-persistent
       size: 32Gi
-
+    extraEnvFrom:
+      - secretRef:
+        name: ollama-cloud
