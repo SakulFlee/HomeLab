@@ -90,6 +90,9 @@ spec:
               else
                 PORT=6881 # Default fallback port
               fi
+
+              # Remove lockfile if somehow left over
+              rm -f /config/qBittorrent/config/lockfile
               
               echo "Launching qBittorrent with active port: $PORT"
               exec qbittorrent-nox --confirm-legal-notice --torrenting-port=$PORT --profile="/config"
