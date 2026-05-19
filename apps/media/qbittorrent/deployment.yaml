@@ -90,16 +90,6 @@ spec:
               else
                 PORT=6881 # Default fallback port
               fi
-
-              ls -al /config/qBittorrent/config/
-
-              echo "qB"
-              cat /config/qBittorrent/config/qBittorrent.conf
-              echo ""
-              
-              echo "qB Data"
-              cat /config/qBittorrent/config/qBittorrent-data.conf
-              echo ""
               
               echo "Launching qBittorrent with active port: $PORT"
               exec qbittorrent-nox --confirm-legal-notice --torrenting-port=$PORT --profile="/config"
