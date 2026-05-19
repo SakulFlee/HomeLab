@@ -113,9 +113,6 @@ spec:
             - /bin/sh
             - -c
             - |
-              # Install procps so we can use pkill across namespaces
-              apk add --no-cache procps
-              
               LAST_PORT=""
               echo "Port Syncer Sidecar Active."
               
@@ -135,7 +132,6 @@ spec:
                       pkill -f qbittorrent-nox
                       LAST_PORT="$CURRENT_PORT"
                     fi
-
                   fi
                 fi
                 sleep 10
