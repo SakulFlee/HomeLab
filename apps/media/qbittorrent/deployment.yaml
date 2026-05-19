@@ -92,7 +92,14 @@ spec:
               fi
 
               ls -al /config/qBittorrent/config/
-              cat /config/qBittorrent/config/qbittorrent.yaml
+
+              echo "qB"
+              cat /config/qBittorrent/config/qBittorrent.conf
+              echo ""
+              
+              echo "qB Data"
+              cat /config/qBittorrent/config/qBittorrent-data.conf
+              echo ""
               
               echo "Launching qBittorrent with active port: $PORT"
               exec qbittorrent-nox --confirm-legal-notice --torrenting-port=$PORT --profile="/config"
