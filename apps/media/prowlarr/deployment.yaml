@@ -21,9 +21,6 @@ spec:
         - name: prowlarr
           persistentVolumeClaim:
             claimName: prowlarr
-        - name: media
-          hostPath:
-            path: /mnt/nas/Media
       containers:
         - name: prowlarr
           image: lscr.io/linuxserver/prowlarr:latest
@@ -41,5 +38,3 @@ spec:
           volumeMounts:
             - name: prowlarr
               mountPath: /config
-            - name: media
-              mountPath: /mnt/nas/Media
