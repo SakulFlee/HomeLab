@@ -35,6 +35,9 @@ spec:
       size: 32Gi
       storageClass: local-path-persistent
     resources:
+      requests:
+        memory: 512Mi
+        cpu: 100m
       limits:
         memory: 8192Mi
         cpu: 4000m
