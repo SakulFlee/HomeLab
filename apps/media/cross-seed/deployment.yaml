@@ -18,6 +18,9 @@ spec:
         app: cross-seed
     spec:
       volumes:
+        - name: media
+          hostPath:
+            path: /mnt/nas/Media
         - name: cross-seed-data
           persistentVolumeClaim:
             claimName: cross-seed-data
@@ -38,4 +41,5 @@ spec:
             - name: cross-seed-config
               mountPath: /config/config.js
               subPath: config.js
-
+            - name: media
+              mountPath: /mnt/nas/Media
