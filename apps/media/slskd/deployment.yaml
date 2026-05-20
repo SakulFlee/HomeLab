@@ -19,6 +19,11 @@ spec:
     spec:
       # Forces Kubernetes to kill faster
       terminationGracePeriodSeconds: 5
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: "OnRootMismatch"
       # Ensures DNS lookups go through the VPN.
       # This should prevent DNS leaks.
       # This is only a placeholder and should replaced by gluetun automatically with the correct DNS server.
