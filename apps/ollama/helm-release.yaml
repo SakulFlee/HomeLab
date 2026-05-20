@@ -34,4 +34,8 @@ spec:
       enabled: true
       size: 32Gi
       storageClass: local-path-persistent
+    resources:
+      limits:
+        memory: 8192Mi
+        cpu: 4000m
 
