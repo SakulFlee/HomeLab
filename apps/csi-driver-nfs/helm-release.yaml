@@ -32,8 +32,6 @@ spec:
   values:
     storageClasses:
     - name: nfs-delete
-      # annotations:
-        # storageclass.kubernetes.io/is-default-class: "true"
       parameters:
         server: 192.168.178.250
         share: /volume1/Kubernetes
