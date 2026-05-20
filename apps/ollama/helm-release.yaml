@@ -36,8 +36,8 @@ spec:
       storageClass: local-path-persistent
     resources:
       requests:
-        memory: 512Mi
-        cpu: 100m
+        memory: 0
+        cpu: 0
       limits:
         memory: 24576Mi
         cpu: 4000m
