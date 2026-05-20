@@ -29,21 +29,4 @@ spec:
     enable: true
   driftDetection:
     mode: enabled
-  values:
-    storageClasses:
-    - name: nfs-delete
-      parameters:
-        server: 192.168.178.250
-        share: /volume1/Kubernetes
-      reclaimPolicy: Delete
-      volumeBindingMode: Immediate
-      mountOptions:
-        - nfsvers=3.0
-    - name: nfs-retain
-      parameters:
-        server: 192.168.178.250
-        share: /volume1/Kubernetes
-      reclaimPolicy: Retain
-      volumeBindingMode: Immediate
-      mountOptions:
-        - nfsvers=3.0
+
