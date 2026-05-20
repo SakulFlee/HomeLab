@@ -6,4 +6,5 @@ metadata:
 spec:
   instances: 1
   storage:
+    storageClass: local-path-persistent
     size: 2Gi
