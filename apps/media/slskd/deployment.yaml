@@ -51,8 +51,9 @@ spec:
           imagePullPolicy: IfNotPresent
           # Required for changing the network settings for the whole pod (i.e. both containers)
           securityContext:
+            runAsUser: 0
             capabilities:
-              add: [NET_ADMIN]
+              add: ["NET_ADMIN"]
           env:
             - name: VPN_SERVICE_PROVIDER
               value: pia
