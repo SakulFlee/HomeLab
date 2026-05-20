@@ -5,5 +5,5 @@ metadata:
   namespace: csi-driver-nfs
 spec:
   interval: 5m0s
-  url: https://raw.githubusercontent.com/kubernetes-csi/csi-driver-nfs/master/charts  layerSelector:
+  url: https://raw.githubusercontent.com/kubernetes-csi/csi-driver-nfs/master/charts
 
