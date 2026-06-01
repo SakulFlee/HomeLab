@@ -10,7 +10,7 @@ steps:
       - |
         ssh \
           -o StrictHostKeyChecking=no \
-          -o ProxyCommand="ssh -p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null root@192.168.178.200 -W %h:%p" \
+          -o ProxyCommand="ssh -p 2222 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i private_key root@192.168.178.200 -W %h:%p" \
           -i private_key \
           root@10.0.0.101 hostname
       - ansible-playbook -i inventory.ini playbook.yml --private-key private_key
