@@ -7,5 +7,5 @@ steps:
     commands:
       - echo "$SSH_KEY" > private_key
       - chmod 0600 private_key
-      - ssh -o StrictHostKeyChecking=no -J root@192.168.178.200:2222 root@10.0.0.101 hostname
+      - ssh -o StrictHostKeyChecking=no -J 'root@192.168.178.200:2222 -o StrictHostKeyChecking=no' root@10.0.0.101 hostname
       - ansible-playbook -i inventory.ini playbook.yml --private-key private_key
