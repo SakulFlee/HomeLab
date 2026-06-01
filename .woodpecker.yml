@@ -7,4 +7,6 @@ steps:
     commands:
       - echo "$SSH_KEY" > private_key
       - chmod 0600 private_key
+      - ping 192.168.178.200
+      - ping 192.168.178.1
       - ansible-playbook -i inventory.ini playbook.yml --private-key private_key
