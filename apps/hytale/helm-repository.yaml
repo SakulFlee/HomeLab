@@ -1,9 +1,0 @@
-apiVersion: source.toolkit.fluxcd.io/v1
-kind: HelmRepository
-metadata:
-  name: hytale
-  namespace: flux-system
-spec:
-  interval: 1h
-  url: https://forgejo.sakul-flee.de/api/packages/SakulFlee/helm
-

@@ -1,0 +1,6 @@
+- name: Caddy
+  hosts: caddy
+  roles:
+    - role: apt
+    - role: caddy
+

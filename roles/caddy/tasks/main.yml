@@ -1,0 +1,10 @@
+- name: Install
+  ansible.builtin.apt:
+    package: caddy
+    state: present
+
+- name: Service
+  systemd:
+    name: caddy
+    state: started
+    enabled: yes
