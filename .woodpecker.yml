@@ -2,4 +2,4 @@ steps:
   deploy:
     image: alpine/ansible
     commands:
-      - ansible-playbook -i inventory.yml playbook.yml
+      - ansible-playbook -i inventory.ini playbook.yml
