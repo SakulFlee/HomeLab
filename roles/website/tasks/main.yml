@@ -1,0 +1,8 @@
+- community.general.docker_container:
+    name: website
+    image: forgejo.sakul-flee.de/sakulflee/website:latest
+    state: started
+    restart_policy: always
+    published_ports:
+      - "80:80"
+

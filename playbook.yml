@@ -1,6 +1,14 @@
+- name: APT Update
+  hosts: all
+  roles:
+    - role: apt
+
 - name: Caddy
   hosts: caddy
   roles:
-    - role: apt
     - role: caddy
 
+- name: Website
+  hosts: website
+  roles:
+    - role: website
