@@ -1,5 +1,5 @@
 steps:
   deploy:
-    image: ansible:latest
+    image: ansible/ansible:latest
     commands:
       - ansible-playbook -i inventory.yml playbook.yml
