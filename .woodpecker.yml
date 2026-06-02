@@ -7,4 +7,5 @@ steps:
     commands:
       - echo "$SSH_KEY" > private_key
       - chmod 0600 private_key
+      - ansible-galaxy role install geerlingguy.postgresql
       - ansible-playbook -i inventory.ini playbook.yml --private-key=private_key
