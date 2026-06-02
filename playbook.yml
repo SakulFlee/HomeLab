@@ -12,3 +12,10 @@
   hosts: website
   roles:
     - role: website
+
+- name: Forgejo
+  hosts: forgejo
+  vars_files:
+    - roles/forgejo/vars/vault.yml
+  roles:
+    - role: forgejo
