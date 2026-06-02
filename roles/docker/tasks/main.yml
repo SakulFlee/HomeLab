@@ -18,7 +18,7 @@
     dest: /etc/apt/keyrings/docker.asc
     mode: 'a+r'
 
-- name: Add Docker Deb822 repository
+- name: Add Docker Debian repository
   ansible.builtin.deb822_repository:
     name: docker
     types: [deb]
