@@ -7,9 +7,17 @@ sakul-flee.de, www.sakul-flee.de {
 }
 
 pve.sakul-flee.de {
-  reverse_proxy 10.0.0.1:8006
+  reverse_proxy 10.0.0.1:8006 {
+    transport http {
+      tls_insecure_skip_verify
+    }
+  }
 }
 
 pbs.sakul-flee.de {
-  reverse_proxy 10.0.0.2:8007
+  reverse_proxy 10.0.0.2:8007 {
+    transport http {
+      tls_insecure_skip_verify
+    }
+  }
 }
