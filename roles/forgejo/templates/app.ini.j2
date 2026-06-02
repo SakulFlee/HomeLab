@@ -1,0 +1,69 @@
+APP_NAME = Forgejo: Beyond coding. We forge.
+RUN_MODE = prod
+
+[service]
+REGISTER_EMAIL_CONFIRM = true
+ENABLE_PUSH_CREATE_USER = true
+ENABLE_PUSH_CREATE_ORG = true
+DISABLE_REGISTRATION = false
+ENABLE_NOTIFY_MAIL = true
+
+[metrics]
+ENABLED = false
+
+[session]
+PROVIDER = memory
+PROVIDER_CONFIG = 
+
+[mailer]
+ENABLED = true
+USER = dev@sakul-flee.de
+PASSWD = {{ vault_forgejo_smtp_password }}
+PROTOCOL = smtps
+SMTP_ADDR = smtp.purelymail.com
+SMTP_PORT = 465
+FROM = forgejo@sakul-flee.de
+
+[queue]
+TYPE = level
+CONN_STR = 
+
+[cache]
+ADAPTER = memory
+HOST = 
+
+[database]
+SCHEMA = public
+HOST = postgres-rw
+NAME = app
+DB_TYPE = postgres
+USER = app
+PASSWD = {{ vault_forgejo_db_password }}
+
+[security]
+INSTALL_LOCK = true
+INTERNAL_TOKEN = {{ vault_forgejo_internal_token }}
+
+[server]
+SSH_PORT = 22
+HTTP_PORT = 3000
+PROTOCOL = http
+SSH_DOMAIN = forgejo.sakul-flee.de
+SSH_LISTEN_PORT = 2222
+DOMAIN = forgejo.sakul-flee.de
+LFS_START_SERVER = true
+ROOT_URL = https://forgejo.sakul-flee.de
+ENABLE_PPROF = false
+START_SSH_SERVER = true
+LFS_JWT_SECRET = {{ vault_forgejo_lfs_secret }}
+
+[repository]
+MAX_CREATION_LIMIT = 0
+
+[admin]
+SEND_NOTIFICATION_EMAIL_ON_NEW_USER = true
+DISABLE_REGULAR_ORG_CREATION = true
+DEFAULT_EMAIL_NOTIFICATIONS = enabled
+
+[oauth2]
+JWT_SECRET = {{ vault_forgejo_jwt_secret }}
