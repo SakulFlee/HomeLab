@@ -32,9 +32,9 @@
     owner: root
     group: root
   loop:
-    - https://github.com/woodpecker-ci/woodpecker/releases/download/{{ woodpecker_version }}/woodpecker-server_{{ woodpecker_version }}_amd64.deb
-    - https://github.com/woodpecker-ci/woodpecker/releases/download/{{ woodpecker_version }}/woodpecker-agent_{{ woodpecker_version }}_amd64.deb
-    - https://github.com/woodpecker-ci/woodpecker/releases/download/{{ woodpecker_version }}/woodpecker-cli_{{ woodpecker_version }}_amd64.deb
+    - https://github.com/woodpecker-ci/woodpecker/releases/download/v{{ woodpecker_version }}/woodpecker-server_{{ woodpecker_version }}_amd64.deb
+    - https://github.com/woodpecker-ci/woodpecker/releases/download/v{{ woodpecker_version }}/woodpecker-agent_{{ woodpecker_version }}_amd64.deb
+    - https://github.com/woodpecker-ci/woodpecker/releases/download/v{{ woodpecker_version }}/woodpecker-cli_{{ woodpecker_version }}_amd64.deb
   notify: Restart woodpecker
 
 - name: Install Woodpecker
