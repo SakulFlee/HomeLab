@@ -34,10 +34,10 @@ HOST =
 
 [database]
 SCHEMA = public
-HOST = postgres-rw
-NAME = app
+HOST = 127.0.0.1
+NAME = forgejo
 DB_TYPE = postgres
-USER = app
+USER = forgejo
 PASSWD = {{ vault_forgejo_db_password }}
 
 [security]
