@@ -3,5 +3,5 @@
 }
 
 sakul-flee.de, www.sakul-flee.de {
- reverse_proxy 10.0.0.102:8080 
+ reverse_proxy 10.0.0.102:80
 }
