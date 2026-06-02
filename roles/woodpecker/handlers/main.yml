@@ -1,0 +1,4 @@
+- name: Restart Woodpecker
+  ansible.builtin.service:
+    name: woodpecker
+    state: restarted

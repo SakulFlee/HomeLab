@@ -1,0 +1,62 @@
+- name: Create a system group for Woodpecker
+  ansible.builtin.group:
+    name: woodpecker
+    system: true
+    state: present
+
+- name: Create a system user for Woodpecker
+  ansible.builtin.user:
+    name: woodpecker
+    group: woodpecker
+    system: true
+    shell: /bin/bash
+    home: /var/lib/woodpecker
+    create_home: true
+
+- name: Create required application directory structure
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: woodpecker
+    group: woodpecker
+    mode: '0755'
+  loop:
+    - /var/lib/woodpecker
+    - /etc/woodpecker
+
+- name: Download Woodpecker
+  ansible.builtin.get_url:
+    url: "{{ item }}"
+    dest: /var/lib/woodpecker/debs
+    mode: '0755'
+    owner: root
+    group: root
+  loop:
+    - https://github.com/woodpecker-ci/woodpecker/releases/download/{{ woodpecker_version }}/woodpecker-server_{{ woodpecker_version }}_amd64.deb
+    - https://github.com/woodpecker-ci/woodpecker/releases/download/{{ woodpecker_version }}/woodpecker-agent_{{ woodpecker_version }}_amd64.deb
+    - https://github.com/woodpecker-ci/woodpecker/releases/download/{{ woodpecker_version }}/woodpecker-cli_{{ woodpecker_version }}_amd64.deb
+  notify: Restart woodpecker
+
+- name: Install Woodpecker
+  ansible.builtin.apt:
+    deb: "{{ item }}"
+  loop:
+    - /var/lib/woodpecker/debs/woodpecker-server_{{ woodpecker_version }}_amd64.deb 
+    - /var/lib/woodpecker/debs/woodpecker-agent_{{ woodpecker_version }}_amd64.deb  
+    - /var/lib/woodpecker/debs/woodpecker-cli_{{ woodpecker_version }}_amd64.deb    
+
+- name: Configure Woodpecker
+  ansible.builtin.template:
+    src: woodpecker-server.env.j2
+    dest: /etc/woodpecker/woodpecker-server.env
+    owner: woodpecker
+    group: woodpecker
+    mode: '0600'
+  notify: Restart woodpecker
+
+- name: Ensure Woodpecker service is enabled and started
+  ansible.builtin.systemd:
+    name: woodpecker
+    state: started
+    enabled: true
+    daemon_reload: true

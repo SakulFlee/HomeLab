@@ -15,7 +15,10 @@
 
 - name: Forgejo
   hosts: forgejo
-  vars_files:
-    - roles/forgejo/vars/vault.yml
   roles:
     - role: forgejo
+
+- name: Woodpecker
+  hosts: woodpecker
+  roles:
+    - role: woodpecker
