@@ -35,7 +35,7 @@
     - https://github.com/woodpecker-ci/woodpecker/releases/download/v{{ woodpecker_version }}/woodpecker-server_{{ woodpecker_version }}_amd64.deb
     - https://github.com/woodpecker-ci/woodpecker/releases/download/v{{ woodpecker_version }}/woodpecker-agent_{{ woodpecker_version }}_amd64.deb
     - https://github.com/woodpecker-ci/woodpecker/releases/download/v{{ woodpecker_version }}/woodpecker-cli_{{ woodpecker_version }}_amd64.deb
-  notify: Restart woodpecker
+  notify: Restart Woodpecker
 
 - name: Install Woodpecker
   ansible.builtin.apt:
@@ -52,7 +52,7 @@
     owner: woodpecker
     group: woodpecker
     mode: '0600'
-  notify: Restart woodpecker
+  notify: Restart Woodpecker
 
 - name: Ensure Woodpecker service is enabled and started
   ansible.builtin.systemd:
