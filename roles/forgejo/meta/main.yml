@@ -11,6 +11,8 @@ dependencies:
       postgresql_databases:
         - name: "forgejo"
           owner: "forgejo"
+          lc_collate: 'C'
+          lc_ctype: 'C'
       postgresql_global_config_options:
         - option: listen_addresses
           value: "127.0.0.1"
