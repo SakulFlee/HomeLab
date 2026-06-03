@@ -1,5 +1,10 @@
 APP_NAME = Forgejo: Beyond coding. We forge.
 RUN_MODE = prod
+RUN_USER = git
+WORK_PATH = /var/lib/forgejo
+
+[paths]
+APP_DATA_PATH=/var/lib/forgejo/data
 
 [service]
 REGISTER_EMAIL_CONFIRM = true
@@ -45,9 +50,9 @@ INSTALL_LOCK = true
 INTERNAL_TOKEN = {{ vault_forgejo_internal_token }}
 
 [server]
-START_SSH_SERVER = true
-SSH_PORT = 2222
-SSH_LISTEN_PORT = 2222
+START_SSH_SERVER = false
+SSH_PORT = 22
+SSH_USER = git
 SSH_DOMAIN = forgejo.sakul-flee.de
 PROTOCOL = http
 HTTP_PORT = 3000
