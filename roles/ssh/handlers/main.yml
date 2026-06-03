@@ -1,0 +1,9 @@
+- name: Reload systemd and restart SSH socket
+  ansible.builtin.systemd:
+    daemon_reload: true
+  notify: Restart SSH Socket Service
+
+- name: Restart SSH Socket Service
+  ansible.builtin.service:
+    name: ssh
+    state: restarted
