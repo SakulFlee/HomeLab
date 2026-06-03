@@ -13,6 +13,12 @@
     home: /var/lib/woodpecker
     create_home: true
 
+- name: Add user to docker group
+  ansible.builtin.user:
+    name: woodpecker
+    groups: docker
+    append: yes
+
 - name: Create required application directory structure
   ansible.builtin.file:
     path: "{{ item }}"
