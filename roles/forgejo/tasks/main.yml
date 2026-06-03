@@ -26,7 +26,7 @@
     - /var/lib/forgejo/custom
     - /etc/forgejo
 
-- name: Download official Forgejo binary directly from Codeberg
+- name: Download official Forgejo binary
   ansible.builtin.get_url:
     url: "https://codeberg.org/forgejo/forgejo/releases/download/v{{ forgejo_version }}/forgejo-{{ forgejo_version }}-linux-amd64"
     dest: /usr/local/bin/forgejo
@@ -34,6 +34,12 @@
     owner: root
     group: root
   notify: Restart Forgejo
+
+- name: Allow Forgejo binary to bind to privileged ports (<1024)
+  community.general.capabilities:
+    path: /usr/local/bin/forgejo
+    capability: cap_net_bind_service=+ep
+    state: present
 
 - name: Configure Forgejo app.ini
   ansible.builtin.template:
