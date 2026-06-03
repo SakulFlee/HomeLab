@@ -2,7 +2,6 @@
   hosts: all
   roles:
     - role: apt
-    - role: ssh
 
 - name: Caddy
   hosts: caddy
