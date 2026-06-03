@@ -35,12 +35,6 @@
     group: root
   notify: Restart Forgejo
 
-- name: Allow Forgejo binary to bind to privileged ports (<1024)
-  community.general.capabilities:
-    path: /usr/local/bin/forgejo
-    capability: cap_net_bind_service=+ep
-    state: present
-
 - name: Configure Forgejo app.ini
   ansible.builtin.template:
     src: app.ini.j2
