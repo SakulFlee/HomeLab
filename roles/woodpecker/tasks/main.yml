@@ -22,12 +22,13 @@
     mode: '0755'
   loop:
     - /var/lib/woodpecker
+    - /var/lib/woodpecker/debs
     - /etc/woodpecker
 
 - name: Download Woodpecker
   ansible.builtin.get_url:
     url: "{{ item }}"
-    dest: /var/lib/woodpecker/debs
+    dest: /var/lib/woodpecker/debs/
     mode: '0755'
     owner: root
     group: root
@@ -52,6 +53,15 @@
     owner: woodpecker
     group: woodpecker
     mode: '0600'
+  notify: Restart Woodpecker
+
+- name: Upload SystemD Service file
+  ansible.builtin.copy:
+    src: files/woodpecker.service
+    dest: /etc/systemd/system/woodpecker.service
+    owner: root
+    group: root
+    mode: '0644'
   notify: Restart Woodpecker
 
 - name: Ensure Woodpecker service is enabled and started
