@@ -12,4 +12,5 @@ steps:
       - printf "%s" "$SSH_KEY" > .private_key
       - chmod 600 .vault_pass
       - chmod 600 .private_key
+      - ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -i .private_key root@192.168.178.200 -p 2222 "echo 'Jump host connection successful!'"
       - ansible-playbook -i inventory.ini playbook.yml --private-key .private_key --vault-password-file .vault_pass
