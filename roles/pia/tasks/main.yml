@@ -7,6 +7,7 @@
       - bzip2
       - libnss3
       - libnspr4
+      - sudo
     state: present
     update_cache: true
 
@@ -23,7 +24,25 @@
     mode: '0700'
     timeout: 60
 
-- name: Extract PIA installer (bypasses root check)
+- name: Create temporary user for PIA installation
+  ansible.builtin.user:
+    name: pia-install
+    system: true
+    shell: /bin/bash
+    create_home: true
+    home: /tmp/pia-install
+    state: present
+
+- name: Allow pia-install user to use sudo without password
+  ansible.builtin.lineinfile:
+    path: /etc/sudoers.d/pia-install
+    state: present
+    create: true
+    mode: '0440'
+    line: 'pia-install ALL=(ALL) NOPASSWD: ALL'
+    validate: 'visudo -cf %s'
+
+- name: Extract PIA installer
   ansible.builtin.shell:
     cmd: "{{ pia_installer_dest }} --noexec --target /opt/pia-extracted 2>&1"
   args:
@@ -31,11 +50,24 @@
   register: _pia_extract
   changed_when: _pia_extract.rc == 0
 
-- name: Run PIA installer
+- name: Run PIA installer as non-root user (with sudo)
   ansible.builtin.shell:
-    cmd: "cd /opt/pia-extracted && ./install.sh 2>&1"
+    cmd: "cd /opt/pia-extracted && sudo -u pia-install ./install.sh 2>&1"
+  args:
+    executable: /bin/bash
   register: _pia_install
-  changed_when: _pia_install.rc == 0
+  changed_when: '"complete" in _pia_install.stdout or "installed" in _pia_install.stdout'
+
+- name: Remove temporary install user
+  ansible.builtin.user:
+    name: pia-install
+    state: absent
+    remove: true
+
+- name: Remove sudoers entry
+  ansible.builtin.file:
+    path: /etc/sudoers.d/pia-install
+    state: absent
 
 - name: Clean up installer artifacts
   ansible.builtin.file:
@@ -44,6 +76,7 @@
   loop:
     - "{{ pia_installer_dest }}"
     - /opt/pia-extracted
+    - /tmp/pia-install
 
 - name: Ensure piavpn service is enabled and started
   ansible.builtin.systemd:
