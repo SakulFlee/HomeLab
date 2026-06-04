@@ -1,0 +1,32 @@
+- name: Create required application directory structure
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: woodpecker
+    group: woodpecker
+    mode: '0755'
+  loop:
+    - /var/lib/woodpecker
+    - /var/lib/woodpecker/debs
+    - /etc/woodpecker
+
+- name: Download Woodpecker
+  ansible.builtin.get_url:
+    url: "{{ item }}"
+    dest: /var/lib/woodpecker/debs/
+    mode: '0755'
+    owner: root
+    group: root
+  loop:
+    - https://github.com/woodpecker-ci/woodpecker/releases/download/v{{ woodpecker_version }}/woodpecker-server_{{ woodpecker_version }}_amd64.deb
+    - https://github.com/woodpecker-ci/woodpecker/releases/download/v{{ woodpecker_version }}/woodpecker-agent_{{ woodpecker_version }}_amd64.deb
+    - https://github.com/woodpecker-ci/woodpecker/releases/download/v{{ woodpecker_version }}/woodpecker-cli_{{ woodpecker_version }}_amd64.deb
+  notify: Restart Woodpecker
+
+- name: Install Woodpecker
+  ansible.builtin.apt:
+    deb: "{{ item }}"
+  loop:
+    - /var/lib/woodpecker/debs/woodpecker-server_{{ woodpecker_version }}_amd64.deb 
+    - /var/lib/woodpecker/debs/woodpecker-agent_{{ woodpecker_version }}_amd64.deb  
+    - /var/lib/woodpecker/debs/woodpecker-cli_{{ woodpecker_version }}_amd64.deb
