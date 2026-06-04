@@ -1,8 +1,10 @@
+---
 - name: Install dependencies
   ansible.builtin.apt:
     name:
       - curl
       - ca-certificates
+      - bzip2
       - libnss3
       - libnspr4
     state: present
@@ -21,20 +23,51 @@
     mode: '0700'
     timeout: 60
 
-- name: Install PIA Linux client
+- name: Extract PIA installer (bypasses root check)
   ansible.builtin.shell:
-    cmd: "{{ pia_installer_dest }} --quiet 2>&1 || {{ pia_installer_dest }} 2>&1"
+    cmd: "{{ pia_installer_dest }} --noexec --target /opt/pia-extracted 2>&1"
   args:
-    creates: /usr/bin/piactl
-  register: _pia_install
-  changed_when: '"Installing" in _pia_install.stdout or "installed" in _pia_install.stdout'
+    creates: /opt/pia-extracted/install.sh
+  register: _pia_extract
+  changed_when: _pia_extract.rc == 0
 
-- name: Ensure piavpn service exists
+- name: Run PIA installer
+  ansible.builtin.shell:
+    cmd: "cd /opt/pia-extracted && ./install.sh 2>&1"
+  register: _pia_install
+  changed_when: _pia_install.rc == 0
+
+- name: Clean up installer artifacts
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ pia_installer_dest }}"
+    - /opt/pia-extracted
+
+- name: Ensure piavpn service is enabled and started
   ansible.builtin.systemd:
     name: piavpn
     state: started
     enabled: true
     daemon_reload: true
+  ignore_errors: true
+
+- name: Wait for piactl to become available
+  ansible.builtin.shell:
+    cmd: |
+      for i in $(seq 1 15); do
+        if command -v piactl &>/dev/null; then
+          echo "piactl ready"
+          exit 0
+        fi
+        sleep 1
+      done
+      echo "timeout"
+      exit 1
+  register: _pia_daemon_wait
+  changed_when: false
+  failed_when: '"timeout" in _pia_daemon_wait.stdout'
 
 - name: Store PIA credentials
   ansible.builtin.copy:
@@ -49,16 +82,9 @@
   ansible.builtin.shell:
     cmd: "piactl login {{ pia_creds_file }} -t 30"
   register: _pia_login
-  changed_when: '"Logged in" in _pia_login.stdout or "login" in _pia_login.stdout'
+  changed_when: '"Logged in" in _pia_login.stdout'
   failed_when: false
   no_log: true
-
-- name: Check if already logged in
-  ansible.builtin.shell:
-    cmd: "piactl get connectionstate"
-  register: _pia_state
-  changed_when: false
-  failed_when: false
 
 - name: Configure PIA region
   ansible.builtin.shell:
@@ -107,7 +133,6 @@
   changed_when: false
   failed_when: '"Timeout" in _pia_wait.stdout'
   when: pia_auto_connect
-  no_log: true
 
 - name: Get VPN IP
   ansible.builtin.shell:
