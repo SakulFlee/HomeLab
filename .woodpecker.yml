@@ -1,4 +1,6 @@
-when: push
+when:
+  event: [push, tag, manual]
+  branch: main
 steps:
   deploy:
     image: alpine/ansible
