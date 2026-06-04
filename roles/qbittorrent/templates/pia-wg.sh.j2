@@ -1,0 +1,138 @@
+#!/bin/bash
+# PIA WireGuard connection script
+# Managed by Ansible - DO NOT EDIT MANUALLY
+
+set -euo pipefail
+
+PIA_USER="{{ vault_vpn_pia_username }}"
+PIA_PASS="{{ vault_vpn_pia_password }}"
+PIA_REGION="{{ pia_region }}"
+WG_INTERFACE="{{ pia_wg_interface }}"
+WG_CONFIG="{{ pia_config_dir }}/{{ pia_wg_interface }}.conf"
+
+log() { echo "[pia-wg] $(date '+%Y-%m-%d %H:%M:%S') $*"; }
+
+get_token() {
+    log "Authenticating with PIA..."
+    TOKEN_JSON=$(curl -s --max-time 30 "https://www.privateinternetaccess.com/gtoken/generateToken" -u "$PIA_USER:$PIA_PASS")
+    if echo "$TOKEN_JSON" | python3 -c "import sys,json; d=json.load(sys.stdin); sys.exit(0 if d.get('status')=='OK' else 1)" 2>/dev/null; then
+        TOKEN=$(echo "$TOKEN_JSON" | python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
+        echo "$TOKEN"
+        return 0
+    fi
+    log "ERROR: Failed to authenticate with PIA"
+    echo "$TOKEN_JSON" >&2
+    return 1
+}
+
+get_server_info() {
+    local region="$1"
+    log "Fetching server list..."
+    SERVER_JSON=$(curl -s --max-time 30 "https://serverlist.piaservers.net/vpninfo/servers/v6" | head -1)
+    if [ -z "$SERVER_JSON" ]; then
+        log "ERROR: Failed to fetch server list"
+        return 1
+    fi
+    echo "$SERVER_JSON" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+region = '$region'
+for group in data.get('groups', []):
+    if group.get('name','').lower() == region:
+        for server in group.get('servers', []):
+            cn = server.get('cn','')
+            if cn:
+                print(f'{server[\"ip\"]} {cn}')
+                break
+        break
+" 2>/dev/null | head -1
+}
+
+generate_wg_config() {
+    local token="$1"
+    local server_ip="$2"
+    local server_cn="$3"
+
+    log "Generating WireGuard keys..."
+    WG_PRIVATE_KEY=$(wg genkey)
+    WG_PUBLIC_KEY=$(echo "$WG_PRIVATE_KEY" | wg pubkey)
+
+    log "Registering public key with PIA server $server_cn ($server_ip)..."
+    RESPONSE=$(curl -s --max-time 30 --request POST --data-urlencode "pubkey=$WG_PUBLIC_KEY" "https://$server_ip:1337/addKey?pt=$token")
+
+    if echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); sys.exit(0 if d.get('status')=='OK' else 1)" 2>/dev/null; then
+        SERVER_PUBLIC_KEY=$(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['server_key'])")
+        SERVER_PORT=$(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['server_port'])")
+        PEER_IP=$(echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin)['peer_ip'])")
+
+        log "Successfully registered with PIA."
+        log "Peer IP: $PEER_IP"
+
+        cat > "$WG_CONFIG" << WGCFGEOF
+[Interface]
+PrivateKey = $WG_PRIVATE_KEY
+Address = $PEER_IP
+DNS = 10.0.0.243
+
+[Peer]
+PublicKey = $SERVER_PUBLIC_KEY
+Endpoint = $server_ip:$SERVER_PORT
+AllowedIPs = 0.0.0.0/0
+PersistentKeepAlive = 25
+WGCFGEOF
+        chmod 600 "$WG_CONFIG"
+        log "WireGuard config written to $WG_CONFIG"
+        return 0
+    else
+        log "ERROR: Failed to register key with PIA"
+        echo "$RESPONSE" | python3 -c "import sys,json; print(json.load(sys.stdin))" 2>/dev/null || echo "$RESPONSE"
+        return 1
+    fi
+}
+
+connect() {
+    if [ -f "$WG_CONFIG" ] && ip link show "$WG_INTERFACE" >/dev/null 2>&1; then
+        log "WireGuard already connected."
+        exit 0
+    fi
+
+    TOKEN=$(get_token)
+    if [ -z "$TOKEN" ]; then
+        exit 1
+    fi
+
+    SERVER_INFO=$(get_server_info "$PIA_REGION")
+    if [ -z "$SERVER_INFO" ]; then
+        log "ERROR: No server found for region '$PIA_REGION'"
+        exit 1
+    fi
+
+    SERVER_IP=$(echo "$SERVER_INFO" | awk '{print $1}')
+    SERVER_CN=$(echo "$SERVER_INFO" | awk '{print $2}')
+    log "Selected server: $SERVER_CN ($SERVER_IP)"
+
+    generate_wg_config "$TOKEN" "$SERVER_IP" "$SERVER_CN"
+
+    log "Bringing up WireGuard interface $WG_INTERFACE..."
+    wg-quick up "$WG_INTERFACE"
+    log "WireGuard connected successfully."
+}
+
+disconnect() {
+    log "Bringing down WireGuard interface $WG_INTERFACE..."
+    wg-quick down "$WG_INTERFACE" 2>/dev/null || true
+    log "WireGuard disconnected."
+}
+
+case "${1:-connect}" in
+    connect)
+        connect
+        ;;
+    disconnect)
+        disconnect
+        ;;
+    *)
+        echo "Usage: $0 {connect|disconnect}"
+        exit 1
+        ;;
+esac

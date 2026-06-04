@@ -1,0 +1,161 @@
+---
+- name: Install required system packages
+  ansible.builtin.apt:
+    name:
+      - qbittorrent-nox
+      - wireguard-tools
+      - nftables
+      - curl
+      - jq
+      - python3
+      - openresolv
+    state: present
+    update_cache: true
+
+- name: Create qbittorrent system group
+  ansible.builtin.group:
+    name: "{{ qbittorrent_group }}"
+    system: true
+    state: present
+
+- name: Create qbittorrent system user
+  ansible.builtin.user:
+    name: "{{ qbittorrent_user }}"
+    group: "{{ qbittorrent_group }}"
+    system: true
+    shell: /bin/bash
+    home: "{{ qbittorrent_home }}"
+    create_home: true
+    password_lock: true
+
+- name: Create required directory structure
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ qbittorrent_user }}"
+    group: "{{ qbittorrent_group }}"
+    mode: '0755'
+  loop:
+    - "{{ qbittorrent_home }}"
+    - "{{ qbittorrent_config_dir }}"
+    - "{{ qbittorrent_download_dir }}"
+    - "{{ qbittorrent_home }}/.cache/qBittorrent"
+    - "{{ pia_scripts_dir }}"
+
+- name: Generate qBittorrent Web UI password hash
+  ansible.builtin.shell:
+    cmd: |
+      python3 -c "
+      import hashlib, base64, os, struct
+      password = '{{ vault_qbittorrent_web_password }}'
+      salt = os.urandom(32)
+      iterations = {{ qbittorrent_pbkdf2_iterations }}
+      key = hashlib.pbkdf2_hmac('sha512', password.encode('utf-8'), salt, iterations)
+      result = base64.b64encode(salt + struct.pack('>I', iterations) + key).decode()
+      print(result)
+      "
+  register: _qb_password_hash_result
+  changed_when: false
+  no_log: true
+
+- name: Set qb_password_hash fact
+  ansible.builtin.set_fact:
+    qb_password_hash: "{{ _qb_password_hash_result.stdout }}"
+
+- name: Deploy qBittorrent config
+  ansible.builtin.template:
+    src: qBittorrent.conf.j2
+    dest: "{{ qbittorrent_config_dir }}/qBittorrent.conf"
+    owner: "{{ qbittorrent_user }}"
+    group: "{{ qbittorrent_group }}"
+    mode: '0600'
+  notify: Restart qBittorrent
+
+- name: Deploy PIA WireGuard connection script
+  ansible.builtin.template:
+    src: pia-wg.sh.j2
+    dest: /usr/local/bin/pia-wg.sh
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Check if WireGuard config already exists
+  ansible.builtin.stat:
+    path: "{{ pia_config_dir }}/{{ pia_wg_interface }}.conf"
+  register: _wg_config_stat
+
+- name: Generate WireGuard config on first install
+  when: not _wg_config_stat.stat.exists
+  block:
+    - name: Run PIA connection script to generate config
+      ansible.builtin.shell:
+        cmd: /usr/local/bin/pia-wg.sh connect
+      register: _pia_first_run
+      changed_when: '"successfully" in _pia_first_run.stdout'
+      failed_when: _pia_first_run.rc != 0
+      no_log: true
+
+    - name: Disconnect WireGuard (will be managed by systemd)
+      ansible.builtin.shell:
+        cmd: /usr/local/bin/pia-wg.sh disconnect
+      changed_when: false
+
+- name: Deploy nftables kill-switch ruleset
+  ansible.builtin.template:
+    src: nftables-killswitch.conf.j2
+    dest: "{{ nftables_ruleset }}"
+    owner: root
+    group: root
+    mode: '0644'
+  notify: Reload nftables
+
+- name: Enable and start nftables
+  ansible.builtin.systemd:
+    name: nftables
+    state: started
+    enabled: true
+    daemon_reload: true
+
+- name: Deploy pia-wireguard systemd service
+  ansible.builtin.copy:
+    src: pia-wireguard.service
+    dest: /etc/systemd/system/pia-wireguard.service
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Deploy qbittorrent systemd service
+  ansible.builtin.template:
+    src: qbittorrent.service.j2
+    dest: /etc/systemd/system/qbittorrent.service
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Load WireGuard kernel module
+  ansible.builtin.shell:
+    cmd: modprobe wireguard || true
+  changed_when: false
+  failed_when: false
+
+- name: Enable IP forwarding for VPN routing
+  ansible.builtin.sysctl:
+    name: net.ipv4.ip_forward
+    value: '1'
+    sysctl_set: true
+    state: present
+    reload: true
+
+- name: Ensure pia-wireguard service is enabled and started
+  ansible.builtin.systemd:
+    name: pia-wireguard
+    state: started
+    enabled: true
+    daemon_reload: true
+
+- name: Ensure qbittorrent service is enabled and started
+  ansible.builtin.systemd:
+    name: qbittorrent
+    state: started
+    enabled: true
+    daemon_reload: true

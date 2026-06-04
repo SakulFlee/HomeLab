@@ -22,3 +22,8 @@
   hosts: woodpecker
   roles:
     - role: woodpecker
+
+- name: qBittorrent
+  hosts: qbittorrent
+  roles:
+    - role: qbittorrent

@@ -1,0 +1,14 @@
+[Unit]
+Description=PIA WireGuard VPN for qBittorrent
+Documentation=https://www.privateinternetaccess.com/
+After=network.target nftables.service
+Wants=nftables.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/bin/pia-wg.sh connect
+ExecStop=/usr/local/bin/pia-wg.sh disconnect
+
+[Install]
+WantedBy=multi-user.target

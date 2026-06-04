@@ -1,0 +1,61 @@
+[AutoRun]
+enabled=false
+program=
+
+[BitTorrent]
+Session\DefaultSavePath={{ qbittorrent_download_dir }}
+Session\Port=6881
+Session\TempPath={{ qbittorrent_home }}/.cache/qBittorrent/torrents
+Session\UseProxy=false
+
+[Core]
+AutoDeleteAddedTorrentFile=Never
+
+[LegalNotice]
+Accepted=true
+
+[Network]
+Cookies=@Invalid()
+
+[Preferences]
+Advanced\RecheckOnCompletion=false
+Bittorrent\Encryption=0
+Connection\Interface={{ pia_wg_interface }}
+Connection\InterfaceAddress={{ pia_wg_interface }}
+Connection\PortRangeMin=6881
+Downloads\PreAllocation=false
+Downloads\SavePath={{ qbittorrent_download_dir }}
+Downloads\TempPathEnabled=true
+Downloads\TempPath={{ qbittorrent_home }}/.cache/qBittorrent/torrents
+DynDNS\DomainName=
+DynDNS\Enabled=false
+DynDNS\Password=
+DynDNS\Service=DynDNS
+DynDNS\UserName=
+General\Locale=en
+MailNotification\email=
+MailNotification\enabled=false
+MailNotification\password=
+MailNotification\req_auth=true
+MailNotification\req_ssl=false
+MailNotification\sender=
+MailNotification\smtp_server=
+MailNotification\username=
+WebUI\AlternativeUIEnabled=false
+WebUI\AuthSubnetWhitelistEnabled=false
+WebUI\AuthSubnetWhitelist=@Invalid()
+WebUI\CSRFProtection=true
+WebUI\ClickjackingProtection=true
+WebUI\CustomHTTPHeaders=
+WebUI\DomainList=
+WebUI\HostHeaderValidation=true
+WebUI\HTTPS\Enabled=false
+WebUI\LocalHostAuth=true
+WebUI\MaxAuthenticationFailCount=5
+WebUI\Port={{ qbittorrent_web_port }}
+WebUI\ReverseProxySupportEnabled=false
+WebUI\RootFolder=
+WebUI\ServerDomains=*
+WebUI\UseUPnP=true
+WebUI\Username=admin
+WebUI\Password_PBKDF2=@ByteArray({{ qb_password_hash }})

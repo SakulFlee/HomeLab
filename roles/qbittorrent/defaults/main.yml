@@ -1,0 +1,21 @@
+---
+# qBittorrent configuration
+qbittorrent_web_port: 8080
+qbittorrent_web_interface: "0.0.0.0"
+qbittorrent_download_dir: "/var/lib/qbittorrent/downloads"
+qbittorrent_config_dir: "/var/lib/qbittorrent/.config/qBittorrent"
+qbittorrent_user: qbittorrent
+qbittorrent_group: qbittorrent
+qbittorrent_home: "/var/lib/qbittorrent"
+
+# PIA WireGuard configuration
+pia_region: "ca-montreal"
+pia_wg_interface: "wg0"
+pia_scripts_dir: "/usr/local/lib/pia"
+pia_config_dir: "/etc/wireguard"
+
+# Kill-switch
+nftables_ruleset: "/etc/nftables.conf"
+
+# Qbittorrent Web UI password hash iterations
+qbittorrent_pbkdf2_iterations: 100000

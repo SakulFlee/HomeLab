@@ -1,0 +1,16 @@
+[Unit]
+Description=qBittorrent-nox
+Documentation=https://github.com/qbittorrent/qBittorrent
+After=network.target pia-wireguard.service nftables.service
+BindsTo=pia-wireguard.service nftables.service
+
+[Service]
+Type=simple
+User={{ qbittorrent_user }}
+Group={{ qbittorrent_group }}
+ExecStart=/usr/bin/qbittorrent-nox --webui-port={{ qbittorrent_web_port }}
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
