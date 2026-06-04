@@ -1,9 +1,4 @@
 ---
-- name: Reload nftables
-  ansible.builtin.shell:
-    cmd: nft -f /etc/nftables.conf
-  changed_when: false
-
 - name: Restart qBittorrent
   ansible.builtin.systemd:
     name: qbittorrent

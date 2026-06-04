@@ -1,8 +1,8 @@
+---
 - name: Install required system packages
   ansible.builtin.apt:
     name:
       - qbittorrent-nox
-      - nftables
     state: present
     update_cache: true
 
@@ -64,22 +64,6 @@
     mode: '0600'
   notify: Restart qBittorrent
 
-- name: Deploy nftables kill-switch ruleset
-  ansible.builtin.template:
-    src: nftables-killswitch.conf.j2
-    dest: "/etc/nftables.conf"
-    owner: root
-    group: root
-    mode: '0644'
-  notify: Reload nftables
-
-- name: Enable and start nftables
-  ansible.builtin.systemd:
-    name: nftables
-    state: started
-    enabled: true
-    daemon_reload: true
-
 - name: Deploy qbittorrent systemd service
   ansible.builtin.template:
     src: qbittorrent.service.j2
@@ -88,7 +72,7 @@
     group: root
     mode: '0644'
 
-- name: Deploy port monitor script
+- name: Deploy PIA port monitor script
   ansible.builtin.template:
     src: pia-port-monitor.py.j2
     dest: /usr/local/bin/pia-port-monitor.py
@@ -96,7 +80,7 @@
     group: root
     mode: '0755'
 
-- name: Deploy port monitor systemd service
+- name: Deploy PIA port monitor systemd service
   ansible.builtin.template:
     src: pia-port-monitor.service.j2
     dest: /etc/systemd/system/pia-port-monitor.service
@@ -104,20 +88,12 @@
     group: root
     mode: '0644'
 
-- name: Enable and start port monitor
+- name: Ensure PIA port monitor is enabled and started
   ansible.builtin.systemd:
     name: pia-port-monitor
     state: started
     enabled: true
     daemon_reload: true
-
-- name: Enable IP forwarding (for VPN routing)
-  ansible.builtin.sysctl:
-    name: net.ipv4.ip_forward
-    value: '1'
-    sysctl_set: true
-    state: present
-    reload: true
 
 - name: Ensure qbittorrent service is enabled and started
   ansible.builtin.systemd:

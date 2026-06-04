@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 PIA Port Forwarding Monitor
-Monitors piactl for forwarded port changes and injects into qBittorrent.
+Monitors piactl for VPN connection state and forwarded port changes.
+Injects the forwarded port into qBittorrent config and restarts it.
 Managed by Ansible - DO NOT EDIT MANUALLY
 """
 
@@ -12,24 +13,40 @@ import time
 from pathlib import Path
 
 QB_CONFIG = "{{ qbittorrent_config_dir }}/qBittorrent.conf"
-QB_USER = "{{ qbittorrent_user }}"
 CHECK_INTERVAL = {{ qbittorrent_port_monitor_interval }}
+DEFAULT_PORT = 6881
+
 
 def log(msg):
     print(f"[pia-port-monitor] {msg}", flush=True)
 
+
+def get_vpn_state():
+    """Get current PIA VPN connection state."""
+    try:
+        result = subprocess.run(
+            ["piactl", "get", "connectionstate"],
+            capture_output=True, text=True, timeout=10
+        )
+        return result.stdout.strip() if result.returncode == 0 else None
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return None
+
+
 def get_forwarded_port():
-    """Get the current forwarded port from piactl."""
+    """Get the current forwarded port from piactl. Returns int or None."""
     try:
         result = subprocess.run(
             ["piactl", "get", "portforward"],
             capture_output=True, text=True, timeout=10
         )
-        if result.returncode == 0 and result.stdout.strip().isdigit():
-            return int(result.stdout.strip())
+        out = result.stdout.strip()
+        if out.isdigit():
+            return int(out)
         return None
     except (subprocess.TimeoutExpired, FileNotFoundError):
         return None
+
 
 def get_listening_port():
     """Get the current listening port from qBittorrent config."""
@@ -37,10 +54,11 @@ def get_listening_port():
         content = Path(QB_CONFIG).read_text()
         for line in content.split(chr(10)):
             if line.startswith("Session\\Port="):
-                return int(line.split("=")[1])
+                return int(line.split("=", 1)[1])
     except (FileNotFoundError, ValueError):
         pass
     return None
+
 
 def set_listening_port(port):
     """Update the listening port in qBittorrent config."""
@@ -55,12 +73,12 @@ def set_listening_port(port):
             else:
                 new_lines.append(line)
         path.write_text(chr(10).join(new_lines))
-        os.chown(QB_CONFIG, -1, -1)  # Preserve ownership
-        log(f"Port updated to {port} in qBittorrent config")
+        log(f"qBittorrent port set to {port} in config")
         return True
     except Exception as e:
-        log(f"ERROR: Failed to update port: {e}")
+        log(f"ERROR: Failed to update config: {e}")
         return False
+
 
 def restart_qbittorrent():
     """Restart qBittorrent service."""
@@ -78,25 +96,36 @@ def restart_qbittorrent():
 
 
 def main():
-    log(f"Starting port monitor (check interval: {CHECK_INTERVAL}s)")
-    last_port = get_listening_port()
-    if last_port:
-        log(f"Current qBittorrent port: {last_port}")
+    log(f"Starting PIA port monitor (check interval: {CHECK_INTERVAL}s)")
+    last_state = None
+    last_port = get_listening_port() or DEFAULT_PORT
 
     while True:
         try:
-            pf_port = get_forwarded_port()
-            if pf_port is None:
-                time.sleep(CHECK_INTERVAL)
-                continue
+            state = get_vpn_state()
+            if state != last_state:
+                log(f"VPN state: {state}")
+                last_state = state
 
-            if pf_port != last_port:
-                log(f"Port changed: {last_port} -> {pf_port}")
-                if set_listening_port(pf_port):
-                    restart_qbittorrent()
-                    last_port = pf_port
+            if state == "Connected":
+                pf_port = get_forwarded_port()
+                if pf_port is None:
+                    log("Waiting for forwarded port...")
+                elif pf_port != last_port:
+                    log(f"Port changed: {last_port} -> {pf_port}")
+                    if set_listening_port(pf_port):
+                        restart_qbittorrent()
+                        last_port = pf_port
+                else:
+                    log(f"Port unchanged: {pf_port}")
             else:
-                log(f"Port unchanged: {pf_port}")
+                # VPN not connected — keep qBittorrent on default port,
+                # but PIA's kill-switch will block its traffic anyway
+                if last_port != DEFAULT_PORT and get_listening_port() != DEFAULT_PORT:
+                    log(f"VPN down, resetting port to default {DEFAULT_PORT}")
+                    set_listening_port(DEFAULT_PORT)
+                    restart_qbittorrent()
+                    last_port = DEFAULT_PORT
 
         except Exception as e:
             log(f"ERROR: {e}")

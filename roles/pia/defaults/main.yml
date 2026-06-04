@@ -1,4 +1,6 @@
-pia_region: "netherlands"
+---
+# PIA VPN client configuration
+pia_region: "ca-montreal"
 pia_protocol: "wireguard"
 pia_killswitch: true
 pia_port_forwarding: true
