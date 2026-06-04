@@ -4,12 +4,11 @@ PIA WireGuard connection script
 Managed by Ansible - DO NOT EDIT MANUALLY
 """
 
-import base64
 import json
 import subprocess
 import sys
-import urllib.error
 import urllib.parse
+import urllib.error
 import urllib.request
 from pathlib import Path
 
@@ -18,19 +17,38 @@ PIA_PASS = "{{ vault_vpn_pia_password }}"
 PIA_REGION = "{{ pia_region }}"
 WG_INTERFACE = "{{ pia_wg_interface }}"
 WG_CONFIG = "{{ pia_config_dir }}/{{ pia_wg_interface }}.conf"
+PIA_CA_PATH = "/usr/local/lib/pia/ca.rsa.4096.crt"
+PIA_TOKEN_FILE = "/usr/local/lib/pia/token"
 
 def log(msg):
     print(f"[pia-wg] {msg}", flush=True)
 
-def url_get(url, auth=None, data=None):
-    req = urllib.request.Request(url, data=data)
-    if auth:
-        credentials = f"{auth[0]}:{auth[1]}"
-        b64 = base64.b64encode(credentials.encode()).decode()
-        req.add_header("Authorization", f"Basic {b64}")
+def url_post_form(url, fields):
+    """POST form data and return parsed JSON."""
+    data = urllib.parse.urlencode(fields).encode()
     try:
+        req = urllib.request.Request(url, data=data)
+        req.add_header("Content-Type", "application/x-www-form-urlencoded")
         with urllib.request.urlopen(req, timeout=30) as resp:
             return json.loads(resp.read().decode())
+    except urllib.error.HTTPError as e:
+        log(f"HTTP Error {e.code}: {e.reason}")
+        body = e.read().decode(errors="ignore")
+        log(f"Response body: {body[:500]}")
+        return None
+    except urllib.error.URLError as e:
+        log(f"URL Error: {e.reason}")
+        return None
+    except Exception as e:
+        log(f"Error: {e}")
+        return None
+
+def url_get_json(url):
+    """GET url and return parsed JSON or raw text if not JSON."""
+    try:
+        with urllib.request.urlopen(url, timeout=30) as resp:
+            raw = resp.read().decode()
+            return raw.split(chr(10))[0]
     except urllib.error.HTTPError as e:
         log(f"HTTP Error {e.code}: {e.reason}")
         return None
@@ -42,27 +60,29 @@ def url_get(url, auth=None, data=None):
         return None
 
 def get_token():
+    """Authenticate with PIA and get a token."""
     log("Authenticating with PIA...")
-    data = url_get("https://www.privateinternetaccess.com/gtoken/generateToken",
-                   auth=(PIA_USER, PIA_PASS))
-    if data and data.get("status") == "OK":
+    data = url_post_form(
+        "https://www.privateinternetaccess.com/api/client/v2/token",
+        {"username": PIA_USER, "password": PIA_PASS}
+    )
+    if data and data.get("token"):
         log("Authentication successful.")
+        # Cache token for potential reuse
+        Path(PIA_TOKEN_FILE).parent.mkdir(parents=True, exist_ok=True)
+        Path(PIA_TOKEN_FILE).write_text(data["token"])
         return data["token"]
     log(f"ERROR: Authentication failed. Response: {data}")
     return None
 
 def get_servers():
+    """Fetch PIA server list."""
     log("Fetching server list...")
-    raw = None
-    try:
-        with urllib.request.urlopen(
-            "https://serverlist.piaservers.net/vpninfo/servers/v6",
-            timeout=30
-        ) as resp:
-            raw = resp.read().decode()
-            raw = raw.split(chr(10))[0]
-    except Exception as e:
-        log(f"ERROR: Failed to fetch server list: {e}")
+    raw = url_get_json(
+        "https://serverlist.piaservers.net/vpninfo/servers/v6"
+    )
+    if not raw:
+        log("ERROR: Failed to fetch server list")
         return None
     try:
         return json.loads(raw)
@@ -71,9 +91,11 @@ def get_servers():
         return None
 
 def find_server(servers, region):
+    """Find a server IP and hostname for the given region."""
     region_lower = region.lower()
     for group in servers.get("groups", []):
         if group.get("name", "").lower() == region_lower:
+            # Get WireGuard server info
             for server in group.get("servers", []):
                 cn = server.get("cn", "")
                 ip = server.get("ip", "")
@@ -81,10 +103,74 @@ def find_server(servers, region):
                     return ip, cn
             break
     log(f"ERROR: No server found for region '{region}'")
-    log(f"Available regions: {[g['name'] for g in servers.get('groups', []) if g.get('name')]}")
+    available = [g.get("name") for g in servers.get("groups", []) if g.get("name")]
+    log(f"Available regions: {available}")
     return None, None
 
+def download_pia_ca():
+    """Download PIA CA certificate for SSL verification."""
+    ca_path = Path(PIA_CA_PATH)
+    if ca_path.exists():
+        return True
+    log("Downloading PIA CA certificate...")
+    try:
+        urllib.request.urlretrieve(
+            "https://raw.githubusercontent.com/pia-foss/manual-connections/master/ca.rsa.4096.crt",
+            PIA_CA_PATH
+        )
+        log("CA certificate downloaded.")
+        return True
+    except Exception as e:
+        log(f"WARNING: Could not download CA certificate: {e}")
+        return False
+
+def register_key_with_pia_token(token, server_ip, server_hostname, pubkey):
+    """Register the public key with PIA using the token via curl.
+    Uses curl --connect-to for proper SSL/TLS hostname verification."""
+    log(f"Registering public key with PIA server {server_hostname} ({server_ip})...")
+
+    # Build curl command
+    url = f"https://{server_hostname}:1337/addKey"
+    params = f"pt={token}&pubkey={pubkey}"
+    full_url = f"{url}?{params}"
+
+    curl_cmd = [
+        "curl", "-s", "-G",
+        "--connect-to", f"{server_hostname}::{server_ip}:",
+        "--cacert", PIA_CA_PATH,
+        "--data-urlencode", f"pt={token}",
+        "--data-urlencode", f"pubkey={pubkey}",
+        url
+    ]
+    
+    try:
+        result = subprocess.run(curl_cmd, capture_output=True, text=True, timeout=30)
+        if result.returncode != 0:
+            log(f"ERROR: curl failed: {result.stderr}")
+            return None
+        response = json.loads(result.stdout)
+        if response.get("status") == "OK":
+            log("Key registration successful.")
+            return response
+        else:
+            log(f"ERROR: API returned non-OK status: {response}")
+            return None
+    except json.JSONDecodeError as e:
+        log(f"ERROR: Failed to parse API response: {e}")
+        log(f"Raw response: {result.stdout[:500]}")
+        return None
+    except subprocess.TimeoutExpired:
+        log("ERROR: curl timed out")
+        return None
+    except FileNotFoundError:
+        log("ERROR: curl not found")
+        return None
+    except Exception as e:
+        log(f"ERROR: {e}")
+        return None
+
 def generate_wireguard_keys():
+    """Generate WireGuard private/public key pair."""
     log("Generating WireGuard keys...")
     try:
         priv = subprocess.run(["wg", "genkey"], capture_output=True,
@@ -100,18 +186,8 @@ def generate_wireguard_keys():
         log("ERROR: 'wg' command not found. Install wireguard-tools.")
         return None, None
 
-def register_key(token, server_ip, pubkey):
-    log(f"Registering public key with PIA server {server_ip}...")
-    url = f"https://{server_ip}:1337/addKey?pt={token}"
-    data = urllib.parse.urlencode({"pubkey": pubkey}).encode()
-    result = url_get(url, data=data)
-    if result and result.get("status") == "OK":
-        log("Key registration successful.")
-        return result
-    log(f"ERROR: Key registration failed. Response: {result}")
-    return None
-
 def write_wg_config(privkey, peer_ip, server_pubkey, server_ip, server_port):
+    """Write WireGuard configuration file."""
     config_lines = [
         "[Interface]",
         f"PrivateKey = {privkey}",
@@ -133,6 +209,7 @@ def write_wg_config(privkey, peer_ip, server_pubkey, server_ip, server_port):
     log(f"WireGuard config written to {WG_CONFIG}")
 
 def wg_quick_up():
+    """Bring up WireGuard interface."""
     log(f"Bringing up WireGuard interface {WG_INTERFACE}...")
     result = subprocess.run(["wg-quick", "up", WG_INTERFACE],
                             capture_output=True, text=True)
@@ -143,20 +220,26 @@ def wg_quick_up():
     return False
 
 def wg_quick_down():
+    """Bring down WireGuard interface."""
     log(f"Bringing down WireGuard interface {WG_INTERFACE}...")
     subprocess.run(["wg-quick", "down", WG_INTERFACE],
                    capture_output=True, text=True)
     log("WireGuard disconnected.")
 
 def is_connected():
+    """Check if WireGuard is already connected."""
     result = subprocess.run(["ip", "link", "show", WG_INTERFACE],
                             capture_output=True, text=True)
     return result.returncode == 0
 
 def connect():
+    """Main connection flow."""
     if Path(WG_CONFIG).exists() and is_connected():
         log("WireGuard already connected.")
         return True
+
+    # Download CA cert if needed
+    download_pia_ca()
 
     token = get_token()
     if not token:
@@ -175,7 +258,7 @@ def connect():
     if not privkey:
         return False
 
-    result = register_key(token, server_ip, pubkey)
+    result = register_key_with_pia_token(token, server_ip, server_cn, pubkey)
     if not result:
         return False
 
@@ -188,6 +271,7 @@ def connect():
     return True
 
 def disconnect():
+    """Disconnect WireGuard."""
     wg_quick_down()
 
 
@@ -199,5 +283,5 @@ if __name__ == "__main__":
         disconnect()
         sys.exit(0)
     else:
-        print(f"Usage: {sys.argv[0]} {connect|disconnect}")
+        print(f"Usage: {sys.argv[0]} {{connect|disconnect}}")
         sys.exit(1)
