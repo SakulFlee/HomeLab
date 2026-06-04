@@ -1,3 +1,4 @@
+when: push
 steps:
   deploy:
     image: alpine/ansible
