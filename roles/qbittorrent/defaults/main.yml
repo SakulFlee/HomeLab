@@ -1,3 +1,4 @@
+---
 # qBittorrent configuration
 qbittorrent_web_port: 8080
 qbittorrent_download_dir: "/var/lib/qbittorrent/downloads"
@@ -6,8 +7,8 @@ qbittorrent_user: qbittorrent
 qbittorrent_group: qbittorrent
 qbittorrent_home: "/var/lib/qbittorrent"
 
-# nftables kill-switch interface (VPN interface from PIA)
-qbittorrent_vpn_interface: "pia"
+# PIA WireGuard interface name (default in PIA: wgpia0)
+qbittorrent_vpn_interface: "wgpia0"
 
 # Port monitor script
 qbittorrent_port_monitor_interval: 60
