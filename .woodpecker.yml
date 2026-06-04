@@ -8,6 +8,8 @@ steps:
         from_secret: ANSIBLE_VAULT_PASSWORD
     commands:
       - ansible-galaxy role install geerlingguy.postgresql
-      - echo "$ANSIBLE_VAULT_PASSWORD" > .vault_pass
-      - echo "$SSH_KEY" > .private_key
+      - printf "%s" "$ANSIBLE_VAULT_PASSWORD" > .vault_pass
+      - printf "%s" "$SSH_KEY" > .private_key
+      - chmod 600 .vault_pass
+      - chmod 600 .private_key
       - ansible-playbook -i inventory.ini playbook.yml --private-key .private_key --vault-password-file .vault_pass
