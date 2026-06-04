@@ -7,8 +7,8 @@ Wants=nftables.service
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/usr/local/bin/pia-wg.sh connect
-ExecStop=/usr/local/bin/pia-wg.sh disconnect
+ExecStart=/usr/local/bin/pia-wg.py connect
+ExecStop=/usr/local/bin/pia-wg.py disconnect
 
 [Install]
 WantedBy=multi-user.target

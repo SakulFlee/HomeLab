@@ -71,10 +71,10 @@
     mode: '0600'
   notify: Restart qBittorrent
 
-- name: Deploy PIA WireGuard connection script
+- name: Deploy PIA WireGuard Python script
   ansible.builtin.template:
-    src: pia-wg.sh.j2
-    dest: /usr/local/bin/pia-wg.sh
+    src: pia-wg.py.j2
+    dest: /usr/local/bin/pia-wg.py
     owner: root
     group: root
     mode: '0755'
@@ -89,15 +89,14 @@
   block:
     - name: Run PIA connection script to generate config
       ansible.builtin.shell:
-        cmd: /usr/local/bin/pia-wg.sh connect
+        cmd: /usr/local/bin/pia-wg.py connect
       register: _pia_first_run
       changed_when: '"successfully" in _pia_first_run.stdout'
       failed_when: _pia_first_run.rc != 0
-      no_log: true
 
     - name: Disconnect WireGuard (will be managed by systemd)
       ansible.builtin.shell:
-        cmd: /usr/local/bin/pia-wg.sh disconnect
+        cmd: /usr/local/bin/pia-wg.py disconnect
       changed_when: false
 
 - name: Deploy nftables kill-switch ruleset
