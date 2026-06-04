@@ -5,6 +5,8 @@ steps:
       ANSIBLE_VAULT_PASSWORD:
         from_secret: ANSIBLE_VAULT_PASSWORD
     commands:
+      - ping -c 4 10.0.0.101
+      - ping -c 4 192.168.178.200
       - ansible-galaxy role install geerlingguy.postgresql
       - echo "$ANSIBLE_VAULT_PASSWORD" > .vault_pass
       - echo "$SSH_KEY" > .private_key
