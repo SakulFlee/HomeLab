@@ -1,8 +1,8 @@
 [Unit]
 Description=qBittorrent-nox
 Documentation=https://github.com/qbittorrent/qBittorrent
-After=network.target pia-wireguard.service nftables.service
-BindsTo=pia-wireguard.service nftables.service
+After=network.target piavpn.service nftables.service
+BindsTo=piavpn.service nftables.service
 
 [Service]
 Type=simple

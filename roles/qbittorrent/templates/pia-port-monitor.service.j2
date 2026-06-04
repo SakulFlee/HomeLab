@@ -1,0 +1,16 @@
+[Unit]
+Description=PIA Port Forwarding Monitor for qBittorrent
+Documentation=https://www.privateinternetaccess.com/
+After=network.target piavpn.service
+Wants=piavpn.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStart=/usr/local/bin/pia-port-monitor.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,108 @@
+#!/usr/bin/env python3
+"""
+PIA Port Forwarding Monitor
+Monitors piactl for forwarded port changes and injects into qBittorrent.
+Managed by Ansible - DO NOT EDIT MANUALLY
+"""
+
+import os
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+QB_CONFIG = "{{ qbittorrent_config_dir }}/qBittorrent.conf"
+QB_USER = "{{ qbittorrent_user }}"
+CHECK_INTERVAL = {{ qbittorrent_port_monitor_interval }}
+
+def log(msg):
+    print(f"[pia-port-monitor] {msg}", flush=True)
+
+def get_forwarded_port():
+    """Get the current forwarded port from piactl."""
+    try:
+        result = subprocess.run(
+            ["piactl", "get", "portforward"],
+            capture_output=True, text=True, timeout=10
+        )
+        if result.returncode == 0 and result.stdout.strip().isdigit():
+            return int(result.stdout.strip())
+        return None
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        return None
+
+def get_listening_port():
+    """Get the current listening port from qBittorrent config."""
+    try:
+        content = Path(QB_CONFIG).read_text()
+        for line in content.split(chr(10)):
+            if line.startswith("Session\\Port="):
+                return int(line.split("=")[1])
+    except (FileNotFoundError, ValueError):
+        pass
+    return None
+
+def set_listening_port(port):
+    """Update the listening port in qBittorrent config."""
+    try:
+        path = Path(QB_CONFIG)
+        content = path.read_text()
+        lines = content.split(chr(10))
+        new_lines = []
+        for line in lines:
+            if line.startswith("Session\\Port="):
+                new_lines.append(f"Session\\Port={port}")
+            else:
+                new_lines.append(line)
+        path.write_text(chr(10).join(new_lines))
+        os.chown(QB_CONFIG, -1, -1)  # Preserve ownership
+        log(f"Port updated to {port} in qBittorrent config")
+        return True
+    except Exception as e:
+        log(f"ERROR: Failed to update port: {e}")
+        return False
+
+def restart_qbittorrent():
+    """Restart qBittorrent service."""
+    log("Restarting qBittorrent...")
+    try:
+        subprocess.run(
+            ["systemctl", "restart", "qbittorrent"],
+            capture_output=True, text=True, check=True, timeout=30
+        )
+        log("qBittorrent restarted.")
+        return True
+    except subprocess.CalledProcessError as e:
+        log(f"ERROR: Failed to restart qBittorrent: {e.stderr}")
+        return False
+
+
+def main():
+    log(f"Starting port monitor (check interval: {CHECK_INTERVAL}s)")
+    last_port = get_listening_port()
+    if last_port:
+        log(f"Current qBittorrent port: {last_port}")
+
+    while True:
+        try:
+            pf_port = get_forwarded_port()
+            if pf_port is None:
+                time.sleep(CHECK_INTERVAL)
+                continue
+
+            if pf_port != last_port:
+                log(f"Port changed: {last_port} -> {pf_port}")
+                if set_listening_port(pf_port):
+                    restart_qbittorrent()
+                    last_port = pf_port
+            else:
+                log(f"Port unchanged: {pf_port}")
+
+        except Exception as e:
+            log(f"ERROR: {e}")
+
+        time.sleep(CHECK_INTERVAL)
+
+
+if __name__ == "__main__":
+    main()

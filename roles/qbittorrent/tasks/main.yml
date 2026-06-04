@@ -1,14 +1,8 @@
----
 - name: Install required system packages
   ansible.builtin.apt:
     name:
       - qbittorrent-nox
-      - wireguard-tools
       - nftables
-      - curl
-      - jq
-      - python3
-      - openresolv
     state: present
     update_cache: true
 
@@ -40,7 +34,6 @@
     - "{{ qbittorrent_config_dir }}"
     - "{{ qbittorrent_download_dir }}"
     - "{{ qbittorrent_home }}/.cache/qBittorrent"
-    - "{{ pia_scripts_dir }}"
 
 - name: Generate qBittorrent Web UI password hash
   ansible.builtin.shell:
@@ -71,38 +64,10 @@
     mode: '0600'
   notify: Restart qBittorrent
 
-- name: Deploy PIA WireGuard Python script
-  ansible.builtin.template:
-    src: pia-wg.py.j2
-    dest: /usr/local/bin/pia-wg.py
-    owner: root
-    group: root
-    mode: '0755'
-
-- name: Check if WireGuard config already exists
-  ansible.builtin.stat:
-    path: "{{ pia_config_dir }}/{{ pia_wg_interface }}.conf"
-  register: _wg_config_stat
-
-- name: Generate WireGuard config on first install
-  when: not _wg_config_stat.stat.exists
-  block:
-    - name: Run PIA connection script to generate config
-      ansible.builtin.shell:
-        cmd: /usr/local/bin/pia-wg.py connect
-      register: _pia_first_run
-      changed_when: '"successfully" in _pia_first_run.stdout'
-      failed_when: _pia_first_run.rc != 0
-
-    - name: Disconnect WireGuard (will be managed by systemd)
-      ansible.builtin.shell:
-        cmd: /usr/local/bin/pia-wg.py disconnect
-      changed_when: false
-
 - name: Deploy nftables kill-switch ruleset
   ansible.builtin.template:
     src: nftables-killswitch.conf.j2
-    dest: "{{ nftables_ruleset }}"
+    dest: "/etc/nftables.conf"
     owner: root
     group: root
     mode: '0644'
@@ -115,14 +80,6 @@
     enabled: true
     daemon_reload: true
 
-- name: Deploy pia-wireguard systemd service
-  ansible.builtin.copy:
-    src: pia-wireguard.service
-    dest: /etc/systemd/system/pia-wireguard.service
-    owner: root
-    group: root
-    mode: '0644'
-
 - name: Deploy qbittorrent systemd service
   ansible.builtin.template:
     src: qbittorrent.service.j2
@@ -131,26 +88,36 @@
     group: root
     mode: '0644'
 
-- name: Load WireGuard kernel module
-  ansible.builtin.shell:
-    cmd: modprobe wireguard || true
-  changed_when: false
-  failed_when: false
+- name: Deploy port monitor script
+  ansible.builtin.template:
+    src: pia-port-monitor.py.j2
+    dest: /usr/local/bin/pia-port-monitor.py
+    owner: root
+    group: root
+    mode: '0755'
 
-- name: Enable IP forwarding for VPN routing
+- name: Deploy port monitor systemd service
+  ansible.builtin.template:
+    src: pia-port-monitor.service.j2
+    dest: /etc/systemd/system/pia-port-monitor.service
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Enable and start port monitor
+  ansible.builtin.systemd:
+    name: pia-port-monitor
+    state: started
+    enabled: true
+    daemon_reload: true
+
+- name: Enable IP forwarding (for VPN routing)
   ansible.builtin.sysctl:
     name: net.ipv4.ip_forward
     value: '1'
     sysctl_set: true
     state: present
     reload: true
-
-- name: Ensure pia-wireguard service is enabled and started
-  ansible.builtin.systemd:
-    name: pia-wireguard
-    state: started
-    enabled: true
-    daemon_reload: true
 
 - name: Ensure qbittorrent service is enabled and started
   ansible.builtin.systemd:

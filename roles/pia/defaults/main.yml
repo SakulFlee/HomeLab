@@ -1,0 +1,9 @@
+pia_region: "netherlands"
+pia_protocol: "wireguard"
+pia_killswitch: true
+pia_port_forwarding: true
+pia_auto_connect: true
+pia_version: "3.7-08412"
+pia_installer_url: "https://installers.privateinternetaccess.com/download/pia-linux-{{ pia_version }}.run"
+pia_installer_dest: "/opt/pia-installer.run"
+pia_creds_file: "/etc/pia/credentials"

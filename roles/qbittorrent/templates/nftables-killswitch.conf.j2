@@ -4,20 +4,19 @@
 table inet killswitch {
 
     # Drop all outgoing traffic from the qbittorrent user
-    # that does NOT go through the WireGuard interface ({{ pia_wg_interface }})
+    # that does NOT go through the PIA VPN interface ({{ qbittorrent_vpn_interface }})
     chain output {
         type filter hook output priority filter; policy accept;
-        skgid {{ qbittorrent_group }} oif "{{ pia_wg_interface }}" accept
+        skgid {{ qbittorrent_group }} oif "{{ qbittorrent_vpn_interface }}" accept
         skgid {{ qbittorrent_group }} drop
     }
 
     # Also drop incoming to qbittorrent if not via VPN
     chain input {
         type filter hook input priority filter; policy accept;
-        skuid {{ qbittorrent_user }} iif != "lo" iif != "{{ pia_wg_interface }}" drop
+        skuid {{ qbittorrent_user }} iif != "lo" iif != "{{ qbittorrent_vpn_interface }}" drop
     }
 
-    # Forward chain (not typically used in LXC)
     chain forward {
         type filter hook forward priority filter; policy accept;
     }

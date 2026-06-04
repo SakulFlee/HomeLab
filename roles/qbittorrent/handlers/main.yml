@@ -1,14 +1,7 @@
----
 - name: Reload nftables
   ansible.builtin.systemd:
     name: nftables
     state: reloaded
-
-- name: Restart PIA WireGuard
-  ansible.builtin.systemd:
-    name: pia-wireguard
-    state: restarted
-    daemon_reload: true
 
 - name: Restart qBittorrent
   ansible.builtin.systemd:

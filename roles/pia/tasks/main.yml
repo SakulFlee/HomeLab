@@ -1,0 +1,122 @@
+- name: Install dependencies
+  ansible.builtin.apt:
+    name:
+      - curl
+      - ca-certificates
+      - libnss3
+      - libnspr4
+    state: present
+    update_cache: true
+
+- name: Create PIA configuration directory
+  ansible.builtin.file:
+    path: /etc/pia
+    state: directory
+    mode: '0700'
+
+- name: Download PIA Linux client installer
+  ansible.builtin.get_url:
+    url: "{{ pia_installer_url }}"
+    dest: "{{ pia_installer_dest }}"
+    mode: '0700'
+    timeout: 60
+
+- name: Install PIA Linux client
+  ansible.builtin.shell:
+    cmd: "{{ pia_installer_dest }} --quiet 2>&1 || {{ pia_installer_dest }} 2>&1"
+  args:
+    creates: /usr/bin/piactl
+  register: _pia_install
+  changed_when: '"Installing" in _pia_install.stdout or "installed" in _pia_install.stdout'
+
+- name: Ensure piavpn service exists
+  ansible.builtin.systemd:
+    name: piavpn
+    state: started
+    enabled: true
+    daemon_reload: true
+
+- name: Store PIA credentials
+  ansible.builtin.copy:
+    content: |
+      {{ pia_username }}
+      {{ pia_password }}
+    dest: "{{ pia_creds_file }}"
+    mode: '0600'
+  no_log: true
+
+- name: Login to PIA
+  ansible.builtin.shell:
+    cmd: "piactl login {{ pia_creds_file }} -t 30"
+  register: _pia_login
+  changed_when: '"Logged in" in _pia_login.stdout or "login" in _pia_login.stdout'
+  failed_when: false
+  no_log: true
+
+- name: Check if already logged in
+  ansible.builtin.shell:
+    cmd: "piactl get connectionstate"
+  register: _pia_state
+  changed_when: false
+  failed_when: false
+
+- name: Configure PIA region
+  ansible.builtin.shell:
+    cmd: "piactl set region {{ pia_region }}"
+  register: _pia_region_set
+  changed_when: '"set" in _pia_region_set.stdout'
+  failed_when: false
+
+- name: Configure PIA protocol
+  ansible.builtin.shell:
+    cmd: "piactl set protocol {{ pia_protocol }}"
+  register: _pia_protocol_set
+  changed_when: '"set" in _pia_protocol_set.stdout'
+  failed_when: false
+
+- name: Configure PIA kill switch
+  ansible.builtin.shell:
+    cmd: "piactl set killswitch {{ 'true' if pia_killswitch else 'false' }}"
+  register: _pia_ks_set
+  changed_when: '"set" in _pia_ks_set.stdout'
+  failed_when: false
+  when: pia_killswitch is defined
+
+- name: Connect PIA VPN
+  ansible.builtin.shell:
+    cmd: "piactl connect"
+  register: _pia_connect
+  changed_when: '"Connecting" in _pia_connect.stdout'
+  failed_when: false
+  when: pia_auto_connect
+
+- name: Wait for VPN connection
+  ansible.builtin.shell:
+    cmd: |
+      for i in $(seq 1 30); do
+        state=$(piactl get connectionstate 2>/dev/null)
+        if [ "$state" = "Connected" ]; then
+          echo "Connected"
+          exit 0
+        fi
+        sleep 1
+      done
+      echo "Timeout: $state"
+      exit 1
+  register: _pia_wait
+  changed_when: false
+  failed_when: '"Timeout" in _pia_wait.stdout'
+  when: pia_auto_connect
+  no_log: true
+
+- name: Get VPN IP
+  ansible.builtin.shell:
+    cmd: "piactl get vpnip"
+  register: _pia_vpnip
+  changed_when: false
+  when: pia_auto_connect
+
+- name: Display VPN IP
+  ansible.builtin.debug:
+    msg: "PIA VPN connected - IP: {{ _pia_vpnip.stdout }}"
+  when: pia_auto_connect and _pia_vpnip.stdout is defined
