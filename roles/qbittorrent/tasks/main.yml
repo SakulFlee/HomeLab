@@ -33,8 +33,8 @@
 
 - name: Deploy PIA port monitor script
   ansible.builtin.template:
-    src: pia-port-monitor.py.j2
-    dest: /usr/local/bin/pia-port-monitor.py
+    src: pia-port-monitor.sh.j2
+    dest: /usr/local/bin/pia-port-monitor.sh
     owner: root
     group: root
     mode: '0755'
