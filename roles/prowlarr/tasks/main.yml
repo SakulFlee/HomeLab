@@ -32,7 +32,7 @@
 - name: Download archive
   ansible.builtin.get_url:
     url: "http://prowlarr.servarr.com/v1/update/master/updatefile?os=linux&runtime=netcore&arch=x64"
-    dest: /opt/prowlarr/prowlarr.tar.gz
+    dest: /opt/Prowlarr/Prowlarr.tar.gz
     mode: '0755'
     owner: root
     group: root
@@ -40,13 +40,13 @@
 
 - name: Extract archive
   ansible.builtin.unarchive:
-    src: /opt/prowlarr/prowlarr.tar.gz
-    dest: /opt/prowlarr/
+    src: /opt/Prowlarr/Prowlarr.tar.gz
+    dest: /opt/
     remote_src: yes
 
 - name: Set owner
   ansible.builtin.file:
-    path: /opt/prowlarr/
+    path: /opt/Prowlarr/
     state: directory
     owner: prowlarr
     group: prowlarr
