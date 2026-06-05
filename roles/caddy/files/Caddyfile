@@ -31,5 +31,5 @@ woodpecker.sakul-flee.de {
 }
 
 qbittorrent.sakul-flee.de {
-    reverse_proxy 10.0.0.111:8080
+  reverse_proxy 10.0.0.111:8080
 }
