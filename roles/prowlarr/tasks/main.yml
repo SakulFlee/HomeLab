@@ -23,7 +23,7 @@
 
 - name: Create required directory structure
   ansible.builtin.file:
-    path: "/opt/prowlarr"
+    path: "/opt/Prowlarr"
     state: directory
     owner: "prowlarr"
     group: "prowlarr"
