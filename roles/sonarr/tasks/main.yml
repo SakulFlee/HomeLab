@@ -29,20 +29,13 @@
     group: "sonarr"
     mode: '0755'
 
-- name: Download archive
-  ansible.builtin.get_url:    
-    url: "https://services.sonarr.tv/v1/download/main/latest?version={{ version }}&os=linux&arch=x64"
-    dest: /opt/sonarr/sonarr.tar.gz
-    mode: '0755'
-    owner: root
-    group: root
-  notify: Restart Sonarr
-
 - name: Extract archive
   ansible.builtin.unarchive:
-    src: /opt/sonarr/sonarr.tar.gz
-    dest: /opt/
+    src: "https://services.sonarr.tv/v1/download/main/latest?version={{ version }}&os=linux&arch=x64"
+    dest: /opt/Sonarr/
+    creates: /opt/Sonarr/Sonarr
     remote_src: yes
+  notify: Restart Prowlarr
 
 - name: Set owner
   ansible.builtin.file:
