@@ -33,6 +33,11 @@
   roles:
     - role: sonarr
 
+- name: Radarr
+  hosts: radarr
+  roles:
+    - role: radarr
+
 - name: qBittorrent
   hosts: qbittorrent
   roles:
