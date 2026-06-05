@@ -1,0 +1,4 @@
+- name: Restart Prowlarr
+  ansible.builtin.systemd:
+    name: prowlarr
+    state: restarted
