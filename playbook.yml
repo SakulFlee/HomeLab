@@ -28,6 +28,11 @@
   roles:
     - role: prowlarr
 
+- name: Sonarr
+  hosts: sonarr
+  roles:
+    - role: sonarr
+
 - name: qBittorrent
   hosts: qbittorrent
   roles:

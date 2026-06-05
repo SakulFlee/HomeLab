@@ -1,0 +1,4 @@
+- name: Restart Sonarr
+  ansible.builtin.systemd:
+    name: sonarr
+    state: restarted
