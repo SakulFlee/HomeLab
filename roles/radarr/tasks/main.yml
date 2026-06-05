@@ -24,7 +24,7 @@
 
 - name: Create required directory structure
   ansible.builtin.file:
-    path: "/opt/radarr"
+    path: "/opt/Radarr"
     state: directory
     owner: "radarr"
     group: "radarr"
