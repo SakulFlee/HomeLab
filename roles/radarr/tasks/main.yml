@@ -33,7 +33,7 @@
 - name: Extract archive
   ansible.builtin.unarchive:
     src: "http://radarr.servarr.com/v1/update/master/updatefile?os=linux&runtime=netcore&arch=x64"
-    dest: /opt/Radarr/
+    dest: /opt/
     creates: /opt/Radarr/Radarr
     remote_src: yes
   notify: Restart Radarr
