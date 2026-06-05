@@ -2,14 +2,11 @@
 # PIA Port Forwarding Monitor
 # Monitors piactl for VPN state and port changes.
 # Stops qBittorrent -> Updates config -> Starts qBittorrent.
+# Managed by Ansible - DO NOT EDIT MANUALLY
 
 # --- Configuration ---
-# Ansible placeholders (with fallbacks for local testing)
 QB_CONFIG="{{ qbittorrent_home }}/.config/qBittorrent/qBittorrent.conf"
-[[ "$QB_CONFIG" == "{{"* ]] && QB_CONFIG="$HOME/.config/qBittorrent/qBittorrent.conf"
-
-CHECK_INTERVAL="{{ qbittorrent_port_monitor_interval }}"
-[[ "$CHECK_INTERVAL" == "{{"* ]] && CHECK_INTERVAL=300
+CHECK_INTERVAL={{ qbittorrent_port_monitor_interval | default(300) }}
 
 RECONNECT_INTERVAL=60
 DEFAULT_PORT=6881
