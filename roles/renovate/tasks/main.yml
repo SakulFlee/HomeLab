@@ -26,16 +26,18 @@
       - openjdk-21-jdk
     state: present
 
-- name: Download Microsoft repository production package
+- name: Download Microsoft GPG key
   ansible.builtin.get_url:
-    url: "https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb" # Use ubuntu/24.04 or matching version if on Ubuntu
-    dest: /tmp/packages-microsoft-prod.deb
+    url: https://packages.microsoft.com/keys/microsoft.asc
+    dest: /etc/apt/keyrings/microsoft.asc
     mode: '0644'
   when: ansible_facts['os_family'] == "Debian"
 
-- name: Install Microsoft repository package
-  ansible.builtin.apt:
-    deb: /tmp/packages-microsoft-prod.deb
+- name: Add Microsoft apt repository securely
+  ansible.builtin.apt_repository:
+    repo: "deb [signed-by=/etc/apt/keyrings/microsoft.asc] https://packages.microsoft.com/debian/12/prod bookworm main"
+    state: present
+    filename: microsoft-prod
   when: ansible_facts['os_family'] == "Debian"
 
 - name: Install .NET SDK
