@@ -9,7 +9,7 @@
 
 - name: Enable jellyfin extrepo
   ansible.builtin.shell:
-    command: extrepo enable jellyfin
+    cmd: extrepo enable jellyfin
 
 - name: Refresh apt cache
   ansible.builtin.apt:
