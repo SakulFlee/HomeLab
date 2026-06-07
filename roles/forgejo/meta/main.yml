@@ -1,6 +1,4 @@
 dependencies:
-  - role: pkg_git
-  - role: pkg_curl
   - role: geerlingguy.postgresql
     vars:
       ansible_become_method: su

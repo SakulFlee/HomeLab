@@ -1,3 +1,12 @@
+- name: Install required system packages
+  ansible.builtin.apt:
+    name:
+      - curl
+      - git
+      - ssh
+    state: present
+    update_cache: true
+
 - name: Ensure netcat-openbsd is installed for raw socket proxying
   ansible.builtin.package:
     name: netcat-openbsd
