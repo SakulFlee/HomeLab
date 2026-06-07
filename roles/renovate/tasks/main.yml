@@ -26,17 +26,6 @@
       - openjdk-21-jdk
     state: present
 
-- name: Force purge ALL legacy Microsoft repository definitions
-  ansible.builtin.file:
-    path: "{{ item }}"
-    state: absent
-  loop:
-    - /etc/apt/sources.list.d/microsoft-prod.list
-    - /etc/apt/sources.list.d/microsoft-prod.sources
-    - /etc/apt/trusted.gpg.d/microsoft.gpg
-    - /usr/share/keyrings/microsoft-prod.gpg
-  when: ansible_facts['os_family'] == "Debian"
-
 - name: Create apt keyrings directory
   ansible.builtin.file:
     path: /etc/apt/keyrings
