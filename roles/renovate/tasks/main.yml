@@ -16,6 +16,7 @@
     name:
       - curl
       - git
+      - gnupg
     state: present
 
 - name: Create apt keyrings directory
