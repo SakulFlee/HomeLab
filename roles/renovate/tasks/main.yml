@@ -34,7 +34,7 @@
   when: ansible_facts['os_family'] == "Debian"
 
 - name: Install Microsoft repository package
-  ansible.builtin.apt_deb:
+  ansible.builtin.apt:
     deb: /tmp/packages-microsoft-prod.deb
   when: ansible_facts['os_family'] == "Debian"
 
