@@ -1,7 +1,7 @@
-- name: APT Update
-  hosts: all
-  roles:
-    - role: apt
+# - name: APT Update
+#   hosts: all
+#   roles:
+#     - role: apt
 
 - name: Caddy
   hosts: caddy
