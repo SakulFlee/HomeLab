@@ -1,0 +1,14 @@
+[Unit]
+Description=Renovate Dependency Dashboard Bot for Forgejo
+After=network.target
+
+[Service]
+Type=oneshot
+User={{ renovate_user }}
+Group={{ renovate_user }}
+Environment="RENOVATE_CONFIG_FILE={{ renovate_config_dir }}/config.js"
+Environment="RENOVATE_TOKEN={{ forgejo_token }}"
+ExecStart=/usr/bin/renovate
+
+[Install]
+WantedBy=multi-user.target

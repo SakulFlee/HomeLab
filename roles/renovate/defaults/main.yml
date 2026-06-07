@@ -1,0 +1,15 @@
+node_version: "20.x"
+renovate_user: "renovate"
+renovate_config_dir: "/etc/renovate"
+renovate_base_dir: "/var/lib/renovate"
+
+# Forgejo specific configuration
+forgejo_url: "https://forgejo.sakul-flee.de"
+forgejo_token: "3d233cafe1e835e41cd769db74df7a68ef564955"
+
+# Repositories to scan (Leave empty to autodiscover all accessible repos)
+renovate_repositories: []
+# Example:
+# renovate_repositories:
+#   - 'my-org/my-repo-1'
+#   - 'my-org/my-repo-2'

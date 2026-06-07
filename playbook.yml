@@ -42,3 +42,8 @@
   hosts: qbittorrent
   roles:
     - role: qbittorrent
+
+- name: Renovate
+  hosts: renovate
+  roles:
+    - role: renovate
