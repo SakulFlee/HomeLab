@@ -17,6 +17,7 @@
       - curl
       - git
       - gnupg
+      - cargo
     state: present
 
 - name: Create apt keyrings directory
