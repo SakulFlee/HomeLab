@@ -4,6 +4,8 @@
       - extrepo
       - curl 
       - gnupg
+      - mesa-va-drivers 
+      - va-driver-all
     state: present
     update_cache: true
 
