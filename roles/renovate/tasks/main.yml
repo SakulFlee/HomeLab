@@ -21,6 +21,9 @@
       - python3-pip
       - golang
       - apt-transport-https
+      - gradle
+      - maven
+      - openjdk-21-jdk
     state: present
 
 - name: Download Microsoft repository production package
