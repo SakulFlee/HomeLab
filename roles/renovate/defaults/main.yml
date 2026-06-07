@@ -1,4 +1,4 @@
-node_version: "20.x"
+node_version: "24.x"
 renovate_user: "renovate"
 renovate_config_dir: "/etc/renovate"
 renovate_base_dir: "/var/lib/renovate"
