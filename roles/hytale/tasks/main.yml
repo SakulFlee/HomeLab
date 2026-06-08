@@ -16,7 +16,7 @@
     name: "{{ hytale_user }}"
     group: "{{ hytale_group }}"
     system: yes
-    home: "{{ hytale_install_dir }}"
+    home: "{{ hytale_dir }}"
     create_home: no
 
 - name: Initialize absolute paths and lock down ownership
@@ -27,7 +27,7 @@
     group: "{{ hytale_group }}"
     mode: '0755'
   loop:
-    - "{{ hytale_install_dir }}"
+    - "{{ hytale_dir }}"
     - "{{ hytale_server_downloader_dir }}"
 
 - name: Download hytale server downloader
