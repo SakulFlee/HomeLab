@@ -37,6 +37,7 @@
     owner: "{{ hytale_user }}"
     group: "{{ hytale_group }}"
     mode: '0744'
+    remote_src: true
 
 - name: Deploy tailored systemd service unit definitions
   template:
