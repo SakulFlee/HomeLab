@@ -32,7 +32,7 @@
 
 - name: Download and extract hytale server downloader archive
   ansible.builtin.unarchive:
-    url: "{{ hytale_server_downloader_url }}"
+    src: "{{ hytale_server_downloader_url }}"
     dest: "{{ hytale_server_downloader_dir }}/"
     owner: "{{ hytale_user }}"
     group: "{{ hytale_group }}"
