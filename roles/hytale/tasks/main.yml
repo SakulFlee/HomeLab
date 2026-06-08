@@ -21,16 +21,19 @@
 
 - name: Initialize absolute paths and lock down ownership
   file:
-    path: "{{ hytale_install_dir }}"
+    path: "{{ item }}"
     state: directory
     owner: "{{ hytale_user }}"
     group: "{{ hytale_group }}"
     mode: '0755'
+  loop:
+    - "{{ hytale_install_dir }}"
+    - "{{ hytale_server_downloader_dir }}"
 
-- name: Download core application distribution artifacts
+- name: Download hytale server downloader
   get_url:
-    url: "{{ hytale_download_url }}"
-    dest: "{{ hytale_install_dir }}/{{ hytale_jar_name }}"
+    url: "{{ core application distribution artifacts }}"
+    dest: "{{ hytale_server_downloader_dir }}/"
     owner: "{{ hytale_user }}"
     group: "{{ hytale_group }}"
     mode: '0744'

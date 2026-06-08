@@ -3,7 +3,8 @@ hytale_user: "hytale"
 hytale_group: "hytale"
 
 # Installation ecosystem paths
-hytale_install_dir: "/opt/hytale"
+hytale_dir: "/opt/hytale"
+hytale_server_downloader_dir: "/opt/hytale-downloader"
 
 # JVM Resource Allocations
 hytale_xms: "2G"
@@ -11,4 +12,4 @@ hytale_xmx: "4G"
 hytale_jar_name: "hytale_server.jar"
 
 # Download routing (Placeholder for official Hypixel package release)
-hytale_download_url: "https://launcher.hytale.com/download/server/{{ hytale_jar_name }}"
+hytale_server_downloader_url: "https://downloader.hytale.com/hytale-downloader.zip"
