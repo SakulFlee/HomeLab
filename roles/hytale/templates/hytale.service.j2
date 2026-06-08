@@ -6,7 +6,7 @@ After=network.target
 Type=forking
 User={{ hytale_user }}
 Group={{ hytale_group }}
-WorkingDirectory={{ hytale_install_dir }}
+WorkingDirectory={{ hytale_dir }}
 
 # Spawns a detached screen terminal allowing live human administrative hooks
 ExecStart=/usr/bin/screen -dmS hytale /usr/bin/java -Xms{{ hytale_xms }} -Xmx{{ hytale_xmx }} -jar {{ hytale_install_dir }}/{{ hytale_jar_name }} nogui
