@@ -9,7 +9,7 @@ Group={{ hytale_group }}
 WorkingDirectory={{ hytale_dir }}
 
 # Spawns a detached screen terminal allowing live human administrative hooks
-ExecStart=/usr/bin/screen -dmS hytale /usr/bin/java -Xms{{ hytale_xms }} -Xmx{{ hytale_xmx }} -jar {{ hytale_dir }}/{{ hytale_jar_name }} nogui
+ExecStart=/usr/bin/screen -dmS hytale /opt/hytale/start.sh
 
 # Injects safe /stop into standard input to execute a clean world sync before termination
 ExecStop=/usr/bin/screen -S hytale -X stuff "stop^M"
