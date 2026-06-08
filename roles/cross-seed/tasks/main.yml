@@ -16,7 +16,8 @@
     name: "{{ cross_seed_user }}"
     group: "{{ cross_seed_group }}"
     system: yes
-    create_home: no
+    create_home: yes
+    home: "/home/cross-seed"
     shell: /usr/sbin/nologin
     state: present
 
