@@ -16,5 +16,5 @@ cross_seed_output_dirs:
   - "/mnt/nas/nsfw"
   - "/mnt/nas/shows"
 
-cross_seed_client_url: {{ vault_cross_seed_client_url }}
-cross_seed_torznab_urls: {{ vault_cross_seed_torznab_urls }}
+cross_seed_client_url: "{{ vault_cross_seed_client_url }}"
+cross_seed_torznab_urls: "{{ vault_cross_seed_torznab_urls }}"
