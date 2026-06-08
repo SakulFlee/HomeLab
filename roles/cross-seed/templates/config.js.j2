@@ -1,0 +1,18 @@
+// {{ ansible_managed }}
+module.exports = {
+    delay: 30,
+    torznab: {{ cross_seed_torznab_urls | to_json }},
+    torrentDir: {{ cross_seed_torrent_dirs | to_json }},
+    outputDir: "{{ cross_seed_output_dir }}",
+    includeEpisodes: true,
+    includeNonVideos: true,
+    action: "inject",
+    rtorrentRpcUrl: null,
+    qbittorrentUrl: "{{ cross_seed_torrent_client == 'qbittorrent' | ternary(cross_seed_client_url, null) }}",
+    transmissionRpcUrl: "{{ cross_seed_torrent_client == 'transmission' | ternary(cross_seed_client_url, null) }}",
+    duplicateCategories: true,
+    port: 2468,
+    host: "0.0.0.0",
+    searchCadence: "searchDaily",
+    rssCadence: "rssHourly",
+};

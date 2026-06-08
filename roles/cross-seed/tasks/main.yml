@@ -1,0 +1,62 @@
+- name: Ensure Node.js and npm are installed
+  package:
+    name:
+      - nodejs
+      - npm
+    state: present
+
+- name: Create cross-seed system group
+  group:
+    name: "{{ cross_seed_group }}"
+    system: yes
+    state: present
+
+- name: Create cross-seed system user
+  user:
+    name: "{{ cross_seed_user }}"
+    group: "{{ cross_seed_group }}"
+    system: yes
+    create_home: no
+    shell: /usr/sbin/nologin
+    state: present
+
+- name: Ensure application directory exists
+  file:
+    path: "{{ cross_seed_dir }}"
+    state: directory
+    owner: "{{ cross_seed_user }}"
+    group: "{{ cross_seed_group }}"
+    mode: '0755'
+
+- name: Install cross-seed via npm locally in the directory
+  npm:
+    name: cross-seed
+    path: "{{ cross_seed_dir }}"
+    state: present
+  notify: Restart cross-seed
+
+- name: Deploy cross-seed configuration file
+  template:
+    src: config.js.j2
+    dest: "{{ cross_seed_dir }}/config.js"
+    owner: "{{ cross_seed_user }}"
+    group: "{{ cross_seed_group }}"
+    mode: '0640'
+  notify: Restart cross-seed
+
+- name: Deploy SystemD service file
+  template:
+    src: cross-seed.service.j2
+    dest: /etc/systemd/system/cross-seed.service
+    owner: root
+    group: root
+    mode: '0644'
+  notify: 
+    - Reload systemd
+    - Restart cross-seed
+
+- name: Ensure cross-seed service is enabled and started
+  systemd:
+    name: cross-seed
+    state: started
+    enabled: yes

@@ -62,3 +62,8 @@
   hosts: renovate
   roles:
     - role: renovate
+
+- name: Cross-Seed
+  hosts: cross-seed
+  roles:
+    - role: cross-seed

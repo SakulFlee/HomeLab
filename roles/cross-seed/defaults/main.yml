@@ -1,0 +1,20 @@
+# User and Group to run the service
+cross_seed_user: "cross-seed"
+cross_seed_group: "cross-seed"
+
+# Installation directory
+cross_seed_dir: "/opt/cross-seed"
+
+cross_seed_torrent_client: "qbittorrent"
+
+cross_seed_torrent_dir: "/mnt/nas/qbittorrent/torrent_import/"
+cross_seed_output_dirs: 
+  - "/mnt/nas/qbittorrent"
+  - "/mnt/nas/doujin"
+  - "/mnt/nas/hentai"
+  - "/mnt/nas/movies"
+  - "/mnt/nas/nsfw"
+  - "/mnt/nas/shows"
+
+cross_seed_client_url: {{ vault_cross_seed_client_url }}
+cross_seed_torznab_urls: {{ vault_cross_seed_torznab_urls }}

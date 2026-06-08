@@ -1,0 +1,15 @@
+[Unit]
+Description=Cross-Seed Daemon
+After=network.target
+
+[Service]
+Type=simple
+User={{ cross_seed_user }}
+Group={{ cross_seed_group }}
+WorkingDirectory={{ cross_seed_dir }}
+ExecStart={{ cross_seed_dir }} node_modules/.bin/cross-seed daemon
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
