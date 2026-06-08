@@ -28,6 +28,11 @@
   roles:
     - role: minecraft
 
+- name: Hytale
+  hosts: hytale
+  roles:
+    - role: hytale
+
 - name: Jellyfin
   hosts: jellyfin
   roles:

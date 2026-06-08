@@ -1,0 +1,21 @@
+[Unit]
+Description=Hytale Dedicated Server Console Instance
+After=network.target
+
+[Service]
+Type=forking
+User={{ hytale_user }}
+Group={{ hytale_group }}
+WorkingDirectory={{ hytale_install_dir }}
+
+# Spawns a detached screen terminal allowing live human administrative hooks
+ExecStart=/usr/bin/screen -dmS hytale-console /usr/bin/java -Xms{{ hytale_xms }} -Xmx{{ hytale_xmx }} -jar {{ hytale_install_dir }}/{{ hytale_jar_name }} nogui
+
+# Injects safe /stop into standard input to execute a clean world sync before termination
+ExecStop=/usr/bin/screen -S hytale-console -X stuff "stop^M"
+
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

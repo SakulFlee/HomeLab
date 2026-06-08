@@ -1,0 +1,54 @@
+- name: Install requirements
+  package:
+    name: 
+      - curl
+      - screen
+      - openjdk-25-jre-headless
+    state: present
+
+- name: Establish target system group
+  group:
+    name: "{{ hytale_group }}"
+    state: present
+
+- name: Provision restricted execution user accounts
+  user:
+    name: "{{ hytale_user }}"
+    group: "{{ hytale_group }}"
+    system: yes
+    home: "{{ hytale_install_dir }}"
+    create_home: no
+
+- name: Initialize absolute paths and lock down ownership
+  file:
+    path: "{{ hytale_install_dir }}"
+    state: directory
+    owner: "{{ hytale_user }}"
+    group: "{{ hytale_group }}"
+    mode: '0755'
+
+- name: Download core application distribution artifacts
+  get_url:
+    url: "{{ hytale_download_url }}"
+    dest: "{{ hytale_install_dir }}/{{ hytale_jar_name }}"
+    owner: "{{ hytale_user }}"
+    group: "{{ hytale_group }}"
+    mode: '0744'
+  register: download_server
+  ignore_errors: yes
+
+- name: Deploy tailored systemd service unit definitions
+  template:
+    src: hytale.service.j2
+    dest: /etc/systemd/system/hytale.service
+    mode: '0644'
+  notify: Reload systemd
+
+- name: Flush handlers instantly to process systemd context refresh
+  meta: flush_handlers
+
+- name: Ensure persistent initialization state for the engine instance
+  systemd:
+    name: hytale
+    enabled: yes
+    state: started
