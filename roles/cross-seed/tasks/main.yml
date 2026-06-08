@@ -51,9 +51,7 @@
     owner: root
     group: root
     mode: '0644'
-  notify: 
-    - Reload systemd
-    - Restart cross-seed
+  notify: Restart cross-seed
 
 - name: Ensure cross-seed service is enabled and started
   systemd:
