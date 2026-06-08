@@ -23,6 +23,11 @@
   roles:
     - role: woodpecker
 
+- name: Minecraft
+  hosts: minecraft
+  roles:
+    - role: minecraft
+
 - name: Jellyfin
   hosts: jellyfin
   roles:

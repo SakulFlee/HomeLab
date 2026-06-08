@@ -1,0 +1,5 @@
+- name: Reload and restart minecraft
+  systemd:
+    name: minecraft
+    state: restarted
+    daemon_reload: yes

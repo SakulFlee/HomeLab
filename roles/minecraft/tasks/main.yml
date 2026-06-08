@@ -1,0 +1,58 @@
+- name: Ensure required packages are installed
+  package:
+    name:
+      - curl
+      - screen
+      - openjdk-25-jre-headless
+    state: present
+
+- name: Create minecraft group
+  group:
+    name: "{{ minecraft_group }}"
+    state: present
+
+- name: Create minecraft system user
+  user:
+    name: "{{ minecraft_user }}"
+    group: "{{ minecraft_group }}"
+    home: "{{ minecraft_home }}"
+    system: yes
+    state: present
+
+- name: Ensure minecraft directory exists
+  file:
+    path: "{{ minecraft_home }}"
+    state: directory
+    owner: "{{ minecraft_user }}"
+    group: "{{ minecraft_group }}"
+    mode: '0755'
+
+- name: Download Minecraft server JAR
+  get_url:
+    url: "{{ server_url }}"
+    dest: "{{ minecraft_home }}/server.jar"
+    owner: "{{ minecraft_user }}"
+    group: "{{ minecraft_group }}"
+    mode: '0755'
+  register: download_paper
+
+- name: Accept Minecraft EULA
+  copy:
+    content: "eula={{ accept_eula | bool | lower }}"
+    dest: "{{ minecraft_home }}/eula.txt"
+    owner: "{{ minecraft_user }}"
+    group: "{{ minecraft_group }}"
+    mode: '0644'
+
+- name: Deploy systemd service file
+  template:
+    src: minecraft.service.j2
+    dest: /etc/systemd/system/minecraft.service
+    mode: '0644'
+  notify: Reload and restart minecraft
+
+- name: Ensure Minecraft service is started and enabled on boot
+  systemd:
+    name: minecraft
+    state: started
+    enabled: yes
