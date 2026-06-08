@@ -7,8 +7,8 @@ cross_seed_dir: "/opt/cross-seed"
 
 cross_seed_torrent_client: "qbittorrent"
 
-cross_seed_torrent_dir: "/mnt/nas/qbittorrent/torrent_import/"
-cross_seed_output_dirs: 
+cross_seed_output_dirs: "/mnt/nas/qbittorrent/torrent_import/"
+cross_seed_torrent_dirs: 
   - "/mnt/nas/qbittorrent"
   - "/mnt/nas/doujin"
   - "/mnt/nas/hentai"
