@@ -7,7 +7,7 @@ Type=simple
 User={{ cross_seed_user }}
 Group={{ cross_seed_group }}
 WorkingDirectory={{ cross_seed_dir }}
-ExecStart={{ cross_seed_dir }} node_modules/.bin/cross-seed daemon
+ExecStart=/usr/bin/node node_modules/cross-seed/dist/bin/cross-seed.js daemon
 Restart=on-failure
 RestartSec=10
 
