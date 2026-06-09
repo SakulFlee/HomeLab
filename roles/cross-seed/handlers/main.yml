@@ -1,5 +1,0 @@
-- name: Restart cross-seed
-  systemd:
-    name: cross-seed
-    state: restarted
-    daemon_reload: yes
