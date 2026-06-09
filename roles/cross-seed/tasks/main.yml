@@ -39,7 +39,7 @@
 - name: Deploy cross-seed configuration file
   template:
     src: config.js.j2
-    dest: "{{ cross_seed_dir }}/config.js"
+    dest: "/home/cross-seed/.cross-seed/config.js"
     owner: "{{ cross_seed_user }}"
     group: "{{ cross_seed_group }}"
     mode: '0640'
