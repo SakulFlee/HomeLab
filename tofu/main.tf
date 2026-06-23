@@ -33,7 +33,7 @@ resource "proxmox_virtual_environment_container" "caddy" {
   }
 
   network_interface {
-    name      = "veth"
+    name      = "eth0"
     bridge    = "aether"
     firewall  = true
     enabled   = true
