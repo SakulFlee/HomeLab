@@ -94,9 +94,6 @@ resource "null_resource" "nixos_install" {
     command = <<-EOT
       nix run github:nix-community/nixos-anywhere -- \
         --flake ${path.module}/../nixos#caddy \
-        -s ${var.ssh_private_key_path} \
-        -o "ProxyCommand=ssh -p ${var.bastion_port} -i ${var.ssh_private_key_path} \
-            ${var.bastion_user}@${var.bastion_host} -W %h:%p" \
         root@10.0.0.200
     EOT
   }

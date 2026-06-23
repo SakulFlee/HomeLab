@@ -63,7 +63,26 @@ ssh-keygen -t ed25519 -f ~/.ssh/tofu-deploy -N ""
 ssh-add ~/.ssh/tofu-deploy
 ```
 
-### 4. NixOS Container Template (One-Time)
+Also add it to the Proxmox host so the provisioner can connect via the bastion:
+
+```bash
+ssh-copy-id -p 2222 -i ~/.ssh/tofu-deploy root@192.168.178.200
+```
+
+### 4. SSH Config for Bastion
+
+Add this to `~/.ssh/config` so `nixos-anywhere` and OpenTofu find
+containers through the jump host automatically:
+
+```
+Host 10.0.0.*
+  ProxyCommand ssh -p 2222 root@192.168.178.200 -W %h:%p
+  IdentityFile ~/.ssh/tofu-deploy
+  StrictHostKeyChecking no
+  UserKnownHostsFile /dev/null
+```
+
+### 5. NixOS Container Template (One-Time)
 
 Proxmox needs a Debian template for the bootstrap LXC. Verify a Debian 13
 template is available:
