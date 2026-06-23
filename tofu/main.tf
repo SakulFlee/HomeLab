@@ -69,6 +69,7 @@ resource "null_resource" "nixos_install" {
       "pct exec 200 -- ip link set eth0 up",
       "pct exec 200 -- ip addr add 10.0.0.200/24 dev eth0",
       "pct exec 200 -- ip route add default via 10.0.0.1",
+      "pct exec 200 -- sh -c 'echo nameserver 1.1.1.1 > /etc/resolv.conf'",
       "pct exec 200 -- mkdir -p /root/.ssh",
       "pct exec 200 -- sh -c 'echo \"${var.ssh_public_key}\" >> /root/.ssh/authorized_keys'",
       "pct exec 200 -- chmod 600 /root/.ssh/authorized_keys",
@@ -95,6 +96,7 @@ resource "null_resource" "nixos_install" {
       nix run github:nix-community/nixos-anywhere -- \
         --flake ${path.module}/../nixos#caddy \
         -i ${var.ssh_private_key_path} \
+        --phases install,reboot \
         --ssh-option "ProxyCommand=ssh -p ${var.bastion_port} -i ${var.ssh_private_key_path} \
             ${var.bastion_user}@${var.bastion_host} -W %h:%p -o StrictHostKeyChecking=no" \
         root@10.0.0.200
