@@ -92,12 +92,11 @@ resource "null_resource" "nixos_install" {
 
   provisioner "local-exec" {
     command = <<-EOT
-      set -x
-      PROXY="ProxyCommand=ssh -p ${var.bastion_port} -i ${var.ssh_private_key_path} \
-        ${var.bastion_user}@${var.bastion_host} -W %h:%p -o StrictHostKeyChecking=no"
       nix run github:nix-community/nixos-anywhere -- \
         --flake ${path.module}/../nixos#caddy \
-        --extra-ssh-options "-o $PROXY" \
+        -i ${var.ssh_private_key_path} \
+        --ssh-option "ProxyCommand=ssh -p ${var.bastion_port} -i ${var.ssh_private_key_path} \
+            ${var.bastion_user}@${var.bastion_host} -W %h:%p -o StrictHostKeyChecking=no" \
         root@10.0.0.200
     EOT
   }
