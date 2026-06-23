@@ -29,5 +29,22 @@ variable "ssh_private_key_path" {
 variable "lxc_template" {
   description = "Proxmox LXC template (Debian bootstrap target for nixos-anywhere)"
   type        = string
-  default     = "local:vztmpl/debian-13-standard_13-1_amd64.tar.zst"
+  default     = "local:vztmpl/debian-13-standard_13.1-2_amd64.tar.zst"
+}
+
+variable "bastion_host" {
+  description = "SSH jump host (Proxmox node) for reaching LXC containers"
+  type        = string
+}
+
+variable "bastion_port" {
+  description = "SSH port on the jump host"
+  type        = number
+  default     = 2222
+}
+
+variable "bastion_user" {
+  description = "SSH user on the jump host"
+  type        = string
+  default     = "root"
 }

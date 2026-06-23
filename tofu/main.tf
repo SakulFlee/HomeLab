@@ -1,5 +1,5 @@
 resource "proxmox_virtual_environment_container" "caddy" {
-  node_name    = "proxmox"
+  node_name    = "aetherium"
   vm_id        = 200
   description  = "Caddy reverse proxy (NixOS)"
   start_on_boot = true
@@ -58,15 +58,26 @@ resource "null_resource" "nixos_install" {
 
   provisioner "remote-exec" {
     connection {
-      type        = "ssh"
-      user        = "root"
-      host        = "10.0.0.200"
-      private_key = file(var.ssh_private_key_path)
+      type                = "ssh"
+      user                = "root"
+      host                = "10.0.0.200"
+      private_key         = file(var.ssh_private_key_path)
+      bastion_host        = var.bastion_host
+      bastion_port        = var.bastion_port
+      bastion_user        = var.bastion_user
+      bastion_private_key = file(var.ssh_private_key_path)
     }
     inline = ["echo SSH ready"]
   }
 
   provisioner "local-exec" {
-    command = "nix run github:nix-community/nixos-anywhere -- --flake ${path.module}/../nixos#caddy root@10.0.0.200 -s ${var.ssh_private_key_path}"
+    command = <<-EOT
+      nix run github:nix-community/nixos-anywhere -- \
+        --flake ${path.module}/../nixos#caddy \
+        -s ${var.ssh_private_key_path} \
+        -o "ProxyCommand=ssh -p ${var.bastion_port} -i ${var.ssh_private_key_path} \
+            ${var.bastion_user}@${var.bastion_host} -W %h:%p" \
+        root@10.0.0.200
+    EOT
   }
 }
