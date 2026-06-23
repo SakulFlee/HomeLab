@@ -59,6 +59,22 @@ resource "null_resource" "nixos_install" {
 
   provisioner "remote-exec" {
     connection {
+      type        = "ssh"
+      user        = var.bastion_user
+      host        = var.bastion_host
+      port        = var.bastion_port
+      private_key = file(var.ssh_private_key_path)
+    }
+    inline = [
+      "pct exec 200 -- ip link set eth0 up",
+      "pct exec 200 -- ip addr add 10.0.0.200/24 dev eth0",
+      "pct exec 200 -- ip route add default via 10.0.0.1",
+      "pct exec 200 -- systemctl start ssh 2>/dev/null || true",
+    ]
+  }
+
+  provisioner "remote-exec" {
+    connection {
       type                = "ssh"
       user                = "root"
       host                = "10.0.0.200"
