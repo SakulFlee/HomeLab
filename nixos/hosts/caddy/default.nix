@@ -1,6 +1,8 @@
 { config, pkgs, ... }: {
   imports = [ ./caddy.nix ];
 
+  boot.isContainer = true;
+
   networking = {
     hostName = "caddy";
     useDHCP = false;
