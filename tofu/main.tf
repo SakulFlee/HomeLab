@@ -69,6 +69,9 @@ resource "null_resource" "nixos_install" {
       "pct exec 200 -- ip link set eth0 up",
       "pct exec 200 -- ip addr add 10.0.0.200/24 dev eth0",
       "pct exec 200 -- ip route add default via 10.0.0.1",
+      "pct exec 200 -- mkdir -p /root/.ssh",
+      "pct exec 200 -- sh -c 'echo \"${var.ssh_public_key}\" >> /root/.ssh/authorized_keys'",
+      "pct exec 200 -- chmod 600 /root/.ssh/authorized_keys",
       "pct exec 200 -- systemctl start ssh 2>/dev/null || true",
     ]
   }
