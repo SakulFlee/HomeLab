@@ -1,10 +1,12 @@
 resource "proxmox_virtual_environment_container" "caddy" {
-  node_name = "proxmox"
-  vm_id     = 200
-
-  template {
-    file_id = var.lxc_template
-  }
+  node_name    = "proxmox"
+  vm_id        = 200
+  description  = "Caddy reverse proxy (NixOS)"
+  start_on_boot = true
+  started      = true
+  unprivileged  = true
+  template     = false
+  tags         = ["nixos", "caddy"]
 
   initialization {
     hostname = "caddy"
@@ -17,8 +19,7 @@ resource "proxmox_virtual_environment_container" "caddy" {
     }
 
     user_account {
-      username = "root"
-      ssh_keys = [var.ssh_public_key]
+      keys = [var.ssh_public_key]
     }
   }
 
@@ -28,13 +29,17 @@ resource "proxmox_virtual_environment_container" "caddy" {
 
   memory {
     dedicated = 512
+    swap      = 0
   }
 
-  swap = 0
-
   network_interface {
-    name   = "veth"
-    bridge = "vmbr0"
+    name    = "veth"
+    bridge  = "vmbr0"
+    enabled = true
+  }
+
+  operating_system {
+    template_file_id = var.lxc_template
   }
 
   startup {
@@ -43,7 +48,7 @@ resource "proxmox_virtual_environment_container" "caddy" {
 
   lifecycle {
     ignore_changes = [
-      template,
+      operating_system[0].template_file_id,
     ]
   }
 }

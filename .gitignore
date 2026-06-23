@@ -2,7 +2,7 @@
 **/.private_key
 
 # Terraform / OpenTofu
-.terraform*
+.terraform/
 *.tfstate
 *.tfstate.backup
 
