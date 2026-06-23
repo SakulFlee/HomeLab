@@ -1,1 +1,19 @@
-.vault_pass
+**/.vault_pass
+**/.private_key
+
+# Terraform / OpenTofu
+.terraform*
+*.tfstate
+*.tfstate.backup
+
+# direnv
+.direnv/
+
+# Nix builds
+result
+result-*
+
+# IDE
+.idea/
+*.swp
+*.swo
