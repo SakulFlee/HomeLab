@@ -15,10 +15,8 @@ steps:
   tofu-apply:
     image: nixos/nix:latest
     environment:
-      PROXMOX_TOKEN_ID:
-        from_secret: PROXMOX_TOKEN_ID
-      PROXMOX_TOKEN_SECRET:
-        from_secret: PROXMOX_TOKEN_SECRET
+      PROXMOX_PASSWORD:
+        from_secret: PROXMOX_PASSWORD
       SSH_PUBLIC_KEY:
         from_secret: SSH_PUBLIC_KEY
       SSH_PRIVATE_KEY:
@@ -27,8 +25,7 @@ steps:
       - nix profile install nixpkgs#opentofu
       - printf "%s" "$SSH_PRIVATE_KEY" > /tmp/tofu-deploy && chmod 600 /tmp/tofu-deploy
       - cd tofu && tofu init && tofu apply -auto-approve -no-color
-        -var="proxmox_token_id=$PROXMOX_TOKEN_ID"
-        -var="proxmox_token_secret=$PROXMOX_TOKEN_SECRET"
+        -var="proxmox_password=$PROXMOX_PASSWORD"
         -var="ssh_public_key=$SSH_PUBLIC_KEY"
         -var="ssh_private_key_path=/tmp/tofu-deploy"
     when:
