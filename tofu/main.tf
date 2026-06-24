@@ -83,7 +83,16 @@ resource "null_resource" "nixos_infect" {
         cat > /tmp/nixos-bootstrap.nix << 'CONFIGEOF'
         { config, pkgs, ... }: {
           boot.isContainer = true;
-          networking.hostName = "caddy";
+          networking = {
+            hostName = "caddy";
+            useDHCP = false;
+            interfaces.eth0.ipv4.addresses = [{
+              address = "10.0.0.200";
+              prefixLength = 24;
+            }];
+            defaultGateway = "10.0.0.1";
+            nameservers = [ "1.1.1.1" ];
+          };
           system.stateVersion = "26.05";
           services.openssh.enable = true;
           users.users.root.openssh.authorizedKeys.keys = ["__SSHKEY__"];
