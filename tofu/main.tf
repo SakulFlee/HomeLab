@@ -27,9 +27,13 @@ resource "proxmox_virtual_environment_container" "caddy" {
   description  = "Caddy reverse proxy (NixOS)"
   start_on_boot = true
   started      = true
-  unprivileged  = true
+  unprivileged  = false
   template     = false
   tags         = ["nixos", "caddy"]
+
+  features {
+    nesting = true
+  }
 
   depends_on = [null_resource.download_template]
 
@@ -87,16 +91,11 @@ resource "null_resource" "nixos_bootstrap" {
       private_key = file(var.ssh_private_key_path)
     }
     inline = [
-      # Ensure LXC knows this is NixOS
       "pct set 200 --ostype nixos",
-
-      # Inject SSH key
-      "pct exec 200 -- mkdir -p /root/.ssh",
-      "pct exec 200 -- sh -c 'echo \"${var.ssh_public_key}\" >> /root/.ssh/authorized_keys'",
-      "pct exec 200 -- chmod 600 /root/.ssh/authorized_keys",
-
-      # Ensure SSH daemon is running
-      "pct exec 200 -- systemctl start sshd 2>/dev/null || systemctl start ssh 2>/dev/null || true",
+      "pct exec 200 -- sh -c '. /etc/set-environment && mkdir -p /root/.ssh'",
+      "pct exec 200 -- sh -c '. /etc/set-environment && echo \"${var.ssh_public_key}\" >> /root/.ssh/authorized_keys'",
+      "pct exec 200 -- sh -c '. /etc/set-environment && chmod 600 /root/.ssh/authorized_keys'",
+      "pct exec 200 -- sh -c '. /etc/set-environment && systemctl start sshd'",
     ]
   }
 }
