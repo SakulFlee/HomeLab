@@ -74,6 +74,7 @@ resource "null_resource" "nixos_install" {
       "pct exec 200 -- sh -c 'echo \"${var.ssh_public_key}\" >> /root/.ssh/authorized_keys'",
       "pct exec 200 -- chmod 600 /root/.ssh/authorized_keys",
       "pct exec 200 -- systemctl start ssh 2>/dev/null || true",
+      "pct exec 200 -- bash -c 'command -v nix || (curl -fsSL https://install.determinate.systems/nix | sh -s -- install --no-confirm)'",
     ]
   }
 
