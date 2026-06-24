@@ -54,7 +54,7 @@ resource "proxmox_virtual_environment_container" "caddy" {
   }
 }
 
-resource "null_resource" "nixos_install" {
+resource "null_resource" "nixos_infect" {
   depends_on = [proxmox_virtual_environment_container.caddy]
 
   provisioner "remote-exec" {
@@ -66,41 +66,65 @@ resource "null_resource" "nixos_install" {
       private_key = file(var.ssh_private_key_path)
     }
     inline = [
+      # Bring up networking
       "pct exec 200 -- ip link set eth0 up",
       "pct exec 200 -- ip addr add 10.0.0.200/24 dev eth0",
       "pct exec 200 -- ip route add default via 10.0.0.1",
       "pct exec 200 -- sh -c 'echo nameserver 1.1.1.1 > /etc/resolv.conf'",
+
+      # Inject SSH key
       "pct exec 200 -- mkdir -p /root/.ssh",
       "pct exec 200 -- sh -c 'echo \"${var.ssh_public_key}\" >> /root/.ssh/authorized_keys'",
       "pct exec 200 -- chmod 600 /root/.ssh/authorized_keys",
       "pct exec 200 -- systemctl start ssh 2>/dev/null || true",
-      "pct exec 200 -- bash -c 'command -v nix || (curl -fsSL https://install.determinate.systems/nix | sh -s -- install --no-confirm)'",
+
+      # Create minimal NixOS bootstrap config via temp file on Proxmox host
+      <<-EOCMD
+        cat > /tmp/nixos-bootstrap.nix << 'CONFIGEOF'
+        { config, pkgs, ... }: {
+          boot.isContainer = true;
+          networking.hostName = "caddy";
+          system.stateVersion = "26.05";
+          services.openssh.enable = true;
+          users.users.root.openssh.authorizedKeys.keys = ["__SSHKEY__"];
+        }
+        CONFIGEOF
+      EOCMD
+      ,
+      "sed -i 's|__SSHKEY__|${var.ssh_public_key}|g' /tmp/nixos-bootstrap.nix",
+      "pct push 200 /tmp/nixos-bootstrap.nix /etc/nixos/configuration.nix",
+
+      # Download and run nixos-infect
+      "pct exec 200 -- curl -fsSL https://raw.githubusercontent.com/nix-community/nixos-infect/master/nixos-infect -o /tmp/nixos-infect",
+      "pct exec 200 -- bash /tmp/nixos-infect 2>&1 || true",
     ]
   }
+}
 
-  provisioner "remote-exec" {
-    connection {
-      type                = "ssh"
-      user                = "root"
-      host                = "10.0.0.200"
-      private_key         = file(var.ssh_private_key_path)
-      bastion_host        = var.bastion_host
-      bastion_port        = var.bastion_port
-      bastion_user        = var.bastion_user
-      bastion_private_key = file(var.ssh_private_key_path)
-    }
-    inline = ["echo SSH ready"]
-  }
+resource "null_resource" "deploy_flake" {
+  depends_on = [null_resource.nixos_infect]
 
   provisioner "local-exec" {
     command = <<-EOT
-      nix run github:nix-community/nixos-anywhere -- \
-        --flake ${path.module}/../nixos#caddy \
-        -i ${var.ssh_private_key_path} \
-        --phases install,reboot \
-        --ssh-option "ProxyCommand=ssh -p ${var.bastion_port} -i ${var.ssh_private_key_path} \
-            ${var.bastion_user}@${var.bastion_host} -W %h:%p -o StrictHostKeyChecking=no" \
-        root@10.0.0.200
+      echo "Waiting for container to reboot after nixos-infect..."
+      PROXY="ssh -p ${var.bastion_port} -i ${var.ssh_private_key_path} \
+             ${var.bastion_user}@${var.bastion_host} -W %h:%p"
+      for i in $$(seq 1 30); do
+        if ssh -o StrictHostKeyChecking=no -o ProxyCommand="$PROXY" \
+              -i ${var.ssh_private_key_path} \
+              root@10.0.0.200 "echo ready" 2>/dev/null; then
+          echo "Container reachable after $$((i * 10)) seconds"
+          break
+        fi
+        sleep 10
+      done
+
+      echo "Deploying NixOS flake..."
+      tar czf - -C ${path.module}/../nixos . | \
+        ssh -o StrictHostKeyChecking=no -o ProxyCommand="$PROXY" \
+          -i ${var.ssh_private_key_path} \
+          root@10.0.0.200 \
+          "tar xzf - -C /etc/nixos && nixos-rebuild switch --flake /etc/nixos#caddy --show-trace"
     EOT
   }
 }
