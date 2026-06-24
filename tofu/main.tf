@@ -78,6 +78,9 @@ resource "null_resource" "nixos_infect" {
       "pct exec 200 -- chmod 600 /root/.ssh/authorized_keys",
       "pct exec 200 -- systemctl start ssh 2>/dev/null || true",
 
+      # Ensure curl is available for nixos-infect download
+      "pct exec 200 -- apt-get update -qq && apt-get install -y -qq curl",
+
       # Create minimal NixOS bootstrap config via temp file on Proxmox host
       <<-EOCMD
         cat > /tmp/nixos-bootstrap.nix << 'CONFIGEOF'
@@ -101,11 +104,12 @@ resource "null_resource" "nixos_infect" {
       EOCMD
       ,
       "sed -i 's|__SSHKEY__|${var.ssh_public_key}|g' /tmp/nixos-bootstrap.nix",
+      "pct exec 200 -- mkdir -p /etc/nixos",
       "pct push 200 /tmp/nixos-bootstrap.nix /etc/nixos/configuration.nix",
 
       # Download and run nixos-infect
       "pct exec 200 -- curl -fsSL https://raw.githubusercontent.com/nix-community/nixos-infect/master/nixos-infect -o /tmp/nixos-infect",
-      "pct exec 200 -- bash /tmp/nixos-infect 2>&1 || true",
+      "pct exec 200 -- bash /tmp/nixos-infect 2>&1",
     ]
   }
 }
@@ -135,7 +139,7 @@ resource "null_resource" "deploy_flake" {
         ssh -o StrictHostKeyChecking=no -o ProxyCommand="$PROXY" \
           -i ${var.ssh_private_key_path} \
           root@10.0.0.200 \
-          "tar xzf - -C /etc/nixos && nixos-rebuild switch --flake /etc/nixos#caddy --show-trace"
+          "mkdir -p /etc/nixos && tar xzf - -C /etc/nixos && nixos-rebuild switch --flake /etc/nixos#caddy --show-trace"
     EOT
   }
 }
