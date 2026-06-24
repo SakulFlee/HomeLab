@@ -118,11 +118,13 @@ resource "null_resource" "deploy_flake" {
       echo "Waiting for container to reboot after nixos-infect..."
       PROXY="ssh -p ${var.bastion_port} -i ${var.ssh_private_key_path} \
              ${var.bastion_user}@${var.bastion_host} -W %h:%p"
-      for i in $$(seq 1 30); do
+      i=0
+      while [ $i -lt 30 ]; do
+        i=$((i + 1))
         if ssh -o StrictHostKeyChecking=no -o ProxyCommand="$PROXY" \
               -i ${var.ssh_private_key_path} \
               root@10.0.0.200 "echo ready" 2>/dev/null; then
-          echo "Container reachable after $$((i * 10)) seconds"
+          echo "Container reachable after $((i * 10)) seconds"
           break
         fi
         sleep 10
