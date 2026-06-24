@@ -27,13 +27,9 @@ resource "proxmox_virtual_environment_container" "caddy" {
   description  = "Caddy reverse proxy (NixOS)"
   start_on_boot = true
   started      = true
-  unprivileged  = false
+  unprivileged  = true
   template     = false
   tags         = ["nixos", "caddy"]
-
-  features {
-    nesting = true
-  }
 
   depends_on = [null_resource.download_template]
 
