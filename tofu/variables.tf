@@ -4,8 +4,14 @@ variable "proxmox_endpoint" {
   default     = "https://192.168.178.200:8006/api2/json"
 }
 
-variable "proxmox_password" {
-  description = "Proxmox root password (API auth; 2FA not enforced on API)"
+variable "proxmox_token_id" {
+  description = "Proxmox API token ID (e.g. root@pam!tofu)"
+  type        = string
+  sensitive   = true
+}
+
+variable "proxmox_token_secret" {
+  description = "Proxmox API token secret"
   type        = string
   sensitive   = true
 }

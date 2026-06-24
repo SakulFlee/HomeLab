@@ -27,13 +27,9 @@ resource "proxmox_virtual_environment_container" "caddy" {
   description  = "Caddy reverse proxy (NixOS)"
   start_on_boot = true
   started      = true
-  unprivileged  = false
+  unprivileged  = true
   template     = false
   tags         = ["nixos", "caddy"]
-
-  features {
-    nesting = true
-  }
 
   depends_on = [null_resource.download_template]
 
@@ -75,6 +71,7 @@ resource "proxmox_virtual_environment_container" "caddy" {
   lifecycle {
     ignore_changes = [
       operating_system[0].template_file_id,
+      unprivileged,
     ]
   }
 }
@@ -91,7 +88,14 @@ resource "null_resource" "nixos_bootstrap" {
       private_key = file(var.ssh_private_key_path)
     }
     inline = [
+      # Convert to privileged (requires restart to take effect)
       "pct set 200 --ostype nixos",
+      "pct set 200 --unprivileged 0",
+      "pct stop 200 --skiplock",
+      "pct start 200",
+      "sleep 15",
+
+      # Inject SSH key
       "pct exec 200 -- sh -c '. /etc/set-environment && mkdir -p /root/.ssh'",
       "pct exec 200 -- sh -c '. /etc/set-environment && echo \"${var.ssh_public_key}\" >> /root/.ssh/authorized_keys'",
       "pct exec 200 -- sh -c '. /etc/set-environment && chmod 600 /root/.ssh/authorized_keys'",

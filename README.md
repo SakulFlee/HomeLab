@@ -109,13 +109,15 @@ cd tofu && tofu init
 
 # Review what will be created
 tofu plan \
-  -var="proxmox_password=<root-password>" \
+  -var="proxmox_token_id=root@pam!tofu" \
+  -var="proxmox_token_secret=<your-secret>" \
   -var="ssh_public_key=$(cat ~/.ssh/tofu-deploy.pub)" \
   -var="ssh_private_key_path=~/.ssh/tofu-deploy"
 
 # Apply — creates CT 200, installs NixOS + Caddy
 tofu apply \
-  -var="proxmox_password=<root-password>" \
+  -var="proxmox_token_id=root@pam!tofu" \
+  -var="proxmox_token_secret=<your-secret>" \
   -var="ssh_public_key=$(cat ~/.ssh/tofu-deploy.pub)" \
   -var="ssh_private_key_path=~/.ssh/tofu-deploy"
 
