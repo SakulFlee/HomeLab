@@ -22,14 +22,14 @@ variable "ssh_public_key" {
 }
 
 variable "ssh_private_key_path" {
-  description = "Path to SSH private key for nixos-anywhere to connect"
+  description = "Path to SSH private key for bastion host and container access"
   type        = string
 }
 
 variable "lxc_template" {
-  description = "Proxmox LXC template (Debian bootstrap target for nixos-anywhere)"
+  description = "Proxmox LXC template"
   type        = string
-  default     = "local:vztmpl/debian-13-standard_13.1-2_amd64.tar.zst"
+  default     = "local:vztmpl/nixos-image-lxc-proxmox-26.05pre-git-x86_64-linux.tar.xz"
 }
 
 variable "bastion_host" {

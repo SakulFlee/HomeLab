@@ -1,12 +1,41 @@
+resource "null_resource" "download_template" {
+  provisioner "remote-exec" {
+    connection {
+      type        = "ssh"
+      user        = var.bastion_user
+      host        = var.bastion_host
+      port        = var.bastion_port
+      private_key = file(var.ssh_private_key_path)
+    }
+    inline = [
+      <<-EOCMD
+        FILE="/var/lib/vz/template/cache/nixos-image-lxc-proxmox-26.05pre-git-x86_64-linux.tar.xz"
+        if [ ! -f "$FILE" ]; then
+          echo "Downloading NixOS LXC template..."
+          curl -fsSL 'https://hydra.nixos.org/build/332076931/download/1/nixos-image-lxc-proxmox-26.05pre-git-x86_64-linux.tar.xz' -o "$FILE"
+        else
+          echo "Template already exists, skipping download"
+        fi
+      EOCMD
+    ]
+  }
+}
+
 resource "proxmox_virtual_environment_container" "caddy" {
   node_name    = "aetherium"
   vm_id        = 200
   description  = "Caddy reverse proxy (NixOS)"
   start_on_boot = true
   started      = true
-  unprivileged  = true
+  unprivileged  = false
   template     = false
   tags         = ["nixos", "caddy"]
+
+  features {
+    nesting = true
+  }
+
+  depends_on = [null_resource.download_template]
 
   initialization {
     hostname = "caddy"
@@ -16,10 +45,6 @@ resource "proxmox_virtual_environment_container" "caddy" {
         address = "10.0.0.200/24"
         gateway = "10.0.0.1"
       }
-    }
-
-    user_account {
-      keys = [var.ssh_public_key]
     }
   }
 
@@ -54,7 +79,7 @@ resource "proxmox_virtual_environment_container" "caddy" {
   }
 }
 
-resource "null_resource" "nixos_infect" {
+resource "null_resource" "nixos_bootstrap" {
   depends_on = [proxmox_virtual_environment_container.caddy]
 
   provisioner "remote-exec" {
@@ -66,61 +91,26 @@ resource "null_resource" "nixos_infect" {
       private_key = file(var.ssh_private_key_path)
     }
     inline = [
-      # Bring up networking
-      "pct exec 200 -- ip link set eth0 up",
-      "pct exec 200 -- ip addr add 10.0.0.200/24 dev eth0",
-      "pct exec 200 -- ip route add default via 10.0.0.1",
-      "pct exec 200 -- sh -c 'echo nameserver 1.1.1.1 > /etc/resolv.conf'",
+      # Ensure LXC knows this is NixOS
+      "pct set 200 --ostype nixos",
 
       # Inject SSH key
       "pct exec 200 -- mkdir -p /root/.ssh",
       "pct exec 200 -- sh -c 'echo \"${var.ssh_public_key}\" >> /root/.ssh/authorized_keys'",
       "pct exec 200 -- chmod 600 /root/.ssh/authorized_keys",
-      "pct exec 200 -- systemctl start ssh 2>/dev/null || true",
 
-      # Verify container networking
-      "pct exec 200 -- ping -c 1 -W 3 1.1.1.1",
-
-      # Create minimal NixOS bootstrap config via temp file on Proxmox host
-      <<-EOCMD
-        cat > /tmp/nixos-bootstrap.nix << 'CONFIGEOF'
-        { config, pkgs, ... }: {
-          boot.isContainer = true;
-          networking = {
-            hostName = "caddy";
-            useDHCP = false;
-            interfaces.eth0.ipv4.addresses = [{
-              address = "10.0.0.200";
-              prefixLength = 24;
-            }];
-            defaultGateway = "10.0.0.1";
-            nameservers = [ "1.1.1.1" ];
-          };
-          system.stateVersion = "26.05";
-          services.openssh.enable = true;
-          users.users.root.openssh.authorizedKeys.keys = ["__SSHKEY__"];
-        }
-        CONFIGEOF
-      EOCMD
-      ,
-      "sed -i 's|__SSHKEY__|${var.ssh_public_key}|g' /tmp/nixos-bootstrap.nix",
-      "pct exec 200 -- mkdir -p /etc/nixos",
-      "pct push 200 /tmp/nixos-bootstrap.nix /etc/nixos/configuration.nix",
-
-      # Download nixos-infect on Proxmox host and push into container
-      "curl -fsSL https://raw.githubusercontent.com/nix-community/nixos-infect/master/nixos-infect -o /tmp/nixos-infect",
-      "pct push 200 /tmp/nixos-infect /tmp/nixos-infect",
-      "pct exec 200 -- bash /tmp/nixos-infect 2>&1",
+      # Ensure SSH daemon is running
+      "pct exec 200 -- systemctl start sshd 2>/dev/null || systemctl start ssh 2>/dev/null || true",
     ]
   }
 }
 
 resource "null_resource" "deploy_flake" {
-  depends_on = [null_resource.nixos_infect]
+  depends_on = [null_resource.nixos_bootstrap]
 
   provisioner "local-exec" {
     command = <<-EOT
-      echo "Waiting for container to reboot after nixos-infect..."
+      echo "Waiting for container to become reachable via SSH..."
       PROXY="ssh -p ${var.bastion_port} -i ${var.ssh_private_key_path} \
              ${var.bastion_user}@${var.bastion_host} -W %h:%p"
       i=0
@@ -140,7 +130,7 @@ resource "null_resource" "deploy_flake" {
         ssh -o StrictHostKeyChecking=no -o ProxyCommand="$PROXY" \
           -i ${var.ssh_private_key_path} \
           root@10.0.0.200 \
-          "mkdir -p /etc/nixos && tar xzf - -C /etc/nixos && nixos-rebuild switch --flake /etc/nixos#caddy --show-trace"
+          "tar xzf - -C /etc/nixos && nixos-rebuild switch --flake /etc/nixos#caddy --show-trace"
     EOT
   }
 }

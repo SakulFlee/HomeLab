@@ -1,18 +1,17 @@
-{ config, pkgs, ... }: {
-  imports = [ ./caddy.nix ];
+{ config, modulesPath, pkgs, ... }: {
+  imports = [
+    ./caddy.nix
+    (modulesPath + "/virtualisation/proxmox-lxc.nix")
+  ];
 
-  boot.isContainer = true;
+  nix.settings.sandbox = false;
 
-  networking = {
-    hostName = "caddy";
-    useDHCP = false;
-    interfaces.eth0.ipv4.addresses = [{
-      address = "10.0.0.200";
-      prefixLength = 24;
-    }];
-    defaultGateway = "10.0.0.1";
-    nameservers = [ "1.1.1.1" "8.8.8.8" ];
+  proxmoxLXC = {
+    manageNetwork = false;
+    privileged = true;
   };
+
+  networking.hostName = "caddy";
 
   systemd.services.nixos-auto-update = {
     description = "Auto-update NixOS configuration from Git";
