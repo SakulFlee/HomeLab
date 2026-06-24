@@ -78,8 +78,8 @@ resource "null_resource" "nixos_infect" {
       "pct exec 200 -- chmod 600 /root/.ssh/authorized_keys",
       "pct exec 200 -- systemctl start ssh 2>/dev/null || true",
 
-      # Ensure curl is available for nixos-infect download
-      "pct exec 200 -- apt-get update -qq && apt-get install -y -qq curl",
+      # Verify container networking
+      "pct exec 200 -- ping -c 1 -W 3 1.1.1.1",
 
       # Create minimal NixOS bootstrap config via temp file on Proxmox host
       <<-EOCMD
@@ -107,8 +107,9 @@ resource "null_resource" "nixos_infect" {
       "pct exec 200 -- mkdir -p /etc/nixos",
       "pct push 200 /tmp/nixos-bootstrap.nix /etc/nixos/configuration.nix",
 
-      # Download and run nixos-infect
-      "pct exec 200 -- curl -fsSL https://raw.githubusercontent.com/nix-community/nixos-infect/master/nixos-infect -o /tmp/nixos-infect",
+      # Download nixos-infect on Proxmox host and push into container
+      "curl -fsSL https://raw.githubusercontent.com/nix-community/nixos-infect/master/nixos-infect -o /tmp/nixos-infect",
+      "pct push 200 /tmp/nixos-infect /tmp/nixos-infect",
       "pct exec 200 -- bash /tmp/nixos-infect 2>&1",
     ]
   }
