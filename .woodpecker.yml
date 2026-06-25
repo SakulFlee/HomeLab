@@ -27,13 +27,13 @@ steps:
         from_secret: PROXMOX_TOKEN_ID
       PROXMOX_TOKEN_SECRET:
         from_secret: PROXMOX_TOKEN_SECRET
-      SSH_PRIVATE_KEY:
-        from_secret: SSH_PRIVATE_KEY
+      SSH_KEY:
+        from_secret: SSH_KEY
       FORGEJO_TOKEN:
         from_secret: FORGEJO_TOKEN
     commands:
       - nix profile install nixpkgs#opentofu
-      - printf "%s" "$SSH_PRIVATE_KEY" > /tmp/tofu-deploy && chmod 600 /tmp/tofu-deploy
+      - printf "%s" "$SSH_KEY" > /tmp/tofu-deploy && chmod 600 /tmp/tofu-deploy
       - cd tofu && tofu init && tofu apply -auto-approve -no-color
         -var="proxmox_token_id=$PROXMOX_TOKEN_ID"
         -var="proxmox_token_secret=$PROXMOX_TOKEN_SECRET"
@@ -51,15 +51,15 @@ steps:
   ansible-deploy:
     image: alpine/ansible
     environment:
-      SSH_PRIVATE_KEY:
-        from_secret: SSH_PRIVATE_KEY
+      SSH_KEY:
+        from_secret: SSH_KEY
       ANSIBLE_VAULT_PASSWORD:
         from_secret: ANSIBLE_VAULT_PASSWORD
     commands:
       - apk add openssh-client
       - ansible-galaxy role install geerlingguy.postgresql
       - printf "%s" "$ANSIBLE_VAULT_PASSWORD" > ansible/.vault_pass
-      - printf "%s" "$SSH_PRIVATE_KEY" > ansible/.private_key
+      - printf "%s" "$SSH_KEY" > ansible/.private_key
       - chmod 600 ansible/.vault_pass ansible/.private_key
       - cd ansible && ansible-playbook -i inventory.ini playbook.yml --vault-password-file .vault_pass
     when:
