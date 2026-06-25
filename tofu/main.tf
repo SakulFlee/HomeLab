@@ -85,7 +85,7 @@ resource "null_resource" "deploy_flake" {
         ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ProxyCommand="$PROXY" \
           -i ${var.ssh_private_key_path} \
           root@10.0.0.200 \
-          "tar xzf - -C /etc/nixos && chown -R 0:0 /etc/nixos && cd /etc/nixos && git add -A . && nixos-rebuild switch --flake /etc/nixos#caddy --show-trace"
+          "tar xzf - -C /etc/nixos && chown -R 0:0 /etc/nixos && cd /etc/nixos && nix-shell -p git --run 'git init && git add -A .' && nixos-rebuild switch --flake /etc/nixos#caddy --show-trace"
     EOT
   }
 }
