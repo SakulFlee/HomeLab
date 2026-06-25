@@ -13,7 +13,7 @@
 
   networking.hostName = "caddy";
 
-  services.getty.extraArgs = [ "--term" "linux" ];
+  systemd.services."serial-getty@".environment.TERM = "linux";
 
   systemd.services.nixos-auto-update = {
     description = "Auto-update NixOS configuration from Git";
