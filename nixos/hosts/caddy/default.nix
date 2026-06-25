@@ -13,6 +13,8 @@
 
   networking.hostName = "caddy";
 
+  services.getty.extraArgs = [ "--term" "linux" ];
+
   systemd.services.nixos-auto-update = {
     description = "Auto-update NixOS configuration from Git";
     after = [ "network-online.target" ];

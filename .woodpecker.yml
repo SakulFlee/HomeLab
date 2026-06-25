@@ -28,9 +28,17 @@ steps:
         -var="proxmox_token_id=$PROXMOX_TOKEN_ID"
         -var="proxmox_token_secret=$PROXMOX_TOKEN_SECRET"
         -var="ssh_private_key_path=/tmp/tofu-deploy"
+      - eval $(ssh-agent -s) && ssh-add /tmp/tofu-deploy
+      - mkdir -p ~/.ssh && ssh-keyscan forgejo.sakul-flee.de >> ~/.ssh/known_hosts 2>/dev/null
+      - git config user.name "woodpecker"
+      - git config user.email "ci@homelab"
+      - git add tofu/terraform.tfstate
+      - git diff --staged --quiet || git commit -m "tofu: update state [skip ci]"
+      - git push origin HEAD:$CI_COMMIT_BRANCH
     when:
       - event: push
         branch: main
+        paths: [ "tofu/*.tf", "nixos/**" ]
 
   ansible-deploy:
     image: alpine/ansible

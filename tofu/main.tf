@@ -22,6 +22,13 @@ resource "proxmox_virtual_environment_container" "caddy" {
         gateway = "10.0.0.1"
       }
     }
+
+    ip_config {
+      ipv6 {
+        address = "fdbe::200/64"
+        gateway = "fdbe::1"
+      }
+    }
   }
 
   cpu {
@@ -45,6 +52,7 @@ resource "proxmox_virtual_environment_container" "caddy" {
   }
 
   lifecycle {
+    prevent_destroy = true
     ignore_changes = [
       clone,
       unprivileged,

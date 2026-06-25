@@ -3,8 +3,6 @@
 
 # Terraform / OpenTofu
 .terraform/
-*.tfstate
-*.tfstate.backup
 tofu/terraform.tfvars
 
 # direnv
