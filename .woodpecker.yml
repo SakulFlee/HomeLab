@@ -44,7 +44,7 @@ steps:
       - git config user.email "ci@homelab"
       - git remote set-url origin https://sakulflee:$FORGEJO_TOKEN@forgejo.sakul-flee.de/sakulflee/HomeLab.git
       - git add tofu/terraform.tfstate
-      - git diff --staged --quiet || git commit -m "tofu: update state [skip ci]"
+      - 'git diff --staged --quiet || git commit -m "tofu: update state [skip ci]"'
       - git push origin HEAD:$CI_COMMIT_BRANCH
     when:
       - event: push
