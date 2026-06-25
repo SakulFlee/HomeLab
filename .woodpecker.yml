@@ -5,6 +5,7 @@ steps:
   tofu-plan:
     image: nixos/nix:latest
     environment:
+      NIX_CONFIG: extra-experimental-features = nix-command
       PROXMOX_TOKEN_ID:
         from_secret: PROXMOX_TOKEN_ID
       PROXMOX_TOKEN_SECRET:
@@ -23,6 +24,7 @@ steps:
   tofu-apply:
     image: nixos/nix:latest
     environment:
+      NIX_CONFIG: extra-experimental-features = nix-command
       PROXMOX_TOKEN_ID:
         from_secret: PROXMOX_TOKEN_ID
       PROXMOX_TOKEN_SECRET:
