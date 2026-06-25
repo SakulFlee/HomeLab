@@ -5,13 +5,12 @@ steps:
   tofu-plan:
     image: nixos/nix:latest
     environment:
-      NIX_CONFIG: extra-experimental-features = nix-command flakes
       PROXMOX_TOKEN_ID:
         from_secret: PROXMOX_TOKEN_ID
       PROXMOX_TOKEN_SECRET:
         from_secret: PROXMOX_TOKEN_SECRET
     commands:
-      - nix profile install nixpkgs#opentofu
+      - nix --extra-experimental-features 'nix-command flakes' profile install nixpkgs#opentofu
       - cd tofu && tofu init && tofu plan -no-color
         -var="proxmox_token_id=$PROXMOX_TOKEN_ID"
         -var="proxmox_token_secret=$PROXMOX_TOKEN_SECRET"
@@ -25,7 +24,6 @@ steps:
   tofu-apply:
     image: nixos/nix:latest
     environment:
-      NIX_CONFIG: extra-experimental-features = nix-command flakes
       PROXMOX_TOKEN_ID:
         from_secret: PROXMOX_TOKEN_ID
       PROXMOX_TOKEN_SECRET:
@@ -35,7 +33,7 @@ steps:
       FORGEJO_TOKEN:
         from_secret: FORGEJO_TOKEN
     commands:
-      - nix profile install nixpkgs#opentofu
+      - nix --extra-experimental-features 'nix-command flakes' profile install nixpkgs#opentofu
       - printf "%s" "$SSH_KEY" > /tmp/tofu-deploy && chmod 600 /tmp/tofu-deploy
       - cd tofu && tofu init && tofu apply -auto-approve -no-color
         -var="proxmox_token_id=$PROXMOX_TOKEN_ID"
