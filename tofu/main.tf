@@ -71,7 +71,7 @@ resource "null_resource" "deploy_flake" {
       i=0
       while [ $i -lt 30 ]; do
         i=$((i + 1))
-        if ssh -o StrictHostKeyChecking=no -o ProxyCommand="$PROXY" \
+        if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ProxyCommand="$PROXY" \
               -i ${var.ssh_private_key_path} \
               root@10.0.0.200 "echo ready" 2>/dev/null; then
           echo "Container reachable after $((i * 10)) seconds"
@@ -82,10 +82,10 @@ resource "null_resource" "deploy_flake" {
 
       echo "Deploying NixOS flake..."
       tar czf - -C ${path.module}/../nixos . | \
-        ssh -o StrictHostKeyChecking=no -o ProxyCommand="$PROXY" \
+        ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ProxyCommand="$PROXY" \
           -i ${var.ssh_private_key_path} \
           root@10.0.0.200 \
-          "tar xzf - -C /etc/nixos && nixos-rebuild switch --flake /etc/nixos#caddy --show-trace"
+          "tar xzf - --no-same-owner -C /etc/nixos && nixos-rebuild switch --flake /etc/nixos#caddy --show-trace"
     EOT
   }
 }
