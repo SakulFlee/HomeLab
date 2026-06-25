@@ -4,13 +4,23 @@ when:
 steps:
   tofu-plan:
     image: nixos/nix:latest
+    environment:
+      PROXMOX_TOKEN_ID:
+        from_secret: PROXMOX_TOKEN_ID
+      PROXMOX_TOKEN_SECRET:
+        from_secret: PROXMOX_TOKEN_SECRET
     commands:
       - nix profile install nixpkgs#opentofu
       - cd tofu && tofu init && tofu plan -no-color
+        -var="proxmox_token_id=$PROXMOX_TOKEN_ID"
+        -var="proxmox_token_secret=$PROXMOX_TOKEN_SECRET"
+        -var="ssh_private_key_path=/dev/null"
     when:
       - event: pull_request
+        paths: [ "tofu/*.tf", "nixos/**" ]
       - event: push
         branch: main
+        paths: [ "tofu/*.tf", "nixos/**" ]
 
   tofu-apply:
     image: nixos/nix:latest
@@ -21,6 +31,8 @@ steps:
         from_secret: PROXMOX_TOKEN_SECRET
       SSH_PRIVATE_KEY:
         from_secret: SSH_PRIVATE_KEY
+      FORGEJO_TOKEN:
+        from_secret: FORGEJO_TOKEN
     commands:
       - nix profile install nixpkgs#opentofu
       - printf "%s" "$SSH_PRIVATE_KEY" > /tmp/tofu-deploy && chmod 600 /tmp/tofu-deploy
@@ -28,10 +40,9 @@ steps:
         -var="proxmox_token_id=$PROXMOX_TOKEN_ID"
         -var="proxmox_token_secret=$PROXMOX_TOKEN_SECRET"
         -var="ssh_private_key_path=/tmp/tofu-deploy"
-      - eval $(ssh-agent -s) && ssh-add /tmp/tofu-deploy
-      - mkdir -p ~/.ssh && ssh-keyscan forgejo.sakul-flee.de >> ~/.ssh/known_hosts 2>/dev/null
       - git config user.name "woodpecker"
       - git config user.email "ci@homelab"
+      - git remote set-url origin https://sakulflee:$FORGEJO_TOKEN@forgejo.sakul-flee.de/sakulflee/HomeLab.git
       - git add tofu/terraform.tfstate
       - git diff --staged --quiet || git commit -m "tofu: update state [skip ci]"
       - git push origin HEAD:$CI_COMMIT_BRANCH
