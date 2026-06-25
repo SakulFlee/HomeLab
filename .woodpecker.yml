@@ -54,15 +54,15 @@ steps:
   ansible-deploy:
     image: alpine/ansible
     environment:
-      SSH_KEY:
-        from_secret: SSH_KEY
+      SSH_PRIVATE_KEY:
+        from_secret: SSH_PRIVATE_KEY
       ANSIBLE_VAULT_PASSWORD:
         from_secret: ANSIBLE_VAULT_PASSWORD
     commands:
       - apk add openssh-client
       - ansible-galaxy role install geerlingguy.postgresql
       - printf "%s" "$ANSIBLE_VAULT_PASSWORD" > ansible/.vault_pass
-      - printf "%s" "$SSH_KEY" > ansible/.private_key
+      - printf "%s" "$SSH_PRIVATE_KEY" > ansible/.private_key
       - chmod 600 ansible/.vault_pass ansible/.private_key
       - cd ansible && ansible-playbook -i inventory.ini playbook.yml --vault-password-file .vault_pass
     when:
