@@ -17,10 +17,8 @@ steps:
         -var="ssh_private_key_path=/dev/null"
     when:
       - event: pull_request
-        paths: [ "tofu/*.tf", "nixos/**" ]
       - event: push
         branch: main
-        paths: [ "tofu/*.tf", "nixos/**" ]
 
   tofu-apply:
     image: nixos/nix:latest
@@ -49,7 +47,6 @@ steps:
     when:
       - event: push
         branch: main
-        paths: [ "tofu/*.tf", "nixos/**" ]
 
   ansible-deploy:
     image: alpine/ansible
