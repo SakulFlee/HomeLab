@@ -30,7 +30,7 @@ resource "proxmox_virtual_environment_container" "caddy" {
 
   memory {
     dedicated = 512
-    swap      = 0
+    swap      = 512
   }
 
   network_interface {
