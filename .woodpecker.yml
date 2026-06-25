@@ -15,6 +15,7 @@ steps:
       - cd tofu && tofu init && tofu plan -no-color
         -var="proxmox_token_id=$PROXMOX_TOKEN_ID"
         -var="proxmox_token_secret=$PROXMOX_TOKEN_SECRET"
+        -var="bastion_host=192.168.178.200"
         -var="ssh_private_key_path=/dev/null"
     when:
       - event: pull_request
@@ -39,6 +40,7 @@ steps:
       - cd tofu && tofu init && tofu apply -auto-approve -no-color
         -var="proxmox_token_id=$PROXMOX_TOKEN_ID"
         -var="proxmox_token_secret=$PROXMOX_TOKEN_SECRET"
+        -var="bastion_host=192.168.178.200"
         -var="ssh_private_key_path=/tmp/tofu-deploy"
       - git config user.name "woodpecker"
       - git config user.email "ci@homelab"
