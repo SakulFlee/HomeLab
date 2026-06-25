@@ -16,20 +16,15 @@ variable "proxmox_token_secret" {
   sensitive   = true
 }
 
-variable "ssh_public_key" {
-  description = "SSH public key to inject into the LXC container"
-  type        = string
-}
-
 variable "ssh_private_key_path" {
   description = "Path to SSH private key for bastion host and container access"
   type        = string
 }
 
-variable "lxc_template" {
-  description = "Proxmox LXC template"
-  type        = string
-  default     = "local:vztmpl/nixos-image-lxc-proxmox-26.05pre-git-x86_64-linux.tar.xz"
+variable "template_ct_id" {
+  description = "Proxmox template CT ID to clone from (pre-configured NixOS base)"
+  type        = number
+  default     = 9999
 }
 
 variable "bastion_host" {

@@ -8,7 +8,7 @@
 
   proxmoxLXC = {
     manageNetwork = false;
-    privileged = true;
+    privileged = false;
   };
 
   networking.hostName = "caddy";

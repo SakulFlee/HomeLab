@@ -19,8 +19,6 @@ steps:
         from_secret: PROXMOX_TOKEN_ID
       PROXMOX_TOKEN_SECRET:
         from_secret: PROXMOX_TOKEN_SECRET
-      SSH_PUBLIC_KEY:
-        from_secret: SSH_PUBLIC_KEY
       SSH_PRIVATE_KEY:
         from_secret: SSH_PRIVATE_KEY
     commands:
@@ -29,7 +27,6 @@ steps:
       - cd tofu && tofu init && tofu apply -auto-approve -no-color
         -var="proxmox_token_id=$PROXMOX_TOKEN_ID"
         -var="proxmox_token_secret=$PROXMOX_TOKEN_SECRET"
-        -var="ssh_public_key=$SSH_PUBLIC_KEY"
         -var="ssh_private_key_path=/tmp/tofu-deploy"
     when:
       - event: push

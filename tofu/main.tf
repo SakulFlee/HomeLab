@@ -1,26 +1,3 @@
-resource "null_resource" "download_template" {
-  provisioner "remote-exec" {
-    connection {
-      type        = "ssh"
-      user        = var.bastion_user
-      host        = var.bastion_host
-      port        = var.bastion_port
-      private_key = file(var.ssh_private_key_path)
-    }
-    inline = [
-      <<-EOCMD
-        FILE="/var/lib/vz/template/cache/nixos-image-lxc-proxmox-26.05pre-git-x86_64-linux.tar.xz"
-        if [ ! -f "$FILE" ]; then
-          echo "Downloading NixOS LXC template..."
-          curl -fsSL 'https://hydra.nixos.org/build/332076931/download/1/nixos-image-lxc-proxmox-26.05pre-git-x86_64-linux.tar.xz' -o "$FILE"
-        else
-          echo "Template already exists, skipping download"
-        fi
-      EOCMD
-    ]
-  }
-}
-
 resource "proxmox_virtual_environment_container" "caddy" {
   node_name    = "aetherium"
   vm_id        = 200
@@ -31,7 +8,10 @@ resource "proxmox_virtual_environment_container" "caddy" {
   template     = false
   tags         = ["nixos", "caddy"]
 
-  depends_on = [null_resource.download_template]
+  clone {
+    vm_id        = var.template_ct_id
+    datastore_id = "local-lvm"
+  }
 
   initialization {
     hostname = "caddy"
@@ -60,52 +40,20 @@ resource "proxmox_virtual_environment_container" "caddy" {
     enabled   = true
   }
 
-  operating_system {
-    template_file_id = var.lxc_template
-  }
-
   startup {
     order = 1
   }
 
   lifecycle {
     ignore_changes = [
-      operating_system[0].template_file_id,
+      clone,
       unprivileged,
     ]
   }
 }
 
-resource "null_resource" "nixos_bootstrap" {
-  depends_on = [proxmox_virtual_environment_container.caddy]
-
-  provisioner "remote-exec" {
-    connection {
-      type        = "ssh"
-      user        = var.bastion_user
-      host        = var.bastion_host
-      port        = var.bastion_port
-      private_key = file(var.ssh_private_key_path)
-    }
-    inline = [
-      # Convert to privileged (requires restart to take effect)
-      "pct set 200 --ostype nixos",
-      "pct set 200 --unprivileged 0",
-      "pct stop 200 --skiplock",
-      "pct start 200",
-      "sleep 15",
-
-      # Inject SSH key
-      "pct exec 200 -- sh -c '. /etc/set-environment && mkdir -p /root/.ssh'",
-      "pct exec 200 -- sh -c '. /etc/set-environment && echo \"${var.ssh_public_key}\" >> /root/.ssh/authorized_keys'",
-      "pct exec 200 -- sh -c '. /etc/set-environment && chmod 600 /root/.ssh/authorized_keys'",
-      "pct exec 200 -- sh -c '. /etc/set-environment && systemctl start sshd'",
-    ]
-  }
-}
-
 resource "null_resource" "deploy_flake" {
-  depends_on = [null_resource.nixos_bootstrap]
+  depends_on = [proxmox_virtual_environment_container.caddy]
 
   provisioner "local-exec" {
     command = <<-EOT

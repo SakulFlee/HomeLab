@@ -56,7 +56,7 @@ Create a token in the Proxmox UI:
 
 ### 3. SSH Deploy Key
 
-Generate a key pair that OpenTofu will inject into new containers:
+Generate a key pair that OpenTofu uses to connect through the bastion:
 
 ```bash
 ssh-keygen -t ed25519 -f ~/.ssh/tofu-deploy -N ""
@@ -71,8 +71,8 @@ ssh-copy-id -p 2222 -i ~/.ssh/tofu-deploy root@192.168.178.200
 
 ### 4. SSH Config for Bastion
 
-Add this to `~/.ssh/config` so `nixos-anywhere` and OpenTofu find
-containers through the jump host automatically:
+Add this to `~/.ssh/config` so OpenTofu finds containers through
+the jump host automatically:
 
 ```
 Host 10.0.0.*
@@ -84,19 +84,29 @@ Host 10.0.0.*
 
 ### 5. NixOS Container Template (One-Time)
 
-Proxmox needs a Debian template for the bootstrap LXC. Verify a Debian 13
-template is available:
+A pre-configured NixOS template CT must exist in Proxmox for cloning.
+Create it manually once:
 
 ```bash
-# On the Proxmox host, list available templates:
-pveam update
-pveam available --section system | grep debian-13
+# On the Proxmox host:
+pct create 9999 local:vztmpl/nixos-image-lxc-proxmox-26.05pre-git-x86_64-linux.tar.xz \
+  --hostname nixos-base --ostype nixos --unprivileged 1 \
+  --net0 name=eth0,bridge=aether,ip=dhcp \
+  --storage local-lvm
 
-# If needed, download it:
-pveam download local debian-13-standard_13-1_amd64.tar.zst
+pct start 9999
+pct enter 9999
+#  source /etc/set-environment
+#  Write /etc/nixos/configuration.nix with:
+#    - proxmox-lxc module (manageNetwork=false, privileged=false)
+#    - SSH enabled + your public key
+#    - nix.settings.sandbox = false
+#    - system.stateVersion = "26.05"
+#  nixos-rebuild switch
+#  exit
+pct stop 9999
+pct template 9999
 ```
-
-Update `tofu/variables.tf` `lxc_template` if the filename differs.
 
 ## Deploying the First NixOS Container (CT 200 — Caddy)
 
@@ -111,14 +121,12 @@ cd tofu && tofu init
 tofu plan \
   -var="proxmox_token_id=root@pam!tofu" \
   -var="proxmox_token_secret=<your-secret>" \
-  -var="ssh_public_key=$(cat ~/.ssh/tofu-deploy.pub)" \
   -var="ssh_private_key_path=~/.ssh/tofu-deploy"
 
-# Apply — creates CT 200, installs NixOS + Caddy
+# Apply — clones template + deploys flake
 tofu apply \
   -var="proxmox_token_id=root@pam!tofu" \
   -var="proxmox_token_secret=<your-secret>" \
-  -var="ssh_public_key=$(cat ~/.ssh/tofu-deploy.pub)" \
   -var="ssh_private_key_path=~/.ssh/tofu-deploy"
 
 # Verify
@@ -131,10 +139,9 @@ curl http://10.0.0.200
 
 | Step | Duration | What |
 |------|----------|------|
-| Proxmox API creates CT 200 | ~5s | Debian LXC with static IP + SSH key |
-| Wait for SSH | ~10s | Container boots, SSH becomes available |
-| nixos-anywhere | 2-5 min | Builds NixOS closure, copies via SSH, runs nixos-install |
-| Reboot | ~10s | Container restarts into NixOS |
+| Clone template CT 9999 → CT 200 | ~5s | Pre-configured NixOS LXC with SSH key ready |
+| Wait for SSH | ~5s | Container boots, SSH available |
+| Deploy flake + nixos-rebuild | 2-5 min | Applies Caddy config, auto-update timer |
 | Caddy + auto-updater | ~5s | Services start automatically |
 
 ## Auto-Update Mechanism
