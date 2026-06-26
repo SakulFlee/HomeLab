@@ -142,16 +142,16 @@ curl http://10.0.0.100
 |------|----------|------|
 | Clone template CT 9999 → CT 100 | ~5s | Pre-configured NixOS LXC with SSH key ready |
 | Wait for SSH | ~5s | Container boots, SSH available |
-| Deploy flake + nixos-rebuild | 2-5 min | Applies Caddy config, auto-update timer |
+| `git clone` repo → /etc/nixos | ~3s | Clones the whole HomeLab repo |
+| nixos-rebuild switch | 1-3 min | Applies Caddy config, auto-update timer |
 | Caddy + auto-updater | ~5s | Services start automatically |
 
 ## Auto-Update Mechanism
 
 Every NixOS container runs a systemd timer (`nixos-auto-update`) that:
 
-1. Checks the Forgejo repo (`https://forgejo.sakul-flee.de/sakulflee/HomeLab.git`)
-   for new commits every hour
-2. If behind: `git pull` + `nixos-rebuild switch --flake /etc/nixos#<host>`
+1. `git pull origin main` in `/etc/nixos` every hour
+2. `nixos-rebuild switch --flake /etc/nixos/nixos#<host>`
 3. Logs to journald — check with `journalctl -u nixos-auto-update`
 
 The timer runs as root in a `timers.target` context (no desktop dependency).

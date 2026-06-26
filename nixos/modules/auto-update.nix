@@ -4,25 +4,13 @@
     after = [ "network-online.target" ];
     wants = [ "network-online.target" ];
     path = with pkgs; [ git nixos-rebuild ];
-    environment.REPO_URL = "https://forgejo.sakul-flee.de/sakulflee/HomeLab.git";
     serviceConfig = {
       Type = "oneshot";
       WorkingDirectory = "/etc/nixos";
     };
     script = ''
-      if [ ! -d .git ]; then
-        git init
-        git remote add origin "$REPO_URL"
-      fi
-
-      git fetch origin main 2>/dev/null || exit 0
-      BEHIND=$(git rev-list --count @..@{u} 2>/dev/null || echo 0)
-
-      if [ "$BEHIND" -gt 0 ]; then
-        echo "Upstream updates detected ($BEHIND commits behind)"
-        git pull origin main
-        nixos-rebuild switch --flake "/etc/nixos#${config.networking.hostName}" --show-trace
-      fi
+      git pull origin main
+      nixos-rebuild switch --flake "/etc/nixos/nixos#${config.networking.hostName}" --show-trace
     '';
   };
 

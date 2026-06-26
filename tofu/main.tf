@@ -83,12 +83,11 @@ resource "null_resource" "deploy_flake_caddy" {
         sleep 10
       done
 
-      echo "Deploying NixOS flake..."
-      tar czf - -C ${path.module}/../nixos . | \
-        ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ProxyCommand="$PROXY" \
-          -i ${var.ssh_private_key_path} \
-          root@10.0.0.100 \
-          "rm -rf /etc/nixos/.git && tar xzf - -C /etc/nixos && chown -R 0:0 /etc/nixos && nixos-rebuild switch --flake /etc/nixos#caddy --show-trace"
+      echo "Cloning repository..."
+      ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ProxyCommand="$PROXY" \
+        -i ${var.ssh_private_key_path} \
+        root@10.0.0.100 \
+        "rm -rf /etc/nixos && git clone https://forgejo.sakul-flee.de/sakulflee/HomeLab.git /etc/nixos && nixos-rebuild switch --flake /etc/nixos/nixos#caddy --show-trace"
     EOT
   }
 }
