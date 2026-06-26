@@ -2,7 +2,7 @@
   services.caddy = {
     enable = true;
     email = "dev@sakul-flee.de";
-    globalConfig ''
+    globalConfig = ''
       acme_ca https://acme.zerossl.com/v2/DV90
       acme_eab {
           key_id  kUY5FgCTebnW6EPdKbc9gw
