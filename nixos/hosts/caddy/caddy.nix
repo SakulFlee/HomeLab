@@ -11,7 +11,7 @@
     '';
     extraConfig = ''
       sakul-flee.de, www.sakul-flee.de {
-        reverse_proxy 10.0.0.102:80
+        reverse_proxy 10.0.0.101:80
       }
 
       nas.sakul-flee.de {

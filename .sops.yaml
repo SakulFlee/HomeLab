@@ -1,0 +1,7 @@
+keys:
+  - &homelab age1r3a48h4ltvlava9h9dryl4mdgj47x9fz9cffptlrvpe7haj569gq0vhxqu
+creation_rules:
+  - path_regex: nixos/secrets/.*\.sops\.yaml
+    key_groups:
+      - age:
+          - *homelab

@@ -8,6 +8,9 @@ tofu/terraform.tfvars
 # direnv
 .direnv/
 
+# Age keys (sops-nix)
+nixos/secrets/*-age-key*
+
 # Nix builds
 result
 result-*
