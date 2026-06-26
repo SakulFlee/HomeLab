@@ -21,9 +21,6 @@ resource "proxmox_virtual_environment_container" "caddy" {
         address = "10.0.0.100/24"
         gateway = "10.0.0.1"
       }
-    }
-
-    ip_config {
       ipv6 {
         address = "fdbe::100/64"
         gateway = "fdbe::1"
