@@ -44,7 +44,7 @@ HomeLab/
 tofu version
 
 # Or install globally
-nix profile install nixpkgs#opentofu
+nix --extra-experimental-features 'nix-command flakes' profile install nixpkgs#opentofu
 ```
 
 ### 2. Proxmox API Token
