@@ -10,7 +10,7 @@ resource "proxmox_virtual_environment_container" "caddy" {
 
   clone {
     vm_id        = var.template_ct_id
-    datastore_id = "local-lvm"
+    datastore_id = "local"
   }
 
   initialization {
@@ -52,7 +52,7 @@ resource "proxmox_virtual_environment_container" "caddy" {
   }
 
   lifecycle {
-    prevent_destroy = true
+    prevent_destroy = false
     ignore_changes = [
       clone,
       unprivileged,
@@ -60,7 +60,10 @@ resource "proxmox_virtual_environment_container" "caddy" {
   }
 }
 
-resource "null_resource" "deploy_flake" {
+resource "null_resource" "deploy_flake_caddy" {
+  triggers = {
+    container_id = proxmox_virtual_environment_container.caddy.id
+  }
   depends_on = [proxmox_virtual_environment_container.caddy]
 
   provisioner "local-exec" {
