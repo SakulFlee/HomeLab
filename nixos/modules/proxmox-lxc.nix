@@ -5,6 +5,8 @@
 
   nix.settings.sandbox = false;
 
+  environment.systemPackages = with pkgs; [ git ];
+
   proxmoxLXC = {
     manageNetwork = false;
     privileged = false;

@@ -87,7 +87,7 @@ resource "null_resource" "deploy_flake_caddy" {
       ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ProxyCommand="$PROXY" \
         -i ${var.ssh_private_key_path} \
         root@10.0.0.100 \
-        "rm -rf /etc/nixos && git clone https://forgejo.sakul-flee.de/sakulflee/HomeLab.git /etc/nixos && nixos-rebuild switch --flake /etc/nixos/nixos#caddy --show-trace"
+        "rm -rf /etc/nixos && nix profile install nixpkgs#git && git clone https://forgejo.sakul-flee.de/sakulflee/HomeLab.git /etc/nixos && nixos-rebuild switch --flake /etc/nixos/nixos#caddy --show-trace"
     EOT
   }
 }
