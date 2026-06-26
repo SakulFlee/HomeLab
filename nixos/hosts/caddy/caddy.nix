@@ -2,15 +2,14 @@
   services.caddy = {
     enable = true;
     email = "dev@sakul-flee.de";
-    extraConfig = ''
-      {
-        acme_ca https://acme.zerossl.com/v2/DV90
-        acme_eab {
-            key_id  kUY5FgCTebnW6EPdKbc9gw
-            mac_key Gp777GdhjrW69BEF564wiw_1l7Xsq2QT1DobDpN_G32SPkVCbUEefkAJ33IBor2Qhp9Uid8DoWhyVK2aBfmADQ
-        }
+    globalConfig ''
+      acme_ca https://acme.zerossl.com/v2/DV90
+      acme_eab {
+          key_id  kUY5FgCTebnW6EPdKbc9gw
+          mac_key Gp777GdhjrW69BEF564wiw_1l7Xsq2QT1DobDpN_G32SPkVCbUEefkAJ33IBor2Qhp9Uid8DoWhyVK2aBfmADQ
       }
-
+    '';
+    extraConfig = ''
       sakul-flee.de, www.sakul-flee.de {
         reverse_proxy 10.0.0.102:80
       }
