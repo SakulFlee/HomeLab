@@ -1,6 +1,6 @@
 resource "proxmox_virtual_environment_container" "caddy" {
   node_name    = "aetherium"
-  vm_id        = 200
+  vm_id        = 100
   description  = "Caddy reverse proxy (NixOS)"
   start_on_boot = true
   started      = true
@@ -18,14 +18,14 @@ resource "proxmox_virtual_environment_container" "caddy" {
 
     ip_config {
       ipv4 {
-        address = "10.0.0.200/24"
+        address = "10.0.0.100/24"
         gateway = "10.0.0.1"
       }
     }
 
     ip_config {
       ipv6 {
-        address = "fdbe::200/64"
+        address = "fdbe::100/64"
         gateway = "fdbe::1"
       }
     }
@@ -73,7 +73,7 @@ resource "null_resource" "deploy_flake" {
         i=$((i + 1))
         if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ProxyCommand="$PROXY" \
               -i ${var.ssh_private_key_path} \
-              root@10.0.0.200 "echo ready" 2>/dev/null; then
+              root@10.0.0.100 "echo ready" 2>/dev/null; then
           echo "Container reachable after $((i * 10)) seconds"
           break
         fi
@@ -84,7 +84,7 @@ resource "null_resource" "deploy_flake" {
       tar czf - -C ${path.module}/../nixos . | \
         ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ProxyCommand="$PROXY" \
           -i ${var.ssh_private_key_path} \
-          root@10.0.0.200 \
+          root@10.0.0.100 \
           "rm -rf /etc/nixos/.git && tar xzf - -C /etc/nixos && chown -R 0:0 /etc/nixos && nixos-rebuild switch --flake /etc/nixos#caddy --show-trace"
     EOT
   }

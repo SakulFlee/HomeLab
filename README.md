@@ -17,8 +17,9 @@ HomeLab/
 │
 ├── nixos/           NixOS — service configurations for each container
 │   ├── flake.nix    nixpkgs 26.05, exports nixosConfigurations.*
+│   ├── modules/     Shared NixOS modules (proxmox-lxc, auto-update, ...)
 │   └── hosts/
-│       └── caddy/   Example: Caddy reverse proxy (CT 200, 10.0.0.200)
+│       └── caddy/   Example: Caddy reverse proxy (CT 100, 10.0.0.100)
 │
 └── ansible/         Existing Ansible configs for Debian containers (legacy)
     ├── inventory.ini
@@ -108,7 +109,7 @@ pct stop 9999
 pct template 9999
 ```
 
-## Deploying the First NixOS Container (CT 200 — Caddy)
+## Deploying the First NixOS Container (CT 100 — Caddy)
 
 ```bash
 # Enter dev environment
@@ -130,16 +131,16 @@ tofu apply \
   -var="ssh_private_key_path=~/.ssh/tofu-deploy"
 
 # Verify
-ssh -i ~/.ssh/tofu-deploy root@10.0.0.200
-curl http://10.0.0.200
-# → "Hello from NixOS on CT 200!"
+ssh -i ~/.ssh/tofu-deploy root@10.0.0.100
+curl http://10.0.0.100
+# → "Hello from NixOS on CT 100!"
 ```
 
 ### First Apply: What Happens
 
 | Step | Duration | What |
 |------|----------|------|
-| Clone template CT 9999 → CT 200 | ~5s | Pre-configured NixOS LXC with SSH key ready |
+| Clone template CT 9999 → CT 100 | ~5s | Pre-configured NixOS LXC with SSH key ready |
 | Wait for SSH | ~5s | Container boots, SSH available |
 | Deploy flake + nixos-rebuild | 2-5 min | Applies Caddy config, auto-update timer |
 | Caddy + auto-updater | ~5s | Services start automatically |
@@ -160,7 +161,7 @@ The timer runs as root in a `timers.target` context (no desktop dependency).
 1. Create a host directory under `nixos/hosts/<name>/`:
    ```
    nixos/hosts/<name>/
-   ├── default.nix  → hostname, networking, imports
+   ├── default.nix   → hostname, stateVersion, imports (service + shared modules)
    └── <service>.nix → service config (e.g. nginx.nix)
    ```
 
