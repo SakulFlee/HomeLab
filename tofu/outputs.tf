@@ -1,6 +1,6 @@
 output "container_ip" {
   description = "IP address of the Caddy container"
-  value       = "10.0.0.200"
+  value       = proxmox_virtual_environment_container.caddy.initialization[0].ip_config[0].ipv4[0].address
 }
 
 output "container_id" {
