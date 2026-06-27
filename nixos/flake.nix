@@ -21,5 +21,11 @@
       specialArgs = { inherit sops-nix; };
       modules = [ ./hosts/website ];
     };
+
+    nixosConfigurations.forgejo = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      specialArgs = { inherit sops-nix; };
+      modules = [ ./hosts/forgejo ];
+    };
   };
 }

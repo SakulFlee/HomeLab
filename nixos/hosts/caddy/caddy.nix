@@ -39,7 +39,7 @@
       }
 
       forgejo.sakul-flee.de {
-        reverse_proxy 10.0.0.103:3000
+        reverse_proxy 10.0.0.102:3000
       }
 
       woodpecker.sakul-flee.de {
