@@ -3,14 +3,15 @@
     description = "Auto-update NixOS configuration from Git";
     after = [ "network-online.target" ];
     wants = [ "network-online.target" ];
-    path = with pkgs; [ git nixos-rebuild ];
+    path = with pkgs; [ git nixos-rebuild nix ];
     serviceConfig = {
       Type = "oneshot";
       WorkingDirectory = "/etc/nixos";
     };
     script = ''
-      git pull origin main
+      git pull --depth 1 origin main
       nixos-rebuild switch --flake "/etc/nixos/nixos#${config.networking.hostName}" --show-trace
+      nix-collect-garbage --delete-old
     '';
   };
 
