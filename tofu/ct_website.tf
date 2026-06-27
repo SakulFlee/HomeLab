@@ -13,6 +13,11 @@ resource "proxmox_virtual_environment_container" "website" {
     datastore_id = "local"
   }
 
+  disk {
+    datastore_id = "local"
+    size         = 6
+  }
+
   initialization {
     hostname = "website"
 
