@@ -1,12 +1,12 @@
-resource "proxmox_virtual_environment_container" "website" {
-  node_name     = "aetherium"
-  vm_id         = 101
-  description   = "Website (NixOS)"
+resource "proxmox_virtual_environment_container" "caddy" {
+  node_name    = "aetherium"
+  vm_id        = 100
+  description  = "Caddy reverse proxy (NixOS)"
   start_on_boot = true
-  started       = true
+  started      = true
   unprivileged  = true
-  template      = false
-  tags          = ["nixos", "website"]
+  template     = false
+  tags         = ["nixos", "caddy"]
 
   clone {
     vm_id        = var.template_ct_id
@@ -14,15 +14,15 @@ resource "proxmox_virtual_environment_container" "website" {
   }
 
   initialization {
-    hostname = "website"
+    hostname = "caddy"
 
     ip_config {
       ipv4 {
-        address = "10.0.0.101/24"
+        address = "10.0.0.100/24"
         gateway = "10.0.0.1"
       }
       ipv6 {
-        address = "fdbe::101/64"
+        address = "fdbe::100/64"
         gateway = "fdbe::1"
       }
     }
@@ -45,7 +45,7 @@ resource "proxmox_virtual_environment_container" "website" {
   }
 
   startup {
-    order = 2
+    order = 1
   }
 
   lifecycle {
@@ -57,11 +57,11 @@ resource "proxmox_virtual_environment_container" "website" {
   }
 }
 
-resource "null_resource" "deploy_flake_website" {
+resource "null_resource" "deploy_flake_caddy" {
   triggers = {
-    container_id = proxmox_virtual_environment_container.website.id
+    container_id = proxmox_virtual_environment_container.caddy.id
   }
-  depends_on = [proxmox_virtual_environment_container.website]
+  depends_on = [proxmox_virtual_environment_container.caddy]
 
   provisioner "local-exec" {
     command = <<-EOT
@@ -73,7 +73,7 @@ resource "null_resource" "deploy_flake_website" {
         i=$((i + 1))
         if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ProxyCommand="$PROXY" \
               -i ${var.ssh_private_key_path} \
-              root@10.0.0.101 "echo ready" 2>/dev/null; then
+              root@10.0.0.100 "echo ready" 2>/dev/null; then
           echo "Container reachable after $((i * 10)) seconds"
           break
         fi
@@ -83,8 +83,8 @@ resource "null_resource" "deploy_flake_website" {
       echo "Cloning repository..."
       ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ProxyCommand="$PROXY" \
         -i ${var.ssh_private_key_path} \
-        root@10.0.0.101 \
-        "rm -rf /etc/nixos && nix --extra-experimental-features 'nix-command flakes' profile install nixpkgs#git && git clone https://forgejo.sakul-flee.de/sakulflee/HomeLab.git /etc/nixos && nixos-rebuild switch --flake /etc/nixos/nixos#website --show-trace"
+        root@10.0.0.100 \
+        "rm -rf /etc/nixos && nix --extra-experimental-features 'nix-command flakes' profile install nixpkgs#git && git clone https://forgejo.sakul-flee.de/sakulflee/HomeLab.git /etc/nixos && nixos-rebuild switch --flake /etc/nixos/nixos#caddy --show-trace"
     EOT
   }
 }
