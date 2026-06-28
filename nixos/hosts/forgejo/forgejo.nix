@@ -98,9 +98,4 @@ in {
   '';
 
   networking.firewall.allowedTCPPorts = [ 3000 22 ];
-
-  systemd.services.forgejo = {
-    after = [ "sops-install-secrets.service" ];
-    requires = [ "sops-install-secrets.service" ];
-  };
 }
