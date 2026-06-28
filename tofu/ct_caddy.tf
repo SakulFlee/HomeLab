@@ -13,6 +13,11 @@ resource "proxmox_virtual_environment_container" "caddy" {
     datastore_id = "local"
   }
 
+  disk {
+    datastore_id = "local"
+    size         = 8
+  }
+
   initialization {
     hostname = "caddy"
 
