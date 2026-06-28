@@ -6,7 +6,7 @@ resource "proxmox_virtual_environment_container" "website" {
   started       = true
   unprivileged  = true
   template      = false
-  tags          = ["nixos", "website"]
+  tags          = ["nixos", "website", "10.0.0.101", "fdbe::101"]
 
   clone {
     vm_id        = var.template_ct_id
@@ -57,6 +57,7 @@ resource "proxmox_virtual_environment_container" "website" {
     prevent_destroy = false
     ignore_changes = [
       clone,
+      tags,
       unprivileged,
     ]
   }

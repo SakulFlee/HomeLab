@@ -6,7 +6,7 @@ resource "proxmox_virtual_environment_container" "forgejo" {
   started       = true
   unprivileged  = true
   template      = false
-  tags          = ["nixos", "forgejo"]
+  tags          = ["nixos", "forgejo", "10.0.0.102", "fdbe::102"]
 
   clone {
     vm_id        = var.template_ct_id
@@ -57,6 +57,7 @@ resource "proxmox_virtual_environment_container" "forgejo" {
     prevent_destroy = false
     ignore_changes = [
       clone,
+      tags,
       unprivileged,
     ]
   }

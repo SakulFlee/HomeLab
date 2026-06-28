@@ -6,7 +6,7 @@ resource "proxmox_virtual_environment_container" "caddy" {
   started      = true
   unprivileged  = true
   template     = false
-  tags         = ["nixos", "caddy"]
+  tags         = ["nixos", "caddy", "10.0.0.100", "fdbe::100"]
 
   clone {
     vm_id        = var.template_ct_id
@@ -52,6 +52,7 @@ resource "proxmox_virtual_environment_container" "caddy" {
     prevent_destroy = false
     ignore_changes = [
       clone,
+      tags,
       unprivileged,
     ]
   }
