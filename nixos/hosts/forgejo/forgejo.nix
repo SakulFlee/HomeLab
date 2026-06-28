@@ -1,4 +1,4 @@
-{ config, pkgs, ... }:
+{ config, pkgs, lib, ... }:
 let
   domain = "forgejo.sakul-flee.de";
 in {
@@ -19,6 +19,12 @@ in {
     stateDir = "/var/lib/forgejo";
 
     lfs.enable = true;
+
+    secrets = {
+      security.INTERNAL_TOKEN = lib.mkForce config.sops.secrets."internal_token".path;
+      oauth2.JWT_SECRET = lib.mkForce config.sops.secrets."jwt_secret".path;
+      server.LFS_JWT_SECRET = lib.mkForce config.sops.secrets."lfs_secret".path;
+    };
 
     # SSH is handled by the system OpenSSH daemon (START_SSH_SERVER = false)
     # AuthorizedKeysCommand is configured via services.openssh below
@@ -52,7 +58,6 @@ in {
         ROOT_URL = "https://${domain}";
         LFS_START_SERVER = true;
         ENABLE_PPROF = false;
-        LFS_JWT_SECRET_FILE = config.sops.secrets."lfs_secret".path;
       };
 
       mailer = {
@@ -71,7 +76,6 @@ in {
 
       security = {
         INSTALL_LOCK = true;
-        INTERNAL_TOKEN_FILE = config.sops.secrets."internal_token".path;
       };
 
       repository.MAX_CREATION_LIMIT = 0;
@@ -82,7 +86,6 @@ in {
         DEFAULT_EMAIL_NOTIFICATIONS = "enabled";
       };
 
-      oauth2.JWT_SECRET_FILE = config.sops.secrets."jwt_secret".path;
     };
   };
 
@@ -95,4 +98,9 @@ in {
   '';
 
   networking.firewall.allowedTCPPorts = [ 3000 22 ];
+
+  systemd.services.forgejo = {
+    after = [ "sops-install-secrets.service" ];
+    requires = [ "sops-install-secrets.service" ];
+  };
 }
