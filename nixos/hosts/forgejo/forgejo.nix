@@ -98,4 +98,8 @@ in {
   '';
 
   networking.firewall.allowedTCPPorts = [ 3000 22 ];
+
+  systemd.tmpfiles.rules = [
+    "d '${config.services.forgejo.customDir}/conf' 0750 forgejo forgejo - -"
+  ];
 }
