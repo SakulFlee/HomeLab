@@ -3,13 +3,72 @@ let
   domain = "forgejo.sakul-flee.de";
 in {
   sops.defaultSopsFile = ../../secrets/forgejo.sops.yaml;
-
   sops.secrets = {
     "database_password" = { };
     "jwt_secret" = { };
     "lfs_secret" = { };
     "internal_token" = { };
     "smtp_password" = { };
+  };
+
+  system.activationScripts.forgejo-wrapper = ''
+    cat > /run/forgejo-wrapper.sh << 'WRAPPER'
+    #!${pkgs.bash}/bin/bash
+    set -e
+    case "$1" in
+      keys)
+        shift
+        exec ${pkgs.forgejo-lts}/bin/forgejo keys "$@"
+        ;;
+      serv)
+        shift
+        exec /run/wrappers/bin/sudo -u forgejo SSH_ORIGINAL_COMMAND="$SSH_ORIGINAL_COMMAND" /run/forgejo-wrapper.sh serv-inner "$@"
+        ;;
+      serv-inner)
+        shift
+        exec ${pkgs.forgejo-lts}/bin/forgejo serv "$@"
+        ;;
+      *)
+        echo "Unknown subcommand: $1" >&2
+        exit 1
+        ;;
+    esac
+    WRAPPER
+    chmod 755 /run/forgejo-wrapper.sh
+  '';
+
+  security.sudo.extraRules = [{
+    users = [ "git" ];
+    runAs = "forgejo";
+    commands = [{
+      command = "/run/forgejo-wrapper.sh";
+      options = [ "NOPASSWD" "SETENV" ];
+    }];
+  }];
+
+  services.openssh = {
+    enable = true;
+    settings = {
+      PasswordAuthentication = false;
+      PubkeyAuthentication = true;
+      AllowTcpForwarding = false;
+      X11Forwarding = false;
+    };
+    extraConfig = ''
+      Match User git
+          AuthorizedKeysCommand /run/forgejo-wrapper.sh keys -c ${config.services.forgejo.customDir}/conf/app.ini -w ${config.services.forgejo.stateDir} -e git -u %u -t %t -k %k
+          AuthorizedKeysCommandUser forgejo
+          AllowTcpForwarding no
+          X11Forwarding no
+    '';
+  };
+
+  users.users.git = {
+    isSystemUser = true;
+    group = "forgejo";
+    shell = pkgs.bash;
+    home = "/home/git";
+    createHome = true;
   };
 
   services.forgejo = {
@@ -26,9 +85,6 @@ in {
       server.LFS_JWT_SECRET = lib.mkForce config.sops.secrets."lfs_secret".path;
     };
 
-    # SSH is handled by the system OpenSSH daemon (START_SSH_SERVER = false)
-    # AuthorizedKeysCommand is configured via services.openssh below
-
     settings = {
       DEFAULT = {
         APP_NAME = "Forgejo: Beyond coding. We forge.";
@@ -44,13 +100,14 @@ in {
       };
 
       metrics.ENABLED = false;
-
       session.PROVIDER = "memory";
+      queue.TYPE = "level";
+      cache.ADAPTER = "memory";
 
       server = {
         START_SSH_SERVER = false;
         SSH_PORT = 22;
-        SSH_USER = "forgejo";
+        SSH_USER = "git";
         SSH_DOMAIN = domain;
         PROTOCOL = "http";
         HTTP_PORT = 3000;
@@ -58,6 +115,8 @@ in {
         ROOT_URL = "https://${domain}";
         LFS_START_SERVER = true;
         ENABLE_PPROF = false;
+        SSH_CREATE_AUTHORIZED_KEYS_FILE = false;
+        SSH_AUTHORIZED_KEYS_COMMAND_TEMPLATE = "/run/forgejo-wrapper.sh serv --config={{.CustomConf}} key-{{.Key.ID}}";
       };
 
       mailer = {
@@ -70,10 +129,6 @@ in {
         FROM = "forgejo@sakul-flee.de";
       };
 
-      queue.TYPE = "level";
-
-      cache.ADAPTER = "memory";
-
       security = {
         INSTALL_LOCK = true;
       };
@@ -85,24 +140,8 @@ in {
         DISABLE_REGULAR_ORG_CREATION = true;
         DEFAULT_EMAIL_NOTIFICATIONS = "enabled";
       };
-
     };
   };
-
-  users.users.git = {
-    isSystemUser = true;
-    group = "forgejo";
-    shell = pkgs.bash;
-    home = "/home/git";
-  };
-
-  services.openssh.extraConfig = ''
-    Match User git
-        AuthorizedKeysCommand ${pkgs.forgejo-lts}/bin/forgejo keys -c ${config.services.forgejo.customDir}/conf/app.ini -e git -u %u -t %t -k %k
-        AuthorizedKeysCommandUser forgejo
-        AllowTcpForwarding no
-        X11Forwarding no
-  '';
 
   networking.firewall.allowedTCPPorts = [ 3000 22 ];
 
