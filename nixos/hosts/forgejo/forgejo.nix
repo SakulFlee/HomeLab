@@ -89,8 +89,15 @@ in {
     };
   };
 
+  users.users.git = {
+    isSystemUser = true;
+    group = "forgejo";
+    shell = pkgs.bash;
+    home = "/home/git";
+  };
+
   services.openssh.extraConfig = ''
-    Match User forgejo
+    Match User git
         AuthorizedKeysCommand ${pkgs.forgejo-lts}/bin/forgejo keys -c ${config.services.forgejo.customDir}/conf/app.ini -e git -u %u -t %t -k %k
         AuthorizedKeysCommandUser forgejo
         AllowTcpForwarding no
