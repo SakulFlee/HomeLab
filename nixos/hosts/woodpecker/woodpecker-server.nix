@@ -15,7 +15,7 @@
       WOODPECKER_FORGEJO_CLIENT=%{forgejo_client}
       WOODPECKER_FORGEJO_SECRET=%{forgejo_secret}
       WOODPECKER_DATABASE_DRIVER=postgres
-      WOODPECKER_DATABASE_DATASOURCE=postgres://woodpecker@localhost:5432/woodpecker?sslmode=disable
+      WOODPECKER_DATABASE_DATASOURCE=postgres://woodpecker@127.0.0.1:5432/woodpecker?sslmode=disable
       WOODPECKER_AGENT_SECRET=%{agent_secret}
       WOODPECKER_BACKEND=docker
       DOCKER_HOST=unix:///run/podman/podman.sock
