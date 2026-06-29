@@ -3,7 +3,7 @@
     description = "Auto-update NixOS configuration from Git";
     after = [ "network-online.target" ];
     wants = [ "network-online.target" ];
-    path = with pkgs; [ git nixos-rebuild nix procps ];
+    path = with pkgs; [ git openssh nixos-rebuild nix procps ];
     serviceConfig = {
       Type = "oneshot";
       WorkingDirectory = "/etc/nixos";
