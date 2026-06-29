@@ -7,6 +7,8 @@
 
   environment.systemPackages = with pkgs; [ git ];
 
+  environment.variables.ENV = "/etc/profile";
+
   proxmoxLXC = {
     manageNetwork = false;
     privileged = false;
