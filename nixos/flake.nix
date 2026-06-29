@@ -27,5 +27,11 @@
       specialArgs = { inherit sops-nix; };
       modules = [ ./hosts/forgejo ];
     };
+
+    nixosConfigurations.woodpecker = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      specialArgs = { inherit sops-nix; };
+      modules = [ ./hosts/woodpecker ];
+    };
   };
 }

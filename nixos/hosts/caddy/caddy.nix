@@ -43,7 +43,7 @@
       }
 
       woodpecker.sakul-flee.de {
-        reverse_proxy 10.0.0.104:8000
+        reverse_proxy 10.0.0.103:8000
       }
 
       prowlarr.sakul-flee.de {
