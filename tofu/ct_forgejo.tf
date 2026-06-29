@@ -6,7 +6,7 @@ resource "proxmox_virtual_environment_container" "forgejo" {
   started       = true
   unprivileged  = true
   template      = false
-  tags          = ["nixos", "forgejo", "10.0.0.102", "fdbe::102"]
+  tags          = ["nixos", "forgejo"]
 
   clone {
     vm_id        = var.template_ct_id
@@ -86,11 +86,16 @@ resource "null_resource" "deploy_flake_forgejo" {
         sleep 10
       done
 
-      echo "Cloning repository..."
+      echo "Copying repository via tar/ssh..."
       ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ProxyCommand="$PROXY" \
         -i ${var.ssh_private_key_path} \
         root@10.0.0.102 \
-        "rm -rf /etc/nixos && nix --extra-experimental-features 'nix-command flakes' profile install nixpkgs#git && git clone --depth 1 https://forgejo.sakul-flee.de/sakulflee/HomeLab.git /etc/nixos && nixos-rebuild switch --flake /etc/nixos/nixos#forgejo --show-trace && nix-collect-garbage --delete-old"
+        "rm -rf /etc/nixos && mkdir -p /etc/nixos" && \
+      tar cz --owner=0 --group=0 -C ${path.root}/.. . | \
+        ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ProxyCommand="$PROXY" \
+          -i ${var.ssh_private_key_path} \
+          root@10.0.0.102 \
+          "tar xz -C /etc/nixos && nix --extra-experimental-features 'nix-command flakes' profile install nixpkgs#git && nixos-rebuild switch --flake /etc/nixos/nixos#forgejo --show-trace && nix-collect-garbage --delete-old"
     EOT
   }
 }
