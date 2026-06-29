@@ -14,7 +14,8 @@
         exit 0
       fi
       git remote set-url origin https://forgejo.sakul-flee.de/SakulFlee/HomeLab.git
-      git pull --depth 1 origin main
+      git fetch origin main
+      git reset --hard origin/main
       nixos-rebuild switch --flake "/etc/nixos/nixos#${config.networking.hostName}" --show-trace
       nix-collect-garbage --delete-old
     '';
