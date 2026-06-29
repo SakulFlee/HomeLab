@@ -45,7 +45,7 @@
       User = "woodpecker";
       Group = "woodpecker";
       EnvironmentFile = [ config.sops.templates."woodpecker-server.env".path ];
-      ExecStart = "${pkgs.woodpecker-ci}/bin/woodpecker-server";
+      ExecStart = "${pkgs.woodpecker-server}/bin/woodpecker-server";
       WorkingDirectory = "/var/lib/woodpecker";
       StateDirectory = "woodpecker";
       Restart = "on-failure";
