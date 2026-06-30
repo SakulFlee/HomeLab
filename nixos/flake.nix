@@ -51,5 +51,29 @@
       specialArgs = { inherit sops-nix; };
       modules = [ ./hosts/hytale ];
     };
+
+    nixosConfigurations.jellyfin = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      specialArgs = { inherit sops-nix; };
+      modules = [ ./hosts/jellyfin ];
+    };
+
+    nixosConfigurations.prowlarr = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      specialArgs = { inherit sops-nix; };
+      modules = [ ./hosts/prowlarr ];
+    };
+
+    nixosConfigurations.sonarr = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      specialArgs = { inherit sops-nix; };
+      modules = [ ./hosts/sonarr ];
+    };
+
+    nixosConfigurations.radarr = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      specialArgs = { inherit sops-nix; };
+      modules = [ ./hosts/radarr ];
+    };
   };
 }
