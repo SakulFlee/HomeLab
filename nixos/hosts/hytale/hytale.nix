@@ -15,6 +15,7 @@
 
   systemd.services.hytale = {
     description = "Hytale Dedicated Server";
+    path = [ pkgs.jdk25 ];
     after = [ "network.target" ];
     wantedBy = [ "multi-user.target" ];
     serviceConfig = {
