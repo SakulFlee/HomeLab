@@ -39,5 +39,17 @@
       specialArgs = { inherit sops-nix; };
       modules = [ ./hosts/renovate ];
     };
+
+    nixosConfigurations.minecraft = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      specialArgs = { inherit sops-nix; };
+      modules = [ ./hosts/minecraft ];
+    };
+
+    nixosConfigurations.hytale = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      specialArgs = { inherit sops-nix; };
+      modules = [ ./hosts/hytale ];
+    };
   };
 }
