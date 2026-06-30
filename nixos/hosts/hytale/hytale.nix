@@ -8,6 +8,7 @@
   };
 
   systemd.tmpfiles.rules = [
+    "L+ /bin/bash - - - - ${pkgs.bash}/bin/bash"
     "d /opt/hytale 0755 hytale hytale -"
     "d /opt/hytale-downloader 0755 hytale hytale -"
   ];
