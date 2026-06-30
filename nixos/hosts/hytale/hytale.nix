@@ -34,7 +34,7 @@
     };
   };
 
-  networking.firewall.allowedTCPPorts = [ 25565 ];
+  networking.firewall.allowedUDPPorts = [ 5520 ];
 
   environment.systemPackages = with pkgs; [ screen jdk25 ];
 }
