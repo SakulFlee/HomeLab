@@ -7,8 +7,6 @@
       module.exports = {
         platform: 'forgejo',
         endpoint: 'https://forgejo.sakul-flee.de/api/v1',
-        baseDir: '/var/lib/renovate',
-        logLevel: 'info',
         autodiscover: true,
       };
     '';
@@ -27,6 +25,7 @@
     description = "Renovate dependency dashboard bot";
     after = [ "network.target" ];
     wants = [ "network.target" ];
+    path = with pkgs; [ cargo rustc go jdk21 gradle maven dotnet-sdk python3 git ];
     serviceConfig = {
       Type = "oneshot";
       User = "renovate";
