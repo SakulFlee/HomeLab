@@ -22,7 +22,11 @@
       Group = "hytale";
       WorkingDirectory = "/opt/hytale";
       ExecStart = "${pkgs.screen}/bin/screen -dmS hytale /opt/hytale/launch.sh";
-      ExecStop = "${pkgs.screen}/bin/screen -S hytale -X stuff 'stop\n'";
+      ExecStop = let
+        stopScript = pkgs.writeShellScript "hytale-stop" ''
+          exec ${pkgs.screen}/bin/screen -S hytale -X stuff stop$(printf "\n")
+        '';
+      in "${stopScript}";
       Restart = "on-failure";
       RestartSec = 10;
     };

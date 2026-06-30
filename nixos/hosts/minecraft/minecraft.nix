@@ -23,7 +23,11 @@ in {
       Group = "minecraft";
       WorkingDirectory = "/var/lib/minecraft";
       ExecStart = "${pkgs.screen}/bin/screen -dmS minecraft ${pkgs.jdk25}/bin/java -Xms2G -Xmx4G -jar ${paperJar} nogui";
-      ExecStop = "${pkgs.screen}/bin/screen -S minecraft -X stuff 'stop\n'";
+      ExecStop = let
+        stopScript = pkgs.writeShellScript "minecraft-stop" ''
+          exec ${pkgs.screen}/bin/screen -S minecraft -X stuff stop$(printf "\n")
+        '';
+      in "${stopScript}";
       Restart = "on-failure";
     };
   };
