@@ -15,7 +15,7 @@ resource "proxmox_virtual_environment_container" "renovate" {
 
   disk {
     datastore_id = "local"
-    size         = 8
+    size         = 16
   }
 
   initialization {
