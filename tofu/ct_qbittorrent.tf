@@ -49,6 +49,17 @@ resource "proxmox_virtual_environment_container" "qbittorrent" {
     enabled   = true
   }
 
+  features {
+    nesting = true
+  }
+
+  device_passthrough {
+    path = "/dev/net/tun"
+    uid  = 0
+    gid  = 0
+    mode = "0666"
+  }
+
   lifecycle {
     prevent_destroy = false
     ignore_changes = [

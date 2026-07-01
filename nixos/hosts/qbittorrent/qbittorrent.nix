@@ -10,7 +10,7 @@ let
     log() { echo "[pia-port-monitor] $(date '+%Y-%m-%d %H:%M:%S') - $1"; }
 
     while true; do
-      PORT=$(curl -sf http://localhost:8000/v1/openvpn/port-forwarded || echo "none")
+      PORT=$(curl -sf http://localhost:8000/v1/portforward | grep -o '"port":[0-9]*' | cut -d: -f2 || echo "none")
 
       if [[ "$PORT" != "none" ]] && [[ "$PORT" != "null" ]]; then
         QB_PORT=$(grep -E "^Session\\\\Port=" "$QB_CONFIG" 2>/dev/null | cut -d'=' -f2 | tr -d '\r')
@@ -65,7 +65,7 @@ in {
             HTTP_CONTROL_SERVER_AUTH_DEFAULT_ROLE = "{\"auth\":\"none\"}";
           };
           environmentFiles = [ "/run/gluetun/env" ];
-          extraOptions = [ "--cap-add=NET_ADMIN" ];
+          extraOptions = [ "--cap-add=NET_ADMIN" "--device=/dev/net/tun" ];
           volumes = [ "/var/lib/gluetun:/gluetun" ];
         };
         qbittorrent = {
