@@ -80,11 +80,11 @@ in {
           };
           volumes = [
             "/var/lib/qbittorrent/config:/config"
-            "/mnt/nas/qbittorrent:/downloads"
-            "/mnt/nas/music:/music"
-            "/mnt/nas/shows:/shows"
-            "/mnt/nas/movies:/movies"
-            "/mnt/nas/nsfw:/nsfw"
+            "/mnt/nas/qbittorrent:/mnt/nas/qbittorrent"
+            "/mnt/nas/music:/mnt/nas/music"
+            "/mnt/nas/shows:/mnt/nas/shows"
+            "/mnt/nas/movies:/mnt/nas/movies"
+            "/mnt/nas/nsfw:/mnt/nas/nsfw"
           ];
         };
       };
