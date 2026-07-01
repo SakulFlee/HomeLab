@@ -1,4 +1,4 @@
-resource "proxmox_virtual_environment_container" "fansly-recorder" {
+resource "proxmox_virtual_environment_container" "fansly_recorder" {
   node_name     = "aetherium"
   vm_id         = 112
   description   = "Fansly stream recorder (NixOS)"
@@ -60,11 +60,11 @@ resource "proxmox_virtual_environment_container" "fansly-recorder" {
   }
 }
 
-resource "null_resource" "deploy_flake_fansly-recorder" {
+resource "null_resource" "deploy_flake_fansly_recorder" {
   triggers = {
-    container_id = proxmox_virtual_environment_container["fansly-recorder"].id
+    container_id = proxmox_virtual_environment_container.fansly_recorder.id
   }
-  depends_on = [proxmox_virtual_environment_container["fansly-recorder"]]
+  depends_on = [proxmox_virtual_environment_container.fansly_recorder]
 
   provisioner "local-exec" {
     command = <<-EOT
