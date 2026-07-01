@@ -62,6 +62,7 @@ in {
             VPN_SERVICE_PROVIDER = "private internet access";
             VPN_TYPE = "openvpn";
             PORT_FORWARDING = "on";
+            HTTP_CONTROL_SERVER_AUTH = "false";
           };
           environmentFiles = [ "/run/gluetun/env" ];
           extraOptions = [ "--cap-add=NET_ADMIN" ];
