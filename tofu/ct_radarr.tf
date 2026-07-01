@@ -38,8 +38,8 @@ resource "proxmox_virtual_environment_container" "radarr" {
   }
 
   memory {
-    dedicated = 512
-    swap      = 512
+    dedicated = 1024
+    swap      = 1024
   }
 
   network_interface {
@@ -49,24 +49,13 @@ resource "proxmox_virtual_environment_container" "radarr" {
     enabled   = true
   }
 
-  mount_point {
-    slot   = 0
-    path   = "/mnt/nas/qbittorrent"
-    volume = "/mnt/nas/qbittorrent"
-  }
-
-  mount_point {
-    slot   = 1
-    path   = "/mnt/nas/movies"
-    volume = "/mnt/nas/movies"
-  }
-
   lifecycle {
     prevent_destroy = false
     ignore_changes = [
       clone,
       tags,
       unprivileged,
+      mount_point,
     ]
   }
 }
@@ -79,6 +68,13 @@ resource "null_resource" "deploy_flake_radarr" {
 
   provisioner "local-exec" {
     command = <<-EOT
+      echo "Setting mount points on Proxmox host..."
+      ssh -p ${var.bastion_port} -i ${var.ssh_private_key_path} \
+        ${var.bastion_user}@${var.bastion_host} \
+        "pct set 110 \
+          --mp0 /mnt/nas/qbittorrent/,mp=/mnt/nas/qbittorrent \
+          --mp1 /mnt/nas/movies/,mp=/mnt/nas/movies"
+
       echo "Waiting for container to become reachable via SSH..."
       PROXY="ssh -p ${var.bastion_port} -i ${var.ssh_private_key_path} \
              ${var.bastion_user}@${var.bastion_host} -W %h:%p"

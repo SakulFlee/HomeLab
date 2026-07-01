@@ -1,12 +1,12 @@
-resource "proxmox_virtual_environment_container" "jellyfin" {
+resource "proxmox_virtual_environment_container" "qbittorrent" {
   node_name     = "aetherium"
-  vm_id         = 107
-  description   = "Jellyfin media server (NixOS)"
+  vm_id         = 111
+  description   = "qBittorrent torrent client (NixOS)"
   start_on_boot = true
   started       = true
   unprivileged  = true
   template      = false
-  tags          = ["nixos", "jellyfin"]
+  tags          = ["nixos", "qbittorrent"]
 
   clone {
     vm_id        = var.template_ct_id
@@ -15,31 +15,31 @@ resource "proxmox_virtual_environment_container" "jellyfin" {
 
   disk {
     datastore_id = "local"
-    size         = 32
+    size         = 8
   }
 
   initialization {
-    hostname = "jellyfin"
+    hostname = "qbittorrent"
 
     ip_config {
       ipv4 {
-        address = "10.0.0.107/24"
+        address = "10.0.0.111/24"
         gateway = "10.0.0.1"
       }
       ipv6 {
-        address = "fdbe::107/64"
+        address = "fdbe::111/64"
         gateway = "fdbe::1"
       }
     }
   }
 
   cpu {
-    cores = 2
+    cores = 1
   }
 
   memory {
     dedicated = 4096
-    swap      = 1024
+    swap      = 4096
   }
 
   network_interface {
@@ -60,22 +60,23 @@ resource "proxmox_virtual_environment_container" "jellyfin" {
   }
 }
 
-resource "null_resource" "deploy_flake_jellyfin" {
+resource "null_resource" "deploy_flake_qbittorrent" {
   triggers = {
-    container_id = proxmox_virtual_environment_container.jellyfin.id
+    container_id = proxmox_virtual_environment_container.qbittorrent.id
   }
-  depends_on = [proxmox_virtual_environment_container.jellyfin]
+  depends_on = [proxmox_virtual_environment_container.qbittorrent]
 
   provisioner "local-exec" {
     command = <<-EOT
       echo "Setting mount points on Proxmox host..."
       ssh -p ${var.bastion_port} -i ${var.ssh_private_key_path} \
         ${var.bastion_user}@${var.bastion_host} \
-        "pct set 107 \
-          --mp0 /mnt/nas/music/,mp=/mnt/nas/music \
-          --mp1 /mnt/nas/shows/,mp=/mnt/nas/shows \
-          --mp2 /mnt/nas/movies/,mp=/mnt/nas/movies \
-          --mp3 /mnt/nas/nsfw/,mp=/mnt/nas/nsfw"
+        "pct set 111 \
+          --mp0 /mnt/nas/qbittorrent/,mp=/mnt/nas/qbittorrent \
+          --mp1 /mnt/nas/music/,mp=/mnt/nas/music \
+          --mp2 /mnt/nas/shows/,mp=/mnt/nas/shows \
+          --mp3 /mnt/nas/movies/,mp=/mnt/nas/movies \
+          --mp4 /mnt/nas/nsfw/,mp=/mnt/nas/nsfw"
 
       echo "Waiting for container to become reachable via SSH..."
       PROXY="ssh -p ${var.bastion_port} -i ${var.ssh_private_key_path} \
@@ -85,7 +86,7 @@ resource "null_resource" "deploy_flake_jellyfin" {
         i=$((i + 1))
         if ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ProxyCommand="$PROXY" \
               -i ${var.ssh_private_key_path} \
-              root@10.0.0.107 "echo ready" 2>/dev/null; then
+              root@10.0.0.111 "echo ready" 2>/dev/null; then
           echo "Container reachable after $((i * 10)) seconds"
           break
         fi
@@ -95,13 +96,13 @@ resource "null_resource" "deploy_flake_jellyfin" {
       echo "Copying repository via tar/ssh..."
       ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ProxyCommand="$PROXY" \
         -i ${var.ssh_private_key_path} \
-        root@10.0.0.107 \
+        root@10.0.0.111 \
         "rm -rf /etc/nixos && mkdir -p /etc/nixos" && \
       tar cz --owner=0 --group=0 -C ${path.root}/.. . | \
         ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ProxyCommand="$PROXY" \
           -i ${var.ssh_private_key_path} \
-          root@10.0.0.107 \
-          "tar xz -C /etc/nixos && nix --extra-experimental-features 'nix-command flakes' profile install nixpkgs#git && nixos-rebuild switch --flake /etc/nixos/nixos#jellyfin --show-trace && nix-collect-garbage --delete-old"
+          root@10.0.0.111 \
+          "tar xz -C /etc/nixos && nix --extra-experimental-features 'nix-command flakes' profile install nixpkgs#git && nixos-rebuild switch --flake /etc/nixos/nixos#qbittorrent --show-trace && nix-collect-garbage --delete-old"
     EOT
   }
 }

@@ -38,8 +38,8 @@ resource "proxmox_virtual_environment_container" "prowlarr" {
   }
 
   memory {
-    dedicated = 512
-    swap      = 512
+    dedicated = 1024
+    swap      = 1024
   }
 
   network_interface {
@@ -55,6 +55,7 @@ resource "proxmox_virtual_environment_container" "prowlarr" {
       clone,
       tags,
       unprivileged,
+      mount_point,
     ]
   }
 }
