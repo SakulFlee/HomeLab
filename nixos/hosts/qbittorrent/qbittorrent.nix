@@ -36,6 +36,14 @@ in {
     sopsFile = ../../secrets/vpn.sops.yaml;
   };
 
+  systemd.tmpfiles.settings."gluetun" = {
+    "/var/lib/gluetun"."d" = {
+      mode = "0755";
+      user = "root";
+      group = "root";
+    };
+  };
+
   virtualisation = {
     podman = {
       enable = true;
@@ -84,8 +92,8 @@ in {
 
   systemd.services.gluetun-env = {
     description = "Generate gluetun env file from sops secrets";
+    requires = [ "sops-install-secrets.service" ];
     after = [ "sops-install-secrets.service" ];
-    wants = [ "sops-install-secrets.service" ];
     requiredBy = [ "podman-gluetun.service" ];
     before = [ "podman-gluetun.service" ];
     serviceConfig = {
@@ -94,8 +102,15 @@ in {
     };
     script = ''
       mkdir -p /run/gluetun
-      echo "OPENVPN_USER=$(cat ${config.sops.secrets.vpn_pia_username.path})" > /run/gluetun/env
-      echo "OPENVPN_PASSWORD=$(cat ${config.sops.secrets.vpn_pia_password.path})" >> /run/gluetun/env
+      USER=$(cat ${config.sops.secrets.vpn_pia_username.path} 2>/dev/null)
+      PASS=$(cat ${config.sops.secrets.vpn_pia_password.path} 2>/dev/null)
+      if [ -n "$USER" ] && [ -n "$PASS" ]; then
+        echo "OPENVPN_USER=$USER" > /run/gluetun/env
+        echo "OPENVPN_PASSWORD=$PASS" >> /run/gluetun/env
+      else
+        echo "gluetun-env: sops secrets not yet available, will retry" >&2
+        exit 1
+      fi
     '';
   };
 
