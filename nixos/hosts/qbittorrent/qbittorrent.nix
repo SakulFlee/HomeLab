@@ -10,7 +10,7 @@ let
     log() { echo "[pia-port-monitor] $(date '+%Y-%m-%d %H:%M:%S') - $1"; }
 
     while true; do
-      PORT=$(curl -sf http://localhost:8000/v1/portforward | grep -o '"port":[0-9]*' | cut -d: -f2 || echo "none")
+      PORT=$(${pkgs.podman}/bin/podman exec gluetun cat /tmp/gluetun/forwarded_port 2>/dev/null || echo "none")
 
       if [[ "$PORT" != "none" ]] && [[ "$PORT" != "null" ]]; then
         QB_PORT=$(grep -E "^Session\\\\Port=" "$QB_CONFIG" 2>/dev/null | cut -d'=' -f2 | tr -d '\r')
@@ -112,7 +112,7 @@ in {
     after = [ "podman-gluetun.service" "podman-qbittorrent.service" ];
     wants = [ "podman-gluetun.service" "podman-qbittorrent.service" ];
     wantedBy = [ "multi-user.target" ];
-    path = with pkgs; [ podman curl gnused ];
+    path = with pkgs; [ podman gnused ];
     serviceConfig = {
       Type = "simple";
       ExecStart = "${portMonitor}";
