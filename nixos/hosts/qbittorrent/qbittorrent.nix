@@ -92,8 +92,7 @@ in {
 
   systemd.services.gluetun-env = {
     description = "Generate gluetun env file from sops secrets";
-    requires = [ "sops-install-secrets.service" ];
-    after = [ "sops-install-secrets.service" ];
+    wantedBy = [ "multi-user.target" ];
     requiredBy = [ "podman-gluetun.service" ];
     before = [ "podman-gluetun.service" ];
     serviceConfig = {
@@ -102,15 +101,19 @@ in {
     };
     script = ''
       mkdir -p /run/gluetun
-      USER=$(cat ${config.sops.secrets.vpn_pia_username.path} 2>/dev/null)
-      PASS=$(cat ${config.sops.secrets.vpn_pia_password.path} 2>/dev/null)
-      if [ -n "$USER" ] && [ -n "$PASS" ]; then
-        echo "OPENVPN_USER=$USER" > /run/gluetun/env
-        echo "OPENVPN_PASSWORD=$PASS" >> /run/gluetun/env
-      else
-        echo "gluetun-env: sops secrets not yet available, will retry" >&2
-        exit 1
-      fi
+      for i in $(seq 30); do
+        USER=$(cat ${config.sops.secrets.vpn_pia_username.path} 2>/dev/null || echo "")
+        PASS=$(cat ${config.sops.secrets.vpn_pia_password.path} 2>/dev/null || echo "")
+        if [ -n "$USER" ] && [ -n "$PASS" ]; then
+          echo "OPENVPN_USER=$USER" > /run/gluetun/env
+          echo "OPENVPN_PASSWORD=$PASS" >> /run/gluetun/env
+          exit 0
+        fi
+        echo "gluetun-env: waiting for sops secrets... attempt $i" >&2
+        sleep 2
+      done
+      echo "gluetun-env: failed to read sops secrets after 30 attempts" >&2
+      exit 1
     '';
   };
 
