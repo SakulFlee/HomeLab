@@ -30,10 +30,10 @@ in {
   ];
 
   sops.secrets."vpn_pia_username" = {
-    sopsFile = ../../secrets/general.sops.yaml;
+    sopsFile = ../../secrets/vpn.sops.yaml;
   };
   sops.secrets."vpn_pia_password" = {
-    sopsFile = ../../secrets/general.sops.yaml;
+    sopsFile = ../../secrets/vpn.sops.yaml;
   };
 
   virtualisation = {
