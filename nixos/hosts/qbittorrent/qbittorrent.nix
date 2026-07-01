@@ -90,36 +90,20 @@ in {
     };
   };
 
-  systemd.services.gluetun-env = {
-    description = "Generate gluetun env file from sops secrets";
-    wantedBy = [ "multi-user.target" ];
-    requiredBy = [ "podman-gluetun.service" ];
-    before = [ "podman-gluetun.service" ];
-    serviceConfig = {
-      Type = "oneshot";
-      RemainAfterExit = true;
-    };
-    script = ''
-      mkdir -p /run/gluetun
-      for i in $(seq 30); do
-        USER=$(cat ${config.sops.secrets.vpn_pia_username.path} 2>/dev/null || echo "")
-        PASS=$(cat ${config.sops.secrets.vpn_pia_password.path} 2>/dev/null || echo "")
-        if [ -n "$USER" ] && [ -n "$PASS" ]; then
+  systemd.services."podman-gluetun" = {
+    after = [ "network.target" ];
+    path = with pkgs; [ gnused ];
+    serviceConfig.ExecStartPre = [
+      (let
+        script = pkgs.writeShellScript "gluetun-env-pre" ''
+          mkdir -p /run/gluetun
+          USER=$(cat ${config.sops.secrets.vpn_pia_username.path})
+          PASS=$(cat ${config.sops.secrets.vpn_pia_password.path})
           echo "OPENVPN_USER=$USER" > /run/gluetun/env
           echo "OPENVPN_PASSWORD=$PASS" >> /run/gluetun/env
-          exit 0
-        fi
-        echo "gluetun-env: waiting for sops secrets... attempt $i" >&2
-        sleep 2
-      done
-      echo "gluetun-env: failed to read sops secrets after 30 attempts" >&2
-      exit 1
-    '';
-  };
-
-  systemd.services."podman-gluetun" = {
-    requires = [ "gluetun-env.service" ];
-    after = [ "gluetun-env.service" ];
+        '';
+      in "${script}")
+    ];
   };
 
   systemd.services.pia-port-monitor = {
