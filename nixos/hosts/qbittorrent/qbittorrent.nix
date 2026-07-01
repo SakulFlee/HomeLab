@@ -62,7 +62,7 @@ let
       systemctl start qbittorrent
     }
 
-    log "Starting PIA port monitor (check interval: ${CHECK_INTERVAL}s)"
+    log "Starting PIA port monitor (check interval: $CHECK_INTERVAL seconds)"
 
     # Immediate connection attempt on boot
     state=$(get_vpn_state)
