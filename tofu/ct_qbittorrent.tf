@@ -53,13 +53,6 @@ resource "proxmox_virtual_environment_container" "qbittorrent" {
     nesting = true
   }
 
-  device_passthrough {
-    path = "/dev/net/tun"
-    uid  = 0
-    gid  = 0
-    mode = "0666"
-  }
-
   lifecycle {
     prevent_destroy = false
     ignore_changes = [
@@ -67,6 +60,7 @@ resource "proxmox_virtual_environment_container" "qbittorrent" {
       tags,
       unprivileged,
       mount_point,
+      device_passthrough,
     ]
   }
 }
@@ -89,7 +83,17 @@ resource "null_resource" "deploy_flake_qbittorrent" {
           --mp3 /mnt/nas/movies/,mp=/mnt/nas/movies \
           --mp4 /mnt/nas/nsfw/,mp=/mnt/nas/nsfw"
 
-      echo "Waiting for container to become reachable via SSH..."
+      echo "Setting TUN device passthrough..."
+      ssh -p ${var.bastion_port} -i ${var.ssh_private_key_path} \
+        ${var.bastion_user}@${var.bastion_host} \
+        "CONFIG=/etc/pve/lxc/111.conf
+         grep -q 'lxc.cgroup2.devices.allow: c 10:200 rwm' \"\$CONFIG\" ||
+           echo 'lxc.cgroup2.devices.allow: c 10:200 rwm' >> \"\$CONFIG\"
+         grep -q 'lxc.mount.entry: /dev/net/tun' \"\$CONFIG\" ||
+           echo 'lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file' >> \"\$CONFIG\"
+         pct reboot 111"
+
+      echo "Waiting for container to become reachable via SSH (after TUN reboot)..."
       PROXY="ssh -p ${var.bastion_port} -i ${var.ssh_private_key_path} \
              ${var.bastion_user}@${var.bastion_host} -W %h:%p"
       i=0
