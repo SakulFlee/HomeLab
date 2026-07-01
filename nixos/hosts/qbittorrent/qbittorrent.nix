@@ -84,6 +84,8 @@ in {
 
   systemd.services.gluetun-env = {
     description = "Generate gluetun env file from sops secrets";
+    after = [ "sops-install-secrets.service" ];
+    wants = [ "sops-install-secrets.service" ];
     requiredBy = [ "podman-gluetun.service" ];
     before = [ "podman-gluetun.service" ];
     serviceConfig = {
@@ -95,6 +97,11 @@ in {
       echo "OPENVPN_USER=$(cat ${config.sops.secrets.vpn_pia_username.path})" > /run/gluetun/env
       echo "OPENVPN_PASSWORD=$(cat ${config.sops.secrets.vpn_pia_password.path})" >> /run/gluetun/env
     '';
+  };
+
+  systemd.services."podman-gluetun" = {
+    requires = [ "gluetun-env.service" ];
+    after = [ "gluetun-env.service" ];
   };
 
   systemd.services.pia-port-monitor = {
