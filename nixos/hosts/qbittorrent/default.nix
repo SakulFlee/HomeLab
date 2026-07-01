@@ -1,7 +1,6 @@
 { ... }: {
   imports = [
     ./qbittorrent.nix
-    ../../modules
   ];
 
   networking.hostName = "qbittorrent";
