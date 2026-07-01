@@ -1,7 +1,7 @@
 { config, pkgs, lib, ... }:
 let
   cfg = config.services.qbittorrent;
-  qbConfig = "${cfg.dataDir}/.config/qBittorrent/qBittorrent.conf";
+  qbConfig = "${cfg.profileDir}/qBittorrent/config/qBittorrent.conf";
 
   piaPortMonitor = pkgs.writeShellScript "pia-port-monitor" ''
     # PIA Port Forwarding Monitor for qBittorrent
