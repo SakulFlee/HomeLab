@@ -37,7 +37,7 @@ let
 
           pid=""
           if [ -f "$PID_FILE" ]; then
-            pid=$(grep -F "$url" "$PID_FILE" | tail -1 | awk '{print $NF}')
+            pid=$(grep -F "$url" "$PID_FILE" | tail -1 | sed 's/.* //')
           fi
 
           if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
