@@ -32,9 +32,6 @@ let
         while IFS= read -r url; do
           [[ -z "$url" || "$url" =~ ^# ]] && continue
 
-          streamer=$(echo "$url" | sed 's|.*fansly\.com/||; s|/.*$||')
-          streamer=''${streamer:-unknown}
-
           pid=""
           if [ -f "$PID_FILE" ]; then
             pid=$(grep -F "$url" "$PID_FILE" | tail -1 | sed 's/.* //' || true)
@@ -46,12 +43,12 @@ let
 
           [ -n "$pid" ] && sed -i '\|^'"$url"' |d' "$PID_FILE" || true
 
-          log "Starting recorder for $streamer"
-          ${pkg}/bin/fansly-recorder \
+          log "Starting recorder for $url"
+          (cd "$OUTPUT_DIR" && ${pkg}/bin/fansly-recorder \
             --url "$url" \
-            -o "$OUTPUT_DIR/''${streamer}_{timestamp}.ts" \
             --storage-state "$AUTH_FILE" \
-            --watch --interval "$WATCH_INTERVAL" &
+            --watch --interval "$WATCH_INTERVAL" \
+            --format mkv) &
           echo "$url $!" >> "$PID_FILE"
         done < "$TRACKING_FILE"
       fi
