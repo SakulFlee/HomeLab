@@ -37,14 +37,14 @@ let
 
           pid=""
           if [ -f "$PID_FILE" ]; then
-            pid=$(grep -F "$url" "$PID_FILE" | tail -1 | sed 's/.* //')
+            pid=$(grep -F "$url" "$PID_FILE" | tail -1 | sed 's/.* //' || true)
           fi
 
           if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
             continue
           fi
 
-          [ -n "$pid" ] && sed -i '\|^'"$url"' |d' "$PID_FILE"
+          [ -n "$pid" ] && sed -i '\|^'"$url"' |d' "$PID_FILE" || true
 
           log "Starting recorder for $streamer"
           ${pkg}/bin/fansly-recorder \
