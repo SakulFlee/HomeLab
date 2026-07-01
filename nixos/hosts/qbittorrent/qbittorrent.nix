@@ -17,7 +17,7 @@ let
         if [[ "$QB_PORT" != "$PORT" ]]; then
           log "Port changed: $QB_PORT -> $PORT"
           sed -i "s/^Session\\\\Port=.*/Session\\\\Port=$PORT/" "$QB_CONFIG"
-          ${pkgs.podman}/bin/podman restart qbittorrent
+          ${pkgs.systemd}/bin/systemctl restart podman-qbittorrent
         fi
       fi
 
@@ -112,7 +112,7 @@ in {
     after = [ "podman-gluetun.service" "podman-qbittorrent.service" ];
     wants = [ "podman-gluetun.service" "podman-qbittorrent.service" ];
     wantedBy = [ "multi-user.target" ];
-    path = with pkgs; [ podman gnused ];
+    path = with pkgs; [ podman gnused systemd ];
     serviceConfig = {
       Type = "simple";
       ExecStart = "${portMonitor}";
