@@ -64,6 +64,13 @@ let
 
     log "Starting PIA port monitor (check interval: ${CHECK_INTERVAL}s)"
 
+    # Immediate connection attempt on boot
+    state=$(get_vpn_state)
+    if [[ "$state" != "Connected" ]]; then
+      log "VPN not connected at startup. Attempting to connect..."
+      piactl connect
+    fi
+
     while true; do
       state=$(get_vpn_state)
 
