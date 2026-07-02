@@ -15,7 +15,7 @@ resource "proxmox_virtual_environment_container" "forgejo" {
 
   disk {
     datastore_id = "local"
-    size         = 64
+    size         = 72
   }
 
   initialization {
