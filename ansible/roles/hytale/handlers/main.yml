@@ -1,5 +1,0 @@
-- name: Reload systemd
-  systemd:
-    name: hytale
-    state: restarted
-    daemon_reload: yes

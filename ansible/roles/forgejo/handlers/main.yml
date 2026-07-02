@@ -1,9 +1,0 @@
-- name: Restart Forgejo
-  ansible.builtin.service:
-    name: forgejo
-    state: restarted
-
-- name: Restart SSHD
-  ansible.builtin.systemd:
-    name: sshd
-    state: restarted

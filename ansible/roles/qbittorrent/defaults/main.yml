@@ -1,8 +1,0 @@
-# qBittorrent configuration
-qbittorrent_user: qbittorrent
-qbittorrent_group: qbittorrent
-qbittorrent_home: "/var/lib/qbittorrent"
-
-# Port monitor script
-qbittorrent_port_monitor_interval: 60
-

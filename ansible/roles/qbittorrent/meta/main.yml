@@ -1,6 +1,0 @@
-dependencies:
-  - role: pia
-    vars:
-      pia_username: "{{ vault_vpn_pia_username }}"
-      pia_password: "{{ vault_vpn_pia_password }}"
-

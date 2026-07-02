@@ -1,3 +1,0 @@
-- name: Restart PIA
-  ansible.builtin.shell:
-    cmd: "piactl disconnect; sleep 2; piactl connect"

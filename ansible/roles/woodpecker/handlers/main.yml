@@ -1,9 +1,0 @@
-- name: Restart Woodpecker Server
-  ansible.builtin.service:
-    name: woodpecker-server
-    state: restarted
-
-- name: Restart Woodpecker Agent
-  ansible.builtin.service:
-    name: woodpecker-agent
-    state: restarted

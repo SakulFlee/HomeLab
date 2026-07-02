@@ -1,8 +1,0 @@
-- ansible.builtin.include_tasks: "{{ file }}"
-  loop_control:
-    loop_var: file
-  loop:
-    - user.yml
-    - install.yml
-    - server.yml 
-    - agent.yml
