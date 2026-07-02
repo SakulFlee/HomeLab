@@ -8,6 +8,7 @@
         platform: 'forgejo',
         endpoint: 'https://forgejo.sakul-flee.de/api/v1',
         autodiscover: true,
+        allowedUnsafeExecutions: ['gradleWrapper'],
       };
     '';
     mode = "0644";
