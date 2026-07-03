@@ -39,7 +39,7 @@ resource "proxmox_virtual_environment_container" "hytale" {
 
   memory {
     dedicated = 8192
-    swap      = 8192
+    swap      = 512
   }
 
   network_interface {

@@ -38,8 +38,8 @@ resource "proxmox_virtual_environment_container" "radarr" {
   }
 
   memory {
-    dedicated = 1024
-    swap      = 1024
+    dedicated = 512
+    swap      = 512
   }
 
   network_interface {

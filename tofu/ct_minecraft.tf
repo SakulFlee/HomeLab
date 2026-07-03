@@ -38,8 +38,8 @@ resource "proxmox_virtual_environment_container" "minecraft" {
   }
 
   memory {
-    dedicated = 4096
-    swap      = 4096
+    dedicated = 2048
+    swap      = 512
   }
 
   network_interface {

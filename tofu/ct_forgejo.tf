@@ -39,7 +39,7 @@ resource "proxmox_virtual_environment_container" "forgejo" {
 
   memory {
     dedicated = 2048
-    swap      = 1024
+    swap      = 512
   }
 
   network_interface {

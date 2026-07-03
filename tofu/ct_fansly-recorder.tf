@@ -39,7 +39,7 @@ resource "proxmox_virtual_environment_container" "fansly_recorder" {
 
   memory {
     dedicated = 8192
-    swap      = 8192
+    swap      = 2048
   }
 
   network_interface {

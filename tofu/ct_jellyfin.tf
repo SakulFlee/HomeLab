@@ -39,7 +39,7 @@ resource "proxmox_virtual_environment_container" "jellyfin" {
 
   memory {
     dedicated = 4096
-    swap      = 1024
+    swap      = 512
   }
 
   network_interface {

@@ -38,7 +38,7 @@ resource "proxmox_virtual_environment_container" "woodpecker" {
   }
 
   memory {
-    dedicated = 2048
+    dedicated = 4096
     swap      = 1024
   }
 
