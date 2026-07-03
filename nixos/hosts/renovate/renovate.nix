@@ -26,7 +26,7 @@
     description = "Renovate dependency dashboard bot";
     after = [ "network.target" ];
     wants = [ "network.target" ];
-    path = with pkgs; [ cargo rustc go jdk21 gradle maven dotnet-sdk python3 git ];
+    path = with pkgs; [ nodejs cargo rustc go jdk21 gradle maven dotnet-sdk python3 git ];
     serviceConfig = {
       Type = "oneshot";
       User = "renovate";
@@ -46,6 +46,6 @@
   };
 
   environment.systemPackages = with pkgs; [
-    cargo rustc go jdk21 gradle maven dotnet-sdk python3 git
+    nodejs cargo rustc go jdk21 gradle maven dotnet-sdk python3 git
   ];
 }
