@@ -38,7 +38,7 @@ resource "proxmox_virtual_environment_container" "renovate" {
   }
 
   memory {
-    dedicated = 512
+    dedicated = 4096
     swap      = 512
   }
 
