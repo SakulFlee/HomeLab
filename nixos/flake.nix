@@ -11,9 +11,13 @@
       url = "git+https://forgejo.sakul-flee.de/SakulFlee/FanslyRecorder.git";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    hermes-agent = {
+      url = "github:NousResearch/hermes-agent";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
-  outputs = { self, nixpkgs, sops-nix, fansly-recorder }: {
+  outputs = { self, nixpkgs, sops-nix, fansly-recorder, hermes-agent }: {
     nixosConfigurations.caddy = nixpkgs.lib.nixosSystem {
       system = "x86_64-linux";
       specialArgs = { inherit sops-nix; };
@@ -102,6 +106,12 @@
       system = "x86_64-linux";
       specialArgs = { inherit sops-nix; };
       modules = [ ./hosts/bitmagnet ];
+    };
+
+    nixosConfigurations.hermes-agent = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      specialArgs = { inherit sops-nix hermes-agent; };
+      modules = [ ./hosts/hermes-agent ];
     };
   };
 }
