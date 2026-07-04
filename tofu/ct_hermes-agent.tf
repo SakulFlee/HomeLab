@@ -34,12 +34,12 @@ resource "proxmox_virtual_environment_container" "hermes-agent" {
   }
 
   cpu {
-    cores = 1
+    cores = 2
   }
 
   memory {
-    dedicated = 1024
-    swap      = 512
+    dedicated = 2048
+    swap      = 1024
   }
 
   network_interface {
