@@ -62,6 +62,10 @@
         reverse_proxy 10.0.0.111:8080
       }
 
+      bitmagnet.sakul-flee.de {
+        reverse_proxy 10.0.0.114:3333
+      }
+
       jellyfin.sakul-flee.de {
         reverse_proxy 10.0.0.107:8096
       }
