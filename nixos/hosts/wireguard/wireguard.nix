@@ -13,11 +13,11 @@
         {
           publicKey = "/nL6bknMr/9eytU0zdKE+hykHV1Lc0UzIhCIzb0OIgc=";
           allowedIPs = [ "10.100.0.2/32" ];
-        },
+        }
         {
           publicKey = "ClMVYG1CLPUe4O8gWKbriZYe46vzHm5jV0vL8sCJsDI=";
           allowedIPs = [ "10.100.0.3/32" ];
-        },
+        }
         {
           publicKey = "dMvt6494e1ZQahqxL3hC8DqrQm8KNKIcNeyvlM8MQjk=";
           allowedIPs = [ "10.100.0.4/32" ];
