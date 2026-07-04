@@ -13,11 +13,14 @@
 
     environmentFiles = [ config.sops.secrets."hermes-env".path ];
 
+    authFile = pkgs.writeText "auth.json" "{}";
+
     settings = {
       model = "openai/deepseek-v4-flash";
       openai_base_url = "https://opencode.ai/zen/go/v1";
 
       terminal.backend = "local";
+      terminal.cwd = "/var/lib/hermes/workspace";
       toolsets = [ "all" ];
 
       compression = {
@@ -28,6 +31,8 @@
       messaging.discord.enabled = true;
     };
   };
+
+  nix.settings.max-jobs = 1;
 
   environment.systemPackages = with pkgs; [
     ripgrep
