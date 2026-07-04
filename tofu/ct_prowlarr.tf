@@ -38,7 +38,7 @@ resource "proxmox_virtual_environment_container" "prowlarr" {
   }
 
   memory {
-    dedicated = 512
+    dedicated = 1024
     swap      = 512
   }
 
