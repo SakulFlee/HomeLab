@@ -14,7 +14,8 @@
     environmentFiles = [ config.sops.secrets."hermes-env".path ];
 
     settings = {
-      model = "openai/deepseek-chat";
+      model = "openai/deepseek-v4-flash";
+      openai_base_url = "https://opencode.ai/zen/go/v1";
 
       terminal.backend = "local";
       toolsets = [ "all" ];
