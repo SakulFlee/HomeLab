@@ -22,8 +22,18 @@
   networking.nat.externalInterface = "eth0";
   networking.nat.internalInterfaces = [ "wg0" ];
 
-  networking.firewall.allowedUDPPorts = [ 51820 ];
-  networking.firewall.trustedInterfaces = [ "wg0" ];
+  networking.firewall = {
+    allowedUDPPorts = [ 51820 ];
+    trustedInterfaces = [ "wg0" ];
+    extraCommands = ''
+      iptables -A nixos-fw-forward -i wg0 -j ACCEPT
+      iptables -A nixos-fw-forward -o wg0 -m state --state ESTABLISHED,RELATED -j ACCEPT
+    '';
+    extraStopCommands = ''
+      iptables -D nixos-fw-forward -i wg0 -j ACCEPT
+      iptables -D nixos-fw-forward -o wg0 -m state --state ESTABLISHED,RELATED -j ACCEPT
+    '';
+  };
 
   boot.kernel.sysctl."net.ipv4.ip_forward" = true;
 }
