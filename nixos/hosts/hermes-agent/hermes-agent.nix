@@ -2,7 +2,7 @@
   imports = [ hermes-agent.nixosModules.default ];
 
   sops.defaultSopsFile = ../../secrets/hermes-agent.sops.yaml;
-  sops.secrets."hermes/env" = { };
+  sops.secrets."hermes-env" = { };
 
   services.hermes-agent = {
     enable = true;
@@ -11,7 +11,7 @@
     package = hermes-agent.packages.${pkgs.system}.minimal;
     extraDependencyGroups = [ "messaging" ];
 
-    environmentFiles = [ config.sops.secrets."hermes/env".path ];
+    environmentFiles = [ config.sops.secrets."hermes-env".path ];
 
     settings = {
       model = "openai/deepseek-chat";
