@@ -91,5 +91,11 @@
       specialArgs = { inherit sops-nix fansly-recorder; };
       modules = [ ./hosts/fansly-recorder ];
     };
+
+    nixosConfigurations.wireguard = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      specialArgs = { inherit sops-nix; };
+      modules = [ ./hosts/wireguard ];
+    };
   };
 }
