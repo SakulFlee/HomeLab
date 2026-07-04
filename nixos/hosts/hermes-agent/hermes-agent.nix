@@ -16,8 +16,7 @@
     authFile = pkgs.writeText "auth.json" "{}";
 
     settings = {
-      active_provider = "openai";
-      model = "openai/deepseek-v4-flash";
+      model = "deepseek-v4-flash";
       openai_base_url = "https://opencode.ai/zen/go/v1";
 
       terminal.backend = "local";
