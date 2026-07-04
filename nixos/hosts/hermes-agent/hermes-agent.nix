@@ -8,7 +8,6 @@
     enable = true;
     addToSystemPackages = true;
 
-    package = hermes-agent.packages.${pkgs.system}.minimal;
     extraDependencyGroups = [ "messaging" ];
 
     environmentFiles = [ config.sops.secrets."hermes-env".path ];
