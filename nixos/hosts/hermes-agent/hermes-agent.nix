@@ -16,10 +16,8 @@
 
     settings = {
       model = {
-        provider = "openai";
+        provider = "opencode-go";
         default = "deepseek-v4-flash";
-        base_url = "https://opencode.ai/zen/go/v1";
-        api_mode = "chat_completions";
       };
 
       terminal.backend = "local";
