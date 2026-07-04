@@ -16,8 +16,12 @@
     authFile = pkgs.writeText "auth.json" "{}";
 
     settings = {
-      model = "deepseek-v4-flash";
-      openai_base_url = "https://opencode.ai/zen/go/v1";
+      model = {
+        provider = "openai";
+        default = "deepseek-v4-flash";
+        base_url = "https://opencode.ai/zen/go/v1";
+        api_mode = "chat_completions";
+      };
 
       terminal.backend = "local";
       terminal.cwd = "/var/lib/hermes/workspace";
