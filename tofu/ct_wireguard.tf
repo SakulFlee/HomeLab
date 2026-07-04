@@ -38,7 +38,7 @@ resource "proxmox_virtual_environment_container" "wireguard" {
   }
 
   memory {
-    dedicated = 256
+    dedicated = 1024
     swap      = 512
   }
 
