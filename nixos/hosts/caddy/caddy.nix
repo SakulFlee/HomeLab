@@ -5,7 +5,7 @@
   services.caddy = {
     enable = true;
     package = pkgs.caddy.withPlugins {
-      plugins = [ "github.com/caddy-dns/cloudflare@v1.0.0" ];
+      plugins = [ "github.com/caddy-dns/cloudflare@v0.2.4" ];
     };
     email = "dev@sakul-flee.de";
     globalConfig = ''
