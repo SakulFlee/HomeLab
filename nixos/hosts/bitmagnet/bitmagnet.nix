@@ -76,6 +76,7 @@ in {
             VPN_SERVICE_PROVIDER = "private internet access";
             VPN_TYPE = "openvpn";
             HTTP_CONTROL_SERVER_AUTH_DEFAULT_ROLE = "{\"auth\":\"none\"}";
+            FIREWALL_OUTBOUND_SUBNETS = "10.0.0.0/24";
           };
           environmentFiles = [ "/run/gluetun/env" ];
           extraOptions = [ "--cap-add=NET_ADMIN" "--device=/dev/net/tun" ];
