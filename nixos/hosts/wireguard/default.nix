@@ -1,6 +1,7 @@
 { ... }: {
   imports = [
     ./wireguard.nix
+    ./caddy.nix
     ../../modules
   ];
 
