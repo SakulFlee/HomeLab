@@ -113,5 +113,11 @@
       specialArgs = { inherit sops-nix hermes-agent; };
       modules = [ ./hosts/hermes-agent ];
     };
+
+    nixosConfigurations.dns = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      specialArgs = { inherit sops-nix; };
+      modules = [ ./hosts/dns ];
+    };
   };
 }
