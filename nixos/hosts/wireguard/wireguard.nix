@@ -34,6 +34,9 @@
     serviceConfig = {
       ExecStart = "${pkgs.socat}/bin/socat TCP-LISTEN:22,fork,reuseaddr,bind=0.0.0.0 TCP:10.0.0.102:22";
       Restart = "always";
+      RestartKillSignal = "SIGTERM";
+      TimeoutStopSec = 5;
+      KillMode = "mixed";
     };
   };
 
