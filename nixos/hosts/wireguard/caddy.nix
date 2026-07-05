@@ -6,8 +6,8 @@
       *.sakul-flee.de {
         tls internal
         reverse_proxy {
+          dial 10.0.0.100:443
           transport http {
-            dial 10.0.0.100:443
             tls
             tls_server_name {host}
             tls_insecure_skip_verify
