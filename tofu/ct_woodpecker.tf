@@ -15,7 +15,7 @@ resource "proxmox_virtual_environment_container" "woodpecker" {
 
   disk {
     datastore_id = "local"
-    size         = 16
+    size         = 64
   }
 
   initialization {
