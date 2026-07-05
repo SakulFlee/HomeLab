@@ -7,6 +7,7 @@
         tls internal
         reverse_proxy {
           to 10.0.0.100:443
+          header_up Host {host}
           transport http {
             tls
             tls_server_name {host}
