@@ -5,7 +5,11 @@
     extraConfig = ''
       *.sakul-flee.de {
         tls internal
-        reverse_proxy 10.0.0.100:80
+        reverse_proxy https://10.0.0.100 {
+          transport http {
+            tls_insecure_skip_verify
+          }
+        }
       }
     '';
   };
