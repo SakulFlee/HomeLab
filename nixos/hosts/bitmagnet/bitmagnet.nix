@@ -50,6 +50,10 @@ in {
     settings = {
       listen_addresses = lib.mkForce "localhost,10.0.0.114";
     };
+    authentication = lib.mkAfter ''
+      host  all bitmagnet 10.88.0.0/16 scram-sha-256
+      host  all bitmagnet 10.0.0.0/24 scram-sha-256
+    '';
     initialScript = pkgs.writeText "init-bitmagnet" ''
       ALTER USER bitmagnet WITH PASSWORD 'bitmagnet';
     '';
