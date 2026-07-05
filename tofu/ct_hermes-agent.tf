@@ -38,8 +38,8 @@ resource "proxmox_virtual_environment_container" "hermes-agent" {
   }
 
   memory {
-    dedicated = 4096
-    swap      = 2048
+    dedicated = 8192
+    swap      = 4096
   }
 
   network_interface {
