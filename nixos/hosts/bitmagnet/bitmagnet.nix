@@ -116,6 +116,13 @@ in {
     serviceConfig.ExecStartPre = [ "${bitmagnetEnv}" ];
   };
 
+  systemd.services.postgresql = {
+    path = with pkgs; [ config.services.postgresql.package ];
+    postStart = lib.mkAfter ''
+      psql -d bitmagnet -c "ALTER USER bitmagnet WITH PASSWORD 'bitmagnet';" 2>/dev/null || true
+    '';
+  };
+
   networking.firewall.allowedTCPPorts = [ 3333 3334 5432 ];
   networking.firewall.allowedUDPPorts = [ 3334 ];
 }
