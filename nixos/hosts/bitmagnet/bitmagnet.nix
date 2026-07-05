@@ -48,7 +48,7 @@ in {
       }
     ];
     settings = {
-      listen_addresses = "localhost,10.0.0.114";
+      listen_addresses = lib.mkForce "localhost,10.0.0.114";
     };
     initialScript = pkgs.writeText "init-bitmagnet" ''
       ALTER USER bitmagnet WITH PASSWORD 'bitmagnet';
