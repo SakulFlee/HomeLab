@@ -8,7 +8,11 @@
     enable = true;
     addToSystemPackages = true;
 
-    extraDependencyGroups = [ "messaging" ];
+    extraDependencyGroups = [
+      "messaging"
+      "anthropic"
+      "matrix"
+    ];
 
     environmentFiles = [ config.sops.secrets."hermes-env".path ];
 
