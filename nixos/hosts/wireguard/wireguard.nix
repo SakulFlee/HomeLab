@@ -26,12 +26,24 @@
     };
   };
 
+  # SSH proxy — forwards VPN SSH to Forgejo
+  systemd.services.ssh-proxy-forgejo = {
+    description = "SSH proxy to Forgejo for VPN clients";
+    after = [ "network.target" ];
+    wantedBy = [ "multi-user.target" ];
+    serviceConfig = {
+      ExecStart = "${pkgs.socat}/bin/socat TCP-LISTEN:22,fork,reuseaddr,bind=0.0.0.0 TCP:10.0.0.102:22";
+      Restart = "always";
+    };
+  };
+
   networking.nat.enable = true;
   networking.nat.externalInterface = "eth0";
   networking.nat.internalInterfaces = [ "wg0" ];
 
   networking.firewall = {
     allowedUDPPorts = [ 51820 ];
+    allowedTCPPorts = [ 22 ];
     trustedInterfaces = [ "wg0" ];
     extraCommands = ''
       iptables -A nixos-fw-forward -i wg0 -j ACCEPT
