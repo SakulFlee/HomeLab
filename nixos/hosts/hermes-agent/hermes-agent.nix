@@ -8,11 +8,11 @@
     enable = true;
     addToSystemPackages = true;
 
-    extraDependencyGroups = [
-      "messaging"
-      "anthropic"
-      "matrix"
-    ];
+    # Use the upstream "full" hermes-agent package, which ships a pre-baked
+    # venv with anthropic, messaging, matrix, honcho, voice, and all
+    # platform backends. Avoids a uv2nix quirk where extraDependencyGroups
+    # silently drops all but the first named group.
+    package = hermes-agent.packages.${pkgs.stdenv.hostPlatform.system}.full;
 
     environmentFiles = [ config.sops.secrets."hermes-env".path ];
 
