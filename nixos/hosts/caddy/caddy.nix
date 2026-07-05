@@ -1,14 +1,17 @@
 { config, pkgs, ... }: {
+  sops.defaultSopsFile = ../../secrets/caddy.sops.yaml;
+  sops.secrets."caddy-env" = {};
+
   services.caddy = {
     enable = true;
+    package = pkgs.caddy.withPlugins {
+      plugins = [ "github.com/caddy-dns/cloudflare@v1.0.0" ];
+    };
     email = "dev@sakul-flee.de";
     globalConfig = ''
-      acme_ca https://acme.zerossl.com/v2/DV90
-      acme_eab {
-          key_id  kUY5FgCTebnW6EPdKbc9gw
-          mac_key Gp777GdhjrW69BEF564wiw_1l7Xsq2QT1DobDpN_G32SPkVCbUEefkAJ33IBor2Qhp9Uid8DoWhyVK2aBfmADQ
-      }
+      acme_dns cloudflare {env.CF_API_TOKEN}
     '';
+    environmentFile = config.sops.secrets."caddy-env".path;
     extraConfig = ''
       sakul-flee.de, www.sakul-flee.de {
         reverse_proxy 10.0.0.101:80
