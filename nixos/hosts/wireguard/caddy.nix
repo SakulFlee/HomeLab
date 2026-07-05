@@ -1,10 +1,19 @@
-{ ... }: {
+{ config, pkgs, ... }: {
+  sops.defaultSopsFile = ../../secrets/caddy.sops.yaml;
+  sops.secrets."caddy-env" = {};
+
   # VPN-only reverse proxy — forwards to the public Caddy
   services.caddy = {
     enable = true;
+    package = pkgs.caddy.withPlugins {
+      plugins = [ "github.com/caddy-dns/cloudflare@v1.0.0" ];
+    };
+    globalConfig = ''
+      acme_dns cloudflare {env.CF_API_TOKEN}
+    '';
+    environmentFile = config.sops.secrets."caddy-env".path;
     extraConfig = ''
       *.sakul-flee.de {
-        tls internal
         reverse_proxy {
           to 10.0.0.100:443
           header_up Host {host}
