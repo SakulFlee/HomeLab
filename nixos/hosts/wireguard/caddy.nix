@@ -5,8 +5,9 @@
     extraConfig = ''
       *.sakul-flee.de {
         tls internal
-        reverse_proxy https://10.0.0.100 {
+        reverse_proxy https://{host} {
           transport http {
+            dial 10.0.0.100:443
             tls_insecure_skip_verify
           }
         }
