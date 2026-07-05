@@ -1,4 +1,4 @@
-{ config, ... }: {
+{ config, pkgs, ... }: {
   sops.secrets."wireguard_server_private_key" = {
     sopsFile = ../../secrets/wireguard.sops.yaml;
   };
