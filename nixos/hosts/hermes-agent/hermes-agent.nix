@@ -8,11 +8,16 @@
     enable = true;
     addToSystemPackages = true;
 
-    # Use the upstream "full" hermes-agent package, which ships a pre-baked
-    # venv with anthropic, messaging, matrix, honcho, voice, and all
-    # platform backends. Avoids a uv2nix quirk where extraDependencyGroups
-    # silently drops all but the first named group.
-    package = hermes-agent.packages.${pkgs.stdenv.hostPlatform.system}.full;
+    # Use the upstream "full" hermes-agent package (= `default`), which
+    # ships a pre-baked venv with anthropic, messaging, matrix, honcho,
+    # voice, and all platform backends (nix/packages.nix:46).
+    #
+    # extraDependencyGroups stays empty: when non-empty, the NixOS module
+    # rebuilds the venv via `package.override { extraDependencyGroups = ...; }`
+    # in nix/nixosModules.nix:13-16, hitting a uv2nix quirk where only
+    # the first named group is honored.
+    package = hermes-agent.packages.${pkgs.stdenv.hostPlatform.system}.default;
+    extraDependencyGroups = [ ];
 
     environmentFiles = [ config.sops.secrets."hermes-env".path ];
 
