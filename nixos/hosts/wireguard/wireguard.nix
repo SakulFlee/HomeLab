@@ -40,13 +40,20 @@
     };
   };
 
+  # Container's own SSH on port 2222 (port 22 is used by socat proxy)
+  services.openssh = {
+    enable = true;
+    ports = [ 2222 ];
+    settings.PasswordAuthentication = false;
+  };
+
   networking.nat.enable = true;
   networking.nat.externalInterface = "eth0";
   networking.nat.internalInterfaces = [ "wg0" ];
 
   networking.firewall = {
     allowedUDPPorts = [ 51820 ];
-    allowedTCPPorts = [ 22 ];
+    allowedTCPPorts = [ 22 2222 ];
     trustedInterfaces = [ "wg0" ];
     extraCommands = ''
       iptables -A nixos-fw-forward -i wg0 -j ACCEPT
