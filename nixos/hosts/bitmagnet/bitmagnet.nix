@@ -47,13 +47,11 @@ in {
         ensureDBOwnership = true;
       }
     ];
-    authentication = lib.mkOverride 10 ''
-      local bitmagnet bitmagnet trust
-      host bitmagnet bitmagnet 127.0.0.1/32 trust
-      host bitmagnet bitmagnet ::1/128 trust
-    '';
+    settings = {
+      listen_addresses = "localhost,10.0.0.114";
+    };
     initialScript = pkgs.writeText "init-bitmagnet" ''
-      ALTER USER bitmagnet PASSWORD 'bitmagnet';
+      ALTER USER bitmagnet WITH PASSWORD 'bitmagnet';
     '';
   };
 
@@ -114,6 +112,6 @@ in {
     serviceConfig.ExecStartPre = [ "${bitmagnetEnv}" ];
   };
 
-  networking.firewall.allowedTCPPorts = [ 3333 3334 ];
+  networking.firewall.allowedTCPPorts = [ 3333 3334 5432 ];
   networking.firewall.allowedUDPPorts = [ 3334 ];
 }
