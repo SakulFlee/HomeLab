@@ -34,14 +34,6 @@
         }
       }
 
-      pbs.sakul-flee.de {
-        reverse_proxy 10.0.0.2:8007 {
-          transport http {
-            tls_insecure_skip_verify
-          }
-        }
-      }
-
       forgejo.sakul-flee.de {
         reverse_proxy 10.0.0.102:3000
       }
