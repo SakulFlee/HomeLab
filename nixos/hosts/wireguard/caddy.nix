@@ -27,30 +27,37 @@
       }
 
       technitium.sakul-flee.de, dns.sakul-flee.de {
+        header_up Host {host}
         reverse_proxy 10.0.0.116:5380
       }
 
       bitmagnet.sakul-flee.de {
+        header_up Host {host}
       	reverse_proxy 10.0.0.114:3333
       }
 
       prowlarr.sakul-flee.de {
+        header_up Host {host}
         reverse_proxy 10.0.0.108:9696
       }
 
       sonarr.sakul-flee.de {
+        header_up Host {host}
         reverse_proxy 10.0.0.109:8989
       }
 
       radarr.sakul-flee.de {
+        header_up Host {host}
         reverse_proxy 10.0.0.110:7878
       }
 
       qbittorrent.sakul-flee.de {
+        header_up Host {host}
         reverse_proxy 10.0.0.111:8080
       }
 
       jellyfin.sakul-flee.de {
+        header_up Host {host}
         reverse_proxy 10.0.0.107:8096
       }
     '';
