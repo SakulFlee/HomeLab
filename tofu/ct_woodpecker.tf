@@ -34,12 +34,12 @@ resource "proxmox_virtual_environment_container" "woodpecker" {
   }
 
   cpu {
-    cores = 2
+    cores = 8
   }
 
   memory {
-    dedicated = 4096
-    swap      = 1024
+    dedicated = 8192
+    swap      = 2048
   }
 
   network_interface {
