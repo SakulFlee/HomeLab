@@ -25,6 +25,10 @@
           }
         }
       }
+
+      bitmagnet.sakul-flee.de {
+      	reverse_proxy 10.0.0.114:3333
+      }
     '';
   };
 
