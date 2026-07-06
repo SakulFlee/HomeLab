@@ -133,6 +133,8 @@ in {
         INSTALL_LOCK = true;
       };
 
+      webhook.ALLOWED_HOST_LIST = "10.0.0.113, woodpecker.sakul-flee.de";
+
       repository.MAX_CREATION_LIMIT = 0;
 
       admin = {
