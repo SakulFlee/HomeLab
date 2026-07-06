@@ -17,9 +17,6 @@ in {
       hash = "sha256-hEHgAG0F0ozHRAPuxEqLyTATBrE+pajeXDiSNwniorg=";
     };
     email = "dev@sakul-flee.de";
-    globalConfig = ''
-      acme_dns cloudflare {env.CF_API_TOKEN}
-    '';
     environmentFile = config.sops.secrets."caddy-env".path;
     extraConfig = ''
       sakul-flee.de, www.sakul-flee.de {
