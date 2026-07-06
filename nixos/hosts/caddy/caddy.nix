@@ -15,6 +15,17 @@
     environmentFile = config.sops.secrets."caddy-env".path;
     extraConfig = ''
       sakul-flee.de, www.sakul-flee.de {
+        @wellknown_server path /.well-known/matrix/server
+        handle @wellknown_server {
+            header Content-Type application/json
+            respond 200 `{"m.server":"matrix.sakul-flee.de:443"}`
+        }
+        @wellknown_client path /.well-known/matrix/client
+        handle @wellknown_client {
+            header Content-Type application/json
+            respond 200 `{"m.homeserver":{"base_url":"https://matrix.sakul-flee.de"}}`
+        }
+
         reverse_proxy 10.0.0.101:80
       }
 
@@ -40,6 +51,10 @@
 
       woodpecker.sakul-flee.de {
         reverse_proxy 10.0.0.103:8000
+      }
+
+      matrix.sakul-flee.de {
+        reverse_proxy 10.0.0.117:6167
       }
     '';
   };
