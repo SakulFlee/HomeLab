@@ -33,6 +33,26 @@
       bitmagnet.sakul-flee.de {
       	reverse_proxy 10.0.0.114:3333
       }
+
+      prowlarr.sakul-flee.de {
+        reverse_proxy 10.0.0.108:9696
+      }
+
+      sonarr.sakul-flee.de {
+        reverse_proxy 10.0.0.109:8989
+      }
+
+      radarr.sakul-flee.de {
+        reverse_proxy 10.0.0.110:7878
+      }
+
+      qbittorrent.sakul-flee.de {
+        reverse_proxy 10.0.0.111:8080
+      }
+
+      jellyfin.sakul-flee.de {
+        reverse_proxy 10.0.0.107:8096
+      }
     '';
   };
 
