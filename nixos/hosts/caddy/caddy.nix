@@ -52,11 +52,11 @@ in {
         reverse_proxy 10.0.0.103:8000
       }
 
-      matrix.sakul-flee.de {
+      matrix.sakul-flee.de:443, matrix.sakul-flee.de:8448 {
         reverse_proxy 10.0.0.117:6167
       }
     '';
   };
 
-  networking.firewall.allowedTCPPorts = [ 80 443 ];
+  networking.firewall.allowedTCPPorts = [ 80 443 8448 ];
 }
