@@ -73,24 +73,6 @@
       bitmagnet.sakul-flee.de {
         reverse_proxy 10.0.0.114:3333
       }
-
-      matrix.sakul-flee.de {
-        reverse_proxy 10.0.0.117:8008 {
-          header_up X-Forwarded-For {remote_host}
-        }
-      }
-
-      element.sakul-flee.de {
-        reverse_proxy 10.0.0.117:8080
-      }
-
-      # Matrix well-known delegation for federation
-      sakul-flee.de {
-        handle /.well-known/matrix {
-          header Content-Type application/json
-          respond `{"m.homeserver": {"base_url": "https://matrix.sakul-flee.de"}, "m.identity_server": {"base_url": "https://vector.im"}}` 200
-        }
-      }
     '';
   };
 
