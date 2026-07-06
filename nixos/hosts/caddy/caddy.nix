@@ -1,4 +1,12 @@
-{ config, pkgs, ... }: {
+{ config, pkgs, lib, ... }: let
+  matrixWellKnown = pkgs.symlinkJoin {
+    name = "matrix-well-known";
+    paths = [
+      (pkgs.writeTextDir ".well-known/matrix/server" ''{"m.server":"matrix.sakul-flee.de:443"}'')
+      (pkgs.writeTextDir ".well-known/matrix/client" ''{"m.homeserver":{"base_url":"https://matrix.sakul-flee.de"}}'')
+    ];
+  };
+in {
   sops.defaultSopsFile = ../../secrets/caddy.sops.yaml;
   sops.secrets."caddy-env" = {};
 
@@ -15,15 +23,9 @@
     environmentFile = config.sops.secrets."caddy-env".path;
     extraConfig = ''
       sakul-flee.de, www.sakul-flee.de {
-        @wellknown_server path /.well-known/matrix/server
-        handle @wellknown_server {
-            header Content-Type application/json
-            respond 200 `{"m.server":"matrix.sakul-flee.de:443"}`
-        }
-        @wellknown_client path /.well-known/matrix/client
-        handle @wellknown_client {
-            header Content-Type application/json
-            respond 200 `{"m.homeserver":{"base_url":"https://matrix.sakul-flee.de"}}`
+        handle /.well-known/matrix/* {
+            root * ${matrixWellKnown}
+            file_server
         }
 
         reverse_proxy 10.0.0.101:80
