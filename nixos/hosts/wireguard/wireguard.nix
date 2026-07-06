@@ -56,10 +56,12 @@
     allowedTCPPorts = [ 22 2222 ];
     trustedInterfaces = [ "wg0" ];
     extraCommands = ''
+      iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
       iptables -A nixos-fw-forward -i wg0 -j ACCEPT
       iptables -A nixos-fw-forward -o wg0 -m state --state ESTABLISHED,RELATED -j ACCEPT
     '';
     extraStopCommands = ''
+      iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE
       iptables -D nixos-fw-forward -i wg0 -j ACCEPT
       iptables -D nixos-fw-forward -o wg0 -m state --state ESTABLISHED,RELATED -j ACCEPT
     '';
