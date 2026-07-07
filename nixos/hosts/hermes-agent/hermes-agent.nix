@@ -44,6 +44,7 @@
         require_mention = false;
         auto_thread = true;
         session_scope = "room";
+        e2ee_mode = "optional";
       };
     };
   };
