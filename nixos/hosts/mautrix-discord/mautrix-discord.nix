@@ -3,6 +3,9 @@ let
   asToken = "1q6BzIIfaKDcaNE9qtjTORb07leCva3rRrVhNCO_qOOuhJ05CTBkkgCDk6CCC-dl";
   hsToken = "vUAZ0cyDUtvLSBrxSapJKt2rUXnINjZM8UhXjWv8kwRZvtJQrRhJpbsQPogj_P--";
 in {
+  nixpkgs.config.permittedInsecurePackages = [
+    "olm-3.2.16"
+  ];
   services.mautrix-discord = {
     enable = true;
     registerToSynapse = false;
