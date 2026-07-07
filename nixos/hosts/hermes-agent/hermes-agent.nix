@@ -39,6 +39,12 @@
       };
 
       messaging.discord.enabled = true;
+
+      matrix = {
+        require_mention = false;
+        auto_thread = true;
+        session_scope = "room";
+      };
     };
   };
 
