@@ -125,11 +125,5 @@
       specialArgs = { inherit sops-nix; };
       modules = [ ./hosts/matrix ];
     };
-
-    nixosConfigurations.mautrix-discord = nixpkgs.lib.nixosSystem {
-      system = "x86_64-linux";
-      specialArgs = { inherit sops-nix; };
-      modules = [ ./hosts/mautrix-discord ];
-    };
   };
 }
