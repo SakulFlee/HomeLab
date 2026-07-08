@@ -19,6 +19,11 @@
     package = hermes-agent.packages.${pkgs.stdenv.hostPlatform.system}.default;
     extraDependencyGroups = [ ];
 
+    # ddgs provides DuckDuckGo web search — enables the built-in web_search
+    # tool without needing terminal/curl (approval prompts). Installed as an
+    # extraPythonPackages because it's not a declared dep of hermes-agent.
+    extraPythonPackages = [ pkgs.python312Packages.ddgs ];
+
     environmentFiles = [ config.sops.secrets."hermes-env".path ];
 
     authFile = pkgs.writeText "auth.json" "{}";
