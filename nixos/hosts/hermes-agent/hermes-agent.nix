@@ -21,8 +21,16 @@
 
     # ddgs provides DuckDuckGo web search — enables the built-in web_search
     # tool without needing terminal/curl (approval prompts). Installed as an
-    # extraPythonPackages because it's not a declared dep of hermes-agent.
-    extraPythonPackages = [ pkgs.python312Packages.ddgs ];
+    # extraPythonPackage because it's not a declared dep of hermes-agent.
+    # Click is stripped from ddgs's propagatedBuildInputs because it's already
+    # in the hermes sealed venv — the collision checker rejects duplicates.
+    extraPythonPackages = [
+        (pkgs.python312Packages.ddgs.overridePythonAttrs (old: {
+          propagatedBuildInputs = lib.filter
+            (p: p.pname != "click")
+            (old.propagatedBuildInputs or [ ]);
+        }))
+      ];
 
     environmentFiles = [ config.sops.secrets."hermes-env".path ];
 
