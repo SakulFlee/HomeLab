@@ -25,7 +25,7 @@
     # Click is stripped from ddgs's propagatedBuildInputs because it's already
     # in the hermes sealed venv — the collision checker rejects duplicates.
     extraPythonPackages = [
-        (pkgs.python312Packages.ddgs.overridePythonAttrs (old: {
+        (pkgs.python312Packages.ddgs.overrideAttrs (old: {
           propagatedBuildInputs = lib.filter
             (p: p.pname != "click")
             (old.propagatedBuildInputs or [ ]);
