@@ -8,24 +8,18 @@
     enable = true;
     addToSystemPackages = true;
 
-    # Use the upstream "full" hermes-agent package (= `default`), which
-    # ships a pre-baked venv with anthropic, messaging, matrix, honcho,
-    # voice, and all platform backends (nix/packages.nix:46).
-    #
-    # extraDependencyGroups stays empty: when non-empty, the NixOS module
-    # rebuilds the venv via `package.override { extraDependencyGroups = ...; }`
-    # in nix/nixosModules.nix:13-16, hitting a uv2nix quirk where only
-    # the first named group is honored.
-    package = hermes-agent.packages.${pkgs.stdenv.hostPlatform.system}.default;
-    extraDependencyGroups = [ ];
-
-    # ddgs provides DuckDuckGo web search — enables the built-in web_search
-    # tool without needing terminal/curl (approval prompts). Installed as an
-    # extraPythonPackage because it's not a declared dep of hermes-agent.
-    # Click is already in the hermes sealed venv; ddgs only needs it for its
-    # CLI (not the library API Hermes uses), so strip it to avoid the collision
-    # checker rejecting the duplicate.
-    extraPythonPackages = [
+    # The upstream "full" package (= `default`) ships a pre-baked venv with
+    # anthropic, messaging, matrix, honcho, voice, and all platform backends
+    # (nix/packages.nix:46).  We override it to add ddgs (DuckDuckGo web
+    # search) as an extraPythonPackage — it's not a declared dep of hermes,
+    # and baking it into `package` avoids the NixOS module's effectivePackage
+    # override logic that would otherwise blow away the full dep group list.
+    # Click is stripped from ddgs (it only needs it for its CLI, not the
+    # library API Hermes uses) to avoid the collision checker rejecting the
+    # duplicate.  extraDependencyGroups and extraPythonPackages are left at
+    # their defaults (empty) so the module uses `cfg.package` as-is.
+    package = (hermes-agent.packages.${pkgs.stdenv.hostPlatform.system}.default).override {
+      extraPythonPackages = [
         (pkgs.python312Packages.ddgs.overrideAttrs (old: {
           dontCheckRuntimeDeps = true;
           doInstallCheck = false;
@@ -39,6 +33,7 @@
           };
         }))
       ];
+    };
 
     environmentFiles = [ config.sops.secrets."hermes-env".path ];
 
