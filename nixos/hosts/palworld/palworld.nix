@@ -112,5 +112,5 @@ in {
   };
 
   # ---- Firewall ----
-  networking.firewall.allowedUDPPorts = [ 8211 8212 ];
+  networking.firewall.allowedUDPPorts = [ 8211 ];
 }
