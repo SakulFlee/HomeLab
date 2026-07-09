@@ -143,5 +143,11 @@
       specialArgs = { inherit sops-nix; };
       modules = [ ./hosts/palworld ];
     };
+
+    nixosConfigurations.syncthing = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      specialArgs = { inherit sops-nix; };
+      modules = [ ./hosts/syncthing ];
+    };
   };
 }
