@@ -27,7 +27,7 @@
     # checker rejecting the duplicate.
     extraPythonPackages = [
         (pkgs.python312Packages.ddgs.overrideAttrs (old: {
-          doCheckRuntimeDeps = false;
+          dontCheckRuntimeDeps = true;
           propagatedBuildInputs = lib.filter
             (p: p.pname != "click")
             (old.propagatedBuildInputs or [ ]);
