@@ -93,8 +93,8 @@ in {
       User  = "palworld";
       Group = "palworld";
       WorkingDirectory = stateDir;
+      ExecStart = "${updateScript}";
     };
-    script = updateScript;
   };
 
   # Weekly automatic update check
