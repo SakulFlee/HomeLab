@@ -14,7 +14,7 @@ resource "proxmox_virtual_environment_container" "palworld" {
   }
 
   disk {
-    datastore_id = "local"
+    datastore_id = "ssd"
     size         = 32
   }
 
