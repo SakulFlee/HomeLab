@@ -67,14 +67,14 @@ in {
   systemd.services.palworld-server = {
     description = "Palworld Dedicated Server";
     after    = [ "network.target" "palworld-download.service" ];
-    wants    = [ "palworld-download.service" ];
+    requires = [ "palworld-download.service" ];
     wantedBy = [ "multi-user.target" ];
     path = with pkgs; [ steam-run ];
     serviceConfig = {
       Type           = "simple";
       User           = "palworld";
       Group          = "palworld";
-      WorkingDirectory = "${serverDir}/steamapps/common/PalServer";
+      # PalServer.sh does cd "$(dirname "$0")" internally — no WorkingDirectory needed
       ExecStart      = "${steam-run} ${palworldSh} -useperfthreads -NoAsyncLoadingThread -UseMultithreadForDS";
       Restart        = "on-failure";
       RestartSec     = 10;
