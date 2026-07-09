@@ -49,6 +49,8 @@
       terminal.cwd = "/var/lib/hermes/workspace";
       toolsets = [ "all" ];
 
+      approvals.mode = "smart";
+
       compression = {
         enabled = true;
         threshold = 0.85;
