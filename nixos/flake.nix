@@ -125,5 +125,11 @@
       specialArgs = { inherit sops-nix; };
       modules = [ ./hosts/matrix ];
     };
+
+    nixosConfigurations.palworld = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      specialArgs = { inherit sops-nix; };
+      modules = [ ./hosts/palworld ];
+    };
   };
 }
