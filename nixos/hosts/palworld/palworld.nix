@@ -11,13 +11,17 @@ let
 
   updateScript = pkgs.writeShellScript "update-palworld" ''
     set -euo pipefail
-    echo "[palworld] Updating server..."
+    echo "[palworld] Stopping server..."
+    systemctl stop palworld-server.service 2>/dev/null || true
+    echo "[palworld] Updating server via SteamCMD..."
     ${steam-run} ${steamcmd} \
       +force_install_dir ${serverDir} \
       +login anonymous \
       +app_update 2394010 validate \
       +quit
-    echo "[palworld] Update complete."
+    echo "[palworld] Update complete. Starting server..."
+    systemctl start palworld-server.service 2>/dev/null || true
+    echo "[palworld] Done."
   '';
 in {
   # steam-run and steamcmd are unfree
