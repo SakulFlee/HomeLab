@@ -4,7 +4,7 @@
     ../../modules/woodpecker-agent.nix
   ];
 
-  networking.hostName = "woodpecker-agent-2";
+  networking.hostName = "woodpecker-agent-linux-02";
   system.stateVersion = "26.05";
 
   sops.defaultSopsFile = ../../secrets/woodpecker.sops.yaml;
@@ -15,6 +15,5 @@
     environmentFile = config.sops.secrets."woodpecker-agent-env".path;
   };
 
-  # Allow unfree (podman pulls unfree images but the agent itself is free)
   nixpkgs.config.allowUnfree = true;
 }

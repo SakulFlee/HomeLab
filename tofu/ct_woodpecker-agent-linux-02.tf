@@ -1,7 +1,7 @@
-resource "proxmox_virtual_environment_container" "woodpecker_agent_2" {
+resource "proxmox_virtual_environment_container" "woodpecker_agent_linux_02" {
   node_name     = "aetherium"
   vm_id         = 120
-  description   = "Woodpecker CI Agent 2 (NixOS)"
+  description   = "Woodpecker CI Agent 2 — Linux (NixOS)"
   start_on_boot = true
   started       = true
   unprivileged  = true
@@ -19,7 +19,7 @@ resource "proxmox_virtual_environment_container" "woodpecker_agent_2" {
   }
 
   initialization {
-    hostname = "woodpecker-agent-2"
+    hostname = "woodpecker-agent-linux-02"
 
     ip_config {
       ipv4 {
@@ -59,11 +59,11 @@ resource "proxmox_virtual_environment_container" "woodpecker_agent_2" {
   }
 }
 
-resource "null_resource" "deploy_flake_woodpecker_agent_2" {
+resource "null_resource" "deploy_flake_woodpecker_agent_linux_02" {
   triggers = {
-    container_id = proxmox_virtual_environment_container.woodpecker_agent_2.id
+    container_id = proxmox_virtual_environment_container.woodpecker_agent_linux_02.id
   }
-  depends_on = [proxmox_virtual_environment_container.woodpecker_agent_2]
+  depends_on = [proxmox_virtual_environment_container.woodpecker_agent_linux_02]
 
   provisioner "local-exec" {
     command = <<-EOT
@@ -91,7 +91,7 @@ resource "null_resource" "deploy_flake_woodpecker_agent_2" {
         ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ProxyCommand="$PROXY" \
           -i ${var.ssh_private_key_path} \
           root@10.0.0.120 \
-          "tar xz -C /etc/nixos && nix --extra-experimental-features 'nix-command flakes' profile install nixpkgs#git && nixos-rebuild switch --flake /etc/nixos/nixos#woodpecker-agent-2 --show-trace && nix-collect-garbage --delete-old"
+          "tar xz -C /etc/nixos && nix --extra-experimental-features 'nix-command flakes' profile install nixpkgs#git && nixos-rebuild switch --flake /etc/nixos/nixos#woodpecker-agent-linux-02 --show-trace && nix-collect-garbage --delete-old"
     EOT
   }
 }

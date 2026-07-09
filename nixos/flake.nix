@@ -42,16 +42,16 @@
       modules = [ ./hosts/woodpecker ];
     };
 
-    nixosConfigurations.woodpecker-agent-1 = nixpkgs.lib.nixosSystem {
+    nixosConfigurations.woodpecker-agent-linux-01 = nixpkgs.lib.nixosSystem {
       system = "x86_64-linux";
       specialArgs = { inherit sops-nix; };
-      modules = [ ./hosts/woodpecker-agent-1 ];
+      modules = [ ./hosts/woodpecker-agent-linux-01 ];
     };
 
-    nixosConfigurations.woodpecker-agent-2 = nixpkgs.lib.nixosSystem {
+    nixosConfigurations.woodpecker-agent-linux-02 = nixpkgs.lib.nixosSystem {
       system = "x86_64-linux";
       specialArgs = { inherit sops-nix; };
-      modules = [ ./hosts/woodpecker-agent-2 ];
+      modules = [ ./hosts/woodpecker-agent-linux-02 ];
     };
 
     nixosConfigurations.renovate = nixpkgs.lib.nixosSystem {
