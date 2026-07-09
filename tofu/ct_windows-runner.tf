@@ -3,18 +3,19 @@ resource "proxmox_virtual_environment_vm" "windows_runner" {
   vm_id       = 121
   description = "Windows 10 Woodpecker CI runner"
   name        = "woodpecker-agent-windows-01"
-  tags        = ["windows", "woodpecker-agent"]
+  tags        = ["10.0.0.24", "windows", "woodpecker-agent"]
   started     = true
   on_boot     = false
 
   bios        = "ovmf"
-  machine     = "q35"
+  machine     = "pc-q35-11.0"
   scsi_hardware = "virtio-scsi-single"
 
   cpu {
     cores   = 4
     sockets = 1
     type    = "x86-64-v2-AES"
+    flags   = ["+aes", "+nested-virt"]
   }
 
   memory {
@@ -33,8 +34,9 @@ resource "proxmox_virtual_environment_vm" "windows_runner" {
   }
 
   efi_disk {
-    datastore_id = "ssd"
-    type         = "4m"
+    datastore_id     = "ssd"
+    type             = "4m"
+    pre_enrolled_keys = true
   }
 
   tpm_state {
@@ -43,12 +45,13 @@ resource "proxmox_virtual_environment_vm" "windows_runner" {
   }
 
   network_device {
-    bridge = "aether"
-    model  = "virtio"
+    bridge   = "aether"
+    model    = "virtio"
+    firewall = true
   }
 
   operating_system {
-    type = "windows"
+    type = "win10"
   }
 
   agent {
