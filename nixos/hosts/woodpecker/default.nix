@@ -1,7 +1,6 @@
 { ... }: {
   imports = [
     ./woodpecker-server.nix
-    ./woodpecker-agent.nix
     ./postgres.nix
     ../../modules
   ];
