@@ -38,7 +38,11 @@ in {
         Type = "simple";
         User = "woodpecker";
         Group = "woodpecker";
-        Environment = [ "WOODPECKER_MAX_WORKFLOWS=1" ];
+        Environment = [
+          "WOODPECKER_MAX_WORKFLOWS=1"
+          "WOODPECKER_BACKEND_ENGINE=docker"
+          "WOODPECKER_AGENT_LABELS=type=linux"
+        ];
         ExecStart = "${pkgs.woodpecker-agent}/bin/woodpecker-agent";
         WorkingDirectory = "/var/lib/woodpecker";
         StateDirectory = "woodpecker";
