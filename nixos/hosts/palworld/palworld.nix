@@ -4,7 +4,7 @@ let
   stateDir  = "/var/lib/palworld";
   serverDir = "${stateDir}/server";
   palworldSh =
-    "${serverDir}/steamapps/common/PalServer/PalServer.sh";
+    "${serverDir}/PalServer.sh";
 
   steam-run = "${pkgs.steam-run}/bin/steam-run";
   steamcmd  = "${pkgs.steamcmd}/bin/steamcmd";
