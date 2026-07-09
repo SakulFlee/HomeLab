@@ -12,6 +12,7 @@
 
   services.woodpecker-agent = {
     enable = true;
+    agentName = "woodpecker-agent-linux-02";
     environmentFile = config.sops.secrets."woodpecker-agent-env".path;
   };
 

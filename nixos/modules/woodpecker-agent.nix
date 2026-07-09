@@ -6,6 +6,12 @@ in {
   options.services.woodpecker-agent = {
     enable = lib.mkEnableOption "Woodpecker CI agent";
 
+    agentName = lib.mkOption {
+      type = lib.types.nullOr lib.types.str;
+      default = null;
+      description = "Display name in Woodpecker UI. Defaults to hostname.";
+    };
+
     environmentFile = lib.mkOption {
       type = lib.types.nullOr lib.types.path;
       default = null;
@@ -42,7 +48,7 @@ in {
           "WOODPECKER_MAX_WORKFLOWS=1"
           "WOODPECKER_BACKEND_ENGINE=docker"
           "WOODPECKER_AGENT_LABELS=type=linux"
-        ];
+        ] ++ lib.optional (cfg.agentName != null) "WOODPECKER_AGENT_NAME=${cfg.agentName}";
         ExecStart = "${pkgs.woodpecker-agent}/bin/woodpecker-agent";
         WorkingDirectory = "/var/lib/woodpecker";
         StateDirectory = "woodpecker";
