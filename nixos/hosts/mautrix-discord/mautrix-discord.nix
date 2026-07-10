@@ -22,9 +22,10 @@
           "*"                         = "relay";
         };
         encryption = {
+          allow_key_sharing = true;
           allow       = true;
           default     = true;
-          allow_key_sharing = true;
+          appservice  = true;
         };
         provisioning.prefix = "/_matrix/provision";
       };
@@ -33,5 +34,4 @@
   };
 
   networking.firewall.allowedTCPPorts = [ 29334 ];
-}
 }
