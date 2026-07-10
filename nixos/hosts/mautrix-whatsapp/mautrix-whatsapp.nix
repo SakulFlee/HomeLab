@@ -27,14 +27,5 @@
   };
 
   networking.firewall.allowedTCPPorts = [ 29318 ];
-
-  # LXC containers don't support systemd namespace sandboxing
-  systemd.services.mautrix-whatsapp.serviceConfig = {
-    PrivateTmp       = lib.mkForce false;
-    PrivateNetwork   = lib.mkForce false;
-    PrivateDevices   = lib.mkForce false;
-    ProtectSystem    = lib.mkForce "no";
-    ProtectHome      = lib.mkForce false;
-    NoNewPrivileges  = lib.mkForce false;
-  };
+}
 }
