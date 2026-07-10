@@ -5,6 +5,9 @@
   services.mautrix-whatsapp = {
     enable = true;
     settings = {
+      appservice = {
+        address = "http://10.0.0.125:29318";
+      };
       homeserver = {
         address = "http://10.0.0.117:6167";
         domain  = "sakul-flee.de";
@@ -22,4 +25,6 @@
       };
     };
   };
+
+  networking.firewall.allowedTCPPorts = [ 29318 ];
 }
