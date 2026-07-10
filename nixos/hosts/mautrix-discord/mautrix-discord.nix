@@ -29,27 +29,5 @@
   };
 
   networking.firewall.allowedTCPPorts = [ 29334 ];
-
-  # LXC containers can't do systemd namespace sandboxing — disable all of it
-  systemd.services.mautrix-discord.serviceConfig = {
-    PrivateUsers          = lib.mkForce false;
-    PrivateTmp            = lib.mkForce false;
-    PrivateNetwork        = lib.mkForce false;
-    PrivateDevices        = lib.mkForce false;
-    ProtectHome           = lib.mkForce false;
-    ProtectSystem         = lib.mkForce "no";
-    ProtectClock          = lib.mkForce false;
-    ProtectControlGroups  = lib.mkForce false;
-    ProtectHostname       = lib.mkForce false;
-    ProtectKernelLogs     = lib.mkForce false;
-    ProtectKernelModules  = lib.mkForce false;
-    ProtectKernelTunables = lib.mkForce false;
-    LockPersonality       = lib.mkForce false;
-    NoNewPrivileges       = lib.mkForce false;
-    RestrictRealtime      = lib.mkForce false;
-    RestrictSUIDSGID      = lib.mkForce false;
-    SystemCallArchitectures = lib.mkForce null;
-    SystemCallFilter      = lib.mkForce null;
-    SystemCallErrorNumber = lib.mkForce null;
-  };
+}
 }
