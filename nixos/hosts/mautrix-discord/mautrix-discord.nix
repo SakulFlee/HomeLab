@@ -5,6 +5,9 @@
   services.mautrix-discord = {
     enable = true;
     settings = {
+      appservice = {
+        address = "http://10.0.0.124:29334";
+      };
       homeserver = {
         address = "http://10.0.0.117:6167";
         domain  = "sakul-flee.de";
