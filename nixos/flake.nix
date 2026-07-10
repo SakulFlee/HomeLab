@@ -138,6 +138,18 @@
       modules = [ ./hosts/matrix ];
     };
 
+    nixosConfigurations.mautrix-discord = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      specialArgs = { inherit sops-nix; };
+      modules = [ ./hosts/mautrix-discord ];
+    };
+
+    nixosConfigurations.mautrix-whatsapp = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      specialArgs = { inherit sops-nix; };
+      modules = [ ./hosts/mautrix-whatsapp ];
+    };
+
     nixosConfigurations.palworld = nixpkgs.lib.nixosSystem {
       system = "x86_64-linux";
       specialArgs = { inherit sops-nix; };
