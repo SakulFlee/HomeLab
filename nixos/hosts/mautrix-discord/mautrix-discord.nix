@@ -30,4 +30,3 @@
 
   networking.firewall.allowedTCPPorts = [ 29334 ];
 }
-}
