@@ -7,6 +7,10 @@
     settings = {
       appservice = {
         address = "http://10.0.0.124:29334";
+        database = {
+          type = "sqlite3-fk-wal";
+          uri  = "file:/var/lib/mautrix-discord/mautrix-discord.db?_txlock=immediate";
+        };
       };
       homeserver = {
         address = "http://10.0.0.117:6167";
