@@ -26,6 +26,13 @@
         }
       }
 
+      syncthing.sakul-flee.de, sync.sakul-flee.de {
+        reverse_proxy {
+          header_up Host {host}
+          to 10.0.0.123:8384
+        }
+      }
+
       technitium.sakul-flee.de, dns.sakul-flee.de {
         reverse_proxy {
           header_up Host {host}
