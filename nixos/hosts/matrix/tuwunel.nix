@@ -6,13 +6,25 @@
 
   services.matrix-tuwunel = {
     enable = true;
-    settings.global = {
-      server_name = "sakul-flee.de";
-      address = [ "10.0.0.117" ];
-      port = [ 6167 ];
-      allow_federation = true;
-      allow_registration = true;
-      registration_token_file = config.sops.secrets.registration_token.path;
+    settings = {
+      global = {
+        server_name = "sakul-flee.de";
+        address = [ "10.0.0.117" ];
+        port = [ 6167 ];
+        allow_federation = true;
+        allow_registration = true;
+        registration_token_file = config.sops.secrets.registration_token.path;
+      };
+      media.retention = [
+        {
+          scope = "remote";         # Target cached files from other homeservers
+          accessed = "30d";         # Delete if nobody has downloaded it in 30 days
+        }
+        {
+          scope = "thumbnail";      # Target image previews
+          accessed = "14d";         # Keep thumbnails lightweight
+        }
+      ];
     };
   };
 
