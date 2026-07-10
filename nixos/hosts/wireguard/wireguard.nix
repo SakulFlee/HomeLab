@@ -11,20 +11,29 @@
 
       peers = [
         {
+          # Evil-Donkey
           publicKey = "/nL6bknMr/9eytU0zdKE+hykHV1Lc0UzIhCIzb0OIgc=";
           allowedIPs = [ "10.100.0.2/32" ];
         }
         {
+          # Cindry
           publicKey = "ClMVYG1CLPUe4O8gWKbriZYe46vzHm5jV0vL8sCJsDI=";
           allowedIPs = [ "10.100.0.3/32" ];
         }
         {
+          # Phone (POCO)
           publicKey = "dMvt6494e1ZQahqxL3hC8DqrQm8KNKIcNeyvlM8MQjk=";
           allowedIPs = [ "10.100.0.4/32" ];
         }
         {
+          # SteamDeck
           publicKey = "1Q5bzB7lz60N+wZEpEXB28jeeZGhtroXhBCfHjlX7DY=";
           allowedIPs = [ "10.100.0.5/32" ];
+        }
+        {
+          # Tablet (POCO)
+          publicKey = "joSkTAmnwxJe0mkyKpVmLGC+HcFIYzd1BSzAZ+u+THA=";
+          allowedIPs = [ "10.100.0.6/32" ];
         }
       ];
     };
