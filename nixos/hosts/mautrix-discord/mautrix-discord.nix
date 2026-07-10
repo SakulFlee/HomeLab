@@ -22,8 +22,9 @@
           "*"                         = "relay";
         };
         encryption = {
-          allow = false;
-          default = false;
+          allow       = true;
+          default     = true;
+          allow_key_sharing = true;
         };
         provisioning.prefix = "/_matrix/provision";
       };
