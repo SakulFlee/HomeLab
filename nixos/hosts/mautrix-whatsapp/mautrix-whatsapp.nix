@@ -19,7 +19,7 @@
         };
         encryption = {
           allow       = true;
-          default     = true;
+          default     = false;
           allow_key_sharing = true;
         };
       };
