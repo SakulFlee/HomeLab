@@ -18,8 +18,9 @@
           "*"                         = "relay";
         };
         encryption = {
-          allow = false;
-          default = false;
+          allow       = true;
+          default     = false;
+          allow_key_sharing = true;
         };
       };
     };
