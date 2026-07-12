@@ -34,5 +34,10 @@ in {
 
   networking.firewall.allowedTCPPorts = [ 25565 ];
 
+  services.restic-backup = {
+    enable = true;
+    paths = [ "/var/lib/minecraft" ];
+  };
+
   environment.systemPackages = with pkgs; [ screen jdk25 ];
 }

@@ -28,6 +28,10 @@ in {
   };
 
   config = lib.mkIf cfg.enable {
+    sops.secrets."restic-password" = {
+      sopsFile = ../secrets/restic.sops.yaml;
+    };
+
     environment.systemPackages = with pkgs; [ restic ];
 
     fileSystems = lib.mkIf onNas {

@@ -147,6 +147,11 @@ in {
 
   networking.firewall.allowedTCPPorts = [ 3000 22 ];
 
+  services.restic-backup = {
+    enable = true;
+    paths = [ "/var/lib/forgejo" ];
+  };
+
   systemd.tmpfiles.rules = [
     "d '${config.services.forgejo.customDir}/conf' 0750 forgejo forgejo - -"
   ];

@@ -123,6 +123,6 @@ in {
 
   services.restic-backup = {
     enable = true;
-    paths = [ "/var/lib/qbittorrent" "/var/lib/gluetun" ];
+    paths = [ "/var/lib/qbittorrent" ];
   };
 }

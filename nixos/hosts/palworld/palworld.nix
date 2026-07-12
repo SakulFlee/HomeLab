@@ -113,4 +113,9 @@ in {
 
   # ---- Firewall ----
   networking.firewall.allowedUDPPorts = [ 8211 ];
+
+  services.restic-backup = {
+    enable = true;
+    paths = [ "/var/lib/palworld" ];
+  };
 }
