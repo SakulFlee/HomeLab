@@ -52,16 +52,16 @@ in {
         Type = "oneshot";
       };
       script = ''
-        restic -r "${repo}" snapshots 2>/dev/null || \
-          restic -r "${repo}" init
+        restic -r "${repo}" --password-file "${cfg.passwordFile}" snapshots 2>/dev/null || \
+          restic -r "${repo}" --password-file "${cfg.passwordFile}" init
 
-        restic -r "${repo}" backup \
+        restic -r "${repo}" --password-file "${cfg.passwordFile}" backup \
           ${builtins.concatStringsSep " " cfg.paths} \
           --tag ${config.networking.hostName} \
           --exclude-caches \
           --one-file-system
 
-        restic -r "${repo}" forget \
+        restic -r "${repo}" --password-file "${cfg.passwordFile}" forget \
           --keep-daily 7 --keep-weekly 4 --keep-monthly 3 \
           --prune
       '';
