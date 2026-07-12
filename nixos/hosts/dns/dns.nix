@@ -10,4 +10,9 @@
   systemd.services.technitium-dns-server.serviceConfig = {
     LogsDirectory = "technitium";
   };
+
+  services.restic-backup = {
+    enable = true;
+    paths = [ "/var/lib/technitium" ];
+  };
 }

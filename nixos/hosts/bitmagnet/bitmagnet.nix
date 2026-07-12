@@ -125,9 +125,4 @@ in {
 
   networking.firewall.allowedTCPPorts = [ 3333 3334 5432 ];
   networking.firewall.allowedUDPPorts = [ 3334 ];
-
-  services.restic-backup = {
-    enable = true;
-    paths = [ "/var/lib/bitmagnet" ];
-  };
 }
