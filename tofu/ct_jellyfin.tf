@@ -75,7 +75,7 @@ resource "null_resource" "deploy_flake_jellyfin" {
           --mp0 /mnt/nas/music/,mp=/mnt/nas/music \
           --mp1 /mnt/nas/shows/,mp=/mnt/nas/shows \
           --mp2 /mnt/nas/movies/,mp=/mnt/nas/movies \
-          --mp3 /mnt/nas/nsfw/,mp=/mnt/nas/nsfw" \
+          --mp3 /mnt/nas/nsfw/,mp=/mnt/nas/nsfw \
           --mp4 /mnt/nas/HomeLab-Backups/,mp=/mnt/nas/HomeLab-Backups"
 
       echo "Waiting for container to become reachable via SSH..."
