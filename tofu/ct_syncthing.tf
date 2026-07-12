@@ -72,7 +72,7 @@ resource "null_resource" "deploy_flake_syncthing" {
       ssh -p ${var.bastion_port} -i ${var.ssh_private_key_path} \
         ${var.bastion_user}@${var.bastion_host} \
         "pct set 123 \
-          --mp0 /mnt/nas/personal_folder/,mp=/mnt/nas/personal_folder" \
+          --mp0 /mnt/nas/personal_folder/,mp=/mnt/nas/personal_folder \
           --mp1 /mnt/nas/HomeLab-Backups/,mp=/mnt/nas/HomeLab-Backups"
 
       echo "Waiting for container to become reachable via SSH..."
