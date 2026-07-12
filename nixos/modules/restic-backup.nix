@@ -30,6 +30,7 @@ in {
   config = lib.mkIf cfg.enable {
     sops.secrets."restic-password" = {
       sopsFile = ../secrets/restic.sops.yaml;
+      key = "password";
     };
 
     environment.systemPackages = with pkgs; [ restic ];
