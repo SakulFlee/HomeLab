@@ -22,7 +22,7 @@
     createHome = true;
   };
 
-  systemd.services.renovate = {
+  services.renovate = {
     description = "Renovate dependency dashboard bot";
     after = [ "network.target" ];
     wants = [ "network.target" ];
@@ -34,6 +34,11 @@
       EnvironmentFile = [ config.sops.secrets."renovate-env".path ];
       ExecStart = "${pkgs.renovate}/bin/renovate";
     };
+  };
+
+  services.restic-backup = {
+    enable = true;
+    paths = [ "/var/lib/renovate" ];
   };
 
   systemd.timers.renovate = {

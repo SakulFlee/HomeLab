@@ -4,5 +4,6 @@
     ./auto-update.nix
     ./sops.nix
     ./dns.nix
+    ./restic-backup.nix
   ];
 }

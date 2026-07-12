@@ -14,4 +14,9 @@
   # Port 22000/UDP: QUIC based sync protocol traffic
   # Port 21027/UDP: for discovery broadcasts on IPv4 and multicasts on IPv6
   networking.firewall.allowedUDPPorts = [ 22000 21027 ];
+
+  services.restic-backup = {
+    enable = true;
+    paths = [ "/var/lib/syncthing" ];
+  };
 }

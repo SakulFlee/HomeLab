@@ -120,4 +120,9 @@ in {
       RestartSec = 10;
     };
   };
+
+  services.restic-backup = {
+    enable = true;
+    paths = [ "/var/lib/qbittorrent" "/var/lib/gluetun" ];
+  };
 }

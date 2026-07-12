@@ -73,4 +73,9 @@
     ripgrep
     ffmpeg
   ];
+
+  services.restic-backup = {
+    enable = true;
+    paths = [ "/var/lib/hermes" ];
+  };
 }
