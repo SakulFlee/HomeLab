@@ -36,5 +36,10 @@
 
   networking.firewall.allowedUDPPorts = [ 5520 ];
 
+  services.restic-backup = {
+    enable = true;
+    paths = [ "/opt/hytale" ];
+  };
+
   environment.systemPackages = with pkgs; [ screen jdk25 ];
 }

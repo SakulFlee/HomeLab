@@ -28,5 +28,10 @@
     };
   };
 
+  services.restic-backup = {
+    enable = true;
+    paths = [ "/var/lib/tuwunel" ];
+  };
+
   networking.firewall.allowedTCPPorts = [ 6167 ];
 }

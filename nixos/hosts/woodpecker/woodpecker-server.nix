@@ -30,4 +30,9 @@
   };
 
   networking.firewall.allowedTCPPorts = [ 8000 9000 ];
+
+  services.restic-backup = {
+    enable = true;
+    paths = [ "/var/lib/woodpecker" ];
+  };
 }
