@@ -81,7 +81,8 @@ resource "null_resource" "deploy_flake_qbittorrent" {
           --mp1 /mnt/nas/music/,mp=/mnt/nas/music \
           --mp2 /mnt/nas/shows/,mp=/mnt/nas/shows \
           --mp3 /mnt/nas/movies/,mp=/mnt/nas/movies \
-          --mp4 /mnt/nas/nsfw/,mp=/mnt/nas/nsfw"
+          --mp4 /mnt/nas/nsfw/,mp=/mnt/nas/nsfw" \
+          --mp5 /mnt/nas/HomeLab-Backups/,mp=/mnt/nas/HomeLab-Backups"
 
       echo "Setting TUN device passthrough..."
       ssh -p ${var.bastion_port} -i ${var.ssh_private_key_path} \

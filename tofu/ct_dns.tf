@@ -71,6 +71,12 @@ resource "null_resource" "deploy_flake_dns" {
 
   provisioner "local-exec" {
     command = <<-EOT
+      echo "Setting mount points on Proxmox host..."
+      ssh -p ${var.bastion_port} -i ${var.ssh_private_key_path} \
+        ${var.bastion_user}@${var.bastion_host} \
+        "pct set 116 \
+          --mp0 /mnt/nas/HomeLab-Backups/,mp=/mnt/nas/HomeLab-Backups"
+
       echo "Waiting for container to become reachable via SSH..."
       PROXY="ssh -p ${var.bastion_port} -i ${var.ssh_private_key_path} \
              ${var.bastion_user}@${var.bastion_host} -W %h:%p"

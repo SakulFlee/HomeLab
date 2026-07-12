@@ -73,7 +73,8 @@ resource "null_resource" "deploy_flake_sonarr" {
         ${var.bastion_user}@${var.bastion_host} \
         "pct set 109 \
           --mp0 /mnt/nas/qbittorrent/,mp=/mnt/nas/qbittorrent \
-          --mp1 /mnt/nas/shows/,mp=/mnt/nas/shows"
+          --mp1 /mnt/nas/shows/,mp=/mnt/nas/shows" \
+          --mp2 /mnt/nas/HomeLab-Backups/,mp=/mnt/nas/HomeLab-Backups"
 
       echo "Waiting for container to become reachable via SSH..."
       PROXY="ssh -p ${var.bastion_port} -i ${var.ssh_private_key_path} \
