@@ -6,6 +6,6 @@
 
   services.restic-backup = {
     enable = true;
-    paths = [ "/var/lib/prowlarr" ];
+    paths = [ "/var/lib/private/prowlarr" ];
   };
 }

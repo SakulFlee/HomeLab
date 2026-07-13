@@ -30,7 +30,7 @@
 
   services.restic-backup = {
     enable = true;
-    paths = [ "/var/lib/tuwunel" ];
+    paths = [ "/var/lib/private/tuwunel" ];
   };
 
   networking.firewall.allowedTCPPorts = [ 6167 ];
