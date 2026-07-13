@@ -58,8 +58,7 @@ in {
         restic -r "${repo}" --password-file "${cfg.passwordFile}" backup \
           ${builtins.concatStringsSep " " cfg.paths} \
           --tag $(hostname) \
-          --exclude-caches \
-          --one-file-system
+          --exclude-caches
 
         restic -r "${repo}" --password-file "${cfg.passwordFile}" forget \
           --keep-daily 7 --keep-weekly 4 --keep-monthly 3 \
