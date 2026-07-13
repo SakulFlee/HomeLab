@@ -57,7 +57,7 @@ in {
 
         restic -r "${repo}" --password-file "${cfg.passwordFile}" backup \
           ${builtins.concatStringsSep " " cfg.paths} \
-          --tag $(uname -n) \
+          --tag $(cat /proc/sys/kernel/hostname) \
           --exclude-caches
 
         restic -r "${repo}" --password-file "${cfg.passwordFile}" forget \
