@@ -149,7 +149,10 @@ in {
 
   services.restic-backup = {
     enable = true;
-    paths = [ "/var/lib/forgejo" ];
+    paths = [ 
+      "/var/lib/forgejo" 
+      "/var/lib/postgresql"
+    ];
   };
 
   systemd.tmpfiles.rules = [
