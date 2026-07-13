@@ -58,7 +58,8 @@ in {
         restic -r "${repo}" --password-file "${cfg.passwordFile}" backup \
           ${builtins.concatStringsSep " " cfg.paths} \
           --tag $(cat /proc/sys/kernel/hostname) \
-          --exclude-caches
+          --exclude-caches \
+          --follow-symlinks
 
         restic -r "${repo}" --password-file "${cfg.passwordFile}" forget \
           --keep-daily 7 --keep-weekly 4 --keep-monthly 3 \
