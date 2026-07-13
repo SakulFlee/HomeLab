@@ -13,6 +13,6 @@
 
   services.restic-backup = {
     enable = true;
-    paths = [ "/var/lib/technitium" ];
+    paths = [ "/var/lib/technitium-dns-server/" ];
   };
 }
