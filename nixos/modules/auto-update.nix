@@ -26,7 +26,7 @@
     wantedBy = [ "timers.target" ];
     timerConfig = {
       OnBootSec = "5min";
-      OnUnitActiveSec = "1h";
+      OnUnitActiveSec = "5min";
       RandomizedDelaySec = "5min";
     };
   };
