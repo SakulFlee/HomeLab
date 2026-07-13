@@ -33,6 +33,9 @@
 
   services.restic-backup = {
     enable = true;
-    paths = [ "/var/lib/woodpecker" ];
+    paths = [ 
+      "/var/lib/woodpecker" 
+      "/var/lib/postgresql"
+    ];
   };
 }
