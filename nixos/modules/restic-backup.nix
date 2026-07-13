@@ -57,7 +57,7 @@ in {
 
         restic -r "${repo}" --password-file "${cfg.passwordFile}" backup \
           ${builtins.concatStringsSep " " cfg.paths} \
-          --tag ${config.networking.hostName} \
+          --tag $(hostname) \
           --exclude-caches \
           --one-file-system
 
