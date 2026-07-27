@@ -1,5 +1,7 @@
 { config, pkgs, inputs, ... }: 
-let 
+let
+  mediaGid = 900;
+
   shares = [
     "personal_folder"
     "Movies"
@@ -20,7 +22,7 @@ let
         "credentials=/run/secrets/smb_credentials"
         
         "uid=1000"        # Maps files to your local user ID
-        "gid=${toString config.users.groups.media.gid}"  # Maps files to the 'media' group
+        "gid=${toString mediaGid}"  # Maps files to the 'media' group
         "file_mode=0664"  # Gives you read/write access
         "dir_mode=0775"   # Gives you read/write/execute on folders
       
@@ -34,7 +36,7 @@ let
 in
 {
   # Media group for NAS access (sonarr, radarr, jellyfin, sakulflee)
-  users.groups.media = {};
+  users.groups.media = { gid = mediaGid; };
 
   # Install the SMB/CIFS client utilities
   environment.systemPackages = [ pkgs.cifs-utils ];
