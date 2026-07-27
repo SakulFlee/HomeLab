@@ -25,6 +25,8 @@
         "uinput"
         # i2c support
         "i2c"
+        # Access to NAS media shares
+        "media"
       ];
 
       shell = pkgs.zsh;

@@ -37,7 +37,8 @@ in {
   };
 
   # Jellyfin needs access to /dev/dri/renderD128 for AMD VAAPI HW transcoding
-  users.users.jellyfin.extraGroups = [ "video" "render" ];
+  # and access to NAS media shares
+  users.users.jellyfin.extraGroups = [ "video" "render" "media" ];
 
   services.homelab-restic = {
     enable = true;
