@@ -4,6 +4,7 @@ let
     "personal_folder"
     "Movies"
     "NSFW"
+    "qBittorrent"
     "Shows"
   ];
 
