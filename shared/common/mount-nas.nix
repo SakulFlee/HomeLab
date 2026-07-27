@@ -1,6 +1,6 @@
 { config, pkgs, inputs, ... }: 
 let
-  mediaGid = 900;
+  mediaGid = 972;
 
   shares = [
     "personal_folder"
