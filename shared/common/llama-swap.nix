@@ -26,14 +26,14 @@ in
         '';
       };
       models = {        
-        "deepreinforce-ai/Ornith-1.0-9B-GGUF:Q4_K_M" = {
+        "Ornith1.0 9B @Q4_K_M" = {
           cmd = ''
             ''${default} \
             ''${with_fit} \
               -hf deepreinforce-ai/Ornith-1.0-9B-GGUF:Q4_K_M
           '';
         };
-        "[unsloth] Qwen3.5 9B @Q4_K_XL - MTP" = {
+        "[unsloth] Qwen3.5 9B @Q4_K_XL [MTP]" = {
           cmd = ''
             ''${default} \
             ''${with_mtp} \
@@ -43,7 +43,7 @@ in
               -hf unsloth/Qwen3.6-35B-A3B-MTP-GGUF:UD-Q4_K_XL 
           '';
         };
-        "[unsloth] Qwen3.6 35B-A3B @Q4_K_XL - MTP" = {
+        "[unsloth] Qwen3.6 35B-A3B @Q4_K_XL [MTP]" = {
           cmd = ''
             ''${default} \
             ''${with_mtp} \
@@ -53,7 +53,7 @@ in
               -hf unsloth/Qwen3.6-35B-A3B-MTP-GGUF:UD-Q4_K_XL 
           '';
         };
-        "[unsloth] Gemma4 26B-A4B @Q4_K_XL - IT QAT MTP" = {
+        "[unsloth] Gemma4 26B-A4B @Q4_K_XL [QAT] [MTP]" = {
           cmd = ''
             ''${default} \
             ''${with_mtp} \
@@ -62,7 +62,7 @@ in
               -hf unsloth/gemma-4-26B-A4B-it-qat-GGUF:UD-Q4_K_XL 
           '';
         };
-        "[MTP] empero-ai/Qwythos-9B-Claude-Mythos-5-1M-GGUF:Q4_K_M" = {
+        "Qwythos 9 @Q4_K_M [MTP]" = {
           cmd = ''
             ''${default} \
             ''${with_mtp} \
@@ -71,23 +71,7 @@ in
               -m Qwythos-9B-Claude-Mythos-5-1M-MTP-Q4_K_M.gguf
           '';
         };
-        "unsloth/Qwen3.5-9B-MTP-GGUF" = {
-          cmd = ''
-            ''${default} \
-            ''${with_mtp} \
-              -hf unsloth/Qwen3.5-9B-MTP-GGUF
-          '';
-        };
-        "unsloth/gemma-4-E4B-it-qat-GGUF:UD-Q4_K_XL (Laptop config)" = {
-          cmd = ''
-            ''${default} \
-            ''${with_mtp} \
-              -hf unsloth/gemma-4-E4B-it-qat-GGUF:UD-Q4_K_XL \
-              -c 8192 \
-              -ngl 35
-          '';
-        };
-        "unsloth/gemma-4-E4B-it-qat-GGUF:UD-Q4_K_XL" = {
+        "[unsloth] Gemma4 E4B @UD-Q4_K_XL [QAT] [MTP]" = {
           cmd = ''
             ''${default} \
             ''${with_mtp} \
@@ -95,27 +79,12 @@ in
               -hf unsloth/gemma-4-E4B-it-qat-GGUF:UD-Q4_K_XL
           '';
         };
-        "unsloth/gemma-4-12B-it-qat-GGUF:UD-Q4_K_XL" = {
+        "[unsloth] Gemma4 12B @UD-Q4_K_XL [QAT] [MTP]" = {
           cmd = ''
             ''${default} \
             ''${with_mtp} \
             ''${with_fit} \
               -hf unsloth/gemma-4-12B-it-qat-GGUF:UD-Q4_K_XL
-          '';
-        };
-        "unsloth/gemma-4-26B-A4B-it-qat-GGUF:UD-Q4_K_XL" = {
-          cmd = ''
-            ''${default} \
-            ''${with_mtp} \
-            ''${with_fit} \
-              -hf unsloth/gemma-4-26B-A4B-it-qat-GGUF:UD-Q4_K_XL
-          '';
-        };
-        "yuxinlu1/gemma-4-12B-agentic-fable5-composer2.5-v2-3.5x-tau2-GGUF" = {
-          cmd = ''
-            ''${default} \
-            ''${with_fit} \
-              -hf yuxinlu1/gemma-4-12B-agentic-fable5-composer2.5-v2-3.5x-tau2-GGUF:Q4_K_M
           '';
         };
       };
