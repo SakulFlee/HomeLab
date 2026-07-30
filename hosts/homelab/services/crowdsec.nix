@@ -4,6 +4,11 @@
     "d /var/lib/private 0700 root root -"
   ];
 
+  systemd.services.crowdsec.serviceConfig = {
+    StateDirectory = "crowdsec";
+    StateDirectoryMode = "0700";
+  };
+
   services.crowdsec = {
     enable = true;
 
