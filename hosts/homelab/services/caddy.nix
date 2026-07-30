@@ -20,16 +20,15 @@ in {
     };
     email = "dev@sakul-flee.de";
     environmentFile = config.sops.secrets."caddy-env".path;
+
+    log = {
+      output = "file /var/log/caddy/access.log { roll_size 100mb roll_keep 5 }";
+      format = "json";
+    };
+
     globalConfig = ''
       acme_dns cloudflare {env.CF_API_TOKEN} {
         resolvers 1.1.1.1 8.8.8.8
-      }
-      log {
-        output file /var/log/caddy/access.log {
-          roll_size 100mb
-          roll_keep 5
-        }
-        format json
       }
     '';
     extraConfig = ''
