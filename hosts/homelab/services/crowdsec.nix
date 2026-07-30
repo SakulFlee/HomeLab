@@ -1,7 +1,7 @@
 { config, pkgs, ... }: {
   systemd.tmpfiles.rules = [
     "d /var/log/caddy 0755 caddy caddy -"
-    "d /var/lib/private 0711 root root -"
+    "d /var/lib/private 0700 root root -"
   ];
 
   services.crowdsec = {
