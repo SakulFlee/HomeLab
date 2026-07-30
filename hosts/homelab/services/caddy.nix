@@ -203,6 +203,28 @@ in {
           abort
         }
       }
+
+      llama.sakul-flee.de, llama-swap.sakul-flee.de, llama-proxy.sakul-flee.de {
+        import dns_challenge
+        @vpn client_ip ${vpnCidr} ${lanCidr}
+        handle @vpn {
+          reverse_proxy localhost:30001
+        }
+        handle {
+          abort
+        }
+      }
+
+      open-webui.sakul-flee.de, owu.sakul-flee.de, chat.sakul-flee.de {
+        import dns_challenge
+        @vpn client_ip ${vpnCidr} ${lanCidr}
+        handle @vpn {
+          reverse_proxy localhost:30002
+        }
+        handle {
+          abort
+        }
+      }
     '';
   };
 

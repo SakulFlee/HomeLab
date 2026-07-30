@@ -30,9 +30,17 @@
 
     settings = {
       model = {
-        provider = "opencode-go";
-        default = "deepseek-v4-flash";
+        provider = "auto";
+        default = "opencode-go/deepseek-v4-flash";
       };
+
+      custom_providers = [
+        {
+          name = "llama-swap";
+          base_url = "http://127.0.0.1:30001/v1";
+          discover_models = true;
+        }
+      ];
 
       terminal.backend = "local";
       terminal.cwd = "/var/lib/hermes/workspace";
