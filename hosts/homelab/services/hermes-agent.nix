@@ -65,6 +65,8 @@
     MATRIX_E2EE_MODE = "optional";
   };
 
+  services.ollama.enable = lib.mkForce false;
+
   nix.settings.max-jobs = 1;
 
   environment.systemPackages = with pkgs; [
