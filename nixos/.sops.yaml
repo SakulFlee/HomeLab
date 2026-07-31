@@ -1,0 +1,20 @@
+creation_rules:
+  - path_regex: .*\.yaml$
+    key_groups:
+      - age:
+        # Evil-Donkey (Host)
+        - age1gsqf94w28l0rv8khatmwtx0tnakvafj7m0xrtl92axl6ecte5qgqxreytu
+        # Evil-Donkey (User)
+        - age1extqssdhtgu3ntpuvq5rkz8zfd20597de9g6y4uuxwf27ca7a3xqjvacrg
+        # Cindry (Host)
+        - age1a3w7vvn728u7xsspluhffrggzyklgqervezhdamx7qn86c8v3dkq4x6zxy
+        # Cindry (User)
+        - age19tp8f5d84z5uyqdp86dyypwn0tt69yxrytj905xe73rglvz6r58smuesjt
+        # SteamDeck (Host)
+        - age1nj55hvyhkf7202f6afpthufvdppylwxnxdxnn97xe8ylmc42lfhq6vknm2
+        # SteamDeck (User)
+        - age1cq75tzr7c55zd9w7ym7yy2srmvactsvgdmvd3mahlfnyh33da43sz70nhc
+        # HomeLab (Host)
+        - age16n3ufazps5tru37l4wny0sh4f7em63j22yuhlahhfhxu5kz2ufdsmer7mw
+        # HomeLab (User)
+        - age1suydyah5q07jdn7xrpt853pzt9ua3ygd7yuu4pys8g0caq2v6dhsmvwcwg

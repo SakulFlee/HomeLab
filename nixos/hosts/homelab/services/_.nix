@@ -1,0 +1,34 @@
+{ lib, ... }: {
+  imports = [
+    ./postgresql.nix
+    ./caddy.nix
+    ./website.nix
+    ./forgejo.nix
+    ./gluetun.nix
+    ./woodpecker.nix
+    ./renovate.nix
+    ./minecraft.nix
+    ./hytale.nix
+    ./jellyfin.nix
+    ./prowlarr.nix
+    ./sonarr.nix
+    ./radarr.nix
+    ./qui.nix
+    ./qbittorrent.nix
+    ./bitmagnet.nix
+    ./fansly-recorder.nix
+    ./hermes-agent.nix
+    ./wireguard.nix
+    ./cloudflare-ddns.nix
+    ./technitium.nix
+    ./tuwunel.nix
+    ./palworld.nix
+    ./syncthing.nix
+    ./mautrix-discord.nix
+    ./mautrix-signal.nix
+    ./mautrix-whatsapp.nix
+    ./paperless.nix
+    ./monitoring.nix
+    ./crowdsec.nix
+  ];
+}
