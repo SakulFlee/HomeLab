@@ -1,0 +1,72 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: minecraft
+  namespace: flux-system
+  labels:
+    reconcile.fluxcd.io/watch: Enabled
+spec:
+  interval: 15m
+  timeout: 5m
+  chart:
+    spec:
+      chart: minecraft
+      version: 5.x
+      sourceRef:
+        kind: HelmRepository
+        name: minecraft-server-charts
+      interval: 5m
+  releaseName: minecraft
+  targetNamespace: minecraft
+  install:
+    createNamespace: true
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  test:
+    enable: true
+  driftDetection:
+    mode: enabled
+    ignore:
+      - paths: [/spec/replicas]
+        target:
+          kind: Deployment
+  values:
+    dnsPolicy: ClusterFirst
+    dnsConfig:
+      options:
+        - name: ndots
+          value: '1'
+    workloadAsStatefulSet: true
+    strategyType: OnDelete
+    minecraftServer:
+      eula: 'TRUE'
+      version: LATEST
+      type: PAPER
+      difficulty: normal
+      whitelist: SakulFlee,jendrik12799,Lennart116002,Fisch246,DarkRune2214,_MinaChan_,Froggy189
+      ops: SakulFlee,jendrik12799
+      motd: Conduit Network @ SakulFlee
+      serviceType: LoadBalancer
+      pluginUrls:
+        # - https://hangarcdn.papermc.io/plugins/ViaVersion/ViaVersion/versions/5.9.1/PAPER/ViaVersion-5.9.1.jar
+        # - https://hangarcdn.papermc.io/plugins/ViaVersion/ViaBackwards/versions/5.9.1/PAPER/ViaBackwards-5.9.1.jar
+        # - https://download.geysermc.org/v2/projects/geyser/versions/latest/builds/latest/downloads/spigot
+        # - https://download.geysermc.org/v2/projects/floodgate/versions/latest/builds/latest/downloads/spigot
+        - https://hangarcdn.papermc.io/plugins/KingTheGuy/Portalis/versions/1.0/PAPER/portalis-1.0.jar
+        - https://hangarcdn.papermc.io/plugins/EngineHub/WorldEdit/versions/7.3.17/PAPER/worldedit-bukkit-7.3.17.jar
+        - https://hangarcdn.papermc.io/plugins/kennytv/WorldEditSUI/versions/1.7.4/PAPER/WorldEditSUI-1.7.4.jar
+    resources:
+      requests:
+        memory: 512Mi
+        cpu: 500m
+      limits:
+        memory: 2048Mi
+        cpu: 2000m
+    persistence:
+      storageClass: local-path-persistent
+      dataDir:
+        enabled: true
+        Size: 8Gi

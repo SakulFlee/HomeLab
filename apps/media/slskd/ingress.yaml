@@ -1,0 +1,25 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: slskd
+  namespace: media
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-production
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure 
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: slskd.sakul-flee.de
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: slskd
+                port:
+                  number: 5030
+  tls:
+    - hosts:
+        - slskd.sakul-flee.de 
+      secretName: slskd-sakul-flee-de-tls

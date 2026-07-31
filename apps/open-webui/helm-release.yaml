@@ -1,0 +1,62 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: open-webui
+  namespace: flux-system
+  labels:
+    reconcile.fluxcd.io/watch: Enabled
+spec:
+  interval: 15m
+  timeout: 5m
+  chart:
+    spec:
+      chart: open-webui
+      version: 14.*
+      sourceRef:
+        kind: HelmRepository
+        name: open-webui
+      interval: 5m
+  releaseName: open-webui
+  targetNamespace: open-webui
+  install:
+    createNamespace: true
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  test:
+    enable: true
+  driftDetection:
+    mode: enabled
+  valuesFrom:
+    - kind: Secret
+      name: postgres-app
+      valuesKey: fqdn-uri
+      targetPath: databaseUrl
+  values:
+    enableOpenaiApi: false
+    ingress:
+      enabled: true
+      class: traefik
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-production
+        traefik.ingress.kubernetes.io/router.entrypoints: websecure
+      host: open-webui.sakul-flee.de
+      tls: true
+      existingSecret: open-webui-sakul-flee-de-tls
+    ollama:
+      enabled: false
+    pipelines:
+      enabled: true
+    tika:
+      enabled: true
+    websocket:
+      enabled: true
+    serviceAccount:
+      create: true
+      enable: true
+    persistence:
+      enabled: true
+      storageClass: local-path-persistent
+      size: 32Gi

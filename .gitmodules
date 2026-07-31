@@ -1,0 +1,4 @@
+[submodule "Secrets"]
+	path = secrets
+	url = git@github.com:SakulFlee/HomeLab-Secrets.git
+
