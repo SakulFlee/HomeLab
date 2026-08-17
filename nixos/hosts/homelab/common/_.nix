@@ -3,5 +3,6 @@
     ./sops.nix
     ./restic.nix
     ./dns.nix
+    ./subvolumes.nix
   ];
 }
