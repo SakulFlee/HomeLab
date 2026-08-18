@@ -37,29 +37,24 @@ spec:
     persistence:
       config:
         enabled: true
-        storageClass: local-path
+        storageClass: local-path-persistent
         size: 1Gi
         mountPath: /var/syncthing
       data:
         enabled: true
-        storageClass: local-path
         type: hostPath
-        hostPath: /mnt/nas/SakulFlee/
-        mountPath: /mnt/nas_smb_sakulflee/
+        # The local restic repository. Syncthing replicates this folder to a
+        # peer device for off-box backup redundancy.
+        hostPath: /var/lib/backups/
+        mountPath: /var/lib/backups/
         retain: true
+    service:
+      main:
+        type: NodePort
+        ports:
+          http:
+            port: 8384
+            nodePort: 30084
     ingress:
       main:
-        enabled: true
-        className: traefik
-        annotations:
-          cert-manager.io/cluster-issuer: letsencrypt-production
-          traefik.ingress.kubernetes.io/router.entrypoints: websecure
-        hosts:
-          - host: syncthing.sakul-flee.de
-            paths:
-              - path: /
-                pathType: Prefix
-                port: http
-        tls:
-          - secretName: syncthing-sakul-flee-de-tls
-            hosts: [syncthing.sakul-flee.de]
+        enabled: false

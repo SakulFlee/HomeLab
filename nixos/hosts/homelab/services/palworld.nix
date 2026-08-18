@@ -104,9 +104,4 @@ in {
   };
 
   networking.firewall.allowedUDPPorts = [ 8211 ];
-
-  services.homelab-restic = {
-    enable = true;
-    paths = [ "/var/lib/palworld" ];
-  };
 }

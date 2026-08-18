@@ -26,9 +26,4 @@
       ];
     };
   };
-
-  services.homelab-restic = {
-    enable = true;
-    paths = [ "/var/lib/private/tuwunel" ];
-  };
 }

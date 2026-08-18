@@ -148,9 +148,4 @@ in {
   systemd.tmpfiles.rules = [
     "d '${config.services.forgejo.customDir}/conf' 0750 forgejo forgejo - -"
   ];
-
-  services.homelab-restic = {
-    enable = true;
-    paths = [ "/var/lib/forgejo" ];
-  };
 }

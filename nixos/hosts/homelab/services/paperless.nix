@@ -41,10 +41,4 @@
     port = 3001;
     libreoffice.autoStart = true;
   };
-
-  # Backup paperless data directory to NAS via restic
-  services.homelab-restic = {
-    enable = true;
-    paths = [ "/var/lib/paperless" ];
-  };
 }

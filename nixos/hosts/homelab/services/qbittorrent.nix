@@ -72,9 +72,4 @@ in {
       RestartSec = 10;
     };
   };
-
-  services.homelab-restic = {
-    enable = true;
-    paths = [ "/var/lib/qbittorrent" ];
-  };
 }

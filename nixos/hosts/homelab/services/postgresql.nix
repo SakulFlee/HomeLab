@@ -71,13 +71,4 @@
       RandomizedDelaySec = "5m";
     };
   };
-
-  systemd.services.homelab-restic = {
-    after = [ "postgresql-dump.service" ];
-  };
-
-  services.homelab-restic = {
-    enable = true;
-    paths = [ "/var/lib/postgresql-dumps" ];
-  };
 }

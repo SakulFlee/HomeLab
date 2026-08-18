@@ -3,4 +3,7 @@ kind: Kustomization
 metadata:
   name: storage-class-local-path
   namespace: kube-system
-resources: [storage-class-persistent.yaml, storage-class-volatile.yaml]
+resources:
+  - local-path-config.yaml
+  - storage-class-persistent.yaml
+  - storage-class-volatile.yaml

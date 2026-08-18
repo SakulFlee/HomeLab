@@ -70,7 +70,7 @@ in {
 
       syncthing.sakul-flee.de {
         import dns_challenge
-        reverse_proxy localhost:8384
+        reverse_proxy 127.0.0.1:30084
       }
 
       technitium.sakul-flee.de {

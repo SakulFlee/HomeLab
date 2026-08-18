@@ -3,7 +3,10 @@ kind: StorageClass
 metadata:
   name: local-path-volatile
   annotations:
+    defaultVolumeType: "local"
     storageclass.kubernetes.io/is-default-class: "false"
 provisioner: rancher.io/local-path
-reclaimPolicy: Delete
+parameters:
+  nodePath: /var/lib/rancher/k3s/storage/volatile
 volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Delete
