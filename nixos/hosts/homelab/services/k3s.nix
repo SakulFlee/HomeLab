@@ -14,4 +14,14 @@
 
   # k3s API server, kubelet, and (future) Traefik non-standard ports
   networking.firewall.allowedTCPPorts = [ 6443 10250 8080 8443 ];
+  # Flannel VXLAN (8472/udp) for pod-to-pod across nodes
+  networking.firewall.allowedUDPPorts = [ 8472 ];
+  # Allow forwarding between the pod bridge (cni0) and the LAN (eno1).
+  # Without this, flannel pod traffic is dropped by the firewall.
+  networking.firewall.extraForwardRules = ''
+    iifname "cni0" oifname "eno1" accept
+    iifname "eno1" oifname "cni0" accept
+  '';
+  # Reverse-path filtering breaks VXLAN return traffic
+  networking.firewall.checkReversePath = false;
 }
