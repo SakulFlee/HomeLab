@@ -6,9 +6,6 @@
       (pkgs.writeTextDir ".well-known/matrix/client" ''{"m.homeserver":{"base_url":"https://matrix.sakul-flee.de"}}'')
     ];
   };
-
-  vpnCidr = "10.100.0.0/24";
-  lanCidr = "192.168.178.0/24";
 in {
   sops.secrets."caddy-env" = {};
 
@@ -49,16 +46,11 @@ in {
 
       nas.sakul-flee.de {
         import dns_challenge
-        @vpn client_ip ${vpnCidr} ${lanCidr}
-        handle @vpn {
-          reverse_proxy 192.168.178.250:9443 {
-            transport http {
-              tls_insecure_skip_verify
-            }
+
+        reverse_proxy 192.168.178.250:9443 {
+          transport http {
+            tls_insecure_skip_verify
           }
-        }
-        handle {
-          abort
         }
       }
 
@@ -76,147 +68,69 @@ in {
         reverse_proxy localhost:6167
       }
 
-      syncthing.sakul-flee.de, sync.sakul-flee.de {
+      syncthing.sakul-flee.de {
         import dns_challenge
-        @vpn client_ip ${vpnCidr} ${lanCidr}
-        handle @vpn {
-          reverse_proxy localhost:8384
-        }
-        handle {
-          abort
-        }
+        reverse_proxy localhost:8384
       }
 
-      technitium.sakul-flee.de, dns.sakul-flee.de {
+      technitium.sakul-flee.de {
         import dns_challenge
-        @vpn client_ip ${vpnCidr} ${lanCidr}
-        handle @vpn {
-          reverse_proxy localhost:5380
-        }
-        handle {
-          abort
-        }
+        reverse_proxy localhost:5380
       }
 
       bitmagnet.sakul-flee.de {
         import dns_challenge
-        @vpn client_ip ${vpnCidr} ${lanCidr}
-        handle @vpn {
-          reverse_proxy localhost:3333
-        }
-        handle {
-          abort
-        }
+        reverse_proxy localhost:3333
       }
 
       prowlarr.sakul-flee.de {
         import dns_challenge
-        @vpn client_ip ${vpnCidr} ${lanCidr}
-        handle @vpn {
-          reverse_proxy localhost:9696
-        }
-        handle {
-          abort
-        }
+        reverse_proxy localhost:9696
       }
 
       sonarr.sakul-flee.de {
         import dns_challenge
-        @vpn client_ip ${vpnCidr} ${lanCidr}
-        handle @vpn {
-          reverse_proxy localhost:8989
-        }
-        handle {
-          abort
-        }
+        reverse_proxy localhost:8989
       }
 
       radarr.sakul-flee.de {
         import dns_challenge
-        @vpn client_ip ${vpnCidr} ${lanCidr}
-        handle @vpn {
-          reverse_proxy localhost:7878
-        }
-        handle {
-          abort
-        }
+        reverse_proxy localhost:7878
       }
 
       qbittorrent.sakul-flee.de {
         import dns_challenge
-        @vpn client_ip ${vpnCidr} ${lanCidr}
-        handle @vpn {
-          reverse_proxy localhost:8080
-        }
-        handle {
-          abort
-        }
+        reverse_proxy localhost:8080
       }
 
       qui.sakul-flee.de {
         import dns_challenge
-        @vpn client_ip ${vpnCidr} ${lanCidr}
-        handle @vpn {
-          reverse_proxy localhost:7476
-        }
-        handle {
-          abort
-        }
+        reverse_proxy localhost:7476
       }
 
       jellyfin.sakul-flee.de {
         import dns_challenge
-        @vpn client_ip ${vpnCidr} ${lanCidr}
-        handle @vpn {
-          reverse_proxy localhost:8096
-        }
-        handle {
-          abort
-        }
+        reverse_proxy localhost:8096
       }
 
       paperless.sakul-flee.de {
         import dns_challenge
-        @vpn client_ip ${vpnCidr} ${lanCidr}
-        handle @vpn {
-          reverse_proxy localhost:28981
-        }
-        handle {
-          abort
-        }
+        reverse_proxy localhost:28981
       }
 
       grafana.sakul-flee.de {
         import dns_challenge
-        @vpn client_ip ${vpnCidr} ${lanCidr}
-        handle @vpn {
-          reverse_proxy localhost:3003
-        }
-        handle {
-          abort
-        }
+        reverse_proxy localhost:3003
       }
 
-      llama.sakul-flee.de, llama-swap.sakul-flee.de, llama-proxy.sakul-flee.de {
+      llama-swap.sakul-flee.de {
         import dns_challenge
-        @vpn client_ip ${vpnCidr} ${lanCidr}
-        handle @vpn {
-          reverse_proxy localhost:30001
-        }
-        handle {
-          abort
-        }
+        reverse_proxy localhost:30001
       }
 
-      open-webui.sakul-flee.de, owu.sakul-flee.de, chat.sakul-flee.de {
+      open-webui.sakul-flee.de {
         import dns_challenge
-        @vpn client_ip ${vpnCidr} ${lanCidr}
-        handle @vpn {
-          reverse_proxy localhost:30002
-        }
-        handle {
-          abort
-        }
+        reverse_proxy localhost:30002
       }
     '';
   };
