@@ -1,0 +1,11 @@
+creation_rules:
+  - path_regex: clusters/.*\.yaml$
+    key_groups:
+      - age:
+        # Flux (k3s cluster) - ADD the public key from flux-age-key.txt here
+        # after running: age-keygen -o flux-age-key.txt
+        # - age1XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+        # HomeLab (Host)
+        - age16n3ufazps5tru37l4wny0sh4f7em63j22yuhlahhfhxu5kz2ufdsmer7mw
+        # HomeLab (User)
+        - age1suydyah5q07jdn7xrpt853pzt9ua3ygd7yuu4pys8g0caq2v6dhsmvwcwg

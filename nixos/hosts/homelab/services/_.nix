@@ -2,7 +2,6 @@
   imports = [
     ./postgresql.nix
     ./caddy.nix
-    ./website.nix
     ./forgejo.nix
     ./gluetun.nix
     ./woodpecker.nix

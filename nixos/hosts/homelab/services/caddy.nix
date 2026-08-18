@@ -41,7 +41,7 @@ in {
             reverse_proxy localhost:6167
         }
 
-        reverse_proxy localhost:8081
+        reverse_proxy 127.0.0.1:30081
       }
 
       nas.sakul-flee.de {
