@@ -24,4 +24,8 @@
   '';
   # Reverse-path filtering breaks VXLAN return traffic
   networking.firewall.checkReversePath = false;
+
+  # Masquerade pod traffic (cni0) out of the LAN so the router can route replies back.
+  # Merges with wg0/podman NAT from the wireguard module.
+  networking.nat.internalInterfaces = [ "cni0" ];
 }
