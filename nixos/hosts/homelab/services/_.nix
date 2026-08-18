@@ -29,7 +29,6 @@
     ./mautrix-whatsapp.nix
     ./paperless.nix
     ./monitoring.nix
-    ./crowdsec.nix
     ./k3s.nix
   ];
 }
