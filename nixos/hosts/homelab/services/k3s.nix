@@ -7,8 +7,17 @@
     tokenFile = config.sops.secrets."k3s-token".path;
     # Phase 1: no k8s ingresses yet. Traefik will be enabled on non-standard
     # ports in a later phase when the first apps (website/syncthing) land.
-    extraFlags = "--disable=traefik";
+    #
+    # Point pod DNS at our own resolv.conf (router first, Technitium fallback).
+    # The host /etc/resolv.conf has nameserver 127.0.0.1 which is unusable
+    # inside pods; without this k3s substitutes public DNS (8.8.8.8).
+    extraFlags = "--disable=traefik --resolv-conf /etc/k3s-resolv.conf";
   };
+
+  environment.etc."k3s-resolv.conf".text = ''
+    nameserver 192.168.178.1
+    nameserver 192.168.178.200
+  '';
 
   environment.systemPackages = with pkgs; [ kubectl ];
 
