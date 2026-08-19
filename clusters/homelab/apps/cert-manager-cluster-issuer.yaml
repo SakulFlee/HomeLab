@@ -14,3 +14,7 @@ spec:
   timeout: 3m0s
   wait: true
   path: ./apps/cert-manager-cluster-issuer/
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
