@@ -14,7 +14,3 @@ spec:
   timeout: 3m0s
   wait: true
   path: ./apps/forgejo/
-  decryption:
-    provider: sops
-    secretRef:
-      name: sops-age
