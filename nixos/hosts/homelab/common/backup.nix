@@ -24,8 +24,11 @@ in {
     script = ''
       set -euo pipefail
 
-      if ! restic cat config -r "${repo}" --password-file /run/secrets/restic-password >/dev/null 2>&1; then
-        restic init -r "${repo}" --password-file /run/secrets/restic-password >/dev/null 2>&1
+      # The backup tier may legitimately be empty (no PVC provisioned on
+      # local-path-backup yet). Skip cleanly rather than fail when absent.
+      if [ ! -d "${backupTier}" ]; then
+        echo "${backupTier} does not exist, skipping"
+        exit 0
       fi
 
       restic backup \
