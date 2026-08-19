@@ -57,6 +57,21 @@ spec:
             secretKeyRef:
               name: forgejo-mailer
               key: password
+        - name: FORGEJO__SECURITY__INTERNAL_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: forgejo-tokens
+              key: INTERNAL_TOKEN
+        - name: FORGEJO__OAUTH2__JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: forgejo-tokens
+              key: JWT_SECRET
+        - name: FORGEJO__SERVER__LFS_JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: forgejo-tokens
+              key: LFS_JWT_SECRET
       # Admin user
       admin:
         existingSecret: forgejo-secret
