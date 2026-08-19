@@ -9,10 +9,6 @@
         static_configs = [{ targets = [ "127.0.0.1:9100" ]; }];
       }
       {
-        job_name = "caddy";
-        static_configs = [{ targets = [ "127.0.0.1:2019" ]; }];
-      }
-      {
         job_name = "forgejo";
         static_configs = [{ targets = [ "127.0.0.1:3002" ]; }];
       }

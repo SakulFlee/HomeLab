@@ -1,0 +1,155 @@
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: matrix
+  namespace: native
+subsets:
+  - addresses:
+      - ip: 192.168.178.200
+    ports:
+      - name: http
+        port: 6167
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: bitmagnet
+  namespace: native
+subsets:
+  - addresses:
+      - ip: 192.168.178.200
+    ports:
+      - name: http
+        port: 3333
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: technitium
+  namespace: native
+subsets:
+  - addresses:
+      - ip: 192.168.178.200
+    ports:
+      - name: http
+        port: 5380
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: prowlarr
+  namespace: native
+subsets:
+  - addresses:
+      - ip: 192.168.178.200
+    ports:
+      - name: http
+        port: 9696
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: sonarr
+  namespace: native
+subsets:
+  - addresses:
+      - ip: 192.168.178.200
+    ports:
+      - name: http
+        port: 8989
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: radarr
+  namespace: native
+subsets:
+  - addresses:
+      - ip: 192.168.178.200
+    ports:
+      - name: http
+        port: 7878
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: qbittorrent
+  namespace: native
+subsets:
+  - addresses:
+      - ip: 192.168.178.200
+    ports:
+      - name: http
+        port: 8080
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: qui
+  namespace: native
+subsets:
+  - addresses:
+      - ip: 192.168.178.200
+    ports:
+      - name: http
+        port: 7476
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: paperless
+  namespace: native
+subsets:
+  - addresses:
+      - ip: 192.168.178.200
+    ports:
+      - name: http
+        port: 28981
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: grafana
+  namespace: native
+subsets:
+  - addresses:
+      - ip: 192.168.178.200
+    ports:
+      - name: http
+        port: 3003
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: llama-swap
+  namespace: native
+subsets:
+  - addresses:
+      - ip: 192.168.178.200
+    ports:
+      - name: http
+        port: 30001
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: open-webui
+  namespace: native
+subsets:
+  - addresses:
+      - ip: 192.168.178.200
+    ports:
+      - name: http
+        port: 30002
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: nas
+  namespace: native
+subsets:
+  - addresses:
+      - ip: 192.168.178.250
+    ports:
+      - name: https
+        port: 9443

@@ -48,7 +48,7 @@ spec:
     # Persistence
     persistence:
       enabled: true
-      storageClass: local-path
+      storageClass: local-path-backup
       size: 32Gi
     gitea:
       additionalConfigFromEnvs:
@@ -87,6 +87,9 @@ spec:
           FROM: forgejo@sakul-flee.de
         server:
           LFS_START_SERVER: true
+          START_SSH_SERVER: true
+          SSH_PORT: 2222
+          SSH_DOMAIN: forgejo.sakul-flee.de
     # GPG signing support
     signing:
       enabled: true
@@ -110,6 +113,7 @@ spec:
     # Service
     service:
       http:
-        type: LoadBalancer
+        type: ClusterIP
       ssh:
-        type: LoadBalancer
+        type: NodePort
+        nodePort: 2222

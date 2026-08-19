@@ -1,7 +1,6 @@
 { lib, ... }: {
   imports = [
     ./postgresql.nix
-    ./caddy.nix
     ./forgejo.nix
     ./gluetun.nix
     ./woodpecker.nix

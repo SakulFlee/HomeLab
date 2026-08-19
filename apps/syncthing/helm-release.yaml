@@ -50,11 +50,23 @@ spec:
         retain: true
     service:
       main:
-        type: NodePort
+        type: ClusterIP
         ports:
           http:
             port: 8384
-            nodePort: 30084
     ingress:
       main:
-        enabled: false
+        enabled: true
+        className: traefik
+        annotations:
+          cert-manager.io/cluster-issuer: letsencrypt-production
+          traefik.ingress.kubernetes.io/router.entrypoints: websecure
+        hosts:
+          - host: syncthing.sakul-flee.de
+            paths:
+              - path: /
+                pathType: Prefix
+                port: http
+        tls:
+          - secretName: syncthing-sakul-flee-de-tls
+            hosts: [syncthing.sakul-flee.de]

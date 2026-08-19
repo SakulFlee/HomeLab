@@ -9,6 +9,9 @@ spec:
     privateKeySecretRef:
       name: letsencrypt-staging-key
     solvers:
-    - http01:
-        ingress:
-          class: traefik
+      - dns01:
+          cloudflare:
+            email: dev@sakul-flee.de
+            apiTokenSecretRef:
+              name: cloudflare-api-token
+              key: api-token
