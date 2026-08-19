@@ -36,5 +36,10 @@
 
   networking.firewall.allowedUDPPorts = [ 5520 ];
 
+  services.homelab-restic = {
+    enable = true;
+    paths = [ "/var/lib/hytale" ];
+  };
+
   environment.systemPackages = with pkgs; [ screen jdk25 ];
 }

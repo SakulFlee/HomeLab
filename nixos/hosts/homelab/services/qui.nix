@@ -34,4 +34,9 @@ in {
       WorkingDirectory = configDir;
     };
   };
+
+  services.homelab-restic = {
+    enable = true;
+    paths = [ configDir ];
+  };
 }

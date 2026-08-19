@@ -73,4 +73,9 @@
     ripgrep
     ffmpeg
   ];
+
+  services.homelab-restic = {
+    enable = true;
+    paths = [ "/var/lib/hermes" ];
+  };
 }

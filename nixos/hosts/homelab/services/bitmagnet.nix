@@ -45,4 +45,12 @@ in {
       };
     };
   };
+
+  services.homelab-restic = {
+    enable = true;
+    paths = [
+      "/var/lib/bitmagnet/config"
+      "/var/lib/bitmagnet/data"
+    ];
+  };
 }

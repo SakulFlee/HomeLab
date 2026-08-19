@@ -12,7 +12,8 @@ data:
           "paths": [
             "/var/lib/rancher/k3s/storage",
             "/var/lib/rancher/k3s/storage/persistent",
-            "/var/lib/rancher/k3s/storage/volatile"
+            "/var/lib/rancher/k3s/storage/volatile",
+            "/var/lib/rancher/k3s/storage/backup"
           ]
         }
       ]

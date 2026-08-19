@@ -7,3 +7,4 @@ resources:
   - local-path-config.yaml
   - storage-class-persistent.yaml
   - storage-class-volatile.yaml
+  - storage-class-backup.yaml

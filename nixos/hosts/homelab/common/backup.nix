@@ -1,44 +1,28 @@
 { config, pkgs, lib, ... }:
 
 let
-  dev = "/dev/disk/by-uuid/f947dbe8-fde3-4002-92bf-fee906abab73";
-  snapRoot = "/var/lib/backups/snapshots";
-  # btrfs subvol path of snapshots relative to the top-level subvolume (id 5).
-  snapSubvol = "backups/snapshots";
   repo = "/var/lib/backups/repo";
-  mountPoint = "/mnt/k8s-snapshot";
-  # Volatile (reclaimPolicy: Delete) PVCs live under /storage/volatile and are
-  # excluded from backups; only persistent data is retained.
-  volatilePath = "storage/volatile";
+  # Only the "persistent + backup" tier is backed up (see storage-class).
+  # Databases never live here directly: they run on local-path-persistent and
+  # dump themselves (e.g. CNPG recurringBackups) into a local-path-backup PVC,
+  # so consistency comes from app-level dumps, not filesystem snapshots.
+  backupTier = "/var/lib/rancher/k3s/storage/backup";
 in {
   sops.secrets.restic-password = {};
 
-  environment.systemPackages = with pkgs; [ restic btrfs-progs ];
+  environment.systemPackages = with pkgs; [ restic ];
 
   systemd.services.homelab-backup = {
-    description = "Snapshot k8s subvolume and back it up with restic";
-    after = [ "network.target" "remote-fs.target" "var-lib-backups.mount" ];
+    description = "Back up k8s persistent+backup storage tier with restic";
+    after = [ "network.target" "remote-fs.target" ];
     wants = [ "remote-fs.target" ];
-    path = with pkgs; [ restic btrfs-progs ];
+    path = with pkgs; [ restic ];
     serviceConfig = {
       Type = "oneshot";
     };
     environment.HOME = "/root";
     script = ''
       set -euo pipefail
-
-      mkdir -p "${snapRoot}"
-      snap="${snapRoot}/k8s-$(date +%F-%H%M%S)"
-      btrfs subvolume snapshot -r /var/lib/rancher "$snap"
-
-      cleanup() {
-        mountpoint -q "${mountPoint}" && umount "${mountPoint}" || true
-        btrfs subvolume delete "$snap" >/dev/null 2>&1 || true
-      }
-      trap cleanup EXIT
-
-      mkdir -p "${mountPoint}"
-      mount -t btrfs -o "subvol=${snapSubvol}/$(basename "$snap"),ro" "${dev}" "${mountPoint}"
 
       if ! restic cat config -r "${repo}" --password-file /run/secrets/restic-password >/dev/null 2>&1; then
         restic init -r "${repo}" --password-file /run/secrets/restic-password >/dev/null 2>&1
@@ -47,8 +31,7 @@ in {
       restic backup \
         -r "${repo}" \
         --password-file /run/secrets/restic-password \
-        "${mountPoint}" \
-        --exclude "${volatilePath}" \
+        "${backupTier}" \
         --tag k8s \
         --exclude-caches
 
@@ -63,7 +46,7 @@ in {
   };
 
   systemd.timers.homelab-backup = {
-    description = "Hourly btrfs snapshot + restic backup";
+    description = "Hourly restic backup of k8s storage";
     wantedBy = [ "timers.target" ];
     timerConfig = {
       OnCalendar = "hourly";
