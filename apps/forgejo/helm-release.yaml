@@ -88,7 +88,7 @@ spec:
         server:
           LFS_START_SERVER: true
           START_SSH_SERVER: true
-          SSH_PORT: 2222
+          SSH_PORT: 30022
           SSH_DOMAIN: forgejo.sakul-flee.de
     # GPG signing support
     signing:
@@ -116,4 +116,4 @@ spec:
         type: ClusterIP
       ssh:
         type: NodePort
-        nodePort: 2222
+        nodePort: 30022

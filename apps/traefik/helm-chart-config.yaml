@@ -8,6 +8,7 @@ spec:
     ports:
       matrix-federation:
         port: 8448
-        expose: true
+        expose:
+          default: true
         exposedPort: 8448
         protocol: TCP
