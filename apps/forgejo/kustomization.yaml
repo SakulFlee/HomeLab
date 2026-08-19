@@ -10,3 +10,4 @@ resources:
   - database.yaml
   - dump-pvc.yaml
   - dump-cronjob.yaml
+  - secrets/
