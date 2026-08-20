@@ -35,12 +35,12 @@ spec:
           kind: Deployment
   values:
     # Run Syncthing as root so it can read/write the root-owned restic
-    # repository (/var/lib/backups/repo). The image honors PUID/PGID (default
-    # 1000) and drops privileges to that user, overriding podSecurityContext,
-    # so the env vars must be set instead.
-    env:
-      PUID: "0"
-      PGID: "0"
+    # repository (/var/lib/backups/repo). The official syncthing/syncthing
+    # image does NOT honor PUID/PGID (that's a linuxserver.io convention) and
+    # defaults to UID 1000, so the securityContext must be set instead.
+    securityContext:
+      runAsUser: 0
+      runAsGroup: 0
     persistence:
       config:
         enabled: true
