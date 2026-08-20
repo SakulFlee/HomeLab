@@ -1,0 +1,92 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: matrix-well-known
+  namespace: website
+data:
+  client: |
+    {"m.homeserver":{"base_url":"https://matrix.sakul-flee.de"}}
+  server: |
+    {"m.server":"matrix.sakul-flee.de:443"}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: matrix-well-known
+  namespace: website
+  labels:
+    app: matrix-well-known
+spec:
+  selector:
+    matchLabels:
+      app: matrix-well-known
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: matrix-well-known
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.27-alpine
+          ports:
+            - containerPort: 80
+          volumeMounts:
+            - name: well-known
+              mountPath: /usr/share/nginx/html/.well-known/matrix
+              readOnly: true
+      volumes:
+        - name: well-known
+          configMap:
+            name: matrix-well-known
+            items:
+              - key: client
+                path: client
+              - key: server
+                path: server
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: matrix-well-known
+  namespace: website
+spec:
+  type: ClusterIP
+  selector:
+    app: matrix-well-known
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: matrix-well-known-headers
+  namespace: website
+spec:
+  headers:
+    customResponseHeaders:
+      Content-Type: application/json
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: matrix-well-known
+  namespace: website
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - kind: Rule
+      match: Host(`sakul-flee.de`) && PathPrefix(`/.well-known/matrix`)
+      priority: 100
+      middlewares:
+        - name: matrix-well-known-headers
+          namespace: website
+      services:
+        - name: matrix-well-known
+          port: 80
+  tls:
+    secretName: sakul-flee-de-tls
