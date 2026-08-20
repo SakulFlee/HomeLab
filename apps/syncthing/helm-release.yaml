@@ -66,6 +66,7 @@ spec:
         # is already replicated via the hostPath mount above).
         type: pvc
         storageClass: local-path-backup
+        accessMode: ReadWriteOnce
         size: 20Gi
         mountPath: /data
     service:
