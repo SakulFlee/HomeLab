@@ -8,7 +8,7 @@
     settings = {
       global = {
         server_name = "sakul-flee.de";
-        address = [ "127.0.0.1" ];
+        address = [ "192.168.178.200" ];
         port = [ 6167 ];
         allow_federation = true;
         allow_registration = true;
