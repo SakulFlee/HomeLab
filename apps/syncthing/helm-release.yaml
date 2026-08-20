@@ -63,7 +63,7 @@ spec:
         type: pvc
         storageClass: local-path-backup
         size: 20Gi
-        mountPath: /backup
+        mountPath: /data
     service:
       main:
         type: ClusterIP
