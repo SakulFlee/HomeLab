@@ -1,3 +1,3 @@
 { ... }: {
-  networking.nameservers = [ "127.0.0.1" ];
+  networking.nameservers = [ "192.168.178.1" ];
 }

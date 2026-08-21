@@ -74,7 +74,7 @@
   };
 
   virtualisation.containers.containersConf.settings = {
-    containers.dns_servers = [ "10.100.0.1" "192.168.178.200" ];
+    containers.dns_servers = [ "192.168.178.1" ];
   };
 
   # Cache

@@ -6,9 +6,8 @@
     role = "server";
     tokenFile = config.sops.secrets."k3s-token".path;
     # Traefik (k3s-bundled) is the ingress layer serving 80/443. Point pod DNS
-    # at our own resolv.conf (router first, Technitium fallback). The host
-    # /etc/resolv.conf has nameserver 127.0.0.1 which is unusable inside pods;
-    # without this k3s substitutes public DNS (8.8.8.8).
+    # at the router. The host /etc/resolv.conf uses the router as its resolver,
+    # but the pod's own resolv.conf needs an explicit nameserver.
     # Image GC thresholds act as a capacity backstop; the k3s-image-prune timer
     # (below) proactively removes unused images so the thresholds stay high.
     extraFlags = ''
@@ -55,7 +54,6 @@
 
   environment.etc."k3s-resolv.conf".text = ''
     nameserver 192.168.178.1
-    nameserver 192.168.178.200
   '';
 
   environment.systemPackages = with pkgs; [ kubectl ];

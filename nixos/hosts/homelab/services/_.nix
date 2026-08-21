@@ -18,7 +18,7 @@
     # ./hermes-agent.nix
     # ./wireguard.nix
     ./cloudflare-ddns.nix
-    ./technitium.nix
+    # ./technitium.nix
     # ./tuwunel.nix
     ./palworld.nix
     # ./syncthing.nix
