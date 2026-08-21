@@ -19,7 +19,7 @@
     # ./wireguard.nix
     ./cloudflare-ddns.nix
     ./technitium.nix
-    ./tuwunel.nix
+    # ./tuwunel.nix
     ./palworld.nix
     # ./syncthing.nix
     # ./mautrix-discord.nix
