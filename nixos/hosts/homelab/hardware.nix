@@ -33,10 +33,13 @@
   # Cluster storage (k3s local-path tiers) lives on the dedicated SSD (/dev/sda1).
   # The local restic repository (/var/lib/backups) intentionally stays on the NVMe
   # so the source data and its backup are on separate disks.
+  # noauto: mounted explicitly by k3s.service preStart so switch-to-configuration
+  # never tries to unmount/remount it while k3s/containerd hold the path busy
+  # (which hung rebuilds at "restarting sysinit-reactivation.target").
   fileSystems."/var/lib/rancher/k3s/storage" =
     { device = "/dev/disk/by-uuid/a8ab0668-28ae-437c-96dc-bed48481b2c0";
       fsType = "btrfs";
-      options = [ "subvol=storage" "compress=zstd" ];
+      options = [ "subvol=storage" "compress=zstd" "noauto" ];
     };
 
   fileSystems."/boot" =

@@ -18,6 +18,16 @@
     '';
   };
 
+  # The storage mount is noauto (see hardware.nix), so switch-to-configuration
+  # never tries to unmount/remount it while k3s/containerd hold the path busy
+  # (which hung rebuilds at "restarting sysinit-reactivation.target").
+  # Order k3s after the mount unit and mount it explicitly here on k3s start.
+  systemd.services.k3s.after = [ "var-lib-rancher-k3s-storage.mount" ];
+  systemd.services.k3s.preStart = ''
+    mkdir -p /var/lib/rancher/k3s/storage
+    mountpoint -q /var/lib/rancher/k3s/storage || mount /var/lib/rancher/k3s/storage
+  '';
+
   # Proactively prune containerd images not referenced by any running container,
   # regardless of disk capacity. crictl ships with the k3s package.
   systemd.services.k3s-image-prune = {
