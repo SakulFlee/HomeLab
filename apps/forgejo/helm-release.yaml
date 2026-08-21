@@ -72,6 +72,11 @@ spec:
             secretKeyRef:
               name: forgejo-tokens
               key: LFS_JWT_SECRET
+        - name: FORGEJO__SECURITY__SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: forgejo-tokens
+              key: SECRET_KEY
       # Admin user
       admin:
         existingSecret: forgejo-secret
