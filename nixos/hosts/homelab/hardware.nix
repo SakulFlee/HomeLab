@@ -30,6 +30,15 @@
       options = [ "subvol=nix" ];
     };
 
+  # Cluster storage (k3s local-path tiers) lives on the dedicated SSD (/dev/sda1).
+  # The local restic repository (/var/lib/backups) intentionally stays on the NVMe
+  # so the source data and its backup are on separate disks.
+  fileSystems."/var/lib/rancher/k3s/storage" =
+    { device = "/dev/disk/by-uuid/a8ab0668-28ae-437c-96dc-bed48481b2c0";
+      fsType = "btrfs";
+      options = [ "subvol=storage" "compress=zstd" ];
+    };
+
   fileSystems."/boot" =
     { device = "/dev/disk/by-uuid/5B72-9486";
       fsType = "vfat";
