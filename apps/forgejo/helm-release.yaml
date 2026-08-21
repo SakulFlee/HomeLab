@@ -41,6 +41,26 @@ spec:
       name: postgres-app
       valuesKey: password
       targetPath: gitea.config.database.PASSWD
+    - kind: Secret
+      name: forgejo-tokens
+      valuesKey: INTERNAL_TOKEN
+      targetPath: gitea.config.security.INTERNAL_TOKEN
+    - kind: Secret
+      name: forgejo-tokens
+      valuesKey: SECRET_KEY
+      targetPath: gitea.config.security.SECRET_KEY
+    - kind: Secret
+      name: forgejo-tokens
+      valuesKey: JWT_SECRET
+      targetPath: gitea.config.oauth2.JWT_SECRET
+    - kind: Secret
+      name: forgejo-tokens
+      valuesKey: LFS_JWT_SECRET
+      targetPath: gitea.config.server.LFS_JWT_SECRET
+    - kind: Secret
+      name: forgejo-mailer
+      valuesKey: password
+      targetPath: gitea.config.mailer.PASSWD
   values:
     # Upgrade strategy
     strategy:
@@ -51,32 +71,6 @@ spec:
       storageClass: local-path-backup
       size: 32Gi
     gitea:
-      additionalConfigFromEnvs:
-        - name: FORGEJO__MAILER__PASSWD
-          valueFrom:
-            secretKeyRef:
-              name: forgejo-mailer
-              key: password
-        - name: FORGEJO__SECURITY__INTERNAL_TOKEN
-          valueFrom:
-            secretKeyRef:
-              name: forgejo-tokens
-              key: INTERNAL_TOKEN
-        - name: FORGEJO__OAUTH2__JWT_SECRET
-          valueFrom:
-            secretKeyRef:
-              name: forgejo-tokens
-              key: JWT_SECRET
-        - name: FORGEJO__SERVER__LFS_JWT_SECRET
-          valueFrom:
-            secretKeyRef:
-              name: forgejo-tokens
-              key: LFS_JWT_SECRET
-        - name: FORGEJO__SECURITY__SECRET_KEY
-          valueFrom:
-            secretKeyRef:
-              name: forgejo-tokens
-              key: SECRET_KEY
       # Admin user
       admin:
         existingSecret: forgejo-secret
