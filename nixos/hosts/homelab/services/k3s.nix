@@ -25,7 +25,7 @@
   systemd.services.k3s.after = [ "var-lib-rancher-k3s-storage.mount" ];
   systemd.services.k3s.preStart = ''
     mkdir -p /var/lib/rancher/k3s/storage
-    mountpoint -q /var/lib/rancher/k3s/storage || mount /var/lib/rancher/k3s/storage
+    ${pkgs.util-linux}/bin/mountpoint -q /var/lib/rancher/k3s/storage || ${pkgs.util-linux}/bin/mount /var/lib/rancher/k3s/storage
   '';
 
   # Proactively prune containerd images not referenced by any running container,
