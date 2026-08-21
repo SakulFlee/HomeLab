@@ -1,12 +1,8 @@
 { config, pkgs, lib, ... }: {
   services.postgresql = {
     enable = true;
-    ensureDatabases = [ "forgejo" "woodpecker" "bitmagnet" ];
+    ensureDatabases = [ "woodpecker" "bitmagnet" ];
     ensureUsers = [
-      {
-        name = "forgejo";
-        ensureDBOwnership = true;
-      }
       {
         name = "woodpecker";
         ensureDBOwnership = true;
@@ -17,7 +13,6 @@
       }
     ];
     authentication = ''
-      local forgejo forgejo peer map=forgejo-map
       local woodpecker woodpecker peer map=woodpecker-map
       host woodpecker woodpecker 127.0.0.1/32 trust
       host woodpecker woodpecker ::1/128 trust
@@ -26,7 +21,6 @@
       host bitmagnet bitmagnet 10.88.0.0/16 scram-sha-256
     '';
     identMap = ''
-      forgejo-map /^(forgejo|git)$ forgejo
       woodpecker-map /^(woodpecker)$ woodpecker
     '';
     settings = {
@@ -54,7 +48,7 @@
     script = ''
       mkdir -p /var/lib/postgresql-dumps
       DATE=$(date +%Y%m%d-%H%M%S)
-      for DB in forgejo woodpecker bitmagnet paperless; do
+      for DB in woodpecker bitmagnet paperless; do
         pg_dump -d "$DB" -Fc -f "/var/lib/postgresql-dumps/$DB-$DATE.dump"
       done
       # Keep only last 48 hours of dumps (48 hourly backups)

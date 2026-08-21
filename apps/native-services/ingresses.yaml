@@ -27,32 +27,6 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: forgejo-old
-  namespace: native
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-production
-    traefik.ingress.kubernetes.io/router.entrypoints: websecure
-spec:
-  ingressClassName: traefik
-  rules:
-    - host: forgejo-old.sakul-flee.de
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: forgejo
-                port:
-                  number: 80
-  tls:
-    - hosts:
-        - forgejo-old.sakul-flee.de
-      secretName: forgejo-old-sakul-flee-de-tls
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
   name: bitmagnet
   namespace: native
   annotations:
