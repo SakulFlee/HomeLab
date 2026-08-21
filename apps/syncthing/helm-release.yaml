@@ -51,7 +51,7 @@ spec:
         storageClass: local-path-persistent
         size: 1Gi
         mountPath: /var/syncthing
-      resticRepo:
+      restic-repo:
         enabled: true
         type: hostPath
         # The local restic repository. Syncthing replicates this folder to a
@@ -63,7 +63,7 @@ spec:
         enabled: true
         # App data tier: for Syncthing folders whose data should be retained
         # and covered by restic (in addition to the restic repo which is
-        # already replicated via the resticRepo hostPath mount above).
+        # already replicated via the restic-repo hostPath mount above).
         type: pvc
         storageClass: local-path-backup
         accessMode: ReadWriteOnce
