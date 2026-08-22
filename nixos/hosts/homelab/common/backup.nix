@@ -10,51 +10,60 @@ let
 in {
   sops.secrets.restic-password = {};
 
-  environment.systemPackages = with pkgs; [ restic ];
+  # environment.systemPackages = with pkgs; [ restic ];
 
-  systemd.services.homelab-backup = {
-    description = "Back up k8s persistent+backup storage tier with restic";
-    after = [ "network.target" "remote-fs.target" ];
-    wants = [ "remote-fs.target" ];
-    path = with pkgs; [ restic ];
-    serviceConfig = {
-      Type = "oneshot";
-    };
-    environment.HOME = "/root";
-    script = ''
-      set -euo pipefail
+  # --- DISABLED (2026-08-23): k3s backup volume now handled by the in-cluster
+  #     DaemonSet apps/storage-class/restic-daemonset.yaml. Both target the same
+  #     repo (/var/lib/backups/repo) and source tier, so running both would
+  #     collide on restic's file lock / produce duplicate snapshots. Re-enable
+  #     this block only after removing/renaming the in-cluster DaemonSet. ---
+  #   environment.systemPackages = with pkgs; [ restic ];
 
-      # The backup tier may legitimately be empty (no PVC provisioned on
-      # local-path-backup yet). Skip cleanly rather than fail when absent.
-      if [ ! -d "${backupTier}" ]; then
-        echo "${backupTier} does not exist, skipping"
-        exit 0
-      fi
+  # --- DISABLED (2026-08-23): native k3s backup service, superseded by DaemonSet above. ---
+  # systemd.services.homelab-backup = {
+  #   description = "Back up k8s persistent+backup storage tier with restic";
+  #   after = [ "network.target" "remote-fs.target" ];
+  #   wants = [ "remote-fs.target" ];
+  #   path = with pkgs; [ restic ];
+  #   serviceConfig = {
+  #     Type = "oneshot";
+  #   };
+  #   environment.HOME = "/root";
+  #   script = ''
+  #     set -euo pipefail
+  #
+  #     # The backup tier may legitimately be empty (no PVC provisioned on
+  #     # local-path-backup yet). Skip cleanly rather than fail when absent.
+  #     if [ ! -d "${backupTier}" ]; then
+  #       echo "${backupTier} does not exist, skipping"
+  #       exit 0
+  #     fi
+  #
+  #     restic backup \
+  #       -r "${repo}" \
+  #       --password-file /run/secrets/restic-password \
+  #       "${backupTier}" \
+  #       --tag k8s \
+  #       --exclude-caches
+  #
+  #     restic forget \
+  #       -r "${repo}" \
+  #       --password-file /run/secrets/restic-password \
+  #       --keep-hourly 24 \
+  #       --keep-daily 7 \
+  #       --keep-monthly 3 \
+  #       --prune
+  #   '';
+  # };
 
-      restic backup \
-        -r "${repo}" \
-        --password-file /run/secrets/restic-password \
-        "${backupTier}" \
-        --tag k8s \
-        --exclude-caches
-
-      restic forget \
-        -r "${repo}" \
-        --password-file /run/secrets/restic-password \
-        --keep-hourly 24 \
-        --keep-daily 7 \
-        --keep-monthly 3 \
-        --prune
-    '';
-  };
-
-  systemd.timers.homelab-backup = {
-    description = "Hourly restic backup of k8s storage";
-    wantedBy = [ "timers.target" ];
-    timerConfig = {
-      OnCalendar = "hourly";
-      Persistent = true;
-      RandomizedDelaySec = "5m";
-    };
-  };
+  # --- DISABLED (2026-08-23): hourly timer for the native k3s backup, see above. ---
+  # systemd.timers.homelab-backup = {
+  #   description = "Hourly restic backup of k8s storage";
+  #   wantedBy = [ "timers.target" ];
+  #   timerConfig = {
+  #     OnCalendar = "hourly";
+  #     Persistent = true;
+  #     RandomizedDelaySec = "5m";
+  #   };
+  # };
 }

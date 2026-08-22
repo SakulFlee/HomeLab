@@ -1,0 +1,89 @@
+# Backs up ONLY the local-path-backup tier (the "backup" volume), matching
+# nixos/hosts/homelab/common/backup.nix: repo=/var/lib/backups/repo, source=
+# /var/lib/rancher/k3s/storage/backup. Databases dump themselves into that
+# tier via app-level dumps (CNPG recurringBackups, paperless pg-dump), so the
+# backup tier is where consistency lives — we do NOT snapshot local-path-persistent here.
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: homelab-restic
+  namespace: kube-system
+  labels:
+    app.kubernetes.io/name: homelab-restic
+spec:
+  # Single-node today = 1 replica. Future-proof: adds one pod per node, each
+  # backing up its own node's backup tier into a shared repo (per-node repos
+  # avoid restic lock contention once multi-node).
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: homelab-restic
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: homelab-restic
+    spec:
+      hostPID: false
+      # root: read a node-local hostPath and write the repo on NVMe.
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
+        fsGroup: 0
+      containers:
+        - name: restic
+          image: ghcr.io/restic/restic:0.16.0
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -euo pipefail
+              BACKUP_TIER="/var/lib/rancher/k3s/storage/backup"
+              REPO="/var/lib/backups/repo"
+
+              # Skip cleanly if the backup tier has no PVC provisioned yet.
+              if [ ! -d "$BACKUP_TIER" ]; then
+                echo "$BACKUP_TIER does not exist, skipping"
+                exit 0
+              fi
+
+              restic backup \
+                -r "$REPO" \
+                --password-file /etc/restic/pw \
+                "$BACKUP_TIER" \
+                --tag k8s \
+                --exclude-caches
+
+              restic forget \
+                -r "$REPO" \
+                --password-file /etc/restic/pw \
+                --keep-hourly 24 \
+                --keep-daily 7 \
+                --keep-monthly 3 \
+                --prune
+          volumeMounts:
+            # Source: ONLY the backup tier (not persistent). Read-only.
+            - name: backup-tier
+              mountPath: /var/lib/rancher/k3s/storage/backup
+              readOnly: true
+            # Repo target: reuse Syncthing's watched dir so off-box replication is free.
+            - name: repo-root
+              mountPath: /var/lib/backups
+            # Password file (matches the NixOS unit's --password-file path).
+            - name: pw
+              mountPath: /etc/restic/pw
+              readOnly: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+      volumes:
+        - name: backup-tier
+          hostPath:
+            path: /var/lib/rancher/k3s/storage/backup
+            type: Directory
+        - name: repo-root
+          hostPath:
+            path: /var/lib/backups
+            type: Directory
+        - name: pw
+          secret:
+            secretName: homelab-restic-password
