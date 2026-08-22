@@ -1,0 +1,96 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: synapse
+  namespace: flux-system
+  labels:
+    reconcile.fluxcd.io/watch: Enabled
+spec:
+  interval: 15m
+  timeout: 5m
+  chart:
+    spec:
+      chart: matrix-synapse
+      version: "3.12.*"
+      sourceRef:
+        kind: HelmRepository
+        name: synapse
+      interval: 5m
+  releaseName: synapse
+  targetNamespace: synapse
+  install:
+    createNamespace: true
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  test:
+    enable: true
+  driftDetection:
+    mode: enabled
+  values:
+    serverName: sakul-flee.de
+    publicServerName: matrix.sakul-flee.de
+    config:
+      publicBaseurl: https://matrix.sakul-flee.de
+      reportStats: false
+      enableRegistration: false
+    signingkey:
+      job:
+        enabled: true
+    postgresql:
+      enabled: false
+    redis:
+      enabled: false
+    persistence:
+      enabled: true
+      storageClass: local-path-persistent
+      size: 10Gi
+    wellknown:
+      enabled: false
+    ingress:
+      enabled: true
+      className: traefik
+      traefikPaths: true
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-production
+        traefik.ingress.kubernetes.io/router.entrypoints: websecure
+      csHosts:
+        - matrix.sakul-flee.de
+      hosts:
+        - matrix.sakul-flee.de
+      includeServerName: false
+      tls:
+        - secretName: matrix-sakul-flee-de-tls
+          hosts:
+            - matrix.sakul-flee.de
+  valuesFrom:
+    - kind: Secret
+      name: postgres-app
+      valuesKey: host
+      targetPath: externalPostgresql.host
+    - kind: Secret
+      name: postgres-app
+      valuesKey: port
+      targetPath: externalPostgresql.port
+    - kind: Secret
+      name: postgres-app
+      valuesKey: user
+      targetPath: externalPostgresql.username
+    - kind: Secret
+      name: postgres-app
+      valuesKey: password
+      targetPath: externalPostgresql.password
+    - kind: Secret
+      name: postgres-app
+      valuesKey: dbname
+      targetPath: externalPostgresql.database
+    - kind: Secret
+      name: synapse-secrets
+      valuesKey: registration_shared_secret
+      targetPath: config.registrationSharedSecret
+    - kind: Secret
+      name: synapse-secrets
+      valuesKey: macaroon_secret_key
+      targetPath: config.macaroonSecretKey

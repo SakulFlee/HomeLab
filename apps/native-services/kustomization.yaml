@@ -8,4 +8,3 @@ resources:
   - services.yaml
   - endpoints.yaml
   - ingresses.yaml
-  - matrix-tcp.yaml

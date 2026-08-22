@@ -1,32 +1,6 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: matrix
-  namespace: native
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-production
-    traefik.ingress.kubernetes.io/router.entrypoints: websecure
-spec:
-  ingressClassName: traefik
-  rules:
-    - host: matrix.sakul-flee.de
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: matrix
-                port:
-                  number: 8008
-  tls:
-    - hosts:
-        - matrix.sakul-flee.de
-      secretName: matrix-sakul-flee-de-tls
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
   name: bitmagnet
   namespace: native
   annotations:
