@@ -1,0 +1,89 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: paperless
+  namespace: flux-system
+  labels:
+    reconcile.fluxcd.io/watch: Enabled
+spec:
+  interval: 15m
+  timeout: 10m
+  chart:
+    spec:
+      chart: paperless-ngx
+      version: "1.*"
+      sourceRef:
+        kind: HelmRepository
+        name: paperless-ngx
+      interval: 5m
+  releaseName: paperless
+  targetNamespace: paperless
+  install:
+    createNamespace: true
+    remediation:
+      retries: 3
+  upgrade:
+    remediation:
+      retries: 3
+  test:
+    enable: true
+  driftDetection:
+    mode: enabled
+  values:
+    paperless:
+      existingSecret: paperless-secret
+      config:
+        PAPERLESS_URL: "https://paperless.sakul-flee.de"
+        PAPERLESS_CSRF_TRUSTED_ORIGINS: "https://paperless.sakul-flee.de"
+        PAPERLESS_TIME_ZONE: "Europe/Berlin"
+        PAPERLESS_OCR_LANGUAGE: "deu+eng"
+        PAPERLESS_OCR_USER_ARGS: "{\"optimize\":1,\"pdfa_image_compression\":\"lossless\"}"
+        PAPERLESS_CONSUMER_IGNORE_PATTERNS: "[\".DS_STORE/*\",\"desktop.ini\"]"
+        PAPERLESS_TASK_WORKERS: "2"
+        PAPERLESS_TIKA_ENABLED: "1"
+      persistence:
+        export:
+          storageClass: local-path-backup
+        consume:
+          storageClass: local-path-volatile
+        data:
+          storageClass: local-path-persistent
+          size: 10Gi
+        media:
+          storageClass: local-path-persistent
+          size: 50Gi
+    cnpg:
+      enabled: true
+      instances: 1
+      postgresVersion: 16
+      image:
+        repository: ghcr.io/cloudnative-pg/postgresql
+        tag: "16"
+      storage:
+        size: 5Gi
+        storageClass: local-path-persistent
+      database: paperless
+      username: paperless
+    redis:
+      enabled: true
+      persistence:
+        enabled: false
+    gotenberg:
+      enabled: true
+    tika:
+      enabled: true
+    ingress:
+      enabled: true
+      className: traefik
+      annotations:
+        cert-manager.io/cluster-issuer: letsencrypt-production
+        traefik.ingress.kubernetes.io/router.entrypoints: websecure
+      hosts:
+        - host: paperless.sakul-flee.de
+          paths:
+            - path: /
+              pathType: Prefix
+      tls:
+        - secretName: paperless-sakul-flee-de-tls
+          hosts:
+            - paperless.sakul-flee.de

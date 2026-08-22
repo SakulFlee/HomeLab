@@ -25,7 +25,7 @@
     # ./mautrix-discord.nix
     # ./mautrix-signal.nix
     # ./mautrix-whatsapp.nix
-    ./paperless.nix
+    # ./paperless.nix
     # ./monitoring.nix
     ./k3s.nix
   ];

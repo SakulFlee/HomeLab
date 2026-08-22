@@ -183,32 +183,6 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: paperless
-  namespace: native
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-production
-    traefik.ingress.kubernetes.io/router.entrypoints: websecure
-spec:
-  ingressClassName: traefik
-  rules:
-    - host: paperless.sakul-flee.de
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: paperless
-                port:
-                  number: 80
-  tls:
-    - hosts:
-        - paperless.sakul-flee.de
-      secretName: paperless-sakul-flee-de-tls
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
   name: grafana
   namespace: native
   annotations:

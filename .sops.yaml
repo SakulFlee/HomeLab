@@ -20,6 +20,12 @@ creation_rules:
         - age1564t00zp3r69x0n7fxwadcgxv0n5v2rkqz77ry52t05q99d6wetqqmr6l6
         - age16n3ufazps5tru37l4wny0sh4f7em63j22yuhlahhfhxu5kz2ufdsmer7mw
         - age1suydyah5q07jdn7xrpt853pzt9ua3ygd7yuu4pys8g0caq2v6dhsmvwcwg
+  - path_regex: apps/paperless/secrets/.*\.yaml$
+    key_groups:
+      - age:
+        - age1564t00zp3r69x0n7fxwadcgxv0n5v2rkqz77ry52t05q99d6wetqqmr6l6
+        - age16n3ufazps5tru37l4wny0sh4f7em63j22yuhlahhfhxu5kz2ufdsmer7mw
+        - age1suydyah5q07jdn7xrpt853pzt9ua3ygd7yuu4pys8g0caq2v6dhsmvwcwg
   - path_regex: apps/renovate/.*\.yaml$
     key_groups:
       - age:
