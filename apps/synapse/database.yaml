@@ -5,11 +5,6 @@ metadata:
   namespace: synapse
 spec:
   instances: 1
-  bootstrap:
-    initdb:
-      args:
-        - --lc-collate=C
-        - --lc-ctype=C
   storage:
     storageClass: local-path-persistent
     size: 5Gi
