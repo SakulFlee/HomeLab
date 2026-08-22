@@ -20,27 +20,27 @@ spec:
                 - name: PGHOST
                   valueFrom:
                     secretKeyRef:
-                      name: paperless-ngx-postgres-app
+                      name: paperless-paperless-ngx-postgres-app
                       key: host
                 - name: PGPORT
                   valueFrom:
                     secretKeyRef:
-                      name: paperless-ngx-postgres-app
+                      name: paperless-paperless-ngx-postgres-app
                       key: port
                 - name: PGUSER
                   valueFrom:
                     secretKeyRef:
-                      name: paperless-ngx-postgres-app
+                      name: paperless-paperless-ngx-postgres-app
                       key: user
                 - name: PGPASSWORD
                   valueFrom:
                     secretKeyRef:
-                      name: paperless-ngx-postgres-app
+                      name: paperless-paperless-ngx-postgres-app
                       key: password
                 - name: PGDATABASE
                   valueFrom:
                     secretKeyRef:
-                      name: paperless-ngx-postgres-app
+                      name: paperless-paperless-ngx-postgres-app
                       key: dbname
               command:
                 - /bin/sh

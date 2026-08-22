@@ -41,17 +41,17 @@ spec:
         PAPERLESS_CONSUMER_IGNORE_PATTERNS: "[\".DS_STORE/*\",\"desktop.ini\"]"
         PAPERLESS_TASK_WORKERS: "2"
         PAPERLESS_TIKA_ENABLED: "1"
-      persistence:
-        export:
-          storageClass: local-path-backup
-        consume:
-          storageClass: local-path-volatile
-        data:
-          storageClass: local-path-persistent
-          size: 10Gi
-        media:
-          storageClass: local-path-persistent
-          size: 50Gi
+    persistence:
+      data:
+        storageClass: local-path-persistent
+        size: 10Gi
+      media:
+        storageClass: local-path-persistent
+        size: 50Gi
+      export:
+        storageClass: local-path-backup
+      consume:
+        storageClass: local-path-volatile
     cnpg:
       enabled: true
       instances: 1
