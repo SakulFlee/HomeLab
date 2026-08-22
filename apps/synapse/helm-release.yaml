@@ -42,7 +42,7 @@ spec:
     postgresql:
       enabled: false
     redis:
-      enabled: false
+      enabled: true
     persistence:
       enabled: true
       storageClass: local-path-persistent
