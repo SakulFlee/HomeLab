@@ -8,3 +8,5 @@ resources:
   - storage-class-persistent.yaml
   - storage-class-volatile.yaml
   - storage-class-backup.yaml
+  - restic-secret.yaml
+  - restic-daemonset.yaml
