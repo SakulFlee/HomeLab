@@ -35,7 +35,6 @@ spec:
           command: ["/bin/sh", "-c"]
           args:
             - |
-              set -euo pipefail
               BACKUP_TIER="/var/lib/rancher/k3s/storage/backup"
               REPO="/var/lib/backups/repo"
 
@@ -46,7 +45,7 @@ spec:
                     --password-file /etc/restic/pw \
                     "$BACKUP_TIER" \
                     --tag k8s \
-                    --exclude-caches
+                    --exclude-caches || echo "backup failed, will retry next hour"
 
                   restic forget \
                     -r "$REPO" \
@@ -54,7 +53,7 @@ spec:
                     --keep-hourly 24 \
                     --keep-daily 7 \
                     --keep-monthly 3 \
-                    --prune
+                    --prune || echo "forget/prune failed, will retry next hour"
                 else
                   echo "$BACKUP_TIER does not exist, skipping"
                 fi
