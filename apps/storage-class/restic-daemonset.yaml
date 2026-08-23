@@ -41,7 +41,7 @@ spec:
               while true; do
                 if [ -d "$BACKUP_TIER" ]; then
                   # Clear stale locks from dead pods
-                  restic unlock -r "$REPO" --password-file /etc/restic/pw || true
+                  restic unlock -r "$REPO" --password-file /etc/restic/pw --remove-all || true
 
                   restic backup \
                     -r "$REPO" \
