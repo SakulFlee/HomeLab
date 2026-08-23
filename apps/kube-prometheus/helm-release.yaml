@@ -30,6 +30,7 @@ spec:
           kind: Deployment
   values:
     grafana:
+      replicas: 1
       ingress:
         enabled: true
         ingressClassName: traefik
@@ -48,4 +49,10 @@ spec:
         passwordKey: password
       persistence:
         enabled: true
-        storageClass: local-path-backup
+        storageClassName: local-path-backup
+    alertmanager:
+      alertmanagerSpec:
+        replicas: 1
+    prometheus:
+      prometheusSpec:
+        replicas: 1
