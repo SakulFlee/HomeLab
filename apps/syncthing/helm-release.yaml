@@ -65,9 +65,9 @@ spec:
         # and covered by restic (in addition to the restic repo which is
         # already replicated via the restic-repo hostPath mount above).
         type: pvc
-        storageClass: local-path-backup
+        storageClass: local-path-persistent
         accessMode: ReadWriteOnce
-        size: 20Gi
+        size: 64Gi
         mountPath: /data
     service:
       main:
