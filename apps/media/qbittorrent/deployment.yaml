@@ -38,9 +38,9 @@ spec:
         - name: qbittorrent-config
           persistentVolumeClaim:
             claimName: qbittorrent-config
-        - name: media
+        - name: qb-downloads
           hostPath:
-            path: /mnt/nas/Media
+            path: /mnt/nas/qBittorrent
       containers:
         # --- VPN SIDECAR CONTAINER (GLUETUN) ---
         - name: gluetun
@@ -107,8 +107,8 @@ spec:
               mountPath: /tmp/gluetun
             - name: qbittorrent-config
               mountPath: /config
-            - name: media
-              mountPath: /mnt/nas/Media
+            - name: qb-downloads
+              mountPath: /downloads
           # If Gluetun changes the port later, this probe fails, forcing K8s to 
           # restart ONLY this container.
           livenessProbe:

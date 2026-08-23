@@ -29,6 +29,9 @@ spec:
         - name: media
           hostPath:
             path: /mnt/nas/Media
+        - name: movies
+          hostPath:
+            path: /mnt/nas/Movies
       containers:
         - name: radarr
           image: lscr.io/linuxserver/radarr:latest
@@ -48,3 +51,5 @@ spec:
               mountPath: /config
             - name: media
               mountPath: /mnt/nas/Media
+            - name: movies
+              mountPath: /movies
