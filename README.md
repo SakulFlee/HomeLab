@@ -26,7 +26,7 @@ flux bootstrap git \
   --url=ssh://git@github.com/SakulFlee/HomeLab.git \
   --branch=main \
   --private-key-file ~/.ssh/id_ed25519 \
-  --path=clusters/k0s-homelab
+  --path=clusters/homelab
 ```
 
 This will bootstrap Flux and setup this repository as the `flux-source` for syncronization.
