@@ -23,6 +23,9 @@ spec:
         - name: jellyfin-config
           persistentVolumeClaim:
             claimName: jellyfin-config
+        - name: jellyfin-cache
+          persistentVolumeClaim:
+            claimName: jellyfin-cache
         - name: media
           hostPath:
             path: /mnt/nas/Media
@@ -43,5 +46,7 @@ spec:
           volumeMounts:
             - name: jellyfin-config
               mountPath: /config
+            - name: jellyfin-cache
+              mountPath: /cache
             - name: media
               mountPath: /mnt/nas/Media

@@ -1,12 +1,12 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: qbittorrent-config
+  name: jellyfin-cache
   namespace: media
 spec:
-  storageClassName: local-path-backup
+  storageClassName: local-path-volatile
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
-      storage: 2Gi
+      storage: 5Gi

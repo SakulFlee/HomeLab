@@ -6,5 +6,6 @@ metadata:
 resources:
   - deployment.yaml
   - persistent-volume-claim.yaml
+  - persistent-volume-claim-cache.yaml
   - service.yaml
   - ingress.yaml
