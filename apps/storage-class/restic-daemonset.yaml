@@ -87,3 +87,6 @@ spec:
         - name: pw
           secret:
             secretName: homelab-restic-password
+            items:
+              - key: pw
+                path: pw
