@@ -70,6 +70,7 @@ spec:
             # Password file (matches the NixOS unit's --password-file path).
             - name: pw
               mountPath: /etc/restic/pw
+              subPath: pw
               readOnly: true
           resources:
             requests:
