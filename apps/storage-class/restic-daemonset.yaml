@@ -39,26 +39,29 @@ spec:
               BACKUP_TIER="/var/lib/rancher/k3s/storage/backup"
               REPO="/var/lib/backups/repo"
 
-              # Skip cleanly if the backup tier has no PVC provisioned yet.
-              if [ ! -d "$BACKUP_TIER" ]; then
-                echo "$BACKUP_TIER does not exist, skipping"
-                exit 0
-              fi
+              while true; do
+                if [ -d "$BACKUP_TIER" ]; then
+                  restic backup \
+                    -r "$REPO" \
+                    --password-file /etc/restic/pw \
+                    "$BACKUP_TIER" \
+                    --tag k8s \
+                    --exclude-caches
 
-              restic backup \
-                -r "$REPO" \
-                --password-file /etc/restic/pw \
-                "$BACKUP_TIER" \
-                --tag k8s \
-                --exclude-caches
+                  restic forget \
+                    -r "$REPO" \
+                    --password-file /etc/restic/pw \
+                    --keep-hourly 24 \
+                    --keep-daily 7 \
+                    --keep-monthly 3 \
+                    --prune
+                else
+                  echo "$BACKUP_TIER does not exist, skipping"
+                fi
 
-              restic forget \
-                -r "$REPO" \
-                --password-file /etc/restic/pw \
-                --keep-hourly 24 \
-                --keep-daily 7 \
-                --keep-monthly 3 \
-                --prune
+                # Sleep 1 hour + random 0-5m jitter
+                sleep $(( 3600 + RANDOM % 300 ))
+              done
           volumeMounts:
             # Source: ONLY the backup tier (not persistent). Read-only.
             - name: backup-tier
