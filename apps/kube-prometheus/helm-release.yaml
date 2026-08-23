@@ -46,3 +46,6 @@ spec:
         existingSecret: kube-prometheus-secret
         userKey: username
         passwordKey: password
+      persistence:
+        enabled: true
+        storageClass: local-path-backup
