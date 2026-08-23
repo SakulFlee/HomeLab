@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: qui
+  namespace: media
+  labels:
+    app: qui
+spec:
+  selector:
+    matchLabels:
+      app: qui
+  replicas: 1
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: qui
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        fsGroupChangePolicy: "OnRootMismatch"
+      volumes:
+        - name: qui-config
+          persistentVolumeClaim:
+            claimName: qui-config
+        - name: qb-downloads
+          hostPath:
+            path: /mnt/nas/qBittorrent
+      containers:
+        - name: qui
+          image: ghcr.io/autobrr/qui:v1.23.0
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: QUI__HOST
+              value: "0.0.0.0"
+            - name: QUI__PORT
+              value: "7476"
+            - name: QUI__LOG_LEVEL
+              value: INFO
+            - name: TZ
+              value: Europe/Berlin
+          ports:
+            - name: http
+              containerPort: 7476
+          volumeMounts:
+            - name: qui-config
+              mountPath: /config
+            - name: qb-downloads
+              mountPath: /data/downloads/torrents
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 1
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 1
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 10m
+            limits:
+              memory: 512Mi

@@ -131,32 +131,6 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: qui
-  namespace: native
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-production
-    traefik.ingress.kubernetes.io/router.entrypoints: websecure
-spec:
-  ingressClassName: traefik
-  rules:
-    - host: qui.sakul-flee.de
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: qui
-                port:
-                  number: 80
-  tls:
-    - hosts:
-        - qui.sakul-flee.de
-      secretName: qui-sakul-flee-de-tls
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
   name: llama-swap
   namespace: native
   annotations:
