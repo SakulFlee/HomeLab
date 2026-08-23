@@ -11,4 +11,3 @@ resources:
   - sonarr/
   - radarr/
   - cross-seed/
-  - slskd/

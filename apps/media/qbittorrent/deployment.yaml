@@ -54,7 +54,6 @@ spec:
           env:
             - name: VPN_SERVICE_PROVIDER
               value: pia
-            # Kill-Switch firewall rules:
             - name: FIREWALL
               value: 'on'
             - name: TZ
@@ -63,10 +62,26 @@ spec:
               value: on
             - name: PORT_FORWARD_ONLY
               value: "true"
-          # Credentials in secret
-          envFrom:
-            - secretRef:
-                name: secret-media-vpn
+            - name: VPN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: secret-media-vpn
+                  key: PIA_USERNAME
+            - name: VPN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: secret-media-vpn
+                  key: PIA_PASSWORD
+            - name: VPN_PORT_FORWARDING_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: secret-media-vpn
+                  key: PIA_USERNAME
+            - name: VPN_PORT_FORWARDING_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: secret-media-vpn
+                  key: PIA_PASSWORD
           # Expose qBittorrent ports through the Gluetun firewall
           ports:
             - name: webui
