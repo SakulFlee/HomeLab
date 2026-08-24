@@ -41,6 +41,15 @@ spec:
         - name: qb-downloads
           hostPath:
             path: /mnt/nas/qBittorrent
+        - name: nas-movies
+          hostPath:
+            path: /mnt/nas/Movies
+        - name: nas-shows
+          hostPath:
+            path: /mnt/nas/Shows
+        - name: nas-nsfw
+          hostPath:
+            path: /mnt/nas/NSFW
       containers:
         # --- VPN SIDECAR CONTAINER (GLUETUN) ---
         - name: gluetun
@@ -59,7 +68,7 @@ spec:
             - name: TZ
               value: Europe/Berlin
             - name: VPN_PORT_FORWARDING
-              value: on
+              value: "on"
             - name: PORT_FORWARD_ONLY
               value: "true"
             - name: OPENVPN_USER
@@ -123,7 +132,13 @@ spec:
             - name: qbittorrent-config
               mountPath: /config
             - name: qb-downloads
-              mountPath: /downloads
+              mountPath: /mnt/nas/qBittorrent
+            - name: nas-movies
+              mountPath: /mnt/nas/Movies
+            - name: nas-shows
+              mountPath: /mnt/nas/Shows
+            - name: nas-nsfw
+              mountPath: /mnt/nas/NSFW
           # If Gluetun changes the port later, this probe fails, forcing K8s to 
           # restart ONLY this container.
           livenessProbe:
