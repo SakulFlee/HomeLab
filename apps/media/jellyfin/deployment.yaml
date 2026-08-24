@@ -35,6 +35,9 @@ spec:
         - name: nas-nsfw
           hostPath:
             path: /mnt/nas/NSFW
+        - name: nas-personal
+          hostPath:
+            path: /mnt/nas/personal_folder
       containers:
         - name: jellyfin
           image: lscr.io/linuxserver/jellyfin:latest
@@ -60,3 +63,5 @@ spec:
               mountPath: /mnt/nas/Shows
             - name: nas-nsfw
               mountPath: /mnt/nas/NSFW
+            - name: nas-personal
+              mountPath: /mnt/nas/personal_folder
