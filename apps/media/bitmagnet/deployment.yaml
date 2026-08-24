@@ -1,0 +1,102 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bitmagnet
+  namespace: media
+  labels:
+    app: bitmagnet
+spec:
+  selector:
+    matchLabels:
+      app: bitmagnet
+  replicas: 1
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: bitmagnet
+    spec:
+      terminationGracePeriodSeconds: 5
+      dnsPolicy: None
+      dnsConfig:
+        nameservers:
+          - 10.43.0.10
+      volumes:
+        - name: gluetun-shared
+          emptyDir:
+            medium: Memory
+        - name: bitmagnet-config
+          emptyDir: {}
+      containers:
+        - name: gluetun
+          image: qmcgaw/gluetun:latest
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 0
+            capabilities:
+              add: ["NET_ADMIN"]
+          env:
+            - name: VPN_SERVICE_PROVIDER
+              value: pia
+            - name: FIREWALL
+              value: 'on'
+            - name: FIREWALL_OUTBOUND_SUBNETS
+              value: 10.42.0.0/16,10.43.0.0/16
+            - name: TZ
+              value: Europe/Berlin
+            - name: VPN_PORT_FORWARDING
+              value: "off"
+            - name: OPENVPN_USER
+              valueFrom:
+                secretKeyRef:
+                  name: secret-media-vpn
+                  key: PIA_USERNAME
+            - name: OPENVPN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: secret-media-vpn
+                  key: PIA_PASSWORD
+          ports:
+            - name: http
+              containerPort: 3333
+            - name: bt-tcp
+              containerPort: 3334
+              protocol: TCP
+            - name: bt-udp
+              containerPort: 3334
+              protocol: UDP
+          volumeMounts:
+            - name: gluetun-shared
+              mountPath: /tmp/gluetun
+        - name: bitmagnet
+          image: ghcr.io/bitmagnet-io/bitmagnet:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - bitmagnet
+            - worker
+            - run
+            - --all
+          env:
+            - name: POSTGRES_HOST
+              value: bitmagnet-postgres.media.svc.cluster.local
+            - name: POSTGRES_PORT
+              value: "5432"
+            - name: POSTGRES_NAME
+              value: bitmagnet
+            - name: POSTGRES_USER
+              value: bitmagnet
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: bitmagnet-secrets
+                  key: POSTGRES_PASSWORD
+            - name: HTTP_SERVER_PORT
+              value: "3333"
+            - name: DHT_CRAWLER_ANNOUNCE_ENABLED
+              value: "true"
+          volumeMounts:
+            - name: gluetun-shared
+              mountPath: /tmp/gluetun
+            - name: bitmagnet-config
+              mountPath: /root/.config/bitmagnet

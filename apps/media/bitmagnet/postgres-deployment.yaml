@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bitmagnet-postgres
+  namespace: media
+  labels:
+    app: bitmagnet-postgres
+spec:
+  selector:
+    matchLabels:
+      app: bitmagnet-postgres
+  replicas: 1
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: bitmagnet-postgres
+    spec:
+      volumes:
+        - name: postgres-data
+          persistentVolumeClaim:
+            claimName: bitmagnet-postgres
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: POSTGRES_DB
+              value: bitmagnet
+            - name: POSTGRES_USER
+              value: bitmagnet
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: bitmagnet-secrets
+                  key: POSTGRES_PASSWORD
+            - name: PGUSER
+              value: bitmagnet
+          ports:
+            - name: postgres
+              containerPort: 5432
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+            initialDelaySeconds: 15
+            periodSeconds: 10
