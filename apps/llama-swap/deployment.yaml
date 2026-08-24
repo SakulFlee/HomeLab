@@ -47,8 +47,6 @@ spec:
           env:
             - name: HOME
               value: /root
-            - name: GGML_CACHE
-              value: /root/.cache/llama.cpp
             - name: LLAMA_ARG_HOST
               value: 0.0.0.0
           ports:
@@ -61,4 +59,4 @@ spec:
               mountPath: /app/config/config.yaml
               subPath: config.yaml
             - name: models
-              mountPath: /root/.cache/llama.cpp
+              mountPath: /root/.cache
