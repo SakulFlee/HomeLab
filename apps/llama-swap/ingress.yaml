@@ -2,7 +2,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: llama-swap
-  namespace: native
+  namespace: llama-swap
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-production
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
@@ -18,7 +18,7 @@ spec:
               service:
                 name: llama-swap
                 port:
-                  number: 80
+                  number: 8080
   tls:
     - hosts:
         - llama-swap.sakul-flee.de

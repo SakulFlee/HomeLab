@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llama-swap
+  namespace: llama-swap
+  labels:
+    app: llama-swap
+spec:
+  selector:
+    matchLabels:
+      app: llama-swap
+  replicas: 1
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: llama-swap
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: homelab
+      volumes:
+        - name: dev-dri
+          hostPath:
+            path: /dev/dri
+        - name: config
+          configMap:
+            name: llama-swap-config
+        - name: models
+          persistentVolumeClaim:
+            claimName: llama-swap-models
+      containers:
+        - name: llama-swap
+          image: ghcr.io/mostlygeek/llama-swap:vulkan
+          imagePullPolicy: IfNotPresent
+          command:
+            - /app/llama-swap
+            - -config
+            - /app/config/config.yaml
+            - --watch-config
+          resources:
+            limits:
+              devic.es/dri: "1"
+              memory: 40Gi
+            requests:
+              memory: 4Gi
+          env:
+            - name: HOME
+              value: /root
+            - name: GGML_CACHE
+              value: /root/.cache/llama.cpp
+            - name: LLAMA_ARG_HOST
+              value: 0.0.0.0
+          ports:
+            - name: http
+              containerPort: 8080
+          volumeMounts:
+            - name: dev-dri
+              mountPath: /dev/dri
+            - name: config
+              mountPath: /app/config/config.yaml
+              subPath: config.yaml
+            - name: models
+              mountPath: /root/.cache/llama.cpp

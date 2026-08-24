@@ -38,10 +38,16 @@ spec:
         - name: nas-personal
           hostPath:
             path: /mnt/nas/personal_folder
+        - name: dev-dri
+          hostPath:
+            path: /dev/dri
       containers:
         - name: jellyfin
           image: lscr.io/linuxserver/jellyfin:latest
           imagePullPolicy: IfNotPresent
+          resources:
+            limits:
+              devic.es/dri: "1"
           env:
             - name: PUID
               value: '1000'
@@ -65,3 +71,5 @@ spec:
               mountPath: /mnt/nas/NSFW
             - name: nas-personal
               mountPath: /mnt/nas/personal_folder
+            - name: dev-dri
+              mountPath: /dev/dri

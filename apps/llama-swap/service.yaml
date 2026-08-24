@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: llama-swap
+  namespace: llama-swap
+spec:
+  type: ClusterIP
+  selector:
+    app: llama-swap
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080

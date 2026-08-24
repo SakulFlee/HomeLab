@@ -38,7 +38,7 @@ spec:
     enableOpenaiApi: false
     extraEnv:
       - name: OLLAMA_API_BASE_URL
-        value: http://llama-swap.native.svc.cluster.local:80
+        value: http://llama-swap.llama-swap.svc.cluster.local:8080
     ingress:
       enabled: true
       class: traefik
