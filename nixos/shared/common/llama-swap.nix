@@ -9,6 +9,7 @@ in
   services.llama-swap = {
     enable = true;
     port = 30001;
+    listenAddress = "0.0.0.0";
     settings = {
       macros = {
         "default" = ''
