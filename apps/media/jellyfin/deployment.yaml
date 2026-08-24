@@ -26,9 +26,15 @@ spec:
         - name: jellyfin-cache
           persistentVolumeClaim:
             claimName: jellyfin-cache
-        - name: media
+        - name: nas-movies
           hostPath:
-            path: /mnt/nas/Media
+            path: /mnt/nas/Movies
+        - name: nas-shows
+          hostPath:
+            path: /mnt/nas/Shows
+        - name: nas-nsfw
+          hostPath:
+            path: /mnt/nas/NSFW
       containers:
         - name: jellyfin
           image: lscr.io/linuxserver/jellyfin:latest
@@ -48,5 +54,9 @@ spec:
               mountPath: /config
             - name: jellyfin-cache
               mountPath: /cache
-            - name: media
-              mountPath: /mnt/nas/Media
+            - name: nas-movies
+              mountPath: /mnt/nas/Movies
+            - name: nas-shows
+              mountPath: /mnt/nas/Shows
+            - name: nas-nsfw
+              mountPath: /mnt/nas/NSFW

@@ -26,12 +26,15 @@ spec:
         - name: radarr
           persistentVolumeClaim:
             claimName: radarr
-        - name: media
-          hostPath:
-            path: /mnt/nas/Media
         - name: movies
           hostPath:
             path: /mnt/nas/Movies
+        - name: shows
+          hostPath:
+            path: /mnt/nas/Shows
+        - name: qb-downloads
+          hostPath:
+            path: /mnt/nas/qBittorrent
       containers:
         - name: radarr
           image: lscr.io/linuxserver/radarr:latest
@@ -49,7 +52,9 @@ spec:
           volumeMounts:
             - name: radarr
               mountPath: /config
-            - name: media
-              mountPath: /mnt/nas/Media
             - name: movies
-              mountPath: /movies
+              mountPath: /mnt/nas/Movies
+            - name: shows
+              mountPath: /mnt/nas/Shows
+            - name: qb-downloads
+              mountPath: /mnt/nas/qBittorrent
