@@ -1,0 +1,10 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: postgres
+  namespace: woodpecker
+spec:
+  instances: 1
+  storage:
+    storageClass: local-path-persistent
+    size: 2Gi

@@ -3,14 +3,14 @@
     ./postgresql.nix
     # ./forgejo.nix
     # ./gluetun.nix
-    ./woodpecker.nix
+    # ./woodpecker.nix
     # ./renovate.nix
     # ./minecraft.nix
     # ./hytale.nix
-    ./jellyfin.nix
-    ./prowlarr.nix
-    ./sonarr.nix
-    ./radarr.nix
+    # ./jellyfin.nix
+    # ./prowlarr.nix
+    # ./sonarr.nix
+    # ./radarr.nix
     # ./qui.nix
     # ./qbittorrent.nix
     # ./bitmagnet.nix

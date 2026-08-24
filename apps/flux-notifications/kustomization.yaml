@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+metadata:
+  name: flux-notifications
+  namespace: flux-system
+resources:
+- provider-telegram.yaml
+- alerts-overall.yaml
+- secrets/

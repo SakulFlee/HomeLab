@@ -36,6 +36,9 @@ spec:
       targetPath: databaseUrl
   values:
     enableOpenaiApi: false
+    extraEnv:
+      - name: OLLAMA_API_BASE_URL
+        value: http://llama-swap.native.svc.cluster.local:80
     ingress:
       enabled: true
       class: traefik

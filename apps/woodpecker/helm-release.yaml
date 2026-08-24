@@ -37,6 +37,10 @@ spec:
       name: woodpecker-forgejo-auth
       valuesKey: secret
       targetPath: server.env.WOODPECKER_FORGEJO_SECRET
+    - kind: Secret
+      name: postgres-app
+      valuesKey: fqdn-uri
+      targetPath: server.env.WOODPECKER_DATABASE_DATASOURCE
   values:
     server:
       enabled: true
@@ -46,6 +50,7 @@ spec:
         WOODPECKER_HOST: https://woodpecker.sakul-flee.de
         WOODPECKER_FORGEJO: "true"
         WOODPECKER_FORGEJO_URL: https://forgejo.sakul-flee.de
+        WOODPECKER_DATABASE_DRIVER: postgres
       ingress:
         enabled: true
         className: traefik

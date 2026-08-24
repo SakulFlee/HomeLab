@@ -1,32 +1,6 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: bitmagnet
-  namespace: native
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-production
-    traefik.ingress.kubernetes.io/router.entrypoints: websecure
-spec:
-  ingressClassName: traefik
-  rules:
-    - host: bitmagnet.sakul-flee.de
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: bitmagnet
-                port:
-                  number: 80
-  tls:
-    - hosts:
-        - bitmagnet.sakul-flee.de
-      secretName: bitmagnet-sakul-flee-de-tls
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
   name: llama-swap
   namespace: native
   annotations:
@@ -49,29 +23,3 @@ spec:
     - hosts:
         - llama-swap.sakul-flee.de
       secretName: llama-swap-sakul-flee-de-tls
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: open-webui
-  namespace: native
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-production
-    traefik.ingress.kubernetes.io/router.entrypoints: websecure
-spec:
-  ingressClassName: traefik
-  rules:
-    - host: open-webui.sakul-flee.de
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: open-webui
-                port:
-                  number: 80
-  tls:
-    - hosts:
-        - open-webui.sakul-flee.de
-      secretName: open-webui-sakul-flee-de-tls

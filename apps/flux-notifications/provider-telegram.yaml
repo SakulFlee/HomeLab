@@ -2,9 +2,9 @@
 apiVersion: notification.toolkit.fluxcd.io/v1beta3
 kind: Provider
 metadata:
-  name: notification-provider-discord
+  name: notification-provider-telegram
   namespace: flux-system
 spec:
-  type: discord
+  type: telegram
   secretRef:
-    name: notification-provider-discord-webhook
+    name: notification-provider-telegram
