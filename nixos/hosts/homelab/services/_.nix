@@ -1,6 +1,6 @@
 { lib, ... }: {
   imports = [
-    ./postgresql.nix
+    # ./postgresql.nix
     # ./forgejo.nix
     # ./gluetun.nix
     # ./woodpecker.nix
@@ -17,7 +17,7 @@
     # ./fansly-recorder.nix
     # ./hermes-agent.nix
     # ./wireguard.nix
-    ./cloudflare-ddns.nix
+    # ./cloudflare-ddns.nix
     # ./technitium.nix
     # ./tuwunel.nix
     ./palworld.nix

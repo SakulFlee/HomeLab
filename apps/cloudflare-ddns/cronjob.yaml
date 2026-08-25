@@ -1,0 +1,50 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cloudflare-ddns
+  namespace: cloudflare-ddns
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          hostNetwork: true
+          dnsPolicy: ClusterFirstWithHostNet
+          restartPolicy: OnFailure
+          volumes:
+            - name: secrets
+              secret:
+                secretName: cloudflare-ddns
+            - name: script
+              configMap:
+                name: cloudflare-ddns-script
+          containers:
+            - name: ddns
+              image: python:3-alpine
+              imagePullPolicy: IfNotPresent
+              command:
+                - /bin/sh
+                - -ec
+                - |
+                  python3 /scripts/ddns.py
+              env:
+                - name: TZ
+                  value: Europe/Berlin
+              volumeMounts:
+                - name: secrets
+                  mountPath: /var/run/secrets/cloudflare-ddns
+                  readOnly: true
+                - name: script
+                  mountPath: /scripts
+                  readOnly: true
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  cpu: 200m
+                  memory: 128Mi
