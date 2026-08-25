@@ -48,14 +48,6 @@ spec:
                 --snat-subnet-routes=false \
                 --hostname=homelab-router
 
-              # Forward tailnet traffic destined for the router's tailnet IP
-              # (100.64.0.9) on port 443 to Traefik on the host LAN IP.
-              # Source IP is preserved (no SNAT), so Traefik's vpn-only
-              # middleware sees the client's 100.64.x.x tailnet address.
-              ROUTER_IP=$(tailscale --socket=/tmp/tailscaled.sock ip -4)
-              iptables-nft -t nat -C PREROUTING -d "$ROUTER_IP" -p tcp --dport 443 -j DNAT --to-destination 192.168.178.200:443 2>/dev/null || \
-                iptables-nft -t nat -A PREROUTING -d "$ROUTER_IP" -p tcp --dport 443 -j DNAT --to-destination 192.168.178.200:443
-
               tailscale --socket=/tmp/tailscaled.sock status
               sleep infinity
           env:
