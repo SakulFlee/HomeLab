@@ -4,10 +4,9 @@ metadata:
   name: minecraft
   namespace: minecraft
 dependsOn:
-- cert-manager-cluster-issuer
-- traefik
+  - traefik
 resources:
-- namespace.yaml
-- helm-repository.yaml
-- helm-release.yaml
-
+  - namespace.yaml
+  - helm-repository.yaml
+  - helm-release.yaml
+  - mc-router.yaml
