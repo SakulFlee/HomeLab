@@ -1,0 +1,10 @@
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: headplane-redirect
+  namespace: headscale
+spec:
+  redirectRegex:
+    regex: ^https://headplane\.sakul-flee\.de/$
+    replacement: https://headplane.sakul-flee.de/admin/
+    permanent: true
