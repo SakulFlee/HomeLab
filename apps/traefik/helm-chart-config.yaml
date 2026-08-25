@@ -6,6 +6,10 @@ metadata:
 spec:
   valuesContent: |-
     hostNetwork: true
+    podSecurityContext:
+      runAsGroup: 0
+      runAsNonRoot: false
+      runAsUser: 0
     securityContext:
       allowPrivilegeEscalation: false
       capabilities:
