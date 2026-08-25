@@ -1,0 +1,103 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: headscale-config
+  namespace: headscale
+data:
+  config.yaml: |
+    server_url: https://headscale.sakul-flee.de
+    listen_addr: 0.0.0.0:8080
+    metrics_listen_addr: 127.0.0.1:9090
+    trusted_proxies: []
+    noise:
+      private_key_path: /var/lib/headscale/noise_private.key
+    prefixes:
+      v4: 100.64.0.0/10
+      v6: fd7a:115c:a1e0::/48
+      allocation: sequential
+    derp:
+      server:
+        enabled: false
+        region_id: 999
+        region_code: "headscale"
+        region_name: "Headscale Embedded DERP"
+      urls:
+        - https://controlplane.tailscale.com/derpmap/default
+      auto_update_enabled: true
+      update_frequency: 3h
+    disable_check_updates: false
+    node:
+      expiry: 0
+    database:
+      type: sqlite
+      sqlite:
+        path: /var/lib/headscale/db.sqlite
+        write_ahead_log: true
+    log:
+      level: info
+      format: text
+    policy:
+      mode: file
+      path: /var/lib/headscale/policy.hujson
+    dns:
+      magic_dns: true
+      base_domain: ts.sakul-flee.de
+      override_local_dns: true
+      nameservers:
+        global:
+          - 1.1.1.1
+          - 1.0.0.1
+      split: {}
+      search_domains: []
+      extra_records:
+        - name: "jellyfin.sakul-flee.de"
+          type: "A"
+          value: "192.168.178.200"
+        - name: "sonarr.sakul-flee.de"
+          type: "A"
+          value: "192.168.178.200"
+        - name: "radarr.sakul-flee.de"
+          type: "A"
+          value: "192.168.178.200"
+        - name: "prowlarr.sakul-flee.de"
+          type: "A"
+          value: "192.168.178.200"
+        - name: "qbittorrent.sakul-flee.de"
+          type: "A"
+          value: "192.168.178.200"
+        - name: "qui.sakul-flee.de"
+          type: "A"
+          value: "192.168.178.200"
+        - name: "bitmagnet.sakul-flee.de"
+          type: "A"
+          value: "192.168.178.200"
+        - name: "llama-swap.sakul-flee.de"
+          type: "A"
+          value: "192.168.178.200"
+        - name: "open-webui.sakul-flee.de"
+          type: "A"
+          value: "192.168.178.200"
+        - name: "grafana.sakul-flee.de"
+          type: "A"
+          value: "192.168.178.200"
+        - name: "paperless.sakul-flee.de"
+          type: "A"
+          value: "192.168.178.200"
+        - name: "syncthing.sakul-flee.de"
+          type: "A"
+          value: "192.168.178.200"
+    unix_socket: /var/run/headscale/headscale.sock
+    unix_socket_permission: "0770"
+  policy.hujson: |
+    {
+      "tagOwners": {
+        "tag:router": ["sakul-flee@ts.sakul-flee.de"]
+      },
+      "acls": [
+        {
+          "action": "accept",
+          "src": ["*"],
+          "dst": ["*:*"]
+        }
+      ]
+    }

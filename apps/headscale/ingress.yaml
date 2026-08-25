@@ -1,26 +1,25 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: prowlarr
-  namespace: media
+  name: headscale
+  namespace: headscale
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-production
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
-    traefik.ingress.kubernetes.io/router.middlewares: media-vpn-only@kubernetescrd 
 spec:
   ingressClassName: traefik
   rules:
-    - host: prowlarr.sakul-flee.de
+    - host: headscale.sakul-flee.de
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: prowlarr
+                name: headscale
                 port:
-                  number: 9696
+                  number: 8080
   tls:
     - hosts:
-        - prowlarr.sakul-flee.de 
-      secretName: prowlarr-sakul-flee-de-tls
+        - headscale.sakul-flee.de
+      secretName: headscale-sakul-flee-de-tls

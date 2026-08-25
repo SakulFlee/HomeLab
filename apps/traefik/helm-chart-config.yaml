@@ -5,6 +5,12 @@ metadata:
   namespace: kube-system
 spec:
   valuesContent: |-
+    logs:
+      access:
+        enabled: true
+        fields:
+          headers:
+            defaultmode: keep
     ports:
       matrix-federation:
         port: 8448

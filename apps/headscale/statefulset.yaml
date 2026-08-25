@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: headscale
+  namespace: headscale
+  labels:
+    app: headscale
+spec:
+  serviceName: headscale
+  selector:
+    matchLabels:
+      app: headscale
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: headscale
+    spec:
+      volumes:
+        - name: config
+          configMap:
+            name: headscale-config
+        - name: data
+          persistentVolumeClaim:
+            claimName: headscale-data
+      containers:
+        - name: headscale
+          image: headscale/headscale:development
+          imagePullPolicy: IfNotPresent
+          args:
+            - serve
+          env:
+            - name: TZ
+              value: Europe/Berlin
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: metrics
+              containerPort: 9090
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: config
+              mountPath: /etc/headscale/config.yaml
+              subPath: config.yaml
+              readOnly: true
+            - name: config
+              mountPath: /var/lib/headscale/policy.hujson
+              subPath: policy.hujson
+              readOnly: true
+            - name: data
+              mountPath: /var/lib/headscale

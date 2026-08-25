@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: subnet-router
+  namespace: subnet-router
+  labels:
+    app: subnet-router
+spec:
+  selector:
+    matchLabels:
+      app: subnet-router
+  replicas: 1
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: subnet-router
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      nodeSelector:
+        kubernetes.io/hostname: homelab
+      volumes:
+        - name: tailscale-state
+          persistentVolumeClaim:
+            claimName: subnet-router-state
+      containers:
+        - name: tailscale
+          image: ghcr.io/tailscale/tailscale:v1.96.5
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -c
+            - |
+              tailscaled \
+                --state=/var/lib/tailscale/tailscaled.state \
+                --tun=tailscale0 \
+                --socket=/tmp/tailscaled.sock &
+              sleep 4
+              tailscale \
+                --socket=/tmp/tailscaled.sock \
+                up \
+                --login-server=https://headscale.sakul-flee.de \
+                --authkey="$TS_AUTHKEY" \
+                --advertise-routes=192.168.178.0/24 \
+                --accept-routes \
+                --snat-subnet-routes=false \
+                --hostname=homelab-router
+              tailscale --socket=/tmp/tailscaled.sock status
+              sleep infinity
+          env:
+            - name: TS_AUTHKEY
+              valueFrom:
+                secretKeyRef:
+                  name: subnet-router-auth
+                  key: authkey
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: tailscale-state
+              mountPath: /var/lib/tailscale

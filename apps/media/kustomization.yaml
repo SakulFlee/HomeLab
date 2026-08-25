@@ -5,6 +5,7 @@ metadata:
   namespace: media
 resources:
   - namespace.yaml
+  - middleware-vpn-only.yaml
   - qbittorrent/
   - jellyfin/
   - prowlarr/
