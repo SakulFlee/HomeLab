@@ -28,6 +28,7 @@ data:
         "paperless.sakul-flee.de",
         "syncthing.sakul-flee.de",
         "headplane.sakul-flee.de",
+        "nas.sakul-flee.de",
     ]
 
     req = urllib.request.Request(API_URL, headers={"Authorization": f"Bearer {API_KEY}"})

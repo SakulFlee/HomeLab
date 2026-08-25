@@ -1,0 +1,41 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: nas-sakul-flee-de
+  namespace: native
+spec:
+  secretName: nas-sakul-flee-de-tls
+  issuerRef:
+    name: letsencrypt-production
+    kind: ClusterIssuer
+  dnsNames:
+    - nas.sakul-flee.de
+---
+apiVersion: traefik.io/v1alpha1
+kind: ServersTransport
+metadata:
+  name: nas
+  namespace: native
+spec:
+  insecureSkipVerify: true
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: nas
+  namespace: native
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - match: Host(`nas.sakul-flee.de`)
+      kind: Rule
+      middlewares:
+        - name: vpn-only
+          namespace: headscale
+      services:
+        - name: nas
+          port: 443
+          serversTransport: nas
+  tls:
+    secretName: nas-sakul-flee-de-tls

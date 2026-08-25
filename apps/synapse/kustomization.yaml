@@ -9,5 +9,7 @@ resources:
   - helm-release.yaml
   - database.yaml
   - ingress-route-tcp.yaml
+  - element-web.yaml
+  - cinny-web.yaml
   - dump-pvc.yaml
   - dump-cronjob.yaml
