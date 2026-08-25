@@ -45,8 +45,10 @@ data:
       override_local_dns: true
       nameservers:
         global:
-          - 1.1.1.1
-          - 1.0.0.1
+          - 9.9.9.9
+          - 149.112.112.112
+          - 2620:fe::fe
+          - 2620:fe::9
       split: {}
       search_domains: []
       extra_records_path: /var/lib/headscale/extra-records.json
