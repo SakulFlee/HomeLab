@@ -1,0 +1,74 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloudflare-ddns-script
+  namespace: cloudflare-ddns
+data:
+  ddns.py: |
+    import json
+    import os
+    import sys
+    import urllib.request
+
+    SECRETS = "/var/run/secrets/cloudflare-ddns"
+    API_TOKEN = open(f"{SECRETS}/api-token").read().strip()
+    ZONE_ID = open(f"{SECRETS}/zone-id").read().strip()
+    DOMAINS = open(f"{SECRETS}/domains").read().split()
+
+    CF_API = "https://api.cloudflare.com/client/v4"
+    HEADERS = {
+        "Authorization": f"Bearer {API_TOKEN}",
+        "Content-Type": "application/json",
+    }
+
+
+    def http_json(url, method="GET", payload=None):
+        data = json.dumps(payload).encode() if payload else None
+        req = urllib.request.Request(url, data=data, headers=HEADERS, method=method)
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return json.loads(resp.read())
+
+
+    def current_ip(url):
+        with urllib.request.urlopen(url, timeout=15) as resp:
+            return resp.read().decode().strip()
+
+
+    def upsert_record(domain, record_type, content):
+        url = f"{CF_API}/zones/{ZONE_ID}/dns_records?type={record_type}&name={domain}"
+        existing = http_json(url).get("result", [])
+
+        if existing:
+            record = existing[0]
+            if record.get("content") == content:
+                print(f"{domain} ({record_type}) already set to {content}")
+                return
+            record_id = record["id"]
+            http_json(
+                f"{CF_API}/zones/{ZONE_ID}/dns_records/{record_id}",
+                method="PATCH",
+                payload={
+                    "type": record_type,
+                    "name": domain,
+                    "content": content,
+                    "ttl": 120,
+                },
+            )
+            print(f"{domain} ({record_type}): {record['content']} -> {content}")
+        else:
+            http_json(
+                f"{CF_API}/zones/{ZONE_ID}/dns_records",
+                method="POST",
+                payload={
+                    "type": record_type,
+                    "name": domain,
+                    "content": content,
+                    "ttl": 120,
+                },
+            )
+            print(f"{domain} ({record_type}): created -> {content}")
+
+
+    ip4 = current_ip("https://ipv4.icanhazip.com")
+    for domain in DOMAINS:
+        upsert_record(domain, "A", ip4)

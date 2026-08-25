@@ -5,11 +5,5 @@ metadata:
   namespace: cloudflare-ddns
 resources:
   - namespace.yaml
+  - configmap.yaml
   - cronjob.yaml
-generatorOptions:
-  disableNameSuffixHash: true
-  namespace: cloudflare-ddns
-configMapGenerator:
-  - name: cloudflare-ddns-script
-    files:
-      - ddns.py=ddns.py
