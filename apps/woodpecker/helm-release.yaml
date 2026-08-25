@@ -68,7 +68,7 @@ spec:
             hosts: [woodpecker.sakul-flee.de]
     agent:
       enabled: true
-      replicaCount: 1
+      replicaCount: 2
       env:
         WOODPECKER_BACKEND_K8S_VOLUME_SIZE: "8Gi"
         WOODPECKER_BACKEND_K8S_STORAGE_CLASS: "local-path-volatile"
