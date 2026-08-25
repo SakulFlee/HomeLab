@@ -41,7 +41,7 @@ data:
       path: /var/lib/headscale/policy.hujson
     dns:
       magic_dns: true
-      base_domain: ts.sakul-flee.de
+      base_domain: tailnet.sakul-flee.de
       override_local_dns: true
       nameservers:
         global:
@@ -57,7 +57,7 @@ data:
   policy.hujson: |
     {
       "tagOwners": {
-        "tag:router": ["sakul-flee@ts.sakul-flee.de"]
+        "tag:router": ["sakul-flee@tailnet.sakul-flee.de"]
       },
       "acls": [
         {
