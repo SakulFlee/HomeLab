@@ -25,7 +25,7 @@ spec:
             claimName: headscale-data
       containers:
         - name: headscale
-          image: headscale/headscale:development
+          image: headscale/headscale:0.29.3
           imagePullPolicy: IfNotPresent
           args:
             - serve

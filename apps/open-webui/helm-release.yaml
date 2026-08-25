@@ -45,7 +45,7 @@ spec:
       annotations:
         cert-manager.io/cluster-issuer: letsencrypt-production
         traefik.ingress.kubernetes.io/router.entrypoints: websecure
-        traefik.ingress.kubernetes.io/router.middlewares: media-vpn-only@kubernetescrd
+        traefik.ingress.kubernetes.io/router.middlewares: headscale-vpn-only@kubernetescrd
       host: open-webui.sakul-flee.de
       tls: true
       existingSecret: open-webui-sakul-flee-de-tls

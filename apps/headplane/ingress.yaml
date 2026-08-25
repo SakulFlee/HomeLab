@@ -1,26 +1,26 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: jellyfin
-  namespace: media
+  name: headplane
+  namespace: headplane
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-production
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
-    traefik.ingress.kubernetes.io/router.middlewares: headscale-vpn-only@kubernetescrd 
+    traefik.ingress.kubernetes.io/router.middlewares: headscale-vpn-only@kubernetescrd
 spec:
   ingressClassName: traefik
   rules:
-    - host: jellyfin.sakul-flee.de
+    - host: headplane.sakul-flee.de
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: jellyfin
+                name: headplane
                 port:
-                  number: 8096
+                  number: 3000
   tls:
     - hosts:
-        - jellyfin.sakul-flee.de 
-      secretName: jellyfin-sakul-flee-de-tls
+        - headplane.sakul-flee.de
+      secretName: headplane-sakul-flee-de-tls

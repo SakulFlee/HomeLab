@@ -25,7 +25,7 @@ data:
         - https://controlplane.tailscale.com/derpmap/default
       auto_update_enabled: true
       update_frequency: 3h
-    disable_check_updates: false
+    disable_check_updates: true
     node:
       expiry: 0
     database:
@@ -84,6 +84,9 @@ data:
           type: "A"
           value: "100.64.0.9"
         - name: "syncthing.sakul-flee.de"
+          type: "A"
+          value: "100.64.0.9"
+        - name: "headplane.sakul-flee.de"
           type: "A"
           value: "100.64.0.9"
     unix_socket: /var/run/headscale/headscale.sock

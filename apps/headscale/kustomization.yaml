@@ -10,3 +10,4 @@ resources:
   - statefulset.yaml
   - service.yaml
   - ingress.yaml
+  - middleware-vpn-only.yaml
