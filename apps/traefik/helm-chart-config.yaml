@@ -5,6 +5,8 @@ metadata:
   namespace: kube-system
 spec:
   valuesContent: |-
+    service:
+      externalTrafficPolicy: Local
     logs:
       access:
         enabled: true
