@@ -8,6 +8,7 @@ resources:
   - cronjob.yaml
 generatorOptions:
   disableNameSuffixHash: true
+  namespace: cloudflare-ddns
 configMapGenerator:
   - name: cloudflare-ddns-script
     files:
