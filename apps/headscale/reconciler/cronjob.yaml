@@ -1,0 +1,53 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: headscale-dns-reconciler
+  namespace: headscale
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          volumes:
+            - name: headscale-data
+              persistentVolumeClaim:
+                claimName: headscale-data
+            - name: secrets
+              secret:
+                secretName: headscale-reconciler
+            - name: script
+              configMap:
+                name: headscale-dns-reconciler
+          containers:
+            - name: reconciler
+              image: python:3-alpine
+              imagePullPolicy: IfNotPresent
+              command:
+                - /bin/sh
+                - -ec
+                - |
+                  python3 /scripts/reconciler.py
+              env:
+                - name: TZ
+                  value: Europe/Berlin
+              volumeMounts:
+                - name: headscale-data
+                  mountPath: /var/lib/headscale
+                - name: secrets
+                  mountPath: /var/run/secrets/headscale-reconciler
+                  readOnly: true
+                - name: script
+                  mountPath: /scripts
+                  readOnly: true
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  cpu: 200m
+                  memory: 128Mi
