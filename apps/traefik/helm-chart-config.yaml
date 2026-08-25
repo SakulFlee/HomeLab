@@ -20,6 +20,9 @@ spec:
       readOnlyRootFilesystem: true
     service:
       enabled: false
+    providers:
+      kubernetesCRD:
+        allowCrossNamespace: true
     logs:
       access:
         enabled: true
