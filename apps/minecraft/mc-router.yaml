@@ -2,7 +2,7 @@ apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
 metadata:
   name: mc-router
-  namespace: flux-system
+  namespace: minecraft
   labels:
     reconcile.fluxcd.io/watch: Enabled
 spec:
