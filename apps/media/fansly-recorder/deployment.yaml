@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fansly-recorder
+  namespace: media
+  labels:
+    app: fansly-recorder
+spec:
+  selector:
+    matchLabels:
+      app: fansly-recorder
+  replicas: 1
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: fansly-recorder
+    spec:
+      volumes:
+        - name: nas-nsfw
+          hostPath:
+            path: /mnt/nas/NSFW
+        - name: supervisor
+          configMap:
+            name: fansly-recorder-supervisor
+        - name: fansly-config
+          secret:
+            secretName: fansly-recorder-secrets
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 1Gi
+      containers:
+        - name: fansly-recorder
+          image: forgejo.sakul-flee.de/sakulflee/fansly-recorder:v0.1.27
+          imagePullPolicy: Always
+          command: ["/bin/bash", "/scripts/run.sh"]
+          env:
+            - name: HOME
+              value: /tmp
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 4Gi
+          volumeMounts:
+            - name: nas-nsfw
+              mountPath: /mnt/nas/NSFW
+            - name: supervisor
+              mountPath: /scripts/run.sh
+              subPath: run.sh
+            - name: fansly-config
+              mountPath: /config
+              readOnly: true
+            - name: dshm
+              mountPath: /dev/shm

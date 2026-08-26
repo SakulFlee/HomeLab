@@ -28,10 +28,6 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    fansly-recorder = {
-      url = "github:SakulFlee/FanslyRecorder";
-    };
-
     hermes-agent = {
       url = "github:NousResearch/hermes-agent";
     };

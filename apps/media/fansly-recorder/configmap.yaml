@@ -1,0 +1,140 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fansly-recorder-supervisor
+  namespace: media
+data:
+  run.sh: |
+    #!/bin/bash
+    set -euo pipefail
+
+    OUTPUT_DIR="/mnt/nas/NSFW/Streams"
+    URLS_FILE="/config/urls"
+    AUTH_FILE="/config/auth.json"
+    PID_FILE="/tmp/fansly-pids"
+    CHECK_INTERVAL=60
+    WATCH_INTERVAL=300
+
+    mkdir -p "$OUTPUT_DIR"
+    : > "$PID_FILE"
+
+    log() { printf '[fansly-recorder] %s - %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$1"; }
+
+    prev_auth=""
+
+    stop_recorder() {
+      local pid="$1" i st
+      kill -INT "$pid" 2>/dev/null || return 0
+      for i in {1..30}; do
+        if ! kill -0 "$pid" 2>/dev/null; then
+          wait "$pid" 2>/dev/null || true
+          return 0
+        fi
+        if [[ -r "/proc/$pid/stat" ]]; then
+          st="?"
+          [[ "$(</proc/$pid/stat)" =~ \)\ ([A-Z]) ]] && st="${BASH_REMATCH[1]}"
+          if [[ "$st" == "Z" ]]; then
+            wait "$pid" 2>/dev/null || true
+            return 0
+          fi
+        fi
+        sleep 1
+      done
+      kill -KILL "$pid" 2>/dev/null || true
+      wait "$pid" 2>/dev/null || true
+    }
+
+    shutdown_all() {
+      log "Shutting down all recorders..."
+      local pids=() url pid p i alive=1
+      while read -r url pid; do pids+=("$pid"); done < "$PID_FILE"
+      for p in "${pids[@]}"; do kill -INT "$p" 2>/dev/null || true; done
+      for i in {1..30}; do
+        alive=0
+        for p in "${pids[@]}"; do
+          if kill -0 "$p" 2>/dev/null; then alive=1; fi
+        done
+        [[ "$alive" == "0" ]] && break
+        sleep 1
+      done
+      for p in "${pids[@]}"; do
+        if kill -0 "$p" 2>/dev/null; then kill -KILL "$p" 2>/dev/null || true; fi
+        wait "$p" 2>/dev/null || true
+      done
+      rm -f "$PID_FILE"
+      exit 0
+    }
+    trap shutdown_all SIGTERM SIGINT
+
+    spawn_recorder() {
+      cd "$OUTPUT_DIR" || exit 1
+      exec fansly-recorder --url "$1" --storage-state "$AUTH_FILE" \
+        --watch --interval "$WATCH_INTERVAL" --format mkv
+    }
+
+    url_running() {
+      local u="$1" a p
+      while read -r a p; do
+        [[ "$a" == "$u" ]] && return 0
+      done < "$PID_FILE"
+      return 1
+    }
+
+    while true; do
+      # restart all recorders if auth changed (fresh cookies)
+      if [[ -f "$AUTH_FILE" ]]; then
+        auth_now=$(<"$AUTH_FILE")
+        if [[ -n "$prev_auth" && "$auth_now" != "$prev_auth" ]]; then
+          log "auth.json changed, restarting all recorders"
+          while read -r url pid; do
+            stop_recorder "$pid"
+          done < "$PID_FILE"
+          : > "$PID_FILE"
+        fi
+        prev_auth="$auth_now"
+      fi
+
+      # desired URL set
+      desired=()
+      if [[ -f "$URLS_FILE" ]]; then
+        url=""
+        while IFS= read -r url; do
+          [[ -z "$url" || "$url" == \#* ]] && continue
+          desired+=("$url")
+        done < "$URLS_FILE"
+      fi
+
+      # start missing recorders
+      url=""
+      pid=""
+      for url in "${desired[@]}"; do
+        if ! url_running "$url"; then
+          log "Starting recorder for $url"
+          spawn_recorder "$url" &
+          echo "$url $!" >> "$PID_FILE"
+        fi
+      done
+
+      # reconcile: stop recorders for removed URLs, reap exited children
+      new_pidfile=()
+      while read -r url pid; do
+        if ! kill -0 "$pid" 2>/dev/null; then
+          wait "$pid" 2>/dev/null || true
+          log "Recorder for $url exited"
+          continue
+        fi
+        wanted=0
+        for u in "${desired[@]}"; do
+          [[ "$u" == "$url" ]] && wanted=1 && break
+        done
+        if [[ "$wanted" == "0" ]]; then
+          log "Stopping recorder for removed URL $url"
+          stop_recorder "$pid"
+          continue
+        fi
+        new_pidfile+=("$url $pid")
+      done < "$PID_FILE"
+      printf '%s\n' "${new_pidfile[@]}" > "$PID_FILE"
+
+      sleep "$CHECK_INTERVAL"
+    done

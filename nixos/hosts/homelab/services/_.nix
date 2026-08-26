@@ -14,7 +14,6 @@
     # ./qui.nix
     # ./qbittorrent.nix
     # ./bitmagnet.nix
-    # ./fansly-recorder.nix
     # ./hermes-agent.nix
     # ./wireguard.nix
     # ./cloudflare-ddns.nix
