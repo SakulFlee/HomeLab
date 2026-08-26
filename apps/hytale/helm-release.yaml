@@ -38,6 +38,11 @@ spec:
       repository: forgejo.sakul-flee.de/containers/hytale
     service:
       type: ClusterIP
+    securityContext:
+      runAsUser: 0
+      runAsGroup: 0
+      fsGroup: 0
+      runAsNonRoot: false
     resources:
       limits:
         cpu: 2000m
