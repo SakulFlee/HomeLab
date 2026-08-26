@@ -36,6 +36,8 @@ spec:
   values:
     image:
       repository: forgejo.sakul-flee.de/containers/hytale
+    service:
+      type: ClusterIP
     resources:
       limits:
         cpu: 2000m

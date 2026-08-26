@@ -1,0 +1,13 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRouteUDP
+metadata:
+  name: hytale
+  namespace: hytale
+spec:
+  entryPoints:
+    - hytale
+  routes:
+    - services:
+        - name: hytale
+          port: 5520
+          namespace: hytale
