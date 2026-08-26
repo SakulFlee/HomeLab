@@ -134,7 +134,11 @@ data:
         fi
         new_pidfile+=("$url $pid")
       done < "$PID_FILE"
-      printf '%s\n' "${new_pidfile[@]}" > "$PID_FILE"
+      if (( ${#new_pidfile[@]} > 0 )); then
+        printf '%s\n' "${new_pidfile[@]}" > "$PID_FILE"
+      else
+        : > "$PID_FILE"
+      fi
 
       sleep "$CHECK_INTERVAL"
     done
