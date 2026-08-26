@@ -6,14 +6,13 @@ metadata:
 spec:
   valuesContent: |-
     hostNetwork: true
-    deployment:
-      strategy:
-        type: RollingUpdate
-        rollingUpdate:
-          # hostNetwork + hostPorts: a new pod can't schedule while the old
-          # one holds the ports, so let the old pod terminate first.
-          maxUnavailable: 1
-          maxSurge: 0
+    updateStrategy:
+      type: RollingUpdate
+      rollingUpdate:
+        # hostNetwork + hostPorts: a new pod can't schedule while the old
+        # one holds the ports, so let the old pod terminate first.
+        maxUnavailable: 1
+        maxSurge: 0
     podSecurityContext:
       runAsGroup: 0
       runAsNonRoot: false
