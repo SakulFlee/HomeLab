@@ -12,3 +12,5 @@ spec:
         - name: mc-router
           port: 25565
           namespace: minecraft
+  tls:
+    passthrough: true
