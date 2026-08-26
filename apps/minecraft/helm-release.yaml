@@ -45,8 +45,10 @@ spec:
     # Annotations register the service with mc-router's auto-discovery.
     replicaCount: 0
     serviceAnnotations:
-      mc-router.itzg.me/externalServerName: minecraft.sakul-flee.de
+      mc-router.itzg.me/externalServerName: "minecraft.sakul-flee.de,homelab.local,192.168.178.200"
       mc-router.itzg.me/defaultServer: "true"
+      mc-router.itzg.me/autoScaleWaitTimeout: "30s"
+      mc-router.itzg.me/autoScaleAsleepMOTD: "Server is asleep - joining wakes it up"
     minecraftServer:
       eula: 'TRUE'
       version: LATEST
