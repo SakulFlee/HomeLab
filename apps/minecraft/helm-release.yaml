@@ -70,7 +70,7 @@ spec:
         memory: 2048Mi
         cpu: 2000m
     persistence:
-      storageClass: local-path-persistent
+      storageClass: local-path-backup
       dataDir:
         enabled: true
         Size: 8Gi
