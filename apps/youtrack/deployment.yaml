@@ -32,7 +32,7 @@ spec:
             claimName: youtrack-backups
       containers:
         - name: youtrack
-          image: jetbrains/youtrack:2026.2.18695
+          image: jetbrains/youtrack:2026.2.18687
           imagePullPolicy: IfNotPresent
           resources:
             requests:
