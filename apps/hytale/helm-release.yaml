@@ -49,3 +49,14 @@ spec:
       size: 32Gi
       existingClaim: "hytale-hytale-0"
     mods:
+  postRenderers:
+    - kustomize:
+        patches:
+          - target:
+              group: apps
+              version: v1
+              kind: Deployment
+              name: hytale
+            patch: |
+              - op: remove
+                path: /spec/template/spec/containers/0/volumeMounts/2/subPath
