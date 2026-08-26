@@ -15,7 +15,7 @@ data:
     CHECK_INTERVAL=60
     WATCH_INTERVAL=300
 
-    mkdir -p "$OUTPUT_DIR"
+    mkdir -p /tmp "$OUTPUT_DIR"
     : > "$PID_FILE"
 
     log() { printf '[fansly-recorder] %s - %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$1"; }
