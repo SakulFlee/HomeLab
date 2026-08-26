@@ -10,3 +10,4 @@ resources:
   - helm-repository.yaml
   - helm-release.yaml
   - mc-router.yaml
+  - ingress-route.yaml
