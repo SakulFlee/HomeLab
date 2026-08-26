@@ -70,6 +70,10 @@ spec:
       enabled: true
       storageClass: local-path-backup
       size: 32Gi
+    # Image: track the Forgejo 16.x line; Always re-pulls the floating tag on pod start
+    image:
+      tag: 16
+      pullPolicy: Always
     gitea:
       # Admin user
       admin:
@@ -104,6 +108,7 @@ spec:
           START_SSH_SERVER: true
           SSH_PORT: 30022
           SSH_DOMAIN: forgejo.sakul-flee.de
+          REVERSE_PROXY_TRUSTED_PROXIES: "10.0.0.0/8 172.16.0.0/12"
     # GPG signing support
     signing:
       enabled: true
