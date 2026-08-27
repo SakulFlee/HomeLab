@@ -67,7 +67,7 @@ spec:
         type: pvc
         storageClass: local-path-backup
         accessMode: ReadWriteOnce
-        size: 64Gi
+        size: 180Gi
         mountPath: /data
     service:
       main:
