@@ -48,7 +48,7 @@ spec:
     persistence:
       config:
         enabled: true
-        storageClass: local-path-persistent
+        storageClass: local-path-backup
         size: 1Gi
         mountPath: /var/syncthing
       restic-repo:
@@ -65,7 +65,7 @@ spec:
         # and covered by restic (in addition to the restic repo which is
         # already replicated via the restic-repo hostPath mount above).
         type: pvc
-        storageClass: local-path-persistent
+        storageClass: local-path-backup
         accessMode: ReadWriteOnce
         size: 64Gi
         mountPath: /data

@@ -44,7 +44,7 @@ metadata:
   name: youtrack-backups
   namespace: youtrack
 spec:
-  storageClassName: local-path-persistent
+  storageClassName: local-path-backup
   accessModes:
     - ReadWriteOnce
   resources:

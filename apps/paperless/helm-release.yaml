@@ -43,10 +43,10 @@ spec:
         PAPERLESS_TIKA_ENABLED: "1"
     persistence:
       data:
-        storageClass: local-path-persistent
+        storageClass: local-path-backup
         size: 10Gi
       media:
-        storageClass: local-path-persistent
+        storageClass: local-path-backup
         size: 50Gi
       export:
         storageClass: local-path-backup
@@ -61,7 +61,7 @@ spec:
         tag: "16"
       storage:
         size: 5Gi
-        storageClass: local-path-persistent
+        storageClass: local-path-backup
       database: paperless
       username: paperless
     redis:
