@@ -50,6 +50,28 @@ spec:
         - name: nas-nsfw
           hostPath:
             path: /mnt/nas/NSFW
+        - name: qbittorrent-temp
+          emptyDir: {}
+      initContainers:
+        - name: patch-config
+          image: busybox:1.36
+          command:
+            - /bin/sh
+            - -c
+            - |
+              CONF=/config/qBittorrent/config/qBittorrent.conf
+              if [ -f "$CONF" ]; then
+                # Redirect temp downloads to emptyDir (not backed up by restic)
+                sed -i 's|^Session\\TempPath=.*|Session\\TempPath=/downloads/temp|' "$CONF"
+                # Remove cross-seed AutoRun hook (handled by Qui now)
+                sed -i '/\[AutoRun\]/,/^$/{ s|^enabled=.*|enabled=false|; s|^program=.*|program=|; }' "$CONF"
+                # Remove cross-seed tag
+                sed -i 's|^Session\\Tags=.*|Session\\Tags=|' "$CONF"
+                echo "Config patched: TempPath=/downloads/temp, cross-seed removed"
+              fi
+          volumeMounts:
+            - name: qbittorrent-config
+              mountPath: /config
       containers:
         # --- VPN SIDECAR CONTAINER (GLUETUN) ---
         - name: gluetun
@@ -139,6 +161,8 @@ spec:
               mountPath: /mnt/nas/Shows
             - name: nas-nsfw
               mountPath: /mnt/nas/NSFW
+            - name: qbittorrent-temp
+              mountPath: /downloads/temp
           # If Gluetun changes the port later, this probe fails, forcing K8s to 
           # restart ONLY this container.
           livenessProbe:
