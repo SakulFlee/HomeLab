@@ -4,7 +4,7 @@ metadata:
   name: local-path-backup
   annotations:
     defaultVolumeType: "local"
-    storageclass.kubernetes.io/is-default-class: "false"
+    storageclass.kubernetes.io/is-default-class: "true"
 provisioner: rancher.io/local-path
 parameters:
   nodePath: /var/lib/rancher/k3s/storage/backup

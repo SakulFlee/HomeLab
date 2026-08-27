@@ -5,6 +5,7 @@ metadata:
   namespace: kube-system
 resources:
   - local-path-config.yaml
+  - local-path-provisioner.yaml
   - storage-class-persistent.yaml
   - storage-class-volatile.yaml
   - storage-class-backup.yaml
