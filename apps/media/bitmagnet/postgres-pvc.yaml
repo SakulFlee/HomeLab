@@ -4,7 +4,7 @@ metadata:
   name: bitmagnet-postgres
   namespace: media
 spec:
-  storageClassName: local-path-backup
+  storageClassName: local-path-persistent
   accessModes:
     - ReadWriteOnce
   resources:
