@@ -4,7 +4,7 @@ metadata:
   name: llama-swap-models
   namespace: llama-swap
 spec:
-  storageClassName: local-path-backup
+  storageClassName: local-path-volatile
   accessModes:
     - ReadWriteOnce
   resources:
