@@ -54,6 +54,10 @@ spec:
     alertmanager:
       alertmanagerSpec:
         replicas: 1
+    prometheus-node-exporter:
+      containerPort: 9101
+      service:
+        hostPort: 9101
     prometheus:
       prometheusSpec:
         replicas: 1

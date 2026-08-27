@@ -31,7 +31,7 @@ spec:
                 - count: 4
                   paths:
                     - path: /dev/dri/renderD128
-                    - path: /dev/dri/card0
+                    - path: /dev/dri/card1
           resources:
             requests:
               cpu: 50m
