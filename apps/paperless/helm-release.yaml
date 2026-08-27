@@ -55,7 +55,7 @@ spec:
     cnpg:
       enabled: true
       instances: 1
-      postgresVersion: 16
+      postgresVersion: 18
       image:
         repository: ghcr.io/cloudnative-pg/postgresql
         tag: "16"
