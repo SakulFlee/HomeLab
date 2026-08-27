@@ -35,7 +35,7 @@ spec:
             - |
               tailscaled \
                 --state=/var/lib/tailscale/tailscaled.state \
-                --tun=tailscale0 \
+                --tun=tailscale1 \
                 --socket=/tmp/tailscaled.sock &
               sleep 4
               tailscale \
