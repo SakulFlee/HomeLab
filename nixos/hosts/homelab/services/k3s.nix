@@ -5,6 +5,10 @@
     enable = true;
     role = "server";
     tokenFile = config.sops.secrets."k3s-token".path;
+    # Disable the bundled local-path addon: it owns the 'local-path' StorageClass
+    # (re-created on every restart) and its default annotation. We provide our
+    # own local-path-provisioner and storage classes (see apps/storage-class).
+    disable = [ "local-storage" ];
     # Traefik (k3s-bundled) is the ingress layer serving 80/443. Point pod DNS
     # at the router. The host /etc/resolv.conf uses the router as its resolver,
     # but the pod's own resolv.conf needs an explicit nameserver.
