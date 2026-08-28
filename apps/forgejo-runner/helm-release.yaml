@@ -25,44 +25,41 @@ spec:
   driftDetection:
     mode: enabled
   values:
-    knownLastVersion: true
-    dind:
-      enabled: false
     image:
       registry: registry.erwanleboucher.dev
       repository: eleboucher/runner
       tag: "12.13.0"
-    plugin:
-      image:
-        repository: registry.erwanleboucher.dev/eleboucher/runner-k8s-plugin
-        tag: "12.10.9"
-    runner:
-      config:
-        create: false
-        existingSecret: "forgejo-runner-secret"
-        file:
-          runner:
-            capacity: 3
-            timeout: "3h"
-            shutdown_timeout: "3m"
-          plugins:
-            k8s:
-              address: "unix:///plugin/forgejo-runner-k8s.sock"
-              options:
-                namespace: forgejo-runner
-                poll_timeout: 10m
-                labels: "app.kubernetes.io/name=forgejo-runner-instance"
-                resources: |
-                  requests:
-                    cpu: 100m
-                    memory: 256Mi
-                  limits:
-                    memory: 1Gi
-          cache:
-            enabled: true
-            dir: "/data/cache"
-          log:
-            level: info
+    runnerPlugins:
+      k8s:
+        image: registry.erwanleboucher.dev/eleboucher/runner-k8s-plugin:12.10.9
+    runnerConfig: |
+      run:
+        labels:
+          - "ubuntu-latest:k8s:/config/podspec-default.yaml"
+      runner:
+        capacity: 3
+        timeout: "3h"
+        shutdown_timeout: "3m"
+      plugins:
+        k8s:
+          address: "unix:///plugin/forgejo-runner-k8s.sock"
+          options:
+            namespace: forgejo-runner
+            poll_timeout: 10m
+            labels: "app.kubernetes.io/name=forgejo-runner-instance"
+            resources: |
+              requests:
+                cpu: 100m
+                memory: 256Mi
+              limits:
+                memory: 1Gi
+    runnerSecrets:
+      existingSecret: "forgejo-runner-secret"
+    cache:
+      enabled: true
+      dir: "/data/cache"
+    log:
+      level: info
     podSpecs:
       podspec-default.yaml: |
         automountServiceAccountToken: false

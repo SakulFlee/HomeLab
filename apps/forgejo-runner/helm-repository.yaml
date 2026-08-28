@@ -5,9 +5,9 @@ metadata:
   namespace: forgejo-runner
 spec:
   interval: 5m0s
-  url: oci://codeberg.org/wrenix/helm-charts/forgejo-runner
+  url: oci://git.erwanleboucher.dev/eleboucher/charts/forgejo-runner
   layerSelector:
     mediaType: application/vnd.cncf.helm.chart.content.v1.tar+gzip
     operation: copy
   ref:
-    semver: ^0.7.0
+    semver: ^12.10.0
