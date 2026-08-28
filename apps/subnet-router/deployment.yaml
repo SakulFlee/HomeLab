@@ -33,6 +33,7 @@ spec:
             - /bin/sh
             - -c
             - |
+              ip link delete tailscale1 2>/dev/null || true
               tailscaled \
                 --state=/var/lib/tailscale/tailscaled.state \
                 --tun=tailscale1 \
@@ -58,6 +59,15 @@ spec:
                   key: authkey
           securityContext:
             privileged: true
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - "tailscale --socket=/tmp/tailscaled.sock status | grep -q active"
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            failureThreshold: 3
           volumeMounts:
             - name: tailscale-state
               mountPath: /var/lib/tailscale
