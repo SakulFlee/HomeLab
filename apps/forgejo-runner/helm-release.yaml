@@ -43,16 +43,10 @@ spec:
           memory: 512Mi
     runner:
       config:
-        create: true
-        instance: "http://forgejo-http.forgejo.svc.cluster.local:3000"
-        token: "kNrq8IoTMZPRTCu5gwF7NXw4gQnfsddOVdnkGWW9"
-        name: "forgejo-runner"
+        create: false
+        existingSecret: "forgejo-runner-secret"
         file:
           runner:
-            labels:
-              - ubuntu-latest:docker://node:22-bookworm
-              - ubuntu-24.04:docker://node:22-bookworm
-              - default:docker://node:22-bookworm
             envs:
               DOCKER_HOST: "tcp://127.0.0.1:2376"
               DOCKER_TLS_VERIFY: "1"
