@@ -1,0 +1,544 @@
+---
+# ---------------------------------------------------------------------------
+# api
+# ---------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: fluxer
+  labels:
+    app: api
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: api
+  template:
+    metadata:
+      labels:
+        app: api
+    spec:
+      initContainers:
+        - name: init-buckets
+          image: chrislusf/seaweedfs:4.34
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              until nc -z seaweedfs 9333 2>/dev/null; do sleep 2; done
+              for b in fluxer fluxer-uploads fluxer-downloads fluxer-reports fluxer-harvests; do
+                echo "s3.bucket.create -name $b" | weed shell -master=seaweedfs:9333 >/dev/null 2>&1 || true
+              done
+              exit 0
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+      containers:
+        - name: api
+          image: ghcr.io/fluxerapp/fluxer-api:v1
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: fluxer-config
+            - secretRef:
+                name: fluxer-secrets
+          env:
+            - name: FLUXER_API_PORT
+              value: "8080"
+            - name: FLUXER_API_PRESIGNED_ATTACHMENT_UPLOADS_ENABLED
+              value: "true"
+          ports:
+            - name: http
+              containerPort: 8080
+          startupProbe:
+            httpGet:
+              path: /_health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /_health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 6
+          readinessProbe:
+            httpGet:
+              path: /_health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 2
+              memory: 4Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+  namespace: fluxer
+spec:
+  type: ClusterIP
+  selector:
+    app: api
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+# ---------------------------------------------------------------------------
+# worker
+# ---------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  namespace: fluxer
+  labels:
+    app: worker
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: worker
+  template:
+    metadata:
+      labels:
+        app: worker
+    spec:
+      containers:
+        - name: worker
+          image: ghcr.io/fluxerapp/fluxer-api:v1
+          imagePullPolicy: IfNotPresent
+          workingDir: /usr/src/app/fluxer_api
+          command: ["./node_modules/.bin/tsx", "src/WorkerEntrypoint.ts"]
+          envFrom:
+            - configMapRef:
+                name: fluxer-config
+            - secretRef:
+                name: fluxer-secrets
+          env:
+            - name: FLUXER_API_WORKER_MODE
+              value: all_lanes
+            - name: FLUXER_API_WORKER_ENABLE_CRON_SCHEDULER
+              value: "true"
+            - name: FLUXER_API_WORKER_ENABLE_VOICE_RECONCILIATION
+              value: "true"
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 2
+              memory: 4Gi
+---
+# ---------------------------------------------------------------------------
+# gateway (Erlang WebSocket)
+# ---------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  namespace: fluxer
+  labels:
+    app: gateway
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: gateway
+  template:
+    metadata:
+      labels:
+        app: gateway
+    spec:
+      containers:
+        - name: gateway
+          image: ghcr.io/fluxerapp/fluxer-gateway:v1
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: fluxer-config
+            - secretRef:
+                name: fluxer-secrets
+          env:
+            - name: FLUXER_GATEWAY_PORT
+              value: "8080"
+            - name: FLUXER_GATEWAY_MEDIA_PROXY_ENDPOINT
+              value: https://fluxer.sakul-flee.de/media
+            - name: FLUXER_GATEWAY_STATIC_CDN_ENDPOINT
+              value: https://fluxer.sakul-flee.de
+            - name: FLUXER_GATEWAY_LOGGER_LEVEL
+              value: info
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 2
+              memory: 4Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway
+  namespace: fluxer
+spec:
+  type: ClusterIP
+  selector:
+    app: gateway
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+# ---------------------------------------------------------------------------
+# media-proxy
+# ---------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: media-proxy
+  namespace: fluxer
+  labels:
+    app: media-proxy
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: media-proxy
+  template:
+    metadata:
+      labels:
+        app: media-proxy
+    spec:
+      initContainers:
+        - name: init-buckets
+          image: chrislusf/seaweedfs:4.34
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              until nc -z seaweedfs 9333 2>/dev/null; do sleep 2; done
+              for b in fluxer fluxer-uploads fluxer-downloads fluxer-reports fluxer-harvests; do
+                echo "s3.bucket.create -name $b" | weed shell -master=seaweedfs:9333 >/dev/null 2>&1 || true
+              done
+              exit 0
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+      containers:
+        - name: media-proxy
+          image: ghcr.io/fluxerapp/fluxer-media-proxy:v1
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: fluxer-config
+            - secretRef:
+                name: fluxer-secrets
+          env:
+            - name: FLUXER_MEDIA_PROXY_HOST
+              value: 0.0.0.0
+            - name: FLUXER_MEDIA_PROXY_PORT
+              value: "8080"
+            - name: FLUXER_MEDIA_PROXY_MODE
+              value: upload
+            - name: FLUXER_MEDIA_PROXY_STORAGE_BACKEND
+              value: s3
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 1
+              memory: 2Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: media-proxy
+  namespace: fluxer
+spec:
+  type: ClusterIP
+  selector:
+    app: media-proxy
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+# ---------------------------------------------------------------------------
+# static-proxy
+# ---------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: static-proxy
+  namespace: fluxer
+  labels:
+    app: static-proxy
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: static-proxy
+  template:
+    metadata:
+      labels:
+        app: static-proxy
+    spec:
+      containers:
+        - name: static-proxy
+          image: ghcr.io/fluxerapp/fluxer-static:v1
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: static-proxy
+  namespace: fluxer
+spec:
+  type: ClusterIP
+  selector:
+    app: static-proxy
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+# ---------------------------------------------------------------------------
+# app-proxy
+# ---------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-proxy
+  namespace: fluxer
+  labels:
+    app: app-proxy
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: app-proxy
+  template:
+    metadata:
+      labels:
+        app: app-proxy
+    spec:
+      containers:
+        - name: app-proxy
+          image: ghcr.io/fluxerapp/fluxer-app-proxy-self-hosted:v1
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: fluxer-config
+            - secretRef:
+                name: fluxer-secrets
+          env:
+            - name: FLUXER_APP_PROXY_HOST
+              value: 0.0.0.0
+            - name: FLUXER_APP_PROXY_PORT
+              value: "8080"
+            - name: DISCOVERY_UPSTREAM_URL
+              value: http://api:8080/.well-known/fluxer
+            - name: PUBLIC_BOOTSTRAP_API_ENDPOINT
+              value: /api
+            - name: PUBLIC_BOOTSTRAP_API_PUBLIC_ENDPOINT
+              value: https://fluxer.sakul-flee.de/api
+            - name: FLUXER_CSP_EXTRA_DEFAULT_SRC
+              value: ""
+            - name: FLUXER_CSP_EXTRA_CONNECT_SRC
+              value: ""
+            - name: FLUXER_CSP_EXTRA_IMG_SRC
+              value: ""
+            - name: FLUXER_CSP_EXTRA_MEDIA_SRC
+              value: ""
+            - name: FLUXER_CSP_EXTRA_FONT_SRC
+              value: ""
+            - name: FLUXER_CSP_EXTRA_SCRIPT_SRC
+              value: ""
+            - name: FLUXER_CSP_EXTRA_STYLE_SRC
+              value: ""
+            - name: FLUXER_CSP_EXTRA_FRAME_SRC
+              value: ""
+            - name: FLUXER_CSP_EXTRA_WORKER_SRC
+              value: ""
+            - name: FLUXER_CSP_EXTRA_MANIFEST_SRC
+              value: ""
+            - name: FLUXER_CSP_REPORT_URI
+              value: ""
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app-proxy
+  namespace: fluxer
+spec:
+  type: ClusterIP
+  selector:
+    app: app-proxy
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+# ---------------------------------------------------------------------------
+# admin
+# ---------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: admin
+  namespace: fluxer
+  labels:
+    app: admin
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: admin
+  template:
+    metadata:
+      labels:
+        app: admin
+    spec:
+      containers:
+        - name: admin
+          image: ghcr.io/fluxerapp/fluxer-admin:v1
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: fluxer-config
+            - secretRef:
+                name: fluxer-secrets
+          env:
+            - name: FLUXER_ADMIN_HOST
+              value: 0.0.0.0
+            - name: FLUXER_ADMIN_PORT
+              value: "8080"
+            - name: FLUXER_ADMIN_BASE_PATH
+              value: /admin
+            - name: FLUXER_API_ENDPOINT
+              value: http://api:8080
+            - name: FLUXER_ADMIN_ENDPOINT
+              value: https://fluxer.sakul-flee.de/admin
+            - name: FLUXER_APP_ENDPOINT
+              value: https://fluxer.sakul-flee.de
+            - name: FLUXER_MEDIA_ENDPOINT
+              value: https://fluxer.sakul-flee.de/media
+            - name: FLUXER_STATIC_CDN_ENDPOINT
+              value: https://fluxer.sakul-flee.de
+            - name: FLUXER_ADMIN_OAUTH_REDIRECT_URI
+              value: https://fluxer.sakul-flee.de/admin/oauth2_callback
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: admin
+  namespace: fluxer
+spec:
+  type: ClusterIP
+  selector:
+    app: admin
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080

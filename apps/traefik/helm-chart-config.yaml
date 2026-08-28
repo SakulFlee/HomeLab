@@ -61,3 +61,15 @@ spec:
           default: true
         exposedPort: 5520
         protocol: UDP
+      livekit-tcp:
+        port: 7881
+        expose:
+          default: true
+        exposedPort: 7881
+        protocol: TCP
+      livekit-udp:
+        port: 7882
+        expose:
+          default: true
+        exposedPort: 7882
+        protocol: UDP

@@ -1,0 +1,441 @@
+---
+# snowflakes (router + shard)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: snowflakes
+  namespace: fluxer
+  labels:
+    app: snowflakes
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: snowflakes
+  template:
+    metadata:
+      labels:
+        app: snowflakes
+    spec:
+      containers:
+        - name: snowflakes
+          image: ghcr.io/fluxerapp/fluxer-snowflakes:v1
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: fluxer-config
+            - secretRef:
+                name: fluxer-secrets
+          env:
+            - name: FLUXER_SVC_MODE
+              value: router
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: snowflakes-shard
+  namespace: fluxer
+  labels:
+    app: snowflakes-shard
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: snowflakes-shard
+  template:
+    metadata:
+      labels:
+        app: snowflakes-shard
+    spec:
+      containers:
+        - name: snowflakes-shard
+          image: ghcr.io/fluxerapp/fluxer-snowflakes:v1
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: fluxer-config
+            - secretRef:
+                name: fluxer-secrets
+          env:
+            - name: FLUXER_SVC_MODE
+              value: shard
+            - name: FLUXER_SVC_SHARD_ID
+              value: "0"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+---
+# users (router + shard)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: users
+  namespace: fluxer
+  labels:
+    app: users
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: users
+  template:
+    metadata:
+      labels:
+        app: users
+    spec:
+      containers:
+        - name: users
+          image: ghcr.io/fluxerapp/fluxer-users:v1
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: fluxer-config
+            - secretRef:
+                name: fluxer-secrets
+          env:
+            - name: FLUXER_SVC_MODE
+              value: router
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: users-shard
+  namespace: fluxer
+  labels:
+    app: users-shard
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: users-shard
+  template:
+    metadata:
+      labels:
+        app: users-shard
+    spec:
+      initContainers:
+        - name: wait-postgres
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - until pg_isready -h postgres -U fluxer -d fluxer; do sleep 2; done
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+      containers:
+        - name: users-shard
+          image: ghcr.io/fluxerapp/fluxer-users:v1
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: fluxer-config
+            - secretRef:
+                name: fluxer-secrets
+          env:
+            - name: FLUXER_SVC_MODE
+              value: shard
+            - name: FLUXER_SVC_SHARD_ID
+              value: "0"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+---
+# gifs (router + shard)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gifs
+  namespace: fluxer
+  labels:
+    app: gifs
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: gifs
+  template:
+    metadata:
+      labels:
+        app: gifs
+    spec:
+      containers:
+        - name: gifs
+          image: ghcr.io/fluxerapp/fluxer-gifs:v1
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: fluxer-config
+            - secretRef:
+                name: fluxer-secrets
+          env:
+            - name: FLUXER_SVC_NAME
+              value: gifs
+            - name: FLUXER_SVC_MODE
+              value: router
+            - name: FLUXER_MEDIA_PROXY_PUBLIC_ENDPOINT
+              value: https://fluxer.sakul-flee.de/media
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gifs-shard
+  namespace: fluxer
+  labels:
+    app: gifs-shard
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: gifs-shard
+  template:
+    metadata:
+      labels:
+        app: gifs-shard
+    spec:
+      containers:
+        - name: gifs-shard
+          image: ghcr.io/fluxerapp/fluxer-gifs:v1
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: fluxer-config
+            - secretRef:
+                name: fluxer-secrets
+          env:
+            - name: FLUXER_SVC_NAME
+              value: gifs
+            - name: FLUXER_SVC_MODE
+              value: shard
+            - name: FLUXER_SVC_SHARD_ID
+              value: "0"
+            - name: FLUXER_MEDIA_PROXY_PUBLIC_ENDPOINT
+              value: https://fluxer.sakul-flee.de/media
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+---
+# messages (router + shard)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: messages
+  namespace: fluxer
+  labels:
+    app: messages
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: messages
+  template:
+    metadata:
+      labels:
+        app: messages
+    spec:
+      containers:
+        - name: messages
+          image: ghcr.io/fluxerapp/fluxer-messages:v1
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: fluxer-config
+            - secretRef:
+                name: fluxer-secrets
+          env:
+            - name: FLUXER_SVC_MODE
+              value: router
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: messages-shard
+  namespace: fluxer
+  labels:
+    app: messages-shard
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: messages-shard
+  template:
+    metadata:
+      labels:
+        app: messages-shard
+    spec:
+      initContainers:
+        - name: wait-postgres
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - until pg_isready -h postgres -U fluxer -d fluxer; do sleep 2; done
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+      containers:
+        - name: messages-shard
+          image: ghcr.io/fluxerapp/fluxer-messages:v1
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: fluxer-config
+            - secretRef:
+                name: fluxer-secrets
+          env:
+            - name: FLUXER_SVC_MODE
+              value: shard
+            - name: FLUXER_SVC_SHARD_ID
+              value: "0"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+---
+# unfurl (router + shard)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: unfurl
+  namespace: fluxer
+  labels:
+    app: unfurl
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: unfurl
+  template:
+    metadata:
+      labels:
+        app: unfurl
+    spec:
+      containers:
+        - name: unfurl
+          image: ghcr.io/fluxerapp/fluxer-unfurl:v1
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: fluxer-config
+            - secretRef:
+                name: fluxer-secrets
+          env:
+            - name: FLUXER_SVC_MODE
+              value: router
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: unfurl-shard
+  namespace: fluxer
+  labels:
+    app: unfurl-shard
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: unfurl-shard
+  template:
+    metadata:
+      labels:
+        app: unfurl-shard
+    spec:
+      containers:
+        - name: unfurl-shard
+          image: ghcr.io/fluxerapp/fluxer-unfurl:v1
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: fluxer-config
+            - secretRef:
+                name: fluxer-secrets
+          env:
+            - name: FLUXER_SVC_MODE
+              value: shard
+            - name: FLUXER_SVC_SHARD_ID
+              value: "0"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi

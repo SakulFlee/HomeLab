@@ -1,0 +1,82 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fluxer-config
+  namespace: fluxer
+data:
+  FLUXER_ENV: production
+  NODE_ENV: production
+  FLUXER_SELF_HOSTED: "true"
+  FLUXER_BASE_DOMAIN: fluxer.sakul-flee.de
+  FLUXER_PUBLIC_SCHEME: https
+  FLUXER_PUBLIC_PORT: "443"
+  FLUXER_TRUST_CLIENT_IP_HEADER: "true"
+  FLUXER_CLIENT_IP_HEADER_NAME: x-forwarded-for
+
+  FLUXER_DATABASE_BACKEND: postgres
+  FLUXER_POSTGRES_HOST: postgres
+  FLUXER_POSTGRES_PORT: "5432"
+  FLUXER_POSTGRES_DATABASE: fluxer
+  FLUXER_POSTGRES_USERNAME: fluxer
+  FLUXER_POSTGRES_SSL: "false"
+
+  FLUXER_KV_URL: redis://valkey:6379/0
+  FLUXER_NATS_URL: nats://nats:4222
+  FLUXER_NATS_JETSTREAM_URL: nats://nats:4222
+  FLUXER_SVC_NATS_URL: nats://nats:4222
+  FLUXER_SVC_SHARD_COUNT: "1"
+
+  FLUXER_SEARCH_ENGINE: meilisearch
+  FLUXER_SEARCH_URL: http://meilisearch:7700
+
+  FLUXER_S3_ENDPOINT: http://seaweedfs:8333
+  FLUXER_S3_PUBLIC_ENDPOINT: http://seaweedfs:8333
+  FLUXER_S3_REGION: us-east-1
+  FLUXER_S3_ACCESS_KEY_ID: fluxer
+  FLUXER_S3_FORCE_PATH_STYLE: "true"
+  FLUXER_S3_BUCKET_CDN: fluxer
+  FLUXER_S3_BUCKET_UPLOADS: fluxer-uploads
+  FLUXER_S3_BUCKET_DOWNLOADS: fluxer-downloads
+  FLUXER_S3_BUCKET_REPORTS: fluxer-reports
+  FLUXER_S3_BUCKET_HARVESTS: fluxer-harvests
+  AWS_ACCESS_KEY_ID: fluxer
+  AWS_DEFAULT_REGION: us-east-1
+  AWS_EC2_METADATA_DISABLED: "true"
+
+  FLUXER_LIVEKIT_ENABLED: "true"
+  FLUXER_LIVEKIT_API_KEY: fluxer
+  FLUXER_LIVEKIT_INTERNAL_URL: http://livekit:7880
+  FLUXER_LIVEKIT_WEBHOOK_URL: http://api:8080/webhooks/livekit
+  FLUXER_LIVEKIT_DEFAULT_REGION: '{"id":"default","name":"Default","emoji":"🌍","latitude":0,"longitude":0}'
+
+  FLUXER_KLIPY_API_KEY: ""
+  FLUXER_EMAIL_ENABLED: "false"
+  FLUXER_EMAIL_PROVIDER: none
+  FLUXER_EMAIL_FROM_EMAIL: noreply@fluxer.sakul-flee.de
+  FLUXER_EMAIL_FROM_NAME: Fluxer
+  FLUXER_EMAIL_SMTP_HOST: ""
+  FLUXER_EMAIL_SMTP_PORT: "587"
+  FLUXER_EMAIL_SMTP_USERNAME: ""
+  FLUXER_EMAIL_SMTP_PASSWORD: ""
+  FLUXER_EMAIL_SMTP_SECURE: "true"
+
+  FLUXER_SMS_ENABLED: "false"
+  FLUXER_CAPTCHA_ENABLED: "false"
+  FLUXER_CAPTCHA_PROVIDER: none
+  FLUXER_STRIPE_ENABLED: "false"
+  FLUXER_NCMEC_ENABLED: "false"
+  FLUXER_CLAMAV_ENABLED: "false"
+  FLUXER_DISCOVERY_ENABLED: "true"
+
+  FLUXER_VAPID_EMAIL: admin@fluxer.sakul-flee.de
+  FLUXER_PASSKEY_RP_ID: fluxer.sakul-flee.de
+  FLUXER_PASSKEY_RP_NAME: Fluxer
+  FLUXER_PASSKEY_ADDITIONAL_ALLOWED_ORIGINS: https://fluxer.sakul-flee.de
+
+  FLUXER_INTERNAL_API_ENDPOINT: http://api:8080
+  FLUXER_INTERNAL_GATEWAY_ENDPOINT: http://gateway:8080
+  FLUXER_INTERNAL_MEDIA_PROXY_ENDPOINT: http://media-proxy:8080
+  FLUXER_MARKETING_ENDPOINT: https://fluxer.sakul-flee.de
+  FLUXER_MEDIA_PROXY_ENDPOINT: https://fluxer.sakul-flee.de/media
+  FLUXER_MEDIA_ENDPOINT: https://fluxer.sakul-flee.de/media
+  FLUXER_MEDIA_PROXY_UPLOAD_RELAY_ENDPOINT: https://fluxer.sakul-flee.de/media
