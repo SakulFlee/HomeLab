@@ -181,7 +181,7 @@ spec:
         - name: nats
           image: nats:2.14-alpine
           imagePullPolicy: IfNotPresent
-          command: ["-js", "-sd", "/data", "-m", "8222"]
+          args: ["-js", "-sd", "/data", "-m", "8222"]
           ports:
             - name: client
               containerPort: 4222
@@ -349,7 +349,7 @@ spec:
         - name: seaweedfs
           image: chrislusf/seaweedfs:4.34
           imagePullPolicy: IfNotPresent
-          command: ["server", "-s3", "-dir=/data"]
+          args: ["server", "-s3", "-dir=/data"]
           ports:
             - name: s3
               containerPort: 8333

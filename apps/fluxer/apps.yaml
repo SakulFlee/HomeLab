@@ -28,7 +28,7 @@ spec:
           command: ["/bin/sh", "-c"]
           args:
             - |
-              until nc -z seaweedfs 9333 2>/dev/null; do sleep 2; done
+              until weed shell -master=seaweedfs:9333 < /dev/null >/dev/null 2>&1; do sleep 2; done
               for b in fluxer fluxer-uploads fluxer-downloads fluxer-reports fluxer-harvests; do
                 echo "s3.bucket.create -name $b" | weed shell -master=seaweedfs:9333 >/dev/null 2>&1 || true
               done
@@ -249,7 +249,7 @@ spec:
           command: ["/bin/sh", "-c"]
           args:
             - |
-              until nc -z seaweedfs 9333 2>/dev/null; do sleep 2; done
+              until weed shell -master=seaweedfs:9333 < /dev/null >/dev/null 2>&1; do sleep 2; done
               for b in fluxer fluxer-uploads fluxer-downloads fluxer-reports fluxer-harvests; do
                 echo "s3.bucket.create -name $b" | weed shell -master=seaweedfs:9333 >/dev/null 2>&1 || true
               done
