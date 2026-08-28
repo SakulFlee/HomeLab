@@ -36,13 +36,14 @@ spec:
         repository: registry.erwanleboucher.dev/eleboucher/runner-k8s-plugin
         tag: "12.10.9"
     runnerConfig: |
-      run:
-        labels:
-          - "ubuntu-latest:k8s:/config/podspec-default.yaml"
       runner:
         capacity: 3
         timeout: "3h"
         shutdown_timeout: "3m"
+        labels:
+          - "ubuntu-latest:k8s:/config/podspec-default.yaml"
+          - "ubuntu-24.04:k8s:/config/podspec-default.yaml"
+          - "default:k8s:/config/podspec-default.yaml"
       plugins:
         k8s:
           address: "unix:///plugin/forgejo-runner-k8s.sock"
