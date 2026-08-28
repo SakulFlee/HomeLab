@@ -30,13 +30,13 @@ spec:
       existingSecret: forgejo-runner-secret
     image:
       repository: registry.erwanleboucher.dev/eleboucher/runner
-      tag: "12.13.0"
-      digest: sha256:b71959782cea9cbc86eaeb47e5ba32bf8179fbd117dd849e001c9a13807b1a07
+      tag: "13.0.0"
+      digest: ""
     plugin:
       image:
         repository: registry.erwanleboucher.dev/eleboucher/runner-k8s-plugin
-        tag: "12.10.9"
-        digest: sha256:7fb94371ccc6ef3ff7e2110b2c04050a68bb8031d3224ed8aee2cd5e1d31c673
+        tag: "13.0.0"
+        digest: ""
     runnerConfig: |
       cache:
         enabled: true
