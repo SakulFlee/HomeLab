@@ -5,6 +5,7 @@ metadata:
   namespace: media
 resources:
 - persistent-volume-claim.yaml
+- persistent-volume-claim-downloads.yaml
 - deployment.yaml
 - service.yaml
 - ingress.yaml

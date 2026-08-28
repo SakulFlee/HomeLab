@@ -52,6 +52,9 @@ spec:
             path: /mnt/nas/NSFW
         - name: qbittorrent-temp
           emptyDir: {}
+        - name: qbittorrent-downloads
+          persistentVolumeClaim:
+            claimName: qbittorrent-downloads
       initContainers:
         - name: patch-config
           image: busybox:1.36
@@ -163,6 +166,8 @@ spec:
               mountPath: /mnt/nas/NSFW
             - name: qbittorrent-temp
               mountPath: /downloads/temp
+            - name: qbittorrent-downloads
+              mountPath: /downloads
           # If Gluetun changes the port later, this probe fails, forcing K8s to 
           # restart ONLY this container.
           livenessProbe:
