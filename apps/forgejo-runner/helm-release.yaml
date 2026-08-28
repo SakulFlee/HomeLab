@@ -35,7 +35,7 @@ spec:
     plugin:
       image:
         repository: registry.erwanleboucher.dev/eleboucher/runner-k8s-plugin
-        tag: "13.0.0"
+        tag: "12.10.9"
         digest: ""
     runnerConfig: |
       cache:
