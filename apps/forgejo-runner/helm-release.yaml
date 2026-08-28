@@ -30,41 +30,54 @@ spec:
       registry: registry.erwanleboucher.dev
       repository: eleboucher/runner
       tag: "12.13.0"
-    dind:
-      enabled: true
+    plugin:
       image:
-        repository: "library/docker"
-        tag: "27-dind"
-      resources:
-        requests:
-          cpu: 100m
-          memory: 256Mi
-        limits:
-          memory: 512Mi
+        repository: registry.erwanleboucher.dev/eleboucher/runner-k8s-plugin
+        tag: "12.10.9"
     runner:
       config:
         create: false
         existingSecret: "forgejo-runner-secret"
         file:
           runner:
-            envs:
-              DOCKER_HOST: "tcp://127.0.0.1:2376"
-              DOCKER_TLS_VERIFY: "1"
-              DOCKER_CERT_PATH: "/certs/client"
             capacity: 3
             timeout: "3h"
             shutdown_timeout: "3m"
-          container:
-            docker_host: "tcp://127.0.0.1:2376"
-            network: "host"
-            privileged: false
-            options: "-v /certs/client:/certs/client"
-            valid_volumes:
-              - /certs/client
+          plugins:
+            k8s:
+              address: "unix:///plugin/forgejo-runner-k8s.sock"
+              options:
+                namespace: forgejo-runner
+                poll_timeout: 10m
+                labels: "app.kubernetes.io/name=forgejo-runner-instance"
+                resources: |
+                  requests:
+                    cpu: 100m
+                    memory: 256Mi
+                  limits:
+                    memory: 1Gi
           cache:
             enabled: true
             dir: "/data/cache"
           log:
             level: info
+    podSpecs:
+      podspec-default.yaml: |
+        automountServiceAccountToken: false
+        containers:
+          - name: main
+            image: node:22-bookworm
+            imagePullPolicy: IfNotPresent
+            env:
+              - name: DEBIAN_FRONTEND
+                value: noninteractive
+            resources:
+              requests:
+                cpu: 100m
+                memory: 1Gi
+              limits:
+                cpu: 500m
+                memory: 4Gi
+        restartPolicy: Never
     securityContext:
-      privileged: true
+      privileged: false
