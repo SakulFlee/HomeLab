@@ -404,7 +404,7 @@ spec:
             - name: FLUXER_APP_PROXY_PORT
               value: "8080"
             - name: DISCOVERY_UPSTREAM_URL
-              value: http://api:8080/.well-known/fluxer
+              value: https://fluxer.sakul-flee.de/.well-known/fluxer
             - name: PUBLIC_BOOTSTRAP_API_ENDPOINT
               value: /api
             - name: PUBLIC_BOOTSTRAP_API_PUBLIC_ENDPOINT
