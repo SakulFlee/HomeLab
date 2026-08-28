@@ -25,13 +25,16 @@ spec:
   driftDetection:
     mode: enabled
   values:
+    forgejo:
+      url: "http://forgejo-http.forgejo.svc.cluster.local:3000"
+      existingSecret: "forgejo-runner-secret"
     image:
-      registry: registry.erwanleboucher.dev
-      repository: eleboucher/runner
+      repository: registry.erwanleboucher.dev/eleboucher/runner
       tag: "12.13.0"
-    runnerPlugins:
-      k8s:
-        image: registry.erwanleboucher.dev/eleboucher/runner-k8s-plugin:12.10.9
+    plugin:
+      image:
+        repository: registry.erwanleboucher.dev/eleboucher/runner-k8s-plugin
+        tag: "12.10.9"
     runnerConfig: |
       run:
         labels:
@@ -53,13 +56,11 @@ spec:
                 memory: 256Mi
               limits:
                 memory: 1Gi
-    runnerSecrets:
-      existingSecret: "forgejo-runner-secret"
-    cache:
-      enabled: true
-      dir: "/data/cache"
-    log:
-      level: info
+      cache:
+        enabled: true
+        dir: "/data/cache"
+      log:
+        level: info
     podSpecs:
       podspec-default.yaml: |
         automountServiceAccountToken: false
@@ -78,5 +79,5 @@ spec:
                 cpu: 500m
                 memory: 4Gi
         restartPolicy: Never
-    securityContext:
-      privileged: false
+    serviceAccount:
+      create: true
