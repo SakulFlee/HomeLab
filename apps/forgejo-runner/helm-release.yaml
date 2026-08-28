@@ -26,6 +26,8 @@ spec:
     mode: enabled
   values:
     knownLastVersion: true
+    dind:
+      enabled: false
     image:
       registry: registry.erwanleboucher.dev
       repository: eleboucher/runner
