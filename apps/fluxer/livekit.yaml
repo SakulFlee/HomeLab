@@ -57,7 +57,7 @@ spec:
                   name: fluxer-secrets
                   key: LIVEKIT_API_SECRET
             - name: LIVEKIT_KEYS
-              value: "fluxer:$(LIVEKIT_API_SECRET)"
+              value: "fluxer: $(LIVEKIT_API_SECRET)"
           ports:
             - name: http
               containerPort: 7880
