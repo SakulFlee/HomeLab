@@ -36,6 +36,8 @@ spec:
   values:
     image:
       repository: forgejo.sakul-flee.de/containers/hytale
+      tag: latest
+      pullPolicy: Always
     service:
       type: ClusterIP
     securityContext:
