@@ -64,7 +64,7 @@ spec:
               command:
                 - /bin/sh
                 - -c
-                - "tailscale --socket=/tmp/tailscaled.sock status | grep -q active"
+                - "tailscale --socket=/tmp/tailscaled.sock ip -4 | grep -q 100.64"
             initialDelaySeconds: 15
             periodSeconds: 20
             failureThreshold: 3
