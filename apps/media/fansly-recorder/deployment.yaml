@@ -33,7 +33,7 @@ spec:
             sizeLimit: 1Gi
       containers:
         - name: fansly-recorder
-          image: forgejo.sakul-flee.de/sakulflee/fansly-recorder:v0.1.27
+          image: forgejo.sakul-flee.de/sakulflee/fansly-recorder:latest
           imagePullPolicy: Always
           command: ["/bin/bash", "/scripts/run.sh"]
           env:
