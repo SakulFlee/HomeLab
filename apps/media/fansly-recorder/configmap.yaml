@@ -14,9 +14,20 @@ data:
     PID_FILE="/tmp/fansly-pids"
     CHECK_INTERVAL=60
     WATCH_INTERVAL=300
+    SPAWN_STAGGER=15
 
     mkdir -p /tmp "$OUTPUT_DIR"
     : > "$PID_FILE"
+
+    # Chromium crashes (NOTREACHED in remote_font_face_source) on Fansly live
+    # pages when fontconfig cannot find a config. The nix image ships fontconfig
+    # but not at the default /etc/fonts path, so copy the bundled config into
+    # place. The path is discovered at runtime so this survives image rebuilds.
+    if [ ! -f /etc/fonts/fonts.conf ]; then
+      mkdir -p /etc/fonts
+      FC=$(ls -d /nix/store/*fontconfig*/etc/fonts/fonts.conf 2>/dev/null | head -1)
+      [ -n "$FC" ] && cp "$FC" /etc/fonts/fonts.conf
+    fi
 
     log() { printf '[fansly-recorder] %s - %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$1"; }
 
@@ -69,7 +80,7 @@ data:
     spawn_recorder() {
       cd "$OUTPUT_DIR" || exit 1
       exec fansly-recorder --url "$1" --storage-state "$AUTH_FILE" \
-        --watch --interval "$WATCH_INTERVAL" --format mkv
+        --format mkv
     }
 
     url_running() {
@@ -104,7 +115,7 @@ data:
         done < "$URLS_FILE"
       fi
 
-      # start missing recorders
+      # start missing recorders (staggered so browsers don't all launch at once)
       url=""
       pid=""
       for url in "${desired[@]}"; do
@@ -112,6 +123,7 @@ data:
           log "Starting recorder for $url"
           spawn_recorder "$url" &
           echo "$url $!" >> "$PID_FILE"
+          sleep "${SPAWN_STAGGER}"
         fi
       done
 

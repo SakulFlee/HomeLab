@@ -30,7 +30,7 @@ spec:
         - name: dshm
           emptyDir:
             medium: Memory
-            sizeLimit: 1Gi
+            sizeLimit: 2Gi
       containers:
         - name: fansly-recorder
           image: forgejo.sakul-flee.de/sakulflee/fansly-recorder:latest
@@ -45,7 +45,7 @@ spec:
               memory: 512Mi
             limits:
               cpu: "2"
-              memory: 4Gi
+              memory: 8Gi
           volumeMounts:
             - name: nas-nsfw
               mountPath: /mnt/nas/NSFW
