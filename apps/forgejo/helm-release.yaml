@@ -101,7 +101,7 @@ spec:
           PROTOCOL: smtps
           SMTP_ADDR: smtp.purelymail.com
           SMTP_PORT: 465
-          USER: dev@sakul-flee.de
+          USER: lweber@sakul-flee.de
           FROM: forgejo@sakul-flee.de
         server:
           LFS_START_SERVER: true
