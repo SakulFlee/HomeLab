@@ -2,7 +2,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: subnet-router-state
-  namespace: subnet-router
+  namespace: headscale
 spec:
   storageClassName: local-path-backup
   accessModes:

@@ -12,3 +12,5 @@ resources:
   - ingress.yaml
   - middleware-vpn-only.yaml
   - reconciler/
+  - deployment.yaml
+  - state-pvc.yaml
