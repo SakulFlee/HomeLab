@@ -21,6 +21,12 @@ data:
         "Content-Type": "application/json",
     }
 
+    # Hosts that should resolve to the Headscale tailnet router IP so they are
+    # only reachable via the VPN (100.64.0.0/10). Used for vpn-only ingresses
+    # that Traefik restricts with the headscale-vpn-only middleware.
+    TAILNET_DOMAINS = ["syncthing.sakul-flee.de"]
+    TAILNET_IP = "100.64.0.1"
+
 
     def http_json(url, method="GET", payload=None):
         data = json.dumps(payload).encode() if payload else None
@@ -34,41 +40,53 @@ data:
             return resp.read().decode().strip()
 
 
-    def upsert_record(domain, record_type, content):
-        url = f"{CF_API}/zones/{ZONE_ID}/dns_records?type={record_type}&name={domain}"
-        existing = http_json(url).get("result", [])
+    def get_records(name):
+        return http_json(f"{CF_API}/zones/{ZONE_ID}/dns_records?name={name}").get("result", [])
 
+
+    def upsert_a(domain, content):
+        existing = [r for r in get_records(domain) if r.get("type") == "A"]
         if existing:
             record = existing[0]
             if record.get("content") == content:
-                print(f"{domain} ({record_type}) already set to {content}")
+                print(f"{domain} (A) already set to {content}")
                 return
-            record_id = record["id"]
             http_json(
-                f"{CF_API}/zones/{ZONE_ID}/dns_records/{record_id}",
+                f"{CF_API}/zones/{ZONE_ID}/dns_records/{record['id']}",
                 method="PATCH",
                 payload={
-                    "type": record_type,
+                    "type": "A",
                     "name": domain,
                     "content": content,
                     "ttl": 120,
                 },
             )
-            print(f"{domain} ({record_type}): {record['content']} -> {content}")
+            print(f"{domain} (A): {record['content']} -> {content}")
         else:
+            # Remove any conflicting non-A record (e.g. a CNAME) for this name
+            # before creating the A record.
+            for record in get_records(domain):
+                http_json(
+                    f"{CF_API}/zones/{ZONE_ID}/dns_records/{record['id']}",
+                    method="DELETE",
+                )
+                print(f"{domain}: deleted conflicting {record['type']} record")
             http_json(
                 f"{CF_API}/zones/{ZONE_ID}/dns_records",
                 method="POST",
                 payload={
-                    "type": record_type,
+                    "type": "A",
                     "name": domain,
                     "content": content,
                     "ttl": 120,
                 },
             )
-            print(f"{domain} ({record_type}): created -> {content}")
+            print(f"{domain} (A): created -> {content}")
 
 
     ip4 = current_ip("https://ipv4.icanhazip.com")
     for domain in DOMAINS:
-        upsert_record(domain, "A", ip4)
+        upsert_a(domain, ip4)
+
+    for domain in TAILNET_DOMAINS:
+        upsert_a(domain, TAILNET_IP)
