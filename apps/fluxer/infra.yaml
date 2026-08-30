@@ -78,6 +78,7 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /var/lib/postgresql/data
+      terminationGracePeriodSeconds: 120
       volumes:
         - name: data
           persistentVolumeClaim:
@@ -124,6 +125,13 @@ spec:
           ports:
             - name: valkey
               containerPort: 6379
+          startupProbe:
+            exec:
+              command: ["valkey-cli", "ping"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
           readinessProbe:
             exec:
               command: ["valkey-cli", "ping"]
@@ -194,6 +202,13 @@ spec:
               containerPort: 4222
             - name: monitor
               containerPort: 8222
+          startupProbe:
+            tcpSocket:
+              port: client
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
           readinessProbe:
             tcpSocket:
               port: client
@@ -276,6 +291,14 @@ spec:
           ports:
             - name: http
               containerPort: 7700
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
           livenessProbe:
             httpGet:
               path: /health
@@ -294,7 +317,7 @@ spec:
             failureThreshold: 3
           resources:
             requests:
-              cpu: 500m
+              cpu: 2
               memory: 512Mi
             limits:
               cpu: 2
@@ -362,6 +385,13 @@ spec:
               containerPort: 8333
             - name: master
               containerPort: 9333
+          startupProbe:
+            tcpSocket:
+              port: s3
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
           readinessProbe:
             tcpSocket:
               port: s3
