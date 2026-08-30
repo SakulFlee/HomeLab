@@ -47,6 +47,13 @@ spec:
           ports:
             - name: postgres
               containerPort: 5432
+          startupProbe:
+            exec:
+              command: ["sh", "-c", "pg_isready -U fluxer -d fluxer"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
           livenessProbe:
             exec:
               command: ["sh", "-c", "pg_isready -U fluxer -d fluxer"]
@@ -287,10 +294,10 @@ spec:
             failureThreshold: 3
           resources:
             requests:
-              cpu: 200m
+              cpu: 500m
               memory: 512Mi
             limits:
-              cpu: 1
+              cpu: 2
               memory: 2Gi
           volumeMounts:
             - name: data

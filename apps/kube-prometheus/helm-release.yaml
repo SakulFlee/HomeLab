@@ -31,6 +31,9 @@ spec:
   values:
     grafana:
       replicas: 1
+      grafana.ini:
+        database:
+          lock_retries: 50
       ingress:
         enabled: true
         ingressClassName: traefik
