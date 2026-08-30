@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: fluxer-webhook-relay
+  namespace: flux-system
+spec:
+  type: ClusterIP
+  selector:
+    app: fluxer-webhook-relay
+  ports:
+  - port: 8080
+    targetPort: 8080

@@ -6,7 +6,7 @@ metadata:
   namespace: flux-system
 spec:
   providerRef:
-    name: notification-provider-telegram
+    name: notification-provider-fluxer
   eventSeverity: info
   eventSources:
     - kind: GitRepository

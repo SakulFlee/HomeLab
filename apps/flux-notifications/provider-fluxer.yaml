@@ -2,9 +2,8 @@
 apiVersion: notification.toolkit.fluxcd.io/v1beta3
 kind: Provider
 metadata:
-  name: notification-provider-telegram
+  name: notification-provider-fluxer
   namespace: flux-system
 spec:
-  type: telegram
-  secretRef:
-    name: notification-provider-telegram
+  type: generic
+  address: http://fluxer-webhook-relay:8080

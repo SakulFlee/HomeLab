@@ -4,6 +4,7 @@ metadata:
   name: flux-notifications
   namespace: flux-system
 resources:
-- provider-telegram.yaml
+- relay-deployment.yaml
+- relay-service.yaml
+- provider-fluxer.yaml
 - alerts-overall.yaml
-- secrets/

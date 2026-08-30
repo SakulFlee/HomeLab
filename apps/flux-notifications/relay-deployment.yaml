@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fluxer-webhook-relay
+  namespace: flux-system
+  labels:
+    app: fluxer-webhook-relay
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fluxer-webhook-relay
+  template:
+    metadata:
+      labels:
+        app: fluxer-webhook-relay
+    spec:
+      containers:
+      - name: relay
+        image: python:3.12-alpine
+        command: ["python3", "-c"]
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities: { drop: ["ALL"] }
+          runAsNonRoot: true
+          runAsUser: 65534
+          seccompProfile: { type: RuntimeDefault }
+        args:
+        - |
+          import http.server, json, urllib.request, os, sys
+
+          URL = os.environ["FLUXER_WEBHOOK_URL"]
+
+          def transform(event):
+              sev = event.get("severity", event.get("type", "info"))
+              color = {"error": 15158332, "warning": 16776960}.get(sev, 3066993)
+              obj = event.get("involvedObject", {})
+              return {
+                  "username": "Flux",
+                  "embeds": [{
+                      "title": f"{obj.get('kind','?')}/{obj.get('name','?')}/{obj.get('namespace','?')}",
+                      "description": event.get("message", ""),
+                      "color": color,
+                      "author": {"name": event.get("reportingController", "flux")},
+                  }],
+              }
+
+          class H(http.server.BaseHTTPRequestHandler):
+              def do_POST(self):
+                  body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
+                  try:
+                      payload = json.dumps(transform(json.loads(body))).encode()
+                      req = urllib.request.Request(URL, data=payload,
+                          headers={"Content-Type": "application/json",
+                                   "Host": "fluxer.sakul-flee.de",
+                                   "X-Forwarded-For": "10.0.0.1"},
+                          method="POST")
+                      with urllib.request.urlopen(req, timeout=15) as r:
+                          self.send_response(r.status)
+                  except Exception as e:
+                      print(e, file=sys.stderr)
+                      self.send_response(502)
+                  self.send_header("Content-Length", "0")
+                  self.end_headers()
+              def log_message(self, *a): print(*a, file=sys.stderr)
+
+          print(f"relay -> {URL}", file=sys.stderr)
+          http.server.HTTPServer(("0.0.0.0", 8080), H).serve_forever()
+        ports:
+        - containerPort: 8080
+        env:
+        - name: FLUXER_WEBHOOK_URL
+          value: "http://api.fluxer.svc.cluster.local:8080/webhooks/1543671959890427906/SJZMRRNQSn77qJASzxFAgO5kYvMaJGf27JzayYDSO0QQuUyNDbNJ1wlWzjlE9Hvj"
+        resources:
+          requests: { cpu: 10m, memory: 32Mi }
+          limits:   { cpu: 100m, memory: 64Mi }
+        readinessProbe:
+          tcpSocket: { port: 8080 }
+          initialDelaySeconds: 3
+          periodSeconds: 10
