@@ -11,7 +11,7 @@ spec:
   chart:
     spec:
       chart: minecraft
-      version: 5.x
+      version: 5.1.x
       sourceRef:
         kind: HelmRepository
         name: minecraft-server-charts
