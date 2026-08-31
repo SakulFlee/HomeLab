@@ -7,9 +7,12 @@ metadata:
 spec:
   providerRef:
     name: notification-provider-fluxer
-  eventSeverity: warning
+  eventSeverity: info
   eventSources:
     - kind: GitRepository
       name: "*"
     - kind: Kustomization
       name: "*"
+  exclusionList:
+    - "Reconciliation finished"
+    - "Reconciliation succeeded"
