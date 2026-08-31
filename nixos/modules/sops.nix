@@ -5,7 +5,7 @@
   ];
 
   # Tell SOPS where your encrypted file lives in your repo
-  sops.defaultSopsFile = ../../secrets.yaml;
+  sops.defaultSopsFile = ../secrets.yaml;
   sops.defaultSopsFormat = "yaml";
 
   # Tell SOPS which keys to use for decryption on the hardware
