@@ -7,10 +7,9 @@ metadata:
 spec:
   providerRef:
     name: notification-provider-fluxer
-  eventSeverity: info
+  eventSeverity: warning
   eventSources:
     - kind: GitRepository
-      name: '*'
+      name: "*"
     - kind: Kustomization
-      name: '*'
-  exclusionList: [BackupTarget/longhorn-system/default configured]
+      name: "*"
