@@ -23,12 +23,6 @@
     };
   };
 
-  programs.ssh = {
-    enable = true;
-    enableDefaultConfig = false;
-    settings."*" = { SetEnv.TERM = "xterm-256color"; };
-  };
-
   programs.zsh = {
     enable = true;
     shellAliases = { n = "nvim"; lg = "lazygit"; };
