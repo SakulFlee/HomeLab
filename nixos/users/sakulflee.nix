@@ -9,7 +9,7 @@
 
   programs.git = {
     enable = true;
-    settings = {
+    config = {
       user = {
         name = "@SakulFlee | Lukas Weber";
         email = "dev@sakul-flee.de";
