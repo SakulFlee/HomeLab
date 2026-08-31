@@ -26,7 +26,7 @@
   programs.zsh = {
     enable = true;
     shellAliases = { n = "nvim"; lg = "lazygit"; };
-    initContent = ''
+    interactiveShellInit = ''
       if [ -z "$SSH_AUTH_SOCK" ]; then
         eval "$(ssh-agent >/dev/null 2>&1)"
       fi
