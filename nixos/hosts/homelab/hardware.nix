@@ -2,10 +2,10 @@
 
 {
   imports = [
-    ../../shared/hardware/firmware.nix
-    ../../shared/hardware/microcode.nix
-    ../../shared/hardware/i2c.nix
-    ../../shared/hardware/gpu-amdgpu.nix
+    ../../hardware/firmware.nix
+    ../../hardware/microcode.nix
+    ../../hardware/i2c.nix
+    ../../hardware/gpu-amdgpu.nix
   ];
 
   boot.initrd.availableKernelModules = [ "xhci_pci" "ahci" "usb_storage" "sd_mod" "sdhci_pci" ];

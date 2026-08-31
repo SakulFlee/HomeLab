@@ -18,5 +18,8 @@
     busybox
     diffutils
     lm_sensors
+
+    # Editor
+    neovim
   ];
 }
