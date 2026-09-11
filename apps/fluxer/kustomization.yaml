@@ -6,7 +6,6 @@ metadata:
 resources:
   - namespace.yaml
   - configmap.yaml
-  - secrets/
   - infra/
   - livekit/
   - api/
