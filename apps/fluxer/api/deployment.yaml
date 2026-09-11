@@ -1,0 +1,137 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: fluxer
+  labels:
+    app: api
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: api
+  template:
+    metadata:
+      labels:
+        app: api
+    spec:
+      initContainers:
+        - name: wait-postgres
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - until pg_isready -h postgres -U fluxer -d fluxer; do sleep 2; done
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+        - name: wait-meilisearch
+          image: busybox:1.36
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - until wget -q -O- http://meilisearch:7700/health; do sleep 2; done
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+        - name: wait-valkey
+          image: busybox:1.36
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - until nc -z -w 2 valkey 6379; do sleep 2; done
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+        - name: wait-nats
+          image: busybox:1.36
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - until nc -z -w 2 nats 4222; do sleep 2; done
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+        - name: init-buckets
+          image: chrislusf/seaweedfs:4.34
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              until curl -s -o /dev/null "http://seaweedfs:8333/"; do sleep 2; done
+              for b in fluxer fluxer-uploads fluxer-downloads fluxer-reports fluxer-harvests; do
+                curl -s -o /dev/null -X PUT "http://seaweedfs:8333/$b" || true
+              done
+              exit 0
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+      containers:
+        - name: api
+          image: ghcr.io/fluxerapp/fluxer-api:v1
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: fluxer-config
+            - secretRef:
+                name: fluxer-secrets
+          env:
+            - name: FLUXER_API_PORT
+              value: "8080"
+            - name: FLUXER_API_PRESIGNED_ATTACHMENT_UPLOADS_ENABLED
+              value: "true"
+          ports:
+            - name: http
+              containerPort: 8080
+          startupProbe:
+            httpGet:
+              path: /_health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /_health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 6
+          readinessProbe:
+            httpGet:
+              path: /_health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 2
+              memory: 4Gi

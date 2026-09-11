@@ -1,0 +1,81 @@
+---
+# unfurl (router + shard)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: unfurl
+  namespace: fluxer
+  labels:
+    app: unfurl
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: unfurl
+  template:
+    metadata:
+      labels:
+        app: unfurl
+    spec:
+      containers:
+        - name: unfurl
+          image: ghcr.io/fluxerapp/fluxer-unfurl:v1
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: fluxer-config
+            - secretRef:
+                name: fluxer-secrets
+          env:
+            - name: FLUXER_SVC_MODE
+              value: router
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: unfurl-shard
+  namespace: fluxer
+  labels:
+    app: unfurl-shard
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: unfurl-shard
+  template:
+    metadata:
+      labels:
+        app: unfurl-shard
+    spec:
+      containers:
+        - name: unfurl-shard
+          image: ghcr.io/fluxerapp/fluxer-unfurl:v1
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: fluxer-config
+            - secretRef:
+                name: fluxer-secrets
+          env:
+            - name: FLUXER_SVC_MODE
+              value: shard
+            - name: FLUXER_SVC_SHARD_ID
+              value: "0"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi

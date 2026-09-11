@@ -1,0 +1,95 @@
+---
+# users (router + shard)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: users
+  namespace: fluxer
+  labels:
+    app: users
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: users
+  template:
+    metadata:
+      labels:
+        app: users
+    spec:
+      containers:
+        - name: users
+          image: ghcr.io/fluxerapp/fluxer-users:v1
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: fluxer-config
+            - secretRef:
+                name: fluxer-secrets
+          env:
+            - name: FLUXER_SVC_MODE
+              value: router
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: users-shard
+  namespace: fluxer
+  labels:
+    app: users-shard
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: users-shard
+  template:
+    metadata:
+      labels:
+        app: users-shard
+    spec:
+      initContainers:
+        - name: wait-postgres
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - until pg_isready -h postgres -U fluxer -d fluxer; do sleep 2; done
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+      containers:
+        - name: users-shard
+          image: ghcr.io/fluxerapp/fluxer-users:v1
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: fluxer-config
+            - secretRef:
+                name: fluxer-secrets
+          env:
+            - name: FLUXER_SVC_MODE
+              value: shard
+            - name: FLUXER_SVC_SHARD_ID
+              value: "0"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi

@@ -1,0 +1,95 @@
+---
+# messages (router + shard)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: messages
+  namespace: fluxer
+  labels:
+    app: messages
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: messages
+  template:
+    metadata:
+      labels:
+        app: messages
+    spec:
+      containers:
+        - name: messages
+          image: ghcr.io/fluxerapp/fluxer-messages:v1
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: fluxer-config
+            - secretRef:
+                name: fluxer-secrets
+          env:
+            - name: FLUXER_SVC_MODE
+              value: router
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: messages-shard
+  namespace: fluxer
+  labels:
+    app: messages-shard
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: messages-shard
+  template:
+    metadata:
+      labels:
+        app: messages-shard
+    spec:
+      initContainers:
+        - name: wait-postgres
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - until pg_isready -h postgres -U fluxer -d fluxer; do sleep 2; done
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+      containers:
+        - name: messages-shard
+          image: ghcr.io/fluxerapp/fluxer-messages:v1
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: fluxer-config
+            - secretRef:
+                name: fluxer-secrets
+          env:
+            - name: FLUXER_SVC_MODE
+              value: shard
+            - name: FLUXER_SVC_SHARD_ID
+              value: "0"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi

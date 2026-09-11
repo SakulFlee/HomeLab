@@ -1,0 +1,77 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: media-proxy
+  namespace: fluxer
+  labels:
+    app: media-proxy
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: media-proxy
+  template:
+    metadata:
+      labels:
+        app: media-proxy
+    spec:
+      initContainers:
+        - name: init-buckets
+          image: chrislusf/seaweedfs:4.34
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              until curl -s -o /dev/null "http://seaweedfs:8333/"; do sleep 2; done
+              for b in fluxer fluxer-uploads fluxer-downloads fluxer-reports fluxer-harvests; do
+                curl -s -o /dev/null -X PUT "http://seaweedfs:8333/$b" || true
+              done
+              exit 0
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+      containers:
+        - name: media-proxy
+          image: ghcr.io/fluxerapp/fluxer-media-proxy:v1
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: fluxer-config
+            - secretRef:
+                name: fluxer-secrets
+          env:
+            - name: FLUXER_MEDIA_PROXY_HOST
+              value: 0.0.0.0
+            - name: FLUXER_MEDIA_PROXY_PORT
+              value: "8080"
+            - name: FLUXER_MEDIA_PROXY_MODE
+              value: upload
+            - name: FLUXER_MEDIA_PROXY_STORAGE_BACKEND
+              value: s3
+            - name: FLUXER_MEDIA_PROXY_PUBLIC_ENDPOINT
+              value: https://fluxer.sakul-flee.de/media
+            - name: FLUXER_S3_READ_SIGNED
+              value: "true"
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: 1
+              memory: 2Gi

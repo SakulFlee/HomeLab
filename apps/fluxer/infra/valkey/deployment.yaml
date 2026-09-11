@@ -1,0 +1,63 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: valkey
+  namespace: fluxer
+  labels:
+    app: valkey
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: valkey
+  template:
+    metadata:
+      labels:
+        app: valkey
+    spec:
+      containers:
+        - name: valkey
+          image: valkey/valkey:8.1-alpine
+          imagePullPolicy: IfNotPresent
+          command: ["valkey-server", "--save", "", "--appendonly", "no"]
+          ports:
+            - name: valkey
+              containerPort: 6379
+          startupProbe:
+            exec:
+              command: ["valkey-cli", "ping"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            exec:
+              command: ["valkey-cli", "ping"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: valkey
+  namespace: fluxer
+spec:
+  type: ClusterIP
+  selector:
+    app: valkey
+  ports:
+    - name: valkey
+      port: 6379
+      targetPort: 6379

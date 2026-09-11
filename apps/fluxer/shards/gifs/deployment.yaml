@@ -1,0 +1,89 @@
+---
+# gifs (router + shard)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gifs
+  namespace: fluxer
+  labels:
+    app: gifs
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: gifs
+  template:
+    metadata:
+      labels:
+        app: gifs
+    spec:
+      containers:
+        - name: gifs
+          image: ghcr.io/fluxerapp/fluxer-gifs:v1
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: fluxer-config
+            - secretRef:
+                name: fluxer-secrets
+          env:
+            - name: FLUXER_SVC_NAME
+              value: gifs
+            - name: FLUXER_SVC_MODE
+              value: router
+            - name: FLUXER_MEDIA_PROXY_PUBLIC_ENDPOINT
+              value: https://fluxer.sakul-flee.de/media
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gifs-shard
+  namespace: fluxer
+  labels:
+    app: gifs-shard
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: gifs-shard
+  template:
+    metadata:
+      labels:
+        app: gifs-shard
+    spec:
+      containers:
+        - name: gifs-shard
+          image: ghcr.io/fluxerapp/fluxer-gifs:v1
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: fluxer-config
+            - secretRef:
+                name: fluxer-secrets
+          env:
+            - name: FLUXER_SVC_NAME
+              value: gifs
+            - name: FLUXER_SVC_MODE
+              value: shard
+            - name: FLUXER_SVC_SHARD_ID
+              value: "0"
+            - name: FLUXER_MEDIA_PROXY_PUBLIC_ENDPOINT
+              value: https://fluxer.sakul-flee.de/media
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi

@@ -1,0 +1,13 @@
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: fluxer-sakul-flee-de-tls
+  namespace: fluxer
+spec:
+  secretName: fluxer-sakul-flee-de-tls
+  dnsNames:
+    - fluxer.sakul-flee.de
+  issuerRef:
+    name: letsencrypt-production
+    kind: ClusterIssuer

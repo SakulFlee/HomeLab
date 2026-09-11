@@ -1,0 +1,50 @@
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-api
+  namespace: fluxer
+spec:
+  stripPrefix:
+    prefixes:
+      - /api
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-gateway
+  namespace: fluxer
+spec:
+  stripPrefix:
+    prefixes:
+      - /gateway
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-media
+  namespace: fluxer
+spec:
+  stripPrefix:
+    prefixes:
+      - /media
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-livekit
+  namespace: fluxer
+spec:
+  stripPrefix:
+    prefixes:
+      - /livekit
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-admin
+  namespace: fluxer
+spec:
+  stripPrefix:
+    prefixes:
+      - /admin

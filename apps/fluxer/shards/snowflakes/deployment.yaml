@@ -1,0 +1,81 @@
+---
+# snowflakes (router + shard)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: snowflakes
+  namespace: fluxer
+  labels:
+    app: snowflakes
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: snowflakes
+  template:
+    metadata:
+      labels:
+        app: snowflakes
+    spec:
+      containers:
+        - name: snowflakes
+          image: ghcr.io/fluxerapp/fluxer-snowflakes:v1
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: fluxer-config
+            - secretRef:
+                name: fluxer-secrets
+          env:
+            - name: FLUXER_SVC_MODE
+              value: router
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: snowflakes-shard
+  namespace: fluxer
+  labels:
+    app: snowflakes-shard
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: snowflakes-shard
+  template:
+    metadata:
+      labels:
+        app: snowflakes-shard
+    spec:
+      containers:
+        - name: snowflakes-shard
+          image: ghcr.io/fluxerapp/fluxer-snowflakes:v1
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: fluxer-config
+            - secretRef:
+                name: fluxer-secrets
+          env:
+            - name: FLUXER_SVC_MODE
+              value: shard
+            - name: FLUXER_SVC_SHARD_ID
+              value: "0"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi

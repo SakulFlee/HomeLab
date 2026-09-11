@@ -1,0 +1,59 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  namespace: fluxer
+  labels:
+    app: gateway
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: gateway
+  template:
+    metadata:
+      labels:
+        app: gateway
+    spec:
+      containers:
+        - name: gateway
+          image: ghcr.io/fluxerapp/fluxer-gateway:v1
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: fluxer-config
+            - secretRef:
+                name: fluxer-secrets
+          env:
+            - name: FLUXER_GATEWAY_PORT
+              value: "8080"
+            - name: FLUXER_GATEWAY_MEDIA_PROXY_ENDPOINT
+              value: https://fluxer.sakul-flee.de/media
+            - name: FLUXER_GATEWAY_STATIC_CDN_ENDPOINT
+              value: https://fluxer.sakul-flee.de
+            - name: FLUXER_GATEWAY_LOGGER_LEVEL
+              value: info
+            - name: FLUXER_ERLANG_COOKIE
+              valueFrom:
+                secretKeyRef:
+                  name: fluxer-secrets
+                  key: FLUXER_ERLANG_COOKIE
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 500m
+              memory: 1Gi
+            limits:
+              cpu: 2
+              memory: 4Gi

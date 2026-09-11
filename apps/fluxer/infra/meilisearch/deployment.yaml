@@ -1,0 +1,101 @@
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: meilisearch-data
+  namespace: fluxer
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: local-path-persistent
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: meilisearch
+  namespace: fluxer
+  labels:
+    app: meilisearch
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: meilisearch
+  template:
+    metadata:
+      labels:
+        app: meilisearch
+    spec:
+      containers:
+        - name: meilisearch
+          image: getmeili/meilisearch:v1.12
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: MEILI_ENV
+              value: production
+            - name: MEILI_NO_ANALYTICS
+              value: "true"
+            - name: MEILI_MASTER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: fluxer-secrets
+                  key: FLUXER_SEARCH_API_KEY
+          ports:
+            - name: http
+              containerPort: 7700
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 30
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 2
+              memory: 512Mi
+            limits:
+              cpu: 2
+              memory: 2Gi
+          volumeMounts:
+            - name: data
+              mountPath: /meili_data
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: meilisearch-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: meilisearch
+  namespace: fluxer
+spec:
+  type: ClusterIP
+  selector:
+    app: meilisearch
+  ports:
+    - name: http
+      port: 7700
+      targetPort: 7700

@@ -80,3 +80,10 @@ data:
   FLUXER_MEDIA_PROXY_ENDPOINT: https://fluxer.sakul-flee.de/media
   FLUXER_MEDIA_ENDPOINT: https://fluxer.sakul-flee.de/media
   FLUXER_MEDIA_PROXY_UPLOAD_RELAY_ENDPOINT: https://fluxer.sakul-flee.de/media
+
+  LOG_LEVEL: "info"
+  FLUXER_API_HEADERS_TIMEOUT_MS: "30000"
+  FLUXER_API_REQUEST_TIMEOUT_MS: "120000"
+  FLUXER_SSO_ALLOW_PRIVATE_ADDRESSES: "false"
+  FLUXER_POSTGRES_PREPARED_STATEMENTS: "true"
+  FLUXER_LIVEKIT_URL: https://fluxer.sakul-flee.de/livekit

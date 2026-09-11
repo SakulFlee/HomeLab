@@ -1,0 +1,78 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-proxy
+  namespace: fluxer
+  labels:
+    app: app-proxy
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: app-proxy
+  template:
+    metadata:
+      labels:
+        app: app-proxy
+    spec:
+      containers:
+        - name: app-proxy
+          image: ghcr.io/fluxerapp/fluxer-app-proxy-self-hosted:v1
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: fluxer-config
+            - secretRef:
+                name: fluxer-secrets
+          env:
+            - name: FLUXER_APP_PROXY_HOST
+              value: 0.0.0.0
+            - name: FLUXER_APP_PROXY_PORT
+              value: "8080"
+            - name: DISCOVERY_UPSTREAM_URL
+              value: https://fluxer.sakul-flee.de/.well-known/fluxer
+            - name: PUBLIC_BOOTSTRAP_API_ENDPOINT
+              value: /api
+            - name: PUBLIC_BOOTSTRAP_API_PUBLIC_ENDPOINT
+              value: https://fluxer.sakul-flee.de/api
+            - name: FLUXER_CSP_EXTRA_DEFAULT_SRC
+              value: ""
+            - name: FLUXER_CSP_EXTRA_CONNECT_SRC
+              value: ""
+            - name: FLUXER_CSP_EXTRA_IMG_SRC
+              value: ""
+            - name: FLUXER_CSP_EXTRA_MEDIA_SRC
+              value: ""
+            - name: FLUXER_CSP_EXTRA_FONT_SRC
+              value: ""
+            - name: FLUXER_CSP_EXTRA_SCRIPT_SRC
+              value: ""
+            - name: FLUXER_CSP_EXTRA_STYLE_SRC
+              value: ""
+            - name: FLUXER_CSP_EXTRA_FRAME_SRC
+              value: ""
+            - name: FLUXER_CSP_EXTRA_WORKER_SRC
+              value: ""
+            - name: FLUXER_CSP_EXTRA_MANIFEST_SRC
+              value: ""
+            - name: FLUXER_CSP_REPORT_URI
+              value: ""
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

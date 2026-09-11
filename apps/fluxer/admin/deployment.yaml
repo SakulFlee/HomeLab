@@ -1,0 +1,64 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: admin
+  namespace: fluxer
+  labels:
+    app: admin
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: admin
+  template:
+    metadata:
+      labels:
+        app: admin
+    spec:
+      containers:
+        - name: admin
+          image: ghcr.io/fluxerapp/fluxer-admin:v1
+          imagePullPolicy: IfNotPresent
+          envFrom:
+            - configMapRef:
+                name: fluxer-config
+            - secretRef:
+                name: fluxer-secrets
+          env:
+            - name: FLUXER_ADMIN_HOST
+              value: 0.0.0.0
+            - name: FLUXER_ADMIN_PORT
+              value: "8080"
+            - name: FLUXER_ADMIN_BASE_PATH
+              value: /admin
+            - name: FLUXER_API_ENDPOINT
+              value: http://api:8080
+            - name: FLUXER_ADMIN_ENDPOINT
+              value: https://fluxer.sakul-flee.de/admin
+            - name: FLUXER_APP_ENDPOINT
+              value: https://fluxer.sakul-flee.de
+            - name: FLUXER_MEDIA_ENDPOINT
+              value: https://fluxer.sakul-flee.de/media
+            - name: FLUXER_STATIC_CDN_ENDPOINT
+              value: https://fluxer.sakul-flee.de
+            - name: FLUXER_ADMIN_OAUTH_REDIRECT_URI
+              value: https://fluxer.sakul-flee.de/admin/oauth2_callback
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
