@@ -37,7 +37,7 @@ spec:
         tag: "12.10.9"
     runnerConfig: |
       runner:
-        capacity: 3
+        capacity: 4
         timeout: "3h"
         shutdown_timeout: "3m"
         labels:
@@ -75,9 +75,8 @@ spec:
             resources:
               requests:
                 cpu: 100m
-                memory: 1Gi
+                memory: 512Mi
               limits:
-                cpu: 500m
                 memory: 4Gi
         restartPolicy: Never
     serviceAccount:
