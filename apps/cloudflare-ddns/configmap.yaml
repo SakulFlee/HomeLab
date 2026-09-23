@@ -21,11 +21,27 @@ data:
         "Content-Type": "application/json",
     }
 
-    # Hosts that should resolve to the Headscale tailnet router IP so they are
-    # only reachable via the VPN (100.64.0.0/10). Used for vpn-only ingresses
-    # that Traefik restricts with the headscale-vpn-only middleware.
-    TAILNET_DOMAINS = ["syncthing.sakul-flee.de"]
-    TAILNET_IP = "100.64.0.6"
+    # Hosts that are only reachable on the LAN or through the WireGuard
+    # VPN. They resolve to the cluster host (192.168.178.200), which is
+    # only routable from inside the LAN or via the tunnel. VPN-only
+    # services are further restricted by the wireguard-vpn-only Traefik
+    # middleware (100.64.0.0/10); the VPN admin UI additionally allows
+    # LAN sources through the wireguard-lan-or-vpn middleware.
+    PRIVATE_RECORDS = {
+        "jellyfin.sakul-flee.de": "192.168.178.200",
+        "sonarr.sakul-flee.de": "192.168.178.200",
+        "radarr.sakul-flee.de": "192.168.178.200",
+        "prowlarr.sakul-flee.de": "192.168.178.200",
+        "qbittorrent.sakul-flee.de": "192.168.178.200",
+        "qui.sakul-flee.de": "192.168.178.200",
+        "bitmagnet.sakul-flee.de": "192.168.178.200",
+        "llama-swap.sakul-flee.de": "192.168.178.200",
+        "grafana.sakul-flee.de": "192.168.178.200",
+        "paperless.sakul-flee.de": "192.168.178.200",
+        "syncthing.sakul-flee.de": "192.168.178.200",
+        "nas.sakul-flee.de": "192.168.178.200",
+        "vpn.sakul-flee.de": "192.168.178.200",
+    }
 
 
     def http_json(url, method="GET", payload=None):
@@ -88,5 +104,5 @@ data:
     for domain in DOMAINS:
         upsert_a(domain, ip4)
 
-    for domain in TAILNET_DOMAINS:
-        upsert_a(domain, TAILNET_IP)
+    for domain, ip in PRIVATE_RECORDS.items():
+        upsert_a(domain, ip)

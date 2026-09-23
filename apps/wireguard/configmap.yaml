@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wg-access-server-config
+  namespace: wireguard
+data:
+  config.yaml: |
+    loglevel: info
+    storage: sqlite3:///data/db.sqlite3
+    # Endpoint written into client configs. Resolves via the public
+    # *.sakul-flee.de wildcard record, so remote clients can handshake
+    # before the tunnel exists (requires UDP 51820 forwarded to .200).
+    externalHost: wg.sakul-flee.de
+    https:
+      # TLS is terminated by Traefik, no self-signed listener needed.
+      enabled: false
+    wireguard:
+      port: 51820
+    vpn:
+      # Slice of the old tailnet range so the wireguard-vpn-only
+      # Traefik allow-list (100.64.0.0/10) keeps working unchanged.
+      cidr: 100.64.0.0/24
+      cidrv6: "0"
+      # Split tunnel: VPN subnet + LAN (replaces the old subnet-router
+      # --advertise-routes=192.168.178.0/24).
+      allowedIPs:
+        - 100.64.0.0/10
+        - 192.168.178.0/24
+    dns:
+      # Clients use public resolvers directly; service records live in
+      # public Cloudflare DNS (managed by cloudflare-ddns).
+      enabled: false
+    clientConfig:
+      dnsServers:
+        - 9.9.9.9
+        - 149.112.112.112
+      PersistentKeepalive: 25

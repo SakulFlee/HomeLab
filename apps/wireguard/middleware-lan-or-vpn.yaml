@@ -1,0 +1,10 @@
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: lan-or-vpn
+  namespace: wireguard
+spec:
+  ipAllowList:
+    sourceRange:
+      - 192.168.178.0/24
+      - 100.64.0.0/10

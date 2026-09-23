@@ -1,26 +1,26 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: radarr
-  namespace: media
+  name: wg-access-server
+  namespace: wireguard
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-production
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
-    traefik.ingress.kubernetes.io/router.middlewares: wireguard-vpn-only@kubernetescrd 
+    traefik.ingress.kubernetes.io/router.middlewares: wireguard-lan-or-vpn@kubernetescrd
 spec:
   ingressClassName: traefik
   rules:
-    - host: radarr.sakul-flee.de
+    - host: vpn.sakul-flee.de
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: radarr
+                name: wg-access-server
                 port:
-                  number: 7878
+                  number: 8000
   tls:
     - hosts:
-        - radarr.sakul-flee.de 
-      secretName: radarr-sakul-flee-de-tls
+        - vpn.sakul-flee.de
+      secretName: vpn-sakul-flee-de-tls

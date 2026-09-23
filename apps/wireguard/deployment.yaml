@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wg-access-server
+  namespace: wireguard
+  labels:
+    app: wg-access-server
+spec:
+  selector:
+    matchLabels:
+      app: wg-access-server
+  replicas: 1
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: wg-access-server
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      nodeSelector:
+        kubernetes.io/hostname: homelab
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: wg-access-server-data
+        - name: config
+          configMap:
+            name: wg-access-server-config
+      containers:
+        - name: wg-access-server
+          image: ghcr.io/freifunkmuc/wg-access-server:v1.2.0
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -c
+            # A leftover wg0 in the host network namespace (e.g. after a
+            # crash) makes v1.2.0 refuse to start, so clear it first.
+            - |
+              ip link delete wg0 2>/dev/null || true
+              exec wg-access-server serve
+          env:
+            - name: WG_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: wg-access-server-secrets
+                  key: admin-password
+            - name: WG_WIREGUARD_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: wg-access-server-secrets
+                  key: wireguard-private-key
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+            - name: wireguard
+              containerPort: 51820
+              protocol: UDP
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          securityContext:
+            privileged: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: config
+              mountPath: /config.yaml
+              subPath: config.yaml
