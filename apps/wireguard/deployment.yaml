@@ -97,7 +97,7 @@ spec:
           imagePullPolicy: IfNotPresent
           args:
             - -conf
-            - /coredns/Corefile
+            - /etc/coredns/Corefile
           ports:
             - name: dns-udp
               containerPort: 53
@@ -123,4 +123,4 @@ spec:
               memory: 64Mi
           volumeMounts:
             - name: split-dns-config
-              mountPath: /coredns
+              mountPath: /etc/coredns
