@@ -6,6 +6,7 @@ metadata:
 resources:
   - namespace.yaml
   - configmap.yaml
+  - coredns-configmap.yaml
   - data-pvc.yaml
   - deployment.yaml
   - service.yaml

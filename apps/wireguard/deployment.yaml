@@ -28,6 +28,9 @@ spec:
         - name: config
           configMap:
             name: wg-access-server-config
+        - name: split-dns-config
+          configMap:
+            name: wireguard-split-dns
       containers:
         - name: wg-access-server
           image: ghcr.io/freifunkmuc/wg-access-server:v1.2.0
@@ -84,3 +87,40 @@ spec:
             - name: config
               mountPath: /config.yaml
               subPath: config.yaml
+        # Split-horizon resolver for VPN clients: private answers for
+        # the vpn-only service names, everything else forwarded
+        # upstream. Shares the host network, so binding .200:53 makes
+        # it reachable pre-tunnel from the LAN and in-tunnel at the
+        # same address (clientConfig.dnsServers).
+        - name: split-dns
+          image: coredns/coredns:1.12.4
+          imagePullPolicy: IfNotPresent
+          args:
+            - -conf
+            - /coredns/Corefile
+          ports:
+            - name: dns-udp
+              containerPort: 53
+              protocol: UDP
+            - name: dns-tcp
+              containerPort: 53
+              protocol: TCP
+          readinessProbe:
+            tcpSocket:
+              port: 53
+            initialDelaySeconds: 2
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 53
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 64Mi
+          volumeMounts:
+            - name: split-dns-config
+              mountPath: /coredns

@@ -7,9 +7,11 @@ data:
   config.yaml: |
     loglevel: info
     storage: sqlite3:///data/db.sqlite3
-    # Endpoint written into client configs. Resolves via the public
-    # *.sakul-flee.de wildcard record, so remote clients can handshake
-    # before the tunnel exists (requires UDP 51820 forwarded to .200).
+    # Endpoint written into client configs. Resolves via an explicit
+    # DNS-only A record (public IP, kept current by cloudflare-ddns).
+    # The proxied *.sakul-flee.de wildcard would answer Cloudflare edge
+    # IPs, which UDP 51820 cannot traverse (requires UDP 51820
+    # forwarded to .200 on the router).
     externalHost: wg.sakul-flee.de
     https:
       # TLS is terminated by Traefik, no self-signed listener needed.
@@ -27,11 +29,18 @@ data:
         - 100.64.0.0/10
         - 192.168.178.0/24
     dns:
-      # Clients use public resolvers directly; service records live in
-      # public Cloudflare DNS (managed by cloudflare-ddns).
+      # wg-access-server's embedded DNS forwarder stays off: it cannot
+      # serve custom records and would collide with the split-horizon
+      # CoreDNS sidecar on :53 (both share the host network).
       enabled: false
     clientConfig:
+      # Split-horizon resolver (CoreDNS sidecar, 192.168.178.200:53):
+      # private answers for VPN-only service names, everything else
+      # forwarded upstream. The address is inside AllowedIPs, so all
+      # client DNS travels through the tunnel (no leaks) and is only
+      # reachable from the LAN or via the VPN. A single server on
+      # purpose: a fallback resolver could race public answers against
+      # split answers and surface Cloudflare addresses to clients.
       dnsServers:
-        - 9.9.9.9
-        - 149.112.112.112
+        - 192.168.178.200
       PersistentKeepalive: 25
