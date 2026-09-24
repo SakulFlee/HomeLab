@@ -13,6 +13,19 @@ Two Flux Kustomizations that ship together:
 All four hostnames are VPN-only (`wireguard-vpn-only@kubernetescrd`) and use
 `letsencrypt-production`.
 
+**Adding a hostname means editing three files, not two.** The ingress has to be
+paired with a `match` label in `apps/wireguard/coredns-configmap.yaml` — the A,
+AAAA *and* HTTPS templates. A name left out resolves through the proxied
+`*.sakul-flee.de` wildcard, so Traefik sees a Cloudflare edge IP instead of the
+client's `100.64.0.x` tunnel address and answers `403 Forbidden` even to a
+connected VPN client.
+
+JupyterLab is deliberately **not** in that list: it has no ingress. Reach it
+with `kubectl port-forward -n unsloth svc/unsloth-jupyter 8888:8888`
+(`JUPYTER_PASSWORD` from SOPS guards the login). Its `--notebook-dir` is
+`/workspace`, which is re-cloned from GitHub on every pod boot — save work under
+`/workspace/host` (the `unsloth-work` PVC) or it disappears on restart.
+
 The agent's model provider is pinned in managed scope
 (`apps/hermes/configmap.yaml`, mounted read-only at `/etc/hermes/config.yaml`),
 which wins over `~/.hermes/config.yaml` — but only per key, so `model.default`
@@ -61,6 +74,13 @@ editing values in place does not restart the pod, a changed name does.
 
 ## Troubleshooting
 
+- **`403 Forbidden` while connected to the VPN** — the hostname is missing from
+  the split-horizon allowlist in `apps/wireguard/coredns-configmap.yaml`. Check
+  with `dig +short unsloth.sakul-flee.de @192.168.178.200`: `192.168.178.200` is
+  correct, anything in `104.21.x`/`172.67.x` means it fell through to
+  Cloudflare. If the answer is stale after an edit, CoreDNS has no `reload`
+  plugin in that Corefile — `kubectl rollout restart deploy/wg-access-server -n
+  wireguard`, which bounces every VPN tunnel for a few seconds.
 - **Container exits immediately with status 0** — the tag matters. `:latest`
   is the base image and its CMD is `python`, which hits EOF and exits. Use
   `unsloth/unsloth-rocm:studio` (supervisord launches Studio on 8000 and

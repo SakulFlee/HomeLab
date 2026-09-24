@@ -15,18 +15,24 @@ data:
         # HTTPS are suppressed for the same names so clients cannot
         # prefer a Cloudflare edge address (which would bypass the
         # tunnel and be rejected by the middleware).
+        #
+        # Every VPN-only ingress hostname must be listed in ALL THREE
+        # match regexes below, in lockstep with apps/*/ingress.yaml. A name
+        # left out falls through to the proxied *.sakul-flee.de wildcard,
+        # reaches Traefik from a Cloudflare edge IP instead of 100.64.0.x
+        # and is rejected with 403 Forbidden even for a connected client.
         template IN A {
-            match "^(jellyfin|sonarr|radarr|prowlarr|qbittorrent|qui|bitmagnet|llama-swap|grafana|paperless|syncthing|nas|vpn)\.sakul-flee\.de\.$"
+            match "^(hermes-dashboard|hermes|unsloth|jellyfin|sonarr|radarr|prowlarr|qbittorrent|qui|llama-swap|grafana|paperless|syncthing|nas|vpn)\.sakul-flee\.de\.$"
             answer "{{ .Name }} 60 IN A 192.168.178.200"
             fallthrough
         }
         template IN AAAA {
-            match "^(jellyfin|sonarr|radarr|prowlarr|qbittorrent|qui|bitmagnet|llama-swap|grafana|paperless|syncthing|nas|vpn)\.sakul-flee\.de\.$"
+            match "^(hermes-dashboard|hermes|unsloth|jellyfin|sonarr|radarr|prowlarr|qbittorrent|qui|llama-swap|grafana|paperless|syncthing|nas|vpn)\.sakul-flee\.de\.$"
             rcode NOERROR
             fallthrough
         }
         template IN HTTPS {
-            match "^(jellyfin|sonarr|radarr|prowlarr|qbittorrent|qui|bitmagnet|llama-swap|grafana|paperless|syncthing|nas|vpn)\.sakul-flee\.de\.$"
+            match "^(hermes-dashboard|hermes|unsloth|jellyfin|sonarr|radarr|prowlarr|qbittorrent|qui|llama-swap|grafana|paperless|syncthing|nas|vpn)\.sakul-flee\.de\.$"
             rcode NOERROR
             fallthrough
         }
