@@ -1,0 +1,47 @@
+# Managed scope for Hermes: this file is mounted read-only at
+# /etc/hermes/config.yaml, where it wins over ~/.hermes/config.yaml,
+# ~/.hermes/.env and the shell environment - but only for the keys it pins,
+# and merging is leaf-by-leaf.
+#
+# That means `model.default` (the concrete model id) is deliberately NOT
+# pinned here: it stays user-editable from the dashboard / `hermes model`.
+#
+# To switch to a cloud provider (OpenRouter, ...) later: replace the `model:`
+# block below and add its key to apps/hermes/secrets. Bump the ConfigMap name
+# from -v1 to -v2 as well - ConfigMap edits alone do not restart the pod,
+# but a changed name does.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hermes-managed-config-v1
+  namespace: hermes
+data:
+  config.yaml: |
+    model:
+      provider: custom
+      base_url: http://unsloth-studio.unsloth.svc:8000/v1
+      api_mode: chat_completions
+      # Expanded from the container environment (hermes-secrets -> UNSLOTH_API_KEY).
+      # Bootstrap: create that key in Unsloth Studio -> Settings -> API, then
+      # `sops -e -i apps/hermes/secrets/secret.enc.yaml`.
+      api_key: "${UNSLOTH_API_KEY}"
+
+    terminal:
+      backend: local
+      cwd: /workspace
+
+    approvals:
+      mode: smart
+
+    compression:
+      enabled: true
+      threshold: 0.85
+
+    dashboard:
+      public_url: https://hermes-dashboard.sakul-flee.de
+      # Traefik runs with hostNetwork, so the proxy is the node itself /
+      # the pod CIDR rather than a bridge address. Bounded CIDRs only -
+      # Hermes rejects *, 0.0.0.0/0 and ::/0.
+      trusted_proxies:
+        - 192.168.178.0/24
+        - 10.42.0.0/16

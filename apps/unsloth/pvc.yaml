@@ -1,0 +1,56 @@
+# Unsloth Studio accounts, chats, exports and runs.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: unsloth-studio
+  namespace: unsloth
+spec:
+  storageClassName: local-path-persistent
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+# Hugging Face cache - downloaded models and datasets. Re-downloadable, so it
+# sits on the volatile tier (same treatment as llama-swap's model store).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: unsloth-hf-cache
+  namespace: unsloth
+spec:
+  storageClassName: local-path-volatile
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Gi
+---
+# Datasets and exported/fine-tuned models written by notebooks.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: unsloth-work
+  namespace: unsloth
+spec:
+  storageClassName: local-path-persistent
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+---
+# Prebuilt Triton kernels - speeds up restarts after image updates.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: unsloth-triton
+  namespace: unsloth
+spec:
+  storageClassName: local-path-volatile
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi

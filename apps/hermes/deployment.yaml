@@ -1,0 +1,236 @@
+# Upstream shape: docker-compose.two-container.yml
+#   agent  = nousresearch/hermes-agent   (gateway :8642 + dashboard :9119)
+#   webui  = ghcr.io/nesquena/hermes-webui (chat UI :8787)
+# Both containers share HERMES_HOME (hermes-data PVC) and the workspace PVC.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hermes
+  namespace: hermes
+  labels:
+    app: hermes
+spec:
+  selector:
+    matchLabels:
+      app: hermes
+  replicas: 1
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: hermes
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: homelab
+      securityContext:
+        # Both entrypoints start as root, fix ownership of the data volume, then
+        # drop to HERMES_UID / WANTED_UID (1000). Pin it so an image that ships
+        # a `USER` directive cannot silently break that handoff on a shared PVC.
+        runAsUser: 0
+        runAsGroup: 0
+      volumes:
+        # Shared with the WebUI read-only. The agent image's /opt/hermes is an
+        # immutable install tree; Docker seeds this named volume from the image
+        # on first `up`, Kubernetes emptyDir does not - so an init container
+        # does the copy. Keeps the WebUI's `uv pip install` of the agent source
+        # working (hermes-webui#858) without overlaying the agent's own tree.
+        - name: hermes-agent-src
+          emptyDir: {}
+        - name: hermes-data
+          persistentVolumeClaim:
+            claimName: hermes-data
+        - name: hermes-workspace
+          persistentVolumeClaim:
+            claimName: hermes-workspace
+        - name: managed-config
+          configMap:
+            name: hermes-managed-config-v1
+      initContainers:
+        - name: seed-agent-src
+          image: nousresearch/hermes-agent:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - /bin/sh
+            - -c
+            - cp -a /opt/hermes/. /agent-src/ && chmod -R a+rX /agent-src
+          volumeMounts:
+            - name: hermes-agent-src
+              mountPath: /agent-src
+      containers:
+        - name: agent
+          image: nousresearch/hermes-agent:latest
+          imagePullPolicy: IfNotPresent
+          args:
+            - gateway
+            - run
+          env:
+            - name: HERMES_HOME
+              value: /opt/data
+            # Both images must agree on ownership of the shared PVC.
+            - name: HERMES_UID
+              value: "1000"
+            - name: HERMES_GID
+              value: "1000"
+            # Expanded by managed scope for model.api_key.
+            - name: UNSLOTH_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: hermes-secrets
+                  key: UNSLOTH_API_KEY
+            # OpenAI-compatible API server (the /v1 route).
+            - name: API_SERVER_ENABLED
+              value: "true"
+            - name: API_SERVER_HOST
+              value: 0.0.0.0
+            - name: API_SERVER_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: hermes-secrets
+                  key: API_SERVER_KEY
+            # Browsers talk to the WebUI, which proxies to the gateway, so this
+            # is belt-and-braces for direct /v1 callers. Key auth is required
+            # regardless, and the whole router is VPN-only.
+            - name: API_SERVER_CORS_ORIGINS
+              value: "*"
+            # Monitoring dashboard (Hermes Desktop's Remote Gateway target).
+            # A non-loopback bind fails closed without basic auth, so all three
+            # are mandatory here.
+            - name: HERMES_DASHBOARD
+              value: "1"
+            - name: HERMES_DASHBOARD_HOST
+              value: 0.0.0.0
+            - name: HERMES_DASHBOARD_PORT
+              value: "9119"
+            - name: HERMES_DASHBOARD_BASIC_AUTH_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: hermes-secrets
+                  key: HERMES_DASHBOARD_BASIC_AUTH_USERNAME
+            - name: HERMES_DASHBOARD_BASIC_AUTH_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: hermes-secrets
+                  key: HERMES_DASHBOARD_BASIC_AUTH_PASSWORD
+            - name: HERMES_DASHBOARD_BASIC_AUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: hermes-secrets
+                  key: HERMES_DASHBOARD_BASIC_AUTH_SECRET
+          ports:
+            - name: gateway
+              containerPort: 8642
+            - name: dashboard
+              containerPort: 9119
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              # Browser automation (Playwright/Chromium) runs in this container.
+              memory: 6Gi
+          startupProbe:
+            tcpSocket:
+              port: gateway
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            tcpSocket:
+              port: gateway
+            periodSeconds: 10
+            failureThreshold: 6
+          livenessProbe:
+            tcpSocket:
+              port: gateway
+            periodSeconds: 20
+            failureThreshold: 6
+          volumeMounts:
+            - name: hermes-data
+              mountPath: /opt/data
+            - name: hermes-workspace
+              mountPath: /workspace
+            - name: managed-config
+              mountPath: /etc/hermes
+              readOnly: true
+        - name: webui
+          image: ghcr.io/nesquena/hermes-webui:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: HERMES_HOME
+              value: /home/hermeswebui/.hermes
+            - name: HERMES_WEBUI_HOST
+              value: 0.0.0.0
+            - name: HERMES_WEBUI_PORT
+              value: "8787"
+            - name: HERMES_WEBUI_STATE_DIR
+              value: /home/hermeswebui/.hermes/webui
+            # Must match HERMES_UID/HERMES_GID above - both containers chown
+            # the same shared PVC on first boot.
+            - name: WANTED_UID
+              value: "1000"
+            - name: WANTED_GID
+              value: "1000"
+            - name: UNSLOTH_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: hermes-secrets
+                  key: UNSLOTH_API_KEY
+            # Chat goes through the gateway in the sibling container, so agent
+            # tools run inside the full agent image rather than in-process.
+            - name: HERMES_WEBUI_CHAT_BACKEND
+              value: gateway
+            - name: HERMES_API_URL
+              value: http://127.0.0.1:8642
+            - name: HERMES_WEBUI_GATEWAY_BASE_URL
+              value: http://127.0.0.1:8642
+            - name: HERMES_WEBUI_GATEWAY_USE_RUNS_API
+              value: "true"
+            - name: HERMES_WEBUI_GATEWAY_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: hermes-secrets
+                  key: API_SERVER_KEY
+            - name: HERMES_WEBUI_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: hermes-secrets
+                  key: HERMES_WEBUI_PASSWORD
+          ports:
+            - name: http
+              containerPort: 8787
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 2Gi
+          startupProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            failureThreshold: 6
+          livenessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 20
+            failureThreshold: 6
+          volumeMounts:
+            - name: hermes-data
+              mountPath: /home/hermeswebui/.hermes
+            - name: hermes-workspace
+              mountPath: /workspace
+            # Documented alternate lookup path for the agent source, chosen
+            # over ~/.hermes/hermes-agent so the WebUI's ownership-chown pass
+            # never runs across this read-only mount.
+            - name: hermes-agent-src
+              mountPath: /opt/hermes
+              readOnly: true
+            - name: managed-config
+              mountPath: /etc/hermes
+              readOnly: true

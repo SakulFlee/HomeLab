@@ -1,0 +1,29 @@
+# HERMES_HOME: config, sessions, memories, skills, cron, logs.
+# On the backup tier, so restic snapshots it with everything else there.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hermes-data
+  namespace: hermes
+spec:
+  storageClassName: local-path-backup
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 4Gi
+---
+# The agent's working directory (terminal cwd, git repos, ...). Retained on
+# delete but not restic-backed - same tier llama-swap-style scratch gets.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hermes-workspace
+  namespace: hermes
+spec:
+  storageClassName: local-path-persistent
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi

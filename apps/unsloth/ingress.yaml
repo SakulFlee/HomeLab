@@ -1,0 +1,26 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: unsloth-studio
+  namespace: unsloth
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-production
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.middlewares: wireguard-vpn-only@kubernetescrd
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: unsloth.sakul-flee.de
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: unsloth-studio
+                port:
+                  number: 8000
+  tls:
+    - hosts:
+        - unsloth.sakul-flee.de
+      secretName: unsloth-sakul-flee-de-tls

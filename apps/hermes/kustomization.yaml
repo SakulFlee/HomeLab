@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+metadata:
+  name: hermes
+  namespace: hermes
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - pvc.yaml
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+# secrets/ is intentionally omitted: it is reconciled by its own Flux
+# Kustomization (clusters/homelab/apps/hermes-secrets.yaml), which has the
+# SOPS decryption configuration.

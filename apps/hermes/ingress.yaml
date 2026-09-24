@@ -1,0 +1,65 @@
+# One hostname, two backends: /v1 is the gateway's OpenAI-compatible API,
+# everything else is the WebUI. Traefik resolves overlapping PathPrefix
+# routes by rule length, so the longer /v1 rule wins over /.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hermes
+  namespace: hermes
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-production
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.middlewares: wireguard-vpn-only@kubernetescrd
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: hermes.sakul-flee.de
+      http:
+        paths:
+          - path: /v1
+            pathType: Prefix
+            backend:
+              service:
+                name: hermes-gateway
+                port:
+                  number: 8642
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: hermes-webui
+                port:
+                  number: 8787
+  tls:
+    - hosts:
+        - hermes.sakul-flee.de
+      secretName: hermes-sakul-flee-de-tls
+---
+# Dashboard only - Hermes Desktop's Remote Gateway connection talks to this,
+# not to the OpenAI API server. VPN-only like everything else here.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hermes-dashboard
+  namespace: hermes
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-production
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.middlewares: wireguard-vpn-only@kubernetescrd
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: hermes-dashboard.sakul-flee.de
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: hermes-dashboard
+                port:
+                  number: 9119
+  tls:
+    - hosts:
+        - hermes-dashboard.sakul-flee.de
+      secretName: hermes-dashboard-sakul-flee-de-tls

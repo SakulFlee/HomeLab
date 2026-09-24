@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: hermes-webui
+  namespace: hermes
+spec:
+  type: ClusterIP
+  selector:
+    app: hermes
+  ports:
+    - name: http
+      port: 8787
+      targetPort: http
+---
+# Gateway / OpenAI-compatible API server, exposed as https://hermes…/v1
+apiVersion: v1
+kind: Service
+metadata:
+  name: hermes-gateway
+  namespace: hermes
+spec:
+  type: ClusterIP
+  selector:
+    app: hermes
+  ports:
+    - name: gateway
+      port: 8642
+      targetPort: gateway
+---
+# Dashboard backend - target for Hermes Desktop's Remote Gateway connection.
+apiVersion: v1
+kind: Service
+metadata:
+  name: hermes-dashboard
+  namespace: hermes
+spec:
+  type: ClusterIP
+  selector:
+    app: hermes
+  ports:
+    - name: dashboard
+      port: 9119
+      targetPort: dashboard

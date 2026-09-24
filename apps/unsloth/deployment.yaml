@@ -1,0 +1,125 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: unsloth-studio
+  namespace: unsloth
+  labels:
+    app: unsloth-studio
+spec:
+  selector:
+    matchLabels:
+      app: unsloth-studio
+  replicas: 1
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: unsloth-studio
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: homelab
+      # --ipc=host from the upstream AMD quickstart; ROCm wants a big shared
+      # memory segment for kernel/marshalling traffic.
+      hostIPC: true
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
+        # --group-add video render from the upstream AMD quickstart.
+        # Host gids: video=26, render=303 (NixOS, verified on this node).
+        supplementalGroups:
+          - 26
+          - 303
+      volumes:
+        - name: dev-kfd
+          hostPath:
+            path: /dev/kfd
+            # Fails scheduling/mounting loudly if ROCm's device node is absent.
+            type: CharDevice
+        - name: dev-dri
+          hostPath:
+            path: /dev/dri
+            type: Directory
+        - name: studio
+          persistentVolumeClaim:
+            claimName: unsloth-studio
+        - name: hf-cache
+          persistentVolumeClaim:
+            claimName: unsloth-hf-cache
+        - name: work
+          persistentVolumeClaim:
+            claimName: unsloth-work
+        - name: triton
+          persistentVolumeClaim:
+            claimName: unsloth-triton
+      containers:
+        - name: unsloth
+          image: unsloth/unsloth-rocm:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            # First-run-only password, so the container does not generate one
+            # and self-shutdown after UNSLOTH_STUDIO_BOOTSTRAP_TIMEOUT (1h).
+            - name: UNSLOTH_STUDIO_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: unsloth-secrets
+                  key: UNSLOTH_STUDIO_PASSWORD
+            - name: JUPYTER_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: unsloth-secrets
+                  key: JUPYTER_PASSWORD
+            - name: UNSLOTH_STUDIO_PORT
+              value: "8000"
+            - name: JUPYTER_PORT
+              value: "8888"
+            # Fail loudly if ROCm cannot see the GPU, instead of silently
+            # serving inference from CPU. Set to "1" only as a stop-gap.
+            - name: UNSLOTH_ALLOW_CPU
+              value: "0"
+          ports:
+            - name: studio
+              containerPort: 8000
+            - name: jupyter
+              containerPort: 8888
+          resources:
+            limits:
+              # Same GPU admission as Jellyfin / llama-swap.
+              devic.es/dri: "1"
+              # Node has ~30.6Gi total; this is an APU, so model weights live in
+              # system RAM. Cap so an oversized model OOMs this pod instead of
+              # the node.
+              memory: 24Gi
+            requests:
+              cpu: "1"
+              memory: 6Gi
+          # Studio needs ~60s before it answers; give it 5 minutes to come up
+          # before the readiness gate and liveness probing take over.
+          startupProbe:
+            tcpSocket:
+              port: studio
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            tcpSocket:
+              port: studio
+            periodSeconds: 10
+            failureThreshold: 6
+          livenessProbe:
+            tcpSocket:
+              port: studio
+            periodSeconds: 20
+            failureThreshold: 6
+          volumeMounts:
+            - name: dev-kfd
+              mountPath: /dev/kfd
+            - name: dev-dri
+              mountPath: /dev/dri
+            - name: studio
+              mountPath: /opt/unsloth-studio
+            - name: hf-cache
+              mountPath: /workspace/.cache/huggingface
+            - name: work
+              mountPath: /workspace/host
+            - name: triton
+              mountPath: /workspace/.cache/triton
