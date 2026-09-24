@@ -1,0 +1,3 @@
+[submodule "apps/pvc-explorer/vendor/pvc-explorer"]
+	path = apps/pvc-explorer/vendor/pvc-explorer
+	url = https://github.com/pvc-explorer-operator/pvc-explorer.git

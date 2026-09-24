@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+metadata:
+  name: pvc-explorer
+  namespace: pvc-explorer-system
+resources:
+  - namespace.yaml
+  # CRDs + RBAC, taken straight from the pinned submodule (no vendored copies).
+  - vendor/pvc-explorer/config/crd/bases/pvcexplorer.io_pvcexplorers.yaml
+  - vendor/pvc-explorer/config/crd/bases/pvcexplorer.io_pvcexplorerscopes.yaml
+  - vendor/pvc-explorer/config/rbac/role.yaml
+  - cluster-role-binding.yaml
+  - helm-release.yaml
+  - ingress.yaml
+  - pvcexplorerscope.yaml
+# Upstream ships a generic kubebuilder name; rename it so it cannot clash with
+# any other operator's ClusterRole called "manager-role".
+patches:
+  - target:
+      kind: ClusterRole
+      name: manager-role
+    patch: |
+      - op: replace
+        path: /metadata/name
+        value: pvc-explorer-manager-role

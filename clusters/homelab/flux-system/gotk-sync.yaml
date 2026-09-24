@@ -9,6 +9,10 @@ spec:
   interval: 1m0s
   ref:
     branch: main
+  # Required so the apps/pvc-explorer/vendor/pvc-explorer submodule is included in
+  # the artifact. NOTE: `flux bootstrap git` regenerates this file and drops this
+  # field unless you pass --recurse-submodules (see README).
+  recurseSubmodules: true
   secretRef:
     name: flux-system
   url: https://github.com/SakulFlee/HomeLab.git

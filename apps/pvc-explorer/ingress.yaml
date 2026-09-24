@@ -1,0 +1,26 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: pvc-explorer
+  namespace: pvc-explorer-system
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-production
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.middlewares: wireguard-vpn-only@kubernetescrd
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: pvc-explorer.sakul-flee.de
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: pvc-explorer-controller
+                port:
+                  number: 8080
+  tls:
+    - hosts:
+        - pvc-explorer.sakul-flee.de
+      secretName: pvc-explorer-sakul-flee-de-tls
