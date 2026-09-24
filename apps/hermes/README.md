@@ -20,8 +20,11 @@ which wins over `~/.hermes/config.yaml` — but only per key, so `model.default`
 
 ## Bootstrap order
 
-1. **Push** this branch; Flux applies `unsloth-secrets` → `unsloth` →
-   `hermes-secrets` → `hermes` (the `dependsOn` chains enforce it).
+1. **Push** this branch; Flux applies `unsloth`/`unsloth-secrets` and
+   `hermes`/`hermes-secrets` in parallel. Each app Kustomization creates its
+   namespace, so the sibling `-secrets` Kustomization retries every 2m until it
+   exists — that is deliberate, a `dependsOn` between them would deadlock on a
+   fresh cluster.
 2. **Unsloth password** — the container starts with a password from SOPS, so no
    interactive setup is needed. Read it with:
 

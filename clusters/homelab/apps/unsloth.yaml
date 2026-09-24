@@ -14,5 +14,5 @@ spec:
   timeout: 10m0s
   wait: true
   path: ./apps/unsloth/
-  dependsOn:
-    - name: unsloth-secrets
+  # No dependsOn on unsloth-secrets - see hermes.yaml; the Secret's namespace
+  # is created here, so a dependency would deadlock on first deploy.

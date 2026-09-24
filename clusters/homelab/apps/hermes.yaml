@@ -14,7 +14,7 @@ spec:
   timeout: 3m0s
   wait: true
   path: ./apps/hermes/
-  # Pods reference hermes-secrets by secretKeyRef; create it first so the
-  # Deployment does not sit in CreateContainerConfigError waiting for it.
-  dependsOn:
-    - name: hermes-secrets
+  # No dependsOn on hermes-secrets: this Kustomization creates the `hermes`
+  # namespace that the Secret lives in, so depending on it would deadlock on a
+  # fresh cluster. hermes-secrets retries every 2m until the namespace exists,
+  # and the pod waits on the Secret in CreateContainerConfigError meanwhile.
