@@ -84,8 +84,11 @@ spec:
               containerPort: 8888
           resources:
             limits:
-              # Same GPU admission as Jellyfin / llama-swap.
+              # Same GPU admission as Jellyfin / llama-swap, plus the rocm
+              # group: only the device plugin can lift the device cgroup
+              # restriction on /dev/kfd, hostPath alone yields EPERM.
               devic.es/dri: "1"
+              devic.es/rocm: "1"
               # Node has ~30.6Gi total; this is an APU, so model weights live in
               # system RAM. Cap so an oversized model OOMs this pod instead of
               # the node.

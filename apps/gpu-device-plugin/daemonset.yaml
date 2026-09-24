@@ -36,6 +36,17 @@ spec:
                   paths:
                     - path: /dev/dri/renderD129
                     - path: /dev/dri/card1
+            # Without this the container device cgroup denies /dev/kfd with
+            # EPERM even for root - mounting it via hostPath is not enough.
+            # Consumed by Unsloth Studio, which requests devic.es/rocm and
+            # devic.es/dri together (Jellyfin/llama-swap keep using dri only).
+            - --device
+            - |
+              name: rocm
+              groups:
+                - count: 4
+                  paths:
+                    - path: /dev/kfd
           resources:
             requests:
               cpu: 50m

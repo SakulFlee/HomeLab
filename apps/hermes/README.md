@@ -61,6 +61,10 @@ editing values in place does not restart the pod, a changed name does.
 
 ## Troubleshooting
 
+- **`/dev/kfd` EPERM** — the container device cgroup denies it unless the pod
+  requests `devic.es/rocm`; hostPath alone is not enough. The group is defined
+  in `apps/gpu-device-plugin/daemonset.yaml`, so that DaemonSet must be rolled
+  out before Unsloth can start.
 - **ROCm refuses the GPU** — the node's card is an AMD Rembrandt iGPU
   (`1002:1681`, gfx1035). If the container exits before Studio binds 8000, add
   `HSA_OVERRIDE_GFX_VERSION: "10.3.0"` to the Unsloth deployment env.
