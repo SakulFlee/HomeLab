@@ -54,7 +54,10 @@ spec:
             claimName: unsloth-triton
       containers:
         - name: unsloth
-          image: unsloth/unsloth-rocm:latest
+          # Not :latest - that is the base image, whose CMD is just `python`
+          # (it exits 0 immediately). :studio is the full image: supervisord as
+          # PID 1 running `unsloth studio` on 8000 and JupyterLab on 8888.
+          image: unsloth/unsloth-rocm:studio
           imagePullPolicy: IfNotPresent
           env:
             # First-run-only password, so the container does not generate one
@@ -95,16 +98,22 @@ spec:
               memory: 24Gi
             requests:
               cpu: "1"
-              memory: 6Gi
-          # Studio needs ~60s before it answers; give it 5 minutes to come up
-          # before the readiness gate and liveness probing take over.
+              # Deliberately low: the node has ~30.6Gi allocatable and the sum
+              # of everyone's requests is already ~26Gi, so a higher request
+              # simply fails scheduling ("Insufficient memory"). This is a
+              # scheduling footprint only; the 24Gi limit above is the real cap.
+              memory: 3Gi
+          # Studio takes ~60s to answer (torch warm alone is ~13s), so gate
+          # startup for up to 5 minutes before readiness/liveness take over.
           startupProbe:
             tcpSocket:
               port: studio
             periodSeconds: 5
             failureThreshold: 60
+          # /api/health needs no authentication; /v1/* needs the API key.
           readinessProbe:
-            tcpSocket:
+            httpGet:
+              path: /api/health
               port: studio
             periodSeconds: 10
             failureThreshold: 6

@@ -61,6 +61,10 @@ editing values in place does not restart the pod, a changed name does.
 
 ## Troubleshooting
 
+- **Container exits immediately with status 0** — the tag matters. `:latest`
+  is the base image and its CMD is `python`, which hits EOF and exits. Use
+  `unsloth/unsloth-rocm:studio` (supervisord launches Studio on 8000 and
+  JupyterLab on 8888).
 - **`/dev/kfd` EPERM** — the container device cgroup denies it unless the pod
   requests `devic.es/rocm`; hostPath alone is not enough. The group is defined
   in `apps/gpu-device-plugin/daemonset.yaml`, so that DaemonSet must be rolled
