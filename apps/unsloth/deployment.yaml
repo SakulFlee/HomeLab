@@ -80,6 +80,19 @@ spec:
             # serving inference from CPU. Set to "1" only as a stop-gap.
             - name: UNSLOTH_ALLOW_CPU
               value: "0"
+            # gfx1035 (Radeon 680M) is an RDNA2 iGPU. Unsloth's published
+            # rocm-gfx103X bundle carries kernels only for gfx1030/1031/1032/1034
+            # - their #7624 explicitly omits the gfx1033/1035/1036 iGPUs - so the
+            # backend picker reports ROCm as no_prebuilt and silently falls back
+            # to a CPU llama.cpp. Claim the gfx1030 sibling so the gfx103X asset
+            # is selected, and the HSA override makes its code objects load on
+            # this iGPU. That override is the value Unsloth's own startup banner
+            # recommends ("RDNA2 cards other than gfx1030: 10.3.0"), and it also
+            # stops torch relying on JIT for a wheel not built for gfx1035.
+            - name: UNSLOTH_ROCM_GFX_ARCH
+              value: "gfx1030"
+            - name: HSA_OVERRIDE_GFX_VERSION
+              value: "10.3.0"
           ports:
             - name: studio
               containerPort: 8000
