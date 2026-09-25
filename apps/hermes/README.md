@@ -57,8 +57,11 @@ which wins over `~/.hermes/config.yaml` — but only per key, so `model.default`
 
    `sops` re-encrypts on save; commit the result. Until this step the agent
    gets `401 Unauthorized` from Unsloth — that is the expected signal.
-5. **Pick a model** in the dashboard (*Change*) or with `hermes model`. This
-   writes `model.default`, which managed scope deliberately does not pin.
+5. **Pick a model** in the dashboard (*Change*), with `hermes model`
+   (interactive picker), or non-interactively with
+   `hermes config set model.default <repo-id>` — which is what this deployment
+   uses. This writes `model.default`, which managed scope deliberately does not
+   pin. A working default is `ornith-ai/Ornith-1.5-9B-GGUF` (`Q4_K_M`).
 6. **Smoke test** from inside the VPN:
 
    ```sh
@@ -89,9 +92,35 @@ editing values in place does not restart the pod, a changed name does.
   requests `devic.es/rocm`; hostPath alone is not enough. The group is defined
   in `apps/gpu-device-plugin/daemonset.yaml`, so that DaemonSet must be rolled
   out before Unsloth can start.
-- **ROCm refuses the GPU** — the node's card is an AMD Rembrandt iGPU
-  (`1002:1681`, gfx1035). If the container exits before Studio binds 8000, add
-  `HSA_OVERRIDE_GFX_VERSION: "10.3.0"` to the Unsloth deployment env.
+- **ROCm missing from *Compute backend*, everything runs on CPU** — the node's
+  card is an AMD Rembrandt iGPU (`1002:1681`, **gfx1035**), and Unsloth's
+  published `rocm-gfx103X` bundle carries kernels only for
+  `gfx1030/1031/1032/1034` (their #7624 deliberately omits the gfx1033/1035/1036
+  iGPUs). The picker then reports `no_prebuilt` and hides ROCm, and
+  `HSA_OVERRIDE_GFX_VERSION` alone does not bring it back — the installer never
+  selects the asset in the first place. Two env vars fix it:
+  `UNSLOTH_ROCM_GFX_ARCH: "gfx1030"` chooses the bundle and
+  `HSA_OVERRIDE_GFX_VERSION: "10.3.0"` (the value Unsloth's own startup banner
+  recommends) lets its code objects load on gfx1035. Confirm with
+  `rocm-smi --showuse` *while generating* — `GPU use (%)` must leave 0.
+  Do **not** set `UNSLOTH_LLAMA_CPP_BACKEND`: it pins the runtime and makes
+  `POST /api/llama/backend` refuse to switch with `environment_override`.
+- **Vulkan is not a fallback either** — the image ships the loader
+  (`libvulkan1`) but no ICD: `mesa-vulkan-drivers` is absent, so
+  `/usr/share/vulkan` does not exist and the probe logs *"the Vulkan probe
+  reported no device"* before planning a CPU-only load. Switching to Vulkan
+  installs cleanly and still runs on the CPU.
+- **ROCm silently lost after a pod restart** — the managed dir
+  `/opt/unsloth-studio/llama.cpp` is a link into `/opt/unsloth-studio-app`,
+  which is container layer and dies with the pod, taking a freshly installed
+  404 MB bundle with it. `unsloth-studio-home` re-links that path at every start
+  (it even moves a user-made link aside), so the link cannot be retargeted.
+  `UNSLOTH_LLAMA_CPP_PATH` names a directory on the `unsloth-studio` PVC
+  instead, and the `seed-llamacpp` initContainer fills it — the resolver only
+  accepts a candidate containing `llama-server`, so an empty directory would
+  fall through to the overlay. The seed is one-off and guarded: its logs should
+  read `reusing the ROCm install already on the PVC` on every boot after the
+  first.
 - **Silent CPU fallback** — `UNSLOTH_ALLOW_CPU=0` makes a missing GPU fail
   loudly instead of serving from CPU. Set it to `1` as a stop-gap only.
 - **Config keys** — confirm what the running build actually accepts with
