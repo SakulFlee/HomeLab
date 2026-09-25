@@ -22,17 +22,17 @@ data:
         # reaches Traefik from a Cloudflare edge IP instead of 100.64.0.x
         # and is rejected with 403 Forbidden even for a connected client.
         template IN A {
-            match "^(hermes-dashboard|hermes|unsloth|jellyfin|sonarr|radarr|prowlarr|qbittorrent|qui|llama-swap|grafana|paperless|syncthing|nas|vpn)\.sakul-flee\.de\.$"
+            match "^(hermes-dashboard|hermes|unsloth|jellyfin|sonarr|radarr|prowlarr|qbittorrent|qui|llama-swap|grafana|paperless|syncthing|nas|vpn|pvc-explorer)\.sakul-flee\.de\.$"
             answer "{{ .Name }} 60 IN A 192.168.178.200"
             fallthrough
         }
         template IN AAAA {
-            match "^(hermes-dashboard|hermes|unsloth|jellyfin|sonarr|radarr|prowlarr|qbittorrent|qui|llama-swap|grafana|paperless|syncthing|nas|vpn)\.sakul-flee\.de\.$"
+            match "^(hermes-dashboard|hermes|unsloth|jellyfin|sonarr|radarr|prowlarr|qbittorrent|qui|llama-swap|grafana|paperless|syncthing|nas|vpn|pvc-explorer)\.sakul-flee\.de\.$"
             rcode NOERROR
             fallthrough
         }
         template IN HTTPS {
-            match "^(hermes-dashboard|hermes|unsloth|jellyfin|sonarr|radarr|prowlarr|qbittorrent|qui|llama-swap|grafana|paperless|syncthing|nas|vpn)\.sakul-flee\.de\.$"
+            match "^(hermes-dashboard|hermes|unsloth|jellyfin|sonarr|radarr|prowlarr|qbittorrent|qui|llama-swap|grafana|paperless|syncthing|nas|vpn|pvc-explorer)\.sakul-flee\.de\.$"
             rcode NOERROR
             fallthrough
         }
