@@ -8,7 +8,9 @@ data:
     healthCheckTimeout: 500
     logLevel: info
     logTimeFormat: ""
-    logToStdout: "proxy"
+    # "proxy" hid llama-server's stderr, so a model that died on load only
+    # surfaced as llama-swap's generic "upstream command exited prematurely".
+    logToStdout: "both"
     metricsMaxInMemory: 1000
     captureBuffer: 15
     sendLoadingState: true
