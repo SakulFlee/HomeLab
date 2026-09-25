@@ -93,6 +93,21 @@ spec:
               value: "gfx1030"
             - name: HSA_OVERRIDE_GFX_VERSION
               value: "10.3.0"
+            # Move the managed llama.cpp root off the container layer.
+            # /opt/unsloth-studio/llama.cpp is a link into
+            # /opt/unsloth-studio-app/llama.cpp, which lives on the overlay and
+            # is wiped whenever the pod is recreated - taking a freshly
+            # installed 404 MB ROCm bundle with it and silently reverting to
+            # the CPU build the image ships. unsloth-studio-home re-links that
+            # path at every start (it even sets a user-made link aside), so the
+            # link itself cannot be retargeted; naming a directory on the
+            # unsloth-studio PVC is the one form it leaves alone.
+            # default_managed_llama_dir() honours the override as the managed
+            # install root, and the backend picker stays enabled because
+            # _switch_support only blocks a custom path owned by "studio" -
+            # this one reports source "environment".
+            - name: UNSLOTH_LLAMA_CPP_PATH
+              value: "/opt/unsloth-studio/llamacpp"
           ports:
             - name: studio
               containerPort: 8000
