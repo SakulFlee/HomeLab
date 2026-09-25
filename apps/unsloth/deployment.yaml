@@ -96,6 +96,7 @@ spec:
               # system RAM. Cap so an oversized model OOMs this pod instead of
               # the node.
               memory: 24Gi
+              cpu: "4"
             requests:
               cpu: "1"
               # Deliberately low: the node has ~30.6Gi allocatable and the sum
