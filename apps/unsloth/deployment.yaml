@@ -9,7 +9,11 @@ spec:
   selector:
     matchLabels:
       app: unsloth-studio
-  replicas: 1
+  # Scaled to 0: Hermes now runs on llama-swap, and an idle Unsloth still held
+  # ~1.7G of node RAM plus one devic.es/dri and the only devic.es/rocm device.
+  # That reclaimed headroom is what lets the 26B/35B models load. Scale back to
+  # 1 to bring the standalone vLLM-style server back (nothing else changed).
+  replicas: 0
   strategy:
     type: Recreate
   template:
