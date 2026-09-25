@@ -31,7 +31,11 @@ spec:
             claimName: llama-swap-models
       containers:
         - name: llama-swap
-          image: ghcr.io/mostlygeek/llama-swap:vulkan
+          # Versioned tag, not :vulkan. The floating tag moves daily and
+          # IfNotPresent never re-pulls a tag the node already has cached, so
+          # :vulkan silently froze this pod on whatever it first pulled. The
+          # -bNNNNN suffix is the bundled llama.cpp build; bump both together.
+          image: ghcr.io/mostlygeek/llama-swap:v258-vulkan-b11176
           imagePullPolicy: IfNotPresent
           command:
             - /app/llama-swap
@@ -55,8 +59,11 @@ spec:
           volumeMounts:
             - name: dev-dri
               mountPath: /dev/dri
+            # No subPath: kubelet only refreshes subPath mounts from the pod's
+            # start, so a ConfigMap edit never reached the process and
+            # --watch-config (2s poll) had nothing to notice. Mounting the
+            # whole ConfigMap keeps /app/config/config.yaml live.
             - name: config
-              mountPath: /app/config/config.yaml
-              subPath: config.yaml
+              mountPath: /app/config
             - name: models
               mountPath: /root/.cache
