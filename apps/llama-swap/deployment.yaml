@@ -45,7 +45,13 @@ spec:
           resources:
             limits:
               devic.es/dri: "1"
-              memory: 40Gi
+              # Was 40Gi, more than the node has (30.6G). A limit above node
+              # capacity meant llama-swap could never be OOM-killed itself;
+              # the kernel instead picked whatever it liked (risking hytale,
+              # prometheus, ...). 24Gi sits above the largest resident model
+              # (~17.5G) and below node size, so an over-large model OOMs
+              # this container instead of the node.
+              memory: 24Gi
             requests:
               memory: 4Gi
           env:
