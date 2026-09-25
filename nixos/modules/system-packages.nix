@@ -19,6 +19,9 @@
     diffutils
     lm_sensors
 
+    # JQ
+    jq
+
     # Editor
     neovim
   ];
