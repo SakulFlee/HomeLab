@@ -162,3 +162,9 @@ In-cluster base URL is `http://llama-swap.llama-swap.svc:8080/v1` with **no**
 an exact id from `GET /v1/models` (ids contain spaces and brackets, so quote
 them). Renaming an id in `configmap.yaml` breaks any caller pinned to the old
 string.
+
+**Budget for reasoning.** The QAT/MTP builds think first and put it in
+`reasoning_content`, so a tight `max_tokens` can come back with
+`content: ""` and `finish_reason: "length"` — reproduced at 5 and 15 tokens on
+the E4B, while 10 tokens happened to answer directly. Read that combination as
+"raise `max_tokens`", not as a server fault.
