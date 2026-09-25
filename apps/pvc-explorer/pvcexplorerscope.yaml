@@ -12,6 +12,16 @@ spec:
           operator: Exists
   discovery:
     mode: Auto
+    # Upstream bug: the agent Deployment/Service are named after the PVC, so if an
+    # app's own Deployment shares its PVC's name, the controller overwrites that
+    # app's Deployment/Service with agent ones (scaling the app to zero). These
+    # five PVCs collide and are therefore excluded until upstream adds a suffix.
+    excludePVCs:
+      - kube-prometheus-grafana
+      - prowlarr
+      - radarr
+      - sonarr
+      - unsloth-studio
   deletionPolicy: Cleanup
   defaults:
     mode: ScaledToZero
