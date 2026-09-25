@@ -52,6 +52,43 @@ spec:
         - name: triton
           persistentVolumeClaim:
             claimName: unsloth-triton
+      # Seed the managed llama.cpp root onto the studio PVC before Studio
+      # starts. UNSLOTH_LLAMA_CPP_PATH sits at #1b in
+      # LlamaCppBackend._find_llama_server_binary()'s search order, but a
+      # candidate only counts when it actually contains a llama-server binary -
+      # an empty directory falls through to /opt/unsloth-studio/llama.cpp,
+      # which is a link into the container layer and dies with the pod. The
+      # guard keeps this to a one-off copy: once the PVC holds an install it is
+      # reused, so a ROCm bundle survives pod restarts untouched.
+      initContainers:
+        - name: seed-llamacpp
+          image: unsloth/unsloth-rocm:studio
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -eu
+              dest=/opt/unsloth-studio/llamacpp
+              src=/opt/unsloth-studio-app/llama.cpp
+              if [ -x "$dest/build/bin/llama-server" ]; then
+                if [ -f "$dest/build/bin/libggml-hip.so" ]; then
+                  echo "llamacpp: reusing the ROCm install already on the PVC"
+                else
+                  echo "llamacpp: reusing the install already on the PVC (not ROCm)"
+                fi
+                exit 0
+              fi
+              echo "llamacpp: seeding $dest from the image's bundled build"
+              mkdir -p "$dest"
+              cp -a "$src"/. "$dest"/
+              echo "llamacpp: seeded, $(du -sh "$dest" | cut -f1)"
+          volumeMounts:
+            - name: studio
+              mountPath: /opt/unsloth-studio
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
       containers:
         - name: unsloth
           # Not :latest - that is the base image, whose CMD is just `python`
@@ -106,6 +143,9 @@ spec:
             # install root, and the backend picker stays enabled because
             # _switch_support only blocks a custom path owned by "studio" -
             # this one reports source "environment".
+            # The seed-llamacpp initContainer fills that directory, because
+            # _find_llama_server_binary() only accepts a candidate that
+            # contains a llama-server binary (search order #1b).
             - name: UNSLOTH_LLAMA_CPP_PATH
               value: "/opt/unsloth-studio/llamacpp"
           ports:
