@@ -3,28 +3,36 @@
 # ~/.hermes/.env and the shell environment - but only for the keys it pins,
 # and merging is leaf-by-leaf.
 #
-# That means `model.default` (the concrete model id) is deliberately NOT
-# pinned here: it stays user-editable from the dashboard / `hermes model`.
+# `model.default` IS pinned here (llama-swap backend): the old stored default
+# (`unsloth/North-Mini-Code-1.0-GGUF:UD-IQ4_NL`) pointed at Unsloth and would
+# 404 against llama-swap's model list. Change it from the dashboard if you
+# want a different model - managed scope wins, so that edit won't stick while
+# this key is pinned here.
 #
-# To switch to a cloud provider (OpenRouter, ...) later: replace the `model:`
-# block below and add its key to apps/hermes/secrets. Bump the ConfigMap name
-# from -v1 to -v2 as well - ConfigMap edits alone do not restart the pod,
-# but a changed name does.
+# Backend is llama-swap (local llama.cpp, one model resident at a time).
+# Unsloth Studio is scaled to 0; to go back, swap this `model:` block for
+# `base_url: http://unsloth-studio.unsloth.svc:8000/v1` +
+# `api_key: "${UNSLOTH_API_KEY}"` (re-encrypt apps/hermes/secrets if the key
+# is gone) and bump the ConfigMap name - ConfigMap edits alone do not restart
+# the pod, but a changed name does.
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: hermes-managed-config-v1
+  name: hermes-managed-config-v2
   namespace: hermes
 data:
   config.yaml: |
     model:
       provider: custom
-      base_url: http://unsloth-studio.unsloth.svc:8000/v1
+      # llama-swap takes no auth (it sits behind the same LAN/VPN reachability
+      # as everything else here), so there is no key to expand from secrets.
+      base_url: http://llama-swap.llama-swap.svc:8080/v1
       api_mode: chat_completions
-      # Expanded from the container environment (hermes-secrets -> UNSLOTH_API_KEY).
-      # Bootstrap: create that key in Unsloth Studio -> Settings -> API, then
-      # `sops -e -i apps/hermes/secrets/secret.enc.yaml`.
-      api_key: "${UNSLOTH_API_KEY}"
+      api_key: ""
+      # llama-swap id, not an HF path - the full list is at
+      # `curl http://llama-swap.llama-swap.svc:8080/v1/models` or see
+      # apps/llama-swap/README.md. 9B + native MTP: fast turns, ~8G resident.
+      default: "Qwen3.5 9B @UD-Q4_K_XL [MTP]"
 
     terminal:
       backend: local
