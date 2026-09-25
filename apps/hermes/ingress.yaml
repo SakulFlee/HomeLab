@@ -35,8 +35,13 @@ spec:
         - hermes.sakul-flee.de
       secretName: hermes-sakul-flee-de-tls
 ---
-# Dashboard only - Hermes Desktop's Remote Gateway connection talks to this,
-# not to the OpenAI API server. VPN-only like everything else here.
+# Dashboard + the two endpoints Hermes Desktop's Remote Gateway contract asks
+# for on the remote URL. /api/status (detection) and the SPA live on :9119, but
+# Desktop's readiness probe falls back to GET /health, and its chat client wants
+# /v1/chat/completions - neither exists on the dashboard backend (it 302s every
+# unknown path into the SPA), so both are routed to the gateway on :8642.
+# Traefik resolves overlapping PathPrefix routes by rule length, so the longer
+# /health and /v1 rules win over /. VPN-only like everything else here.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -52,6 +57,20 @@ spec:
     - host: hermes-dashboard.sakul-flee.de
       http:
         paths:
+          - path: /health
+            pathType: Prefix
+            backend:
+              service:
+                name: hermes-gateway
+                port:
+                  number: 8642
+          - path: /v1
+            pathType: Prefix
+            backend:
+              service:
+                name: hermes-gateway
+                port:
+                  number: 8642
           - path: /
             pathType: Prefix
             backend:

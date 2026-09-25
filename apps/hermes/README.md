@@ -7,6 +7,8 @@ Two Flux Kustomizations that ship together:
 | `https://hermes.sakul-flee.de/` | Hermes WebUI | 8787 |
 | `https://hermes.sakul-flee.de/v1` | Gateway OpenAI API | 8642 |
 | `https://hermes-dashboard.sakul-flee.de/` | Monitoring dashboard | 9119 |
+| `https://hermes-dashboard.sakul-flee.de/health` | Gateway liveness probe | 8642 |
+| `https://hermes-dashboard.sakul-flee.de/v1` | Gateway OpenAI API | 8642 |
 | `https://unsloth.sakul-flee.de/` | Unsloth Studio | 8000 |
 | — | Unsloth JupyterLab (ClusterIP only) | 8888 |
 
@@ -75,6 +77,43 @@ Replace the `model:` block in `apps/hermes/configmap.yaml` and add the new key
 to `apps/hermes/secrets`. Bump the ConfigMap name (`-v1` → `-v2`) as well:
 editing values in place does not restart the pod, a changed name does.
 
+## Hermes Desktop (Remote Gateway)
+
+Desktop's Remote Gateway points at `https://hermes-dashboard.sakul-flee.de`.
+That one hostname is served by **two** backends, because Desktop asks for more
+than a browser does:
+
+| Desktop asks for | Where it lands | Why |
+| --- | --- | --- |
+| `GET /api/status` | dashboard `:9119` | detection — reads `auth_flows` to pick its login flow |
+| SPA, `POST /auth/password-login`, `/api/ws` | dashboard `:9119` | the actual UI and its WebSocket |
+| `GET /health` | gateway `:8642` | **readiness** probe, used when OAuth mode is not committed |
+| `/v1/chat/completions`, `/v1/models` | gateway `:8642` | chat client's OpenAI-compatible contract |
+
+**Detection passing is not readiness passing.** `/api/status` is on the public
+allowlist and answers 200 long before Desktop considers the backend ready; the
+readiness fallback target is `${remote}/health`. The dashboard backend serves
+neither `/health` nor `/v1` — it 302s every unknown path into the SPA, so
+Desktop's probe would follow a redirect to HTML and never see `{"status":"ok"}`.
+Both paths are therefore routed to `hermes-gateway` in `ingress.yaml`, where
+Traefik's longest-rule-wins resolution keeps `/` on `:9119`.
+
+Diagnose Desktop itself with its own log, not the cluster's:
+
+```sh
+journalctl --user -f | grep hermes-one
+```
+
+Useful lines: `Remote Hermes backend is ready`, `validateChatReadiness`, and
+`remote-oauth-login: Remote gateway sign-in was cancelled` — the last one fires
+*before* the readiness probe, because Desktop opens a bare `/login` in its
+`persist:hermes-remote-oauth` webview rather than `/auth/native/authorize`. No
+PKCE broker cookie means `password-login` answers `next: "/"` instead of the
+loopback callback, and Desktop treats the flow as cancelled.
+
+Session cookies from that webview live in
+`~/.config/hermes-desktop/Partitions/hermes-remote-oauth/Cookies`.
+
 ## Troubleshooting
 
 - **`403 Forbidden` while connected to the VPN** — the hostname is missing from
@@ -127,5 +166,10 @@ editing values in place does not restart the pod, a changed name does.
   `hermes config get model` before adding to managed scope.
 - **WebUI streams look buffered** — if chat output arrives in bursts, the fix is
   a `ServersTransport` with a `flushInterval` on the Traefik side.
+- **`GET /api/model/library` → 404 in Desktop** — Desktop 0.7.7 calls an endpoint
+  backend `0.21.5` does not ship: the route is absent from `hermes_cli/` and
+  from the WebUI alike, so the SPA and every other surface also lack it. Desktop
+  retries it ~20× and then carries on. Version skew, documented rather than
+  fixed — ignore it unless chat itself stops loading.
 - **Empty `hermes-data`** — this deployment is intentionally fresh; the PVC
   never existed before, so there is nothing to migrate.
