@@ -13,59 +13,89 @@ data:
     captureBuffer: 15
     sendLoadingState: true
     globalTTL: 0
-    unloadTimeout: 10
+    # Was 10s. Hermes drives these models across multi-step agent turns, so a
+    # 10s idle eviction paid a reload on nearly every turn. Only one model can
+    # be resident anyway (RAM budget), so this never loads two at once -- it
+    # just keeps the current one warm for 5 min after the last request.
+    unloadTimeout: 300
 
     macros:
-      "default":
-        /app/llama-server --host 127.0.0.1 --port ${PORT} -fa on -c 65536
-      "with_fit": "-fit on"
-      "with_mtp": "--spec-type draft-mtp"
+      # -c lives per-model, not here: KV cache is the #2 RAM consumer and the
+      # old shared 65536 made every model pay for 64k of it. -fit on lets
+      # llama-server trim offload/ctx itself to the Vulkan heap.
+      "base":
+        /app/llama-server --host 127.0.0.1 --port ${PORT} -fa on -fit on
+      # ~16G node budget: <=12B class gets 32k, 26B/35B class gets 16k.
+      "ctx_m": "-c 32768"
+      "ctx_l": "-c 16384"
+      # Needs nextn tensors or an mtp-*.gguf sidecar (auto-downloaded from the
+      # same repo on first load). See README for the per-model MTP matrix.
+      "mtp": "--spec-type draft-mtp"
+      # North has no MTP anywhere on HF; ngram speculation needs no draft
+      # weights at all and only pays off on repetitive/structured output.
+      "ngram": "--spec-type ngram-mod"
 
     models:
-      "Ornith1.0 9B @Q4_K_M":
+      # --- <=12B: fast, 32k ctx, ~7-8G resident ----------------------------
+      "Gemma4 12B @UD-Q4_K_XL [QAT MTP]":
         cmd: |
-          ${default}
-          ${with_fit}
-          -hf deepreinforce-ai/Ornith-1.0-9B-GGUF:Q4_K_M
-      "[unsloth] Qwen3.5 9B @Q4_K_XL [MTP]":
+          ${base}
+          ${ctx_m}
+          ${mtp}
+          -hf unsloth/gemma-4-12B-it-qat-GGUF:UD-Q4_K_XL
+      "Qwen3.5 9B @UD-Q4_K_XL [MTP]":
         cmd: |
-          ${default}
-          ${with_mtp}
-          ${with_fit}
+          ${base}
+          ${ctx_m}
+          ${mtp}
           --spec-draft-n-max 6
-          -np 1
-          -hf unsloth/Qwen3.6-35B-A3B-MTP-GGUF:UD-Q4_K_XL
-      "[unsloth] Qwen3.6 35B-A3B @Q4_K_XL [MTP]":
+          -hf unsloth/Qwen3.5-9B-MTP-GGUF:UD-Q4_K_XL
+      "Ornith-1.5 9B @Q4_K_M [MTP]":
         cmd: |
-          ${default}
-          ${with_mtp}
-          ${with_fit}
-          --spec-draft-n-max 2
-          -np 1
-          -hf unsloth/Qwen3.6-35B-A3B-MTP-GGUF:UD-Q4_K_XL
-      "[unsloth] Gemma4 26B-A4B @Q4_K_XL [QAT] [MTP]":
+          ${base}
+          ${ctx_m}
+          ${mtp}
+          -hf ornith-ai/Ornith-1.5-9B-GGUF:Q4_K_M
+      "MiMo-V2.6-Distill-9B @Q4_K_M [MTP]":
         cmd: |
-          ${default}
-          ${with_mtp}
-          ${with_fit}
+          ${base}
+          ${ctx_m}
+          ${mtp}
+          -hf VitreousCut/MiMo-V2.6-Distill-Qwen-9B-MTP-GGUF:Q4_K_M
+
+      # --- 26B/35B: 16k ctx, ~16-17G resident each, one at a time ---------
+      # QAT ships only UD-Q4_K_XL (14.25G). If this OOMs on load, fall back to
+      # non-QAT unsloth/gemma-4-26B-A4B-it-GGUF:UD-Q3_K_XL (12.9G -> ~14.6G).
+      "Gemma4 26B-A4B @UD-Q4_K_XL [QAT MTP]":
+        cmd: |
+          ${base}
+          ${ctx_l}
+          ${mtp}
           --spec-draft-n-max 4
           -hf unsloth/gemma-4-26B-A4B-it-qat-GGUF:UD-Q4_K_XL
-      "Qwythos 9 @Q4_K_M [MTP]":
+      # No MTP exists for North (zero nextn tensors, no MTP repo on HF).
+      # If this OOMs, fall back to UD-Q3_K_M (14.2G instead of 15.5G).
+      "North-Mini-Code @UD-IQ4_NL [ngram]":
         cmd: |
-          ${default}
-          ${with_mtp}
-          ${with_fit}
-          -hf empero-ai/Qwythos-9B-Claude-Mythos-5-1M-GGUF:Q4_K_M
-          -m Qwythos-9B-Claude-Mythos-5-1M-MTP-Q4_K_M.gguf
-      "[unsloth] Gemma4 E4B @UD-Q4_K_XL [QAT] [MTP]":
+          ${base}
+          ${ctx_l}
+          ${ngram}
+          -hf unsloth/North-Mini-Code-1.0-GGUF:UD-IQ4_NL
+      # UD-Q4_K_XL is 22.9G (won't fit). If this OOMs, fall back to
+      # UD-IQ3_XXS (14.1G instead of 15.4G).
+      "Qwen3.6 35B-A3B @UD-IQ3_S [MTP]":
         cmd: |
-          ${default}
-          ${with_mtp}
-          ${with_fit}
-          -hf unsloth/gemma-4-E4B-it-qat-GGUF:UD-Q4_K_XL
-      "[unsloth] Gemma4 12B @UD-Q4_K_XL [QAT] [MTP]":
+          ${base}
+          ${ctx_l}
+          ${mtp}
+          --spec-draft-n-max 2
+          -hf unsloth/Qwen3.6-35B-A3B-MTP-GGUF:UD-IQ3_S
+      # Official repo has MTP but only Q4+ (21.7G, won't fit); bartowski's
+      # build has nextn AND smaller quants. If this OOMs, fall back to Q3_K_S
+      # (16.0G instead of 15.3G) or IQ2_M (12.5G).
+      "Ornith-1.5 35B-A3B @IQ3_XXS [MTP]":
         cmd: |
-          ${default}
-          ${with_mtp}
-          ${with_fit}
-          -hf unsloth/gemma-4-12B-it-qat-GGUF:UD-Q4_K_XL
+          ${base}
+          ${ctx_l}
+          ${mtp}
+          -hf bartowski/Ornith-1.5-35B-A3B-GGUF:IQ3_XXS
