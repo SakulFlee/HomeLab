@@ -26,7 +26,7 @@ ordering, not as promises.
 | `MiniCPM5-2B @Q4_K_M [ngram]` | 8.9 | ~178 | ngram | 1.5G |
 | `MiniCPM-V-4.6 @Q8_0 [ngram]` | 11.5 | ~113 | ngram | 0.8G + 1.1G mmproj (host) |
 | `Qwen3.6 35B-A3B @UD-IQ3_S [MTP]` | 6.0 | 23 | MTP 60/76 | 13.7G |
-| `Qwen3.5 9B @UD-Q4_K_XL [MTP]` | 5.2 | 30 | MTP 81/106 | 5.5G |
+| `Qwen3.5 9B @UD-Q4_K_XL [ngram]` | 5.2 | 30 | ngram (MTP disabled, see matrix) | 5.5G |
 | `Gemma4 26B-A4B @UD-Q4_K_XL [QAT MTP]` | 4.8 | 19 | MTP 66/132 | 14.5G |
 | `North-Mini-Code @UD-Q3_K_M [ngram]` | 4.4 | 43 | ngram | 8.7G |
 | `Gemma4 12B @UD-Q4_K_XL [QAT MTP]` | 4.0 | 21 | MTP 64/104 | 7.0G |
@@ -46,8 +46,9 @@ Two `500 Invalid input batch` failures per cold start are normal — see
 
 | Has MTP? | Models | Flag |
 | --- | --- | --- |
-| **Yes** (nextn tensors or an `mtp-*.gguf` sidecar, auto-downloaded) | Gemma4 12B, Gemma4 26B, Qwen3.5 9B, Qwen3.6 35B, Ornith 9B, Ornith 35B, MiMo 9B | `${mtp}` → `--spec-type draft-mtp` |
+| **Yes** (nextn tensors or an `mtp-*.gguf` sidecar, auto-downloaded) | Gemma4 12B, Gemma4 26B, Qwen3.6 35B, Ornith 9B, Ornith 35B, MiMo 9B | `${mtp}` → `--spec-type draft-mtp` |
 | **No** (nothing to speculate with — plain `llama`/`qwen35` archs) | North Mini Code, MiniCPM5-2B, MiniCPM-V-4.6 | `${ngram}` → `--spec-type ngram-mod` |
+| **Has it, but runs ngram anyway** | **Qwen3.5 9B** — Hermes' default, and the only id at `-c 65536`. At 64k the cold-start draft race below is near-certain rather than occasional (5 of 6 fresh loads), and it is not self-healing: once the first decode fails the buffer never populates, so the agent's own 3 retries all land in the same broken process. See *Cold-start MTP race*. | `${ngram}` |
 
 ### mmproj matrix
 
@@ -198,8 +199,25 @@ only probes `/health`, which makes the client's first request the draft's very
 first decode. It reproduces with 50 ms readiness polling and never with a 1 s
 poll, which is exactly why it looked random.
 
-**Mitigation: retry the first request.** It passes on the second attempt (the
-model is warm by then) — verified by re-running failed ids.
+**It is not self-healing.** Once the first decode fails, the draft's input
+buffer is never populated, so *every* subsequent request in that llama-server
+process fails until llama-swap unloads it. A client retry lands in the same
+broken process and fails again — confirmed through Hermes, whose three built-in
+retries (2.2s, 5.6s backoff) all hit `Invalid input batch` on the same id.
+
+**Getting out of a broken process:** load any other model (llama-swap unloads
+the current one to do it), or wait out `unloadTimeout: 300`, then retry. Plain
+retrying does nothing.
+
+**Qwen3.5 — Hermes' default — was moved off MTP to `${ngram}`** for exactly
+this reason: it is the only id at `-c 65536` (Hermes requires ≥64K), and at
+64k the race is near-certain rather than occasional — 5 of 6 requests after a
+fresh load failed, against an occasional failure at 32k. The larger KV
+allocation plausibly widens the race window. The id was renamed
+`[MTP]` → `[ngram]` so it does not lie about what it runs; its MTP line
+(`${mtp}` + `--spec-draft-n-max 6`, 81/106 accepted) is recorded in the config
+for when this is fixed upstream. An agent that answers is worth more than the
+~15% the draft bought.
 
 **`-fit on` was investigated and left in.** Dropping it from the shared `base`
 macro measured 8/8 clean against 2/4 failing in isolation, which looked like a
@@ -209,9 +227,9 @@ them anyway. It sits in the shared macro for a reason. Do not remove it to chase
 this bug without re-testing cold starts through llama-swap. The config's
 `base` macro carries the same note.
 
-The honest alternatives, if the retry is unacceptable: upgrade the llama.cpp
-build past b11176, or drop MTP from the affected ids and use `${ngram}`
-(no speculation benefit, no race).
+The remaining honest alternatives: upgrade the llama.cpp build past b11176, or
+move the other MTP ids to `${ngram}` too if a flaky first request ever matters
+more than the draft's speedup.
 
 ## Benchmarks lie
 

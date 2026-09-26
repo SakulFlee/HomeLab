@@ -123,12 +123,27 @@ data:
           ${mmproj_host}
           -hf unsloth/gemma-4-12B-it-qat-GGUF:UD-Q4_K_XL
       # Hermes' default model (apps/hermes/configmap.yaml, model.default).
-      "Qwen3.5 9B @UD-Q4_K_XL [MTP]":
+      #
+      # Speculation is ngram, NOT MTP, and that is deliberate. This id runs
+      # `-c 65536` because Hermes rejects anything under 64K, and at 64k the
+      # cold-start draft race (see `base`) is near-certain rather than
+      # occasional: 5 of 6 requests after a fresh load hit
+      # `E init: invalid token[0] = 248320`. It is not self-healing either --
+      # once the first decode fails the draft's input buffer is never
+      # populated, so EVERY request in that process fails until llama-swap
+      # unloads it, and the agent's own 3 retries all land in the same broken
+      # process. An unusable agent beats a slightly faster one.
+      #
+      # ngram has no draft weights and no llama_decode, so there is nothing to
+      # race. It still catches the self-similar runs reasoning models produce
+      # -- MiniCPM5-2B measured 70/70 accepted at mean length 36.
+      # MTP measured 81/106 here; if the race is ever fixed upstream,
+      # `${mtp}` + `--spec-draft-n-max 6` is the line to restore.
+      "Qwen3.5 9B @UD-Q4_K_XL [ngram]":
         cmd: |
           ${base}
           ${ctx_h}
-          ${mtp}
-          --spec-draft-n-max 6
+          ${ngram}
           ${mmproj_host}
           -hf unsloth/Qwen3.5-9B-MTP-GGUF:UD-Q4_K_XL
       "Ornith-1.5 9B @Q4_K_M [MTP]":

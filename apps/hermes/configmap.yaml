@@ -18,7 +18,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: hermes-managed-config-v3
+  name: hermes-managed-config-v4
   namespace: hermes
 data:
   config.yaml: |
@@ -32,7 +32,7 @@ data:
       # llama-swap id, not an HF path - the full list is at
       # `curl http://llama-swap.llama-swap.svc:8080/v1/models` or see
       # apps/llama-swap/README.md. 9B + native MTP: fast turns, ~8G resident.
-      default: "Qwen3.5 9B @UD-Q4_K_XL [MTP]"
+      default: "Qwen3.5 9B @UD-Q4_K_XL [ngram]"
       # Hermes rejects anything reporting under 64K outright:
       #   "... has a context window of 32,768 tokens, which is below the
       #    minimum 64,000 required by Hermes Agent."

@@ -45,7 +45,7 @@ spec:
             claimName: hermes-workspace
         - name: managed-config
           configMap:
-            name: hermes-managed-config-v3
+            name: hermes-managed-config-v4
       initContainers:
         - name: seed-agent-src
           image: nousresearch/hermes-agent:latest

@@ -25,7 +25,7 @@ the same VPN reachability). Both keys are pinned in managed scope —
 `/etc/hermes/config.yaml`, where it wins over `~/.hermes/config.yaml`.
 
 - **`model.base_url`** — llama-swap's ClusterIP.
-- **`model.default`** — `"Qwen3.5 9B @UD-Q4_K_XL [MTP]"`. It is pinned to a
+- **`model.default`** — `"Qwen3.5 9B @UD-Q4_K_XL [ngram]"`. It is pinned to a
   llama-swap id, not an HF path, because the stored default
   (`unsloth/North-Mini-Code-1.0-GGUF:UD-IQ4_NL`) would 404 against llama-swap's
   model list. The other nine ids are in `apps/llama-swap/README.md`.
