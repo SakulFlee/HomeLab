@@ -149,10 +149,25 @@ data:
       # seeing the terminator its template expects. Scoped to this entry
       # rather than `${base}` deliberately: base is shared with both Gemmas
       # and nothing here should change them.
+      #
+      # `-np 1` because at 64k with n_slots = 4 this id was killing the
+      # Vulkan device outright:
+      #     E send_error: task id = 0/3/6, error: decode() failed:
+      #     vk::Queue::submit: ErrorDeviceLost
+      #     terminate called after throwing an instance of
+      #     'vk::DeviceLostError'
+      # Three tasks were submitting to the same queue concurrently, and the
+      # crash was Qwen3.5-specific -- MiniCPM5-2B kept working off the same
+      # device (GTT back to 14 MiB, no reset needed), so this is load, not a
+      # wedged driver. One slot removes the concurrency and halves the KV
+      # footprint, at the cost of queueing. It also cost throughput when
+      # tried earlier (3.81 vs 6.05 tok/s), which is the right trade for
+      # the only model Hermes talks to.
       "Qwen3.5 9B @UD-Q4_K_XL [ngram]":
         cmd: |
           ${base}
           ${ctx_h}
+          -np 1
           ${ngram}
           ${mmproj_host}
           --jinja
