@@ -43,18 +43,24 @@ data:
       # Putting mmproj in host RAM costs ~1.1G of system RAM (fine) and buys
       # that much GTT back.
       #
-      # For the two Gemma4 entries this flag is not an optimisation but a hard
-      # requirement: without it, even a plain TEXT request dies with
-      # `E init: invalid token[0] = 262144` / `Invalid input batch`, because
-      # the projector left in the GPU path resolves to a token id above the
-      # vocab that the context rejects. Confirmed both with and without
-      # `-fit on`, so it is the offload flag that matters.
+      # NOT an optimisation -- a hard requirement on every model whose repo
+      # ships an mmproj (5 of the 8: Gemma 12B/26B, Qwen3.5, Qwen3.6, Ornith
+      # both sizes). Without it even a plain TEXT request dies with
+      # `E init: invalid token[0] = <beyond vocab>` / `Invalid input batch`,
+      # because the projector left in the GPU path resolves to a token id
+      # above the vocab the context rejects. Measured at 262144 (Gemma) and
+      # 248320 (Qwen3.5); Qwen3.5 returned 500 on every single request until
+      # this flag was added, while its MTP side was healthy (draft_n 24,
+      # accepted 24). Confirmed with and without `-fit on`, so it is the
+      # offload flag that matters. Repos with no mmproj (North, MiMo) need
+      # neither this flag nor the ~1.1G of host RAM it costs.
       "mmproj_host": "--no-mmproj-offload"
 
     models:
       # --- <=12B: fast, 32k ctx, ~7-9G resident ----------------------------
-      # ${mmproj_host} is required here too (see its note): Gemma's text path
-      # fails without it even though the request carries no image.
+      # ${mmproj_host} is required by the three entries here whose repos ship
+      # an mmproj (Gemma, Qwen3.5, Ornith 9B); MiMo ships none, so it skips
+      # the flag. See the note on the macro -- text requests fail without it.
       "Gemma4 12B @UD-Q4_K_XL [QAT MTP]":
         cmd: |
           ${base}
@@ -69,12 +75,14 @@ data:
           ${ctx_m}
           ${mtp}
           --spec-draft-n-max 6
+          ${mmproj_host}
           -hf unsloth/Qwen3.5-9B-MTP-GGUF:UD-Q4_K_XL
       "Ornith-1.5 9B @Q4_K_M [MTP]":
         cmd: |
           ${base}
           ${ctx_m}
           ${mtp}
+          ${mmproj_host}
           -hf ornith-ai/Ornith-1.5-9B-GGUF:Q4_K_M
       # VitreousCut ships the MTP sidecar in a separate file (…-Q4_K_M-MTP.gguf),
       # so the quant token must match the sidecar's name too, not just weights.
