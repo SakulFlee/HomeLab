@@ -108,18 +108,24 @@ data:
       # Recovery is an unload (llama-swap #58):
       #   curl -X POST 'http://127.0.0.1:8080/api/models/unload/\
       # MiniCPM5-2B%20%40Q4_K_M%20%5Bngram%5D'
+      # A fresh load is usually clean (16/16 over four reload cycles) but has
+      # been seen to come up degenerate immediately -- repeat the unload.
       # `ttl` will NOT save you: it evicts on IDLE, and a wedged model that
       # keeps being retried never goes idle.
       #
       # Suspected trigger: a Vulkan context loss. The log carried 37
       # `ggml_vulkan: device lost` / `ErrorDeviceLost` events, including an
-      # uncaught `what(): vk::Queue::submit: ErrorDeviceLost`. Running a
-      # SECOND llama-server against this GPU (an out-of-band probe, say)
-      # reliably produces them -- only ever have one process on the device.
+      # uncaught `what(): vk::Queue::submit: ErrorDeviceLost`, and 0 in the
+      # 10 minutes after a second llama-server was stopped. Running a SECOND
+      # llama-server against this GPU (an out-of-band probe, say) reliably
+      # produces them -- only ever have one process on the device.
       #
       # --min-p 0.0 / --temp 1.0 below are OpenBMB's documented Think-mode
       # sampling for this model (docs/deployment/llama_cpp.md), added as
-      # upstream guidance rather than as the fix for the above:
+      # upstream guidance rather than as the fix for the above. Measured
+      # NEUTRAL here: with and without them, 0/4 degenerate across four
+      # unload/reload blocks (16 requests), so they neither help nor hurt
+      # the wedge -- kept only because they are what the vendor specifies:
       #     "the default min_p=0.05 can lead to repetitive output ...
       #      potentially discarding the exact tokens needed to break out of a
       #      repetition loop. To prevent this, we set min_p=0.0."

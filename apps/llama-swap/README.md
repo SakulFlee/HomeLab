@@ -326,6 +326,10 @@ transcode or other consumer on `renderD128`.
   | wedged process | **8/8** |
   | after one unload | **0/4** |
 
+  A fresh load is *usually* clean — four further unload/reload cycles measured
+  **16/16** clean — but a load can also come up degenerate immediately (seen
+  once), so **repeat the unload** if the first reload is still bad.
+
   It does not self-heal, exactly like the MTP race above, and `ttl` will not
   save you: `ttl` evicts on **idle**, and a wedged model that keeps being
   retried never goes idle.
@@ -352,8 +356,16 @@ transcode or other consumer on `renderD128`.
   `ggml_vulkan: device lost` / `ErrorDeviceLost` events around the failure,
   including an uncaught `what(): vk::Queue::submit: ErrorDeviceLost`. Standing
   up a **second** `llama-server` against this GPU — an out-of-band probe, a
-  manual `llama-server` for testing — reliably produces them. **Only ever one
+  manual `llama-server` for testing — reliably produces them, and the count was
+  **0 in the 10 minutes after** that second process was stopped. **Only ever one
   process on the device at a time.**
+
+  **Open:** `MiniCPM5-2B` runs llama-server's default `n_slots = 4`, the same
+  configuration that made `Qwen3.5` kill the Vulkan device until it moved to
+  `-np 1`. The events seen here correlate with a *second process*, not with
+  concurrent tasks inside one, so `-np 1` has **not** been applied — it would
+  cost throughput on the fast tier to fix something not yet observed. Revisit if
+  a wedge ever reproduces with only one process running.
 - **`unspecific error: group is shutting down`** — llama-swap reloaded the
   config while the model was loading, killing it. Almost always Flux applying a
   commit that does not match the cluster (i.e. you edited locally without
