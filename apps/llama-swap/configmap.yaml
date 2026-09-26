@@ -71,6 +71,38 @@ data:
       "mmproj_host": "--no-mmproj-offload"
 
     models:
+      # --- tiny/fast tier: 2B class, 32k ctx, ~2-3G resident ----------------
+      # Neither MiniCPM ships MTP (plain llama arch / qwen35 arch, no nextn
+      # tensors, no MTP repo on HF), so ngram stands in for it -- it needs no
+      # draft weights, and on a 2B the per-token cost of running it is nil.
+      #
+      # Q4_K_M is deliberate for this slot: it exists to be the quick one, and
+      # on a bandwidth-bound iGPU the quant IS the speed. Q4_K_M moves 1541 MiB
+      # of weights per token against Q8_0's 2556 MiB, so the "worse" quant is
+      # ~1.6x faster here. bartowski also carries the full ladder if that ever
+      # wants trading back for quality.
+      "MiniCPM5-2B @Q4_K_M [ngram]":
+        cmd: |
+          ${base}
+          ${ctx_m}
+          ${ngram}
+          -hf bartowski/MiniCPM5-2B-GGUF:Q4_K_M
+      # Vision -- the slot Gemma4 can't fill (its image path dies with
+      # `invalid token[0] = 262144` even with the flag). Q8_0 rather than Q4:
+      # 774 MiB is nothing against a 15663 MiB ceiling, and image encoders are
+      # the most quantisation-sensitive part of a VLM, so this is the one place
+      # quality beats speed. ${mmproj_host} is mandatory -- this repo ships
+      # mmproj-model-f16.gguf (1057 MiB), so without the flag text requests die
+      # exactly the way Gemma's and Qwen3.5's did. It keeps the projector in
+      # host RAM: image encode gets slower, decode is untouched.
+      "MiniCPM-V-4.6 @Q8_0 [ngram]":
+        cmd: |
+          ${base}
+          ${ctx_m}
+          ${ngram}
+          ${mmproj_host}
+          -hf openbmb/MiniCPM-V-4.6-gguf:Q8_0
+
       # --- <=12B: fast, 32k ctx, ~7-9G resident ----------------------------
       # ${mmproj_host} is required by the three entries here whose repos ship
       # an mmproj (Gemma, Qwen3.5, Ornith 9B); MiMo ships none, so it skips
