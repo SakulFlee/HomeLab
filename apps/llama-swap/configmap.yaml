@@ -131,45 +131,47 @@ data:
       #      repetition loop. To prevent this, we set min_p=0.0."
       # OpenBMB specifies temp 1.0 / top-p 0.95 for 2B Think mode; our
       # llama-server defaults are 0.8 / 0.95, so only temp needs setting.
-      # --- speculation OFF: decisive test for the "))))))))" bug ------------
-      # Evidence, gathered only after GPU-side causes were ruled out:
-      #   * Every wedged run reported draft_n_accepted == draft_n (100%
-      #     acceptance: 23/23, 11/11, 7/7). Every clean run reported no
-      #     draft counters at all. Degenerate acceptance never appeared
-      #     without degenerate output.
-      #   * Onset only ever happened inside multi-turn chains -- the one
-      #     workload where ngram-mod has long repeated context to match
-      #     against. 40+ single-turn requests, zero wedges.
-      #   * This repo already documents a NON-SELF-HEALING failure in this
-      #     same code path (see the `base` macro: once the draft's input
-      #     buffer is bad, every later request in the process fails until
-      #     reload), which is exactly the observed persistence.
-      #   * ngram-mod is the one axis on which this model differs from
-      #     Gemma, which is reported working fine -- Gemma runs draft-mtp.
+      # --- currently CPU-only: isolating the compute backend ----------------
+      # Symptom: after N requests (measured 3, 12, 17, 18 -- stochastic) the
+      # model emits token 30, ")", for EVERY prompt from the very first
+      # token, content empty, finish_reason=length. It never self-heals
+      # within a process. Onset has ONLY ever been observed inside
+      # multi-turn chains; 40+ single-turn requests have never wedged.
+      #
+      # `-ngl 0` is the split: if CPU stays clean, the fault is in the
+      # Vulkan path (then `-fa on` is the next suspect) and CPU is a
+      # deployable fix for a 2B. If CPU also wedges, the fault is in
+      # llama-server itself, not the GPU.
       #
       # Ruled out, do not re-test lightly:
-      #   * GGML_VK_DISABLE_COOPMAT: a no-op here. RADV only exposes
-      #     VK_KHR_cooperative_matrix for GFX11/RDNA3+ and this is GFX10.5.
+      #   * SPECULATION. Disabling it (`--spec-type none`) did NOT stop the
+      #     wedge -- 11 clean requests then the same ")))))))", with
+      #     draft=None/None on every request confirming it was genuinely
+      #     off. The earlier 100% draft_n_accepted was a CONSEQUENCE: ngram
+      #     trivially matches a run of ")" already in context. Left off here
+      #     only to hold this test to one variable -- restore `${ngram}`.
+      #   * GGML_VK_DISABLE_COOPMAT: a no-op. RADV only exposes
+      #     VK_KHR_cooperative_matrix for GFX11/RDNA3+; this is GFX10.5.
       #     Reverted in b2fd867d.
-      #   * GGML_VK_MAX_NODES_PER_SUBMIT=1 (kept, see deployment.yaml):
-      #     the kernel genuinely shows 11 `ring comp_*.0 timeout` -> GPU
-      #     reset -> `[drm] device wedged` cycles on this node, matching
-      #     llama.cpp #21724, so the flag stays. But the wedge reproduced
-      #     with ZERO kernel messages and zero llama-server device-lost,
-      #     so that mechanism does not explain this output.
+      #   * GGML_VK_MAX_NODES_PER_SUBMIT=1 (kept, see deployment.yaml): the
+      #     host kernel genuinely shows 11 `ring comp_*.0 timeout` -> GPU
+      #     reset -> `[drm] device wedged` cycles matching llama.cpp
+      #     #21724, so the flag stays on its own merits. But every wedge
+      #     tested reproduced with ZERO kernel messages and zero
+      #     llama-server device-lost, so that mechanism is NOT this bug.
       #   * Repetition knobs (min_p/temp/dry/frequency/presence): neutral.
-      #   * Memory: GTT 2.68G / VRAM 416M idle, no leak.
-      #   * Model file intact (1.6G); mesa shader cache archived, no
+      #   * Memory: GTT 2.68G / VRAM 416M with nothing resident -- no leak.
+      #   * Model file intact (1.6G); mesa shader cache archived with no
       #     writes in any test window.
       #
-      # Restore `${ngram}` only once this is proven either way. The id
-      # keeps its [ngram] suffix because the README, unload URLs and client
-      # configs all reference it.
+      # The id keeps its [ngram] suffix because the README, unload URLs and
+      # client configs all reference it.
       "MiniCPM5-2B @Q4_K_M [ngram]":
         cmd: |
           ${base}
           ${ctx_m}
           --spec-type none
+          -ngl 0
           --min-p 0.0
           --temp 1.0
           -hf bartowski/MiniCPM5-2B-GGUF:Q4_K_M
