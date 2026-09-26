@@ -67,6 +67,17 @@ spec:
           env:
             - name: HERMES_HOME
               value: /opt/data
+            # 180s (the default) is not enough behind llama-swap. The agent's
+            # prompt is ~14.5k tokens and llama-server pre-fills at ~91 tok/s,
+            # so prompt eval alone runs ~160s -- and a cold load adds ~45s on
+            # top. Hermes sees the initial role chunk, then nothing while the
+            # whole prompt pre-fills, concludes "Stream stale for 180s ...
+            # Killing connection", and drops a request that was working.
+            # Measured end to end: http 200, 81 chunks, then killed at 197.5s.
+            # 600s covers cold load + pre-fill with room to spare. Raise the
+            # model's own context or speed up prefill and this can come down.
+            - name: HERMES_STREAM_STALE_TIMEOUT
+              value: "600"
             # Both images must agree on ownership of the shared PVC.
             - name: HERMES_UID
               value: "1000"
