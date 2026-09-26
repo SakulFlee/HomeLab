@@ -29,6 +29,19 @@ data:
       # <=12B class gets 32k, 26B/35B class gets 16k (see ceiling note below).
       "ctx_m": "-c 32768"
       "ctx_l": "-c 16384"
+      # NOTE (open, not acted on): the first decode after a cold load sometimes
+      # fails in the MTP draft rather than in the model:
+      #     E init: invalid token[0] = 248320      (garbage, not a real token)
+      #     E spec draft: llama_decode[1] returned -1
+      #     E srv decode: Invalid input batch.  -> HTTP 500
+      # It is a race, not a config fault: llama-swap's health check only probes
+      # /health, so the client's first request is the draft's first decode.
+      # Observed with 50ms readiness polling -- a 1s poll never reproduces it.
+      # Dropping `-fit on` looked like a fix (8/8 clean vs 2/4 failing on MiMo
+      # in isolation) but it was never confirmed end-to-end, and `-fit on` is
+      # what the models shipped with and are known good on. Left in place.
+      # Re-test on cold starts before changing anything here.
+      #
       # Needs nextn tensors or an mtp-*.gguf sidecar (auto-downloaded from the
       # same repo on first load). See README for the per-model MTP matrix.
       "mtp": "--spec-type draft-mtp"
@@ -38,10 +51,10 @@ data:
       # mmproj on the CPU. The GPU is an iGPU: its whole aperture is ONE fixed
       # budget, the GTT ceiling of 15663 MiB (15.29 GiB), and it is the binding
       # constraint -- not the 24Gi pod limit, which is nowhere near reached.
-      # radv over-reports the heap as 16175 MiB, so `-fit` computes its margin
-      # against a number ~512 MiB larger than reality and lands short.
-      # Putting mmproj in host RAM costs ~1.1G of system RAM (fine) and buys
-      # that much GTT back.
+      # Note radv over-reports the heap as 16175 MiB, so any tool that sizes
+      # against the reported heap rather than the aperture lands ~512 MiB
+      # short. Putting mmproj in host RAM costs ~1.1G of system RAM (fine) and
+      # buys that much GTT back.
       #
       # NOT an optimisation -- a hard requirement on every model whose repo
       # ships an mmproj (5 of the 8: Gemma 12B/26B, Qwen3.5, Qwen3.6, Ornith
@@ -51,9 +64,10 @@ data:
       # above the vocab the context rejects. Measured at 262144 (Gemma) and
       # 248320 (Qwen3.5); Qwen3.5 returned 500 on every single request until
       # this flag was added, while its MTP side was healthy (draft_n 24,
-      # accepted 24). Confirmed with and without `-fit on`, so it is the
-      # offload flag that matters. Repos with no mmproj (North, MiMo) need
-      # neither this flag nor the ~1.1G of host RAM it costs.
+      # accepted 24). Verified by standing llama-server up outside llama-swap:
+      # local -m with no mmproj works, -hf without the flag 500s, -hf with the
+      # flag works. Repos with no mmproj (North, MiMo) need neither this flag
+      # nor the ~1.1G of host RAM it costs.
       "mmproj_host": "--no-mmproj-offload"
 
     models:
