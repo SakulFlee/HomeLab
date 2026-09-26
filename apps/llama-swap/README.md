@@ -14,7 +14,7 @@ it wants, so "selecting models" here means editing the `models:` map.
 VPN-only (`wireguard-vpn-only@kubernetescrd`), `letsencrypt-production`, and
 **no API key** — anything on the tunnel can use the GPU.
 
-## The lineup (10 models)
+## The lineup (9 models)
 
 Measured on the Rembrandt 680M through llama-swap, non-streaming, 100 output
 tokens, reading llama-server's own `timings` field (see *Benchmarks lie* below).
@@ -24,7 +24,6 @@ ordering, not as promises.
 | Model id (exact string for `model:`) | tok/s | prompt tok/s | Speculation | Weights |
 | --- | ---: | ---: | --- | ---: |
 | `MiniCPM5-2B @Q4_K_M [ngram]` | 8.9 | ~178 | ngram | 1.5G |
-| `MiniCPM-V-4.6 @Q8_0 [ngram]` | 11.5 | ~113 | ngram | 0.8G + 1.1G mmproj (host) |
 | `Qwen3.6 35B-A3B @UD-IQ3_S [MTP]` | 6.0 | 23 | MTP 60/76 | 13.7G |
 | `Qwen3.5 9B @UD-Q4_K_XL [ngram]` | 5.2 | 30 | ngram (MTP disabled, see matrix) | 5.5G |
 | `Gemma4 26B-A4B @UD-Q4_K_XL [QAT MTP]` | 4.8 | 19 | MTP 66/132 | 14.5G |
@@ -47,7 +46,7 @@ Two `500 Invalid input batch` failures per cold start are normal — see
 | Has MTP? | Models | Flag |
 | --- | --- | --- |
 | **Yes** (nextn tensors or an `mtp-*.gguf` sidecar, auto-downloaded) | Gemma4 12B, Gemma4 26B, Qwen3.6 35B, Ornith 9B, Ornith 35B, MiMo 9B | `${mtp}` → `--spec-type draft-mtp` |
-| **No** (nothing to speculate with — plain `llama`/`qwen35` archs) | North Mini Code, MiniCPM5-2B, MiniCPM-V-4.6 | `${ngram}` → `--spec-type ngram-mod` |
+| **No** (nothing to speculate with — plain `llama`/`qwen35` archs) | North Mini Code, MiniCPM5-2B | `${ngram}` → `--spec-type ngram-mod` |
 | **Has it, but runs ngram anyway** | **Qwen3.5 9B** — Hermes' default, and the only id at `-c 65536`. At 64k the cold-start draft race below is near-certain rather than occasional (5 of 6 fresh loads), and it is not self-healing: once the first decode fails the buffer never populates, so the agent's own 3 retries all land in the same broken process. See *Cold-start MTP race*. | `${ngram}` |
 
 ### mmproj matrix
@@ -59,7 +58,7 @@ gets allocated past the end of the GTT aperture and produces garbage embeddings.
 
 | Ships `mmproj`? | Models | Flag |
 | --- | --- | --- |
-| **Yes** | Gemma4 12B, Gemma4 26B, Qwen3.5 9B, Qwen3.6 35B, Ornith 9B, Ornith 35B, **MiniCPM-V-4.6** | `${mmproj_host}` (mandatory) |
+| **Yes** | Gemma4 12B, Gemma4 26B, Qwen3.5 9B, Qwen3.6 35B, Ornith 9B, Ornith 35B | `${mmproj_host}` (mandatory) |
 | **No** | North Mini Code, MiMo 9B, **MiniCPM5-2B** | — |
 
 Adding a model whose repo has an `mmproj-*.gguf`? Add `${mmproj_host}`. Check:
@@ -69,9 +68,12 @@ curl -s https://huggingface.co/api/models/<repo>/tree/main \
   | jq -r '.[].path' | grep -i mmproj
 ```
 
-**The vision slot is `MiniCPM-V-4.6`.** Gemma4 cannot fill it: its image path
-fails with `invalid token[0] = 262144` even *with* the flag. MiniCPM-V-4.6 was
-verified against a solid-red test image and answered `red`.
+**There is no vision model in the lineup.** `MiniCPM-V-4.6 @Q8_0 [ngram]` used
+to fill this slot — verified against a solid-red test image, answered `red` —
+and was removed when the lineup was cut to 9. Gemma4 cannot replace it: its
+image path fails with `invalid token[0] = 262144` even *with* the flag. To
+restore image input, re-add `openbmb/MiniCPM-V-4.6-gguf:Q8_0` with
+`${mmproj_host}` (it ships `mmproj-model-f16.gguf`, 1057 MiB).
 
 ## Hardware: the GTT ceiling
 
@@ -139,7 +141,7 @@ it is applied only where GTT forces it.
      ghcr.io/mostlygeek/llama-swap:v258-vulkan-b11176 -config /cfg.yaml -validate
    ```
 
-   `config is valid: 10 model(s), 0 peer(s)` is what success looks like.
+   `config is valid: 9 model(s), 0 peer(s)` is what success looks like.
    `--entrypoint` matters: the image bakes `-config /app/config.yaml
    -watch-config` into its entrypoint, so plain `docker run IMG …` appends
    after them instead of replacing them.
@@ -184,7 +186,7 @@ Recreate` means a short outage while it starts.
 
 **The first request after a cold load fails intermittently on MTP models** with
 a plain `500` and `{"error":{"code":500,"message":"Invalid input batch."}}`.
-Roughly two in three cold starts. `ngram` models (North, both MiniCPM) are
+Roughly two in three cold starts. `ngram` models (North, MiniCPM5-2B) are
 immune.
 
 ```
@@ -310,6 +312,48 @@ transcode or other consumer on `renderD128`.
   before blaming the config. A `500` whose body is `json.exception.parse_error`
   is a malformed *request*, not a server fault — llama-server reports bad JSON
   as a 500 rather than a 400.
+- **A model replies with `))))))))` forever — "repetition" that never stops** —
+  this is **not a sampling problem, and no penalty will fix it**. It is a
+  **wedged llama-server process**: it returns pure parens with
+  `finish_reason: "length"` for *every* prompt — including `What is 17 * 23?`
+  — while reporting `draft acceptance = 1.00000`, because the ngram draft
+  matches perfectly when it is drafting garbage.
+
+  Measured directly on `MiniCPM5-2B`, same four prompts, same weights:
+
+  | state | degenerate |
+  | --- | --- |
+  | wedged process | **8/8** |
+  | after one unload | **0/4** |
+
+  It does not self-heal, exactly like the MTP race above, and `ttl` will not
+  save you: `ttl` evicts on **idle**, and a wedged model that keeps being
+  retried never goes idle.
+
+  **Every anti-repetition knob was tested against a wedged process and none
+  changed the output by a single character**: `--dry-multiplier`,
+  `--repeat-penalty`, `--frequency-penalty`, `--presence-penalty` (CLI and
+  request-level, up to 3.0/3.0/3.0) and `min_p`. They only suppress a token
+  that already dominates — they cannot un-wedge anything. If someone proposes
+  a repeat penalty as the fix for this symptom, they are treating the wrong
+  disease.
+
+  **Recover with an unload** (llama-swap #58). A plain retry lands in the
+  same broken process:
+
+  ```sh
+  # one model (id is URL-encoded: spaces -> %20, @ -> %40, [ ] -> %5B %5D)
+  curl -s -X POST 'http://127.0.0.1:8080/api/models/unload/MiniCPM5-2B%20%40Q4_K_M%20%5Bngram%5D'
+  # or everything:
+  curl -s -X POST 'http://127.0.0.1:8080/api/models/unload'
+  ```
+
+  **Suspected trigger: a Vulkan context loss.** The log carried **37**
+  `ggml_vulkan: device lost` / `ErrorDeviceLost` events around the failure,
+  including an uncaught `what(): vk::Queue::submit: ErrorDeviceLost`. Standing
+  up a **second** `llama-server` against this GPU — an out-of-band probe, a
+  manual `llama-server` for testing — reliably produces them. **Only ever one
+  process on the device at a time.**
 - **`unspecific error: group is shutting down`** — llama-swap reloaded the
   config while the model was loading, killing it. Almost always Flux applying a
   commit that does not match the cluster (i.e. you edited locally without

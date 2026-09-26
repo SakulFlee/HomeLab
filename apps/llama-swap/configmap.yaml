@@ -65,7 +65,7 @@ data:
       # buys that much GTT back.
       #
       # NOT an optimisation -- a hard requirement on every model whose repo
-      # ships an mmproj (5 of the 8: Gemma 12B/26B, Qwen3.5, Qwen3.6, Ornith
+      # ships an mmproj (6 of the 9: Gemma 12B/26B, Qwen3.5, Qwen3.6, Ornith
       # both sizes). Without it even a plain TEXT request dies with
       # `E init: invalid token[0] = <beyond vocab>` / `Invalid input batch`,
       # because the projector left in the GPU path resolves to a token id
@@ -74,42 +74,65 @@ data:
       # this flag was added, while its MTP side was healthy (draft_n 24,
       # accepted 24). Verified by standing llama-server up outside llama-swap:
       # local -m with no mmproj works, -hf without the flag 500s, -hf with the
-      # flag works. Repos with no mmproj (North, MiMo) need neither this flag
-      # nor the ~1.1G of host RAM it costs.
+      # flag works. Repos with no mmproj (North, MiMo, MiniCPM5-2B) need
+      # neither this flag nor the ~1.1G of host RAM it costs.
       "mmproj_host": "--no-mmproj-offload"
 
     models:
       # --- tiny/fast tier: 2B class, 32k ctx, ~2-3G resident ----------------
-      # Neither MiniCPM ships MTP (plain llama arch / qwen35 arch, no nextn
-      # tensors, no MTP repo on HF), so ngram stands in for it -- it needs no
-      # draft weights, and on a 2B the per-token cost of running it is nil.
+      # No MTP for this one (plain llama arch, no nextn tensors, no MTP repo
+      # on HF), so ngram stands in for it -- it needs no draft weights, and on
+      # a 2B the per-token cost of running it is nil.
       #
       # Q4_K_M is deliberate for this slot: it exists to be the quick one, and
       # on a bandwidth-bound iGPU the quant IS the speed. Q4_K_M moves 1541 MiB
       # of weights per token against Q8_0's 2556 MiB, so the "worse" quant is
       # ~1.6x faster here. bartowski also carries the full ladder if that ever
       # wants trading back for quality.
+      #
+      # --- the "))))))))" bug is NOT a sampling fault ------------------------
+      # Reported as: first reply fine, then it repeats the same character
+      # forever and never recovers. That is a WEDGED llama-server process, not
+      # a tuning problem. Measured directly -- the same four prompts before and
+      # after a clean unload:
+      #     wedged:  8/8 degenerate, incl. "What is 17 * 23?"
+      #     fresh:   0/4 degenerate
+      # A wedged process returns pure parens with finish_reason=length and
+      # draft acceptance 100%, for EVERY prompt, and it does not self-heal.
+      # Every anti-repetition knob was tested against it and none moved the
+      # needle by a single character: --dry-multiplier, --repeat-penalty,
+      # --frequency-penalty, --presence-penalty (CLI and request-level, up to
+      # 3.0/3.0/3.0), and min_p. They cannot help, because they only suppress
+      # a token that is already dominating -- they never un-wedge the process.
+      #
+      # Recovery is an unload (llama-swap #58):
+      #   curl -X POST 'http://127.0.0.1:8080/api/models/unload/\
+      # MiniCPM5-2B%20%40Q4_K_M%20%5Bngram%5D'
+      # `ttl` will NOT save you: it evicts on IDLE, and a wedged model that
+      # keeps being retried never goes idle.
+      #
+      # Suspected trigger: a Vulkan context loss. The log carried 37
+      # `ggml_vulkan: device lost` / `ErrorDeviceLost` events, including an
+      # uncaught `what(): vk::Queue::submit: ErrorDeviceLost`. Running a
+      # SECOND llama-server against this GPU (an out-of-band probe, say)
+      # reliably produces them -- only ever have one process on the device.
+      #
+      # --min-p 0.0 / --temp 1.0 below are OpenBMB's documented Think-mode
+      # sampling for this model (docs/deployment/llama_cpp.md), added as
+      # upstream guidance rather than as the fix for the above:
+      #     "the default min_p=0.05 can lead to repetitive output ...
+      #      potentially discarding the exact tokens needed to break out of a
+      #      repetition loop. To prevent this, we set min_p=0.0."
+      # OpenBMB specifies temp 1.0 / top-p 0.95 for 2B Think mode; our
+      # llama-server defaults are 0.8 / 0.95, so only temp needs setting.
       "MiniCPM5-2B @Q4_K_M [ngram]":
         cmd: |
           ${base}
           ${ctx_m}
           ${ngram}
+          --min-p 0.0
+          --temp 1.0
           -hf bartowski/MiniCPM5-2B-GGUF:Q4_K_M
-      # Vision -- the slot Gemma4 can't fill (its image path dies with
-      # `invalid token[0] = 262144` even with the flag). Q8_0 rather than Q4:
-      # 774 MiB is nothing against a 15663 MiB ceiling, and image encoders are
-      # the most quantisation-sensitive part of a VLM, so this is the one place
-      # quality beats speed. ${mmproj_host} is mandatory -- this repo ships
-      # mmproj-model-f16.gguf (1057 MiB), so without the flag text requests die
-      # exactly the way Gemma's and Qwen3.5's did. It keeps the projector in
-      # host RAM: image encode gets slower, decode is untouched.
-      "MiniCPM-V-4.6 @Q8_0 [ngram]":
-        cmd: |
-          ${base}
-          ${ctx_m}
-          ${ngram}
-          ${mmproj_host}
-          -hf openbmb/MiniCPM-V-4.6-gguf:Q8_0
 
       # --- <=12B: fast, 32k ctx, ~7-9G resident ----------------------------
       # ${mmproj_host} is required by the three entries here whose repos ship
