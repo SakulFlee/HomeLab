@@ -131,17 +131,28 @@ data:
       #      repetition loop. To prevent this, we set min_p=0.0."
       # OpenBMB specifies temp 1.0 / top-p 0.95 for 2B Think mode; our
       # llama-server defaults are 0.8 / 0.95, so only temp needs setting.
-      # --- currently CPU-only: isolating the compute backend ----------------
-      # Symptom: after N requests (measured 3, 12, 17, 18 -- stochastic) the
-      # model emits token 30, ")", for EVERY prompt from the very first
-      # token, content empty, finish_reason=length. It never self-heals
-      # within a process. Onset has ONLY ever been observed inside
-      # multi-turn chains; 40+ single-turn requests have never wedged.
+      # --- THE GPU IS NOT THE CAUSE -----------------------------------------
+      # The whole workload was re-run with `-ngl 0`: GTT/VRAM flat (1592 ->
+      # 1590 MiB, proving the weights never left system RAM) and ZERO
+      # device-lost / CS-cancelled / 500s after a log marker. It still broke
+      # -- c0t1 -> 02-</param>"/".1,,#<function"+2*&<function*'
+      # and c0t2 -> .%-..</param>(.</param>.
       #
-      # `-ngl 0` is the split: if CPU stays clean, the fault is in the
-      # Vulkan path (then `-fa on` is the next suspect) and CPU is a
-      # deployable fix for a 2B. If CPU also wedges, the fault is in
-      # llama-server itself, not the GPU.
+      # The harness was ruled out too: rebuilding the conversation with
+      # plain, well-formed assistant replies (instead of feeding
+      # content+reasoning back in) breaks just as fast, at c0t1/c0t2.
+      #
+      # So this is backend-independent AND transcript-independent:
+      # multi-turn only (40+ single-turn requests, never a wedge), and it
+      # emits deep-tail BPE artifacts -- </function>, <param>, <function> --
+      # which is what a sampler with no probability floor produces.
+      #
+      # Prime suspect now: `--min-p 0.0 --temp 1.0`, OpenBMB's Think-mode
+      # sampling. min_p 0.0 removes the floor entirely and temp 1.0 is
+      # hotter than the 0.8 default, so nothing excludes the tail. The
+      # earlier "measured NEUTRAL" note further down was VACUOUS: it
+      # recorded 0/4 degenerate both ways, i.e. nothing was failing, so it
+      # had no power to tell them apart. Both flags are dropped to test it.
       #
       # Ruled out, do not re-test lightly:
       #   * SPECULATION. Disabling it (`--spec-type none`) did NOT stop the
@@ -159,7 +170,10 @@ data:
       #     #21724, so the flag stays on its own merits. But every wedge
       #     tested reproduced with ZERO kernel messages and zero
       #     llama-server device-lost, so that mechanism is NOT this bug.
-      #   * Repetition knobs (min_p/temp/dry/frequency/presence): neutral.
+      #   * dry/frequency/presence penalties: genuinely neutral -- byte
+      #     identical output from 1.3 to 3.0. They only suppress a token
+      #     that is already winning, so they cannot shape the tail.
+      #   * min_p/temp: NOT neutral after all -- see above; now under test.
       #   * Memory: GTT 2.68G / VRAM 416M with nothing resident -- no leak.
       #   * Model file intact (1.6G); mesa shader cache archived with no
       #     writes in any test window.
@@ -172,8 +186,6 @@ data:
           ${ctx_m}
           --spec-type none
           -ngl 0
-          --min-p 0.0
-          --temp 1.0
           -hf bartowski/MiniCPM5-2B-GGUF:Q4_K_M
 
       # --- <=12B: fast, 32k ctx, ~7-9G resident ----------------------------
