@@ -59,29 +59,6 @@ spec:
               value: /root
             - name: LLAMA_ARG_HOST
               value: 0.0.0.0
-            # llama-swap passes its environment to every llama-server it
-            # spawns, so this is where backend-level knobs belong.
-            #
-            # The symptom these address is a model that emits ONE character
-            # forever. llama.cpp #10734 reports "#" on an RTX 4080 and
-            # repeated tabs on an AMD 7900GRE under RADV, both fixed by
-            # disabling coopmat -- which is exactly MiniCPM5-2B's "))))))))".
-            #
-            # Why it can hit this card: coopmat was scoped to "AMD RX 7000
-            # series and newer" in PR #10597, and this is an RDNA2 680M
-            # (gfx1035) with no matrix cores. The guard that does exist
-            # (PR #11074, "device-specific blacklist for coopmat") targets
-            # the AMD *proprietary* driver by device name, so RADV here is
-            # neither excluded nor validated.
-            #
-            # Cost: prompt-processing speed, on hardware that likely never
-            # had the matrix units anyway. Both flags are present in the
-            # bundled libggml-vulkan.so (build 11176) -- verified, no
-            # rebuild required.
-            - name: GGML_VK_DISABLE_COOPMAT
-              value: "1"
-            - name: GGML_VK_DISABLE_COOPMAT2
-              value: "1"
           ports:
             - name: http
               containerPort: 8080
