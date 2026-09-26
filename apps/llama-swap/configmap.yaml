@@ -22,12 +22,11 @@ data:
     unloadTimeout: 300
 
     macros:
-      # -c lives per-model, not here: KV cache is the #2 RAM consumer and the
-      # old shared 65536 made every model pay for 64k of it. -fit on lets
-      # llama-server trim offload/ctx itself to the Vulkan heap.
+      # -c lives per-model, not here: KV cache is the #2 GPU consumer and the
+      # old shared 65536 made every model pay for 64k of it.
       "base":
         /app/llama-server --host 127.0.0.1 --port ${PORT} -fa on -fit on
-      # ~16G node budget: <=12B class gets 32k, 26B/35B class gets 16k.
+      # <=12B class gets 32k, 26B/35B class gets 16k (see ceiling note below).
       "ctx_m": "-c 32768"
       "ctx_l": "-c 16384"
       # Needs nextn tensors or an mtp-*.gguf sidecar (auto-downloaded from the
@@ -36,15 +35,34 @@ data:
       # North has no MTP anywhere on HF; ngram speculation needs no draft
       # weights at all and only pays off on repetitive/structured output.
       "ngram": "--spec-type ngram-mod"
+      # mmproj on the CPU. The GPU is an iGPU: its whole aperture is ONE fixed
+      # budget, the GTT ceiling of 15663 MiB (15.29 GiB), and it is the binding
+      # constraint -- not the 24Gi pod limit, which is nowhere near reached.
+      # radv over-reports the heap as 16175 MiB, so `-fit` computes its margin
+      # against a number ~512 MiB larger than reality and lands short.
+      # Putting mmproj in host RAM costs ~1.1G of system RAM (fine) and buys
+      # that much GTT back.
+      #
+      # For the two Gemma4 entries this flag is not an optimisation but a hard
+      # requirement: without it, even a plain TEXT request dies with
+      # `E init: invalid token[0] = 262144` / `Invalid input batch`, because
+      # the projector left in the GPU path resolves to a token id above the
+      # vocab that the context rejects. Confirmed both with and without
+      # `-fit on`, so it is the offload flag that matters.
+      "mmproj_host": "--no-mmproj-offload"
 
     models:
-      # --- <=12B: fast, 32k ctx, ~7-8G resident ----------------------------
+      # --- <=12B: fast, 32k ctx, ~7-9G resident ----------------------------
+      # ${mmproj_host} is required here too (see its note): Gemma's text path
+      # fails without it even though the request carries no image.
       "Gemma4 12B @UD-Q4_K_XL [QAT MTP]":
         cmd: |
           ${base}
           ${ctx_m}
           ${mtp}
+          ${mmproj_host}
           -hf unsloth/gemma-4-12B-it-qat-GGUF:UD-Q4_K_XL
+      # Hermes' default model (apps/hermes/configmap.yaml, model.default).
       "Qwen3.5 9B @UD-Q4_K_XL [MTP]":
         cmd: |
           ${base}
@@ -58,6 +76,8 @@ data:
           ${ctx_m}
           ${mtp}
           -hf ornith-ai/Ornith-1.5-9B-GGUF:Q4_K_M
+      # VitreousCut ships the MTP sidecar in a separate file (…-Q4_K_M-MTP.gguf),
+      # so the quant token must match the sidecar's name too, not just weights.
       "MiMo-V2.6-Distill-9B @Q4_K_M [MTP]":
         cmd: |
           ${base}
@@ -65,39 +85,54 @@ data:
           ${mtp}
           -hf VitreousCut/MiMo-V2.6-Distill-Qwen-9B-MTP-GGUF:Q4_K_M
 
-      # --- 26B/35B: 16k ctx, ~16-17G resident each, one at a time ---------
-      # QAT ships only UD-Q4_K_XL (14.25G). If this OOMs on load, fall back to
-      # non-QAT unsloth/gemma-4-26B-A4B-it-GGUF:UD-Q3_K_XL (12.9G -> ~14.6G).
+      # --- 26B/35B: 16k ctx, ~13-14G weights, one at a time ---------------
+      # -np 1 on the big models is deliberate and is the main tuning lever for
+      # the GTT ceiling: dropping 4 slots -> 1 reclaimed 624 MiB on Gemma 26B
+      # (15470 -> 14846 of 15663) and 1016 MiB on North, and it is what makes
+      # the Qwen3.6 / North quants below fit at 16k at all.
+      # Measured GTT spare of 15663: Gemma 26B 817, Qwen3.6 708,
+      # North 1142, Ornith 35B 1512. Anything under ~600 has failed to load.
       "Gemma4 26B-A4B @UD-Q4_K_XL [QAT MTP]":
         cmd: |
           ${base}
           ${ctx_l}
+          -np 1
           ${mtp}
           --spec-draft-n-max 4
+          ${mmproj_host}
           -hf unsloth/gemma-4-26B-A4B-it-qat-GGUF:UD-Q4_K_XL
-      # No MTP exists for North (zero nextn tensors, no MTP repo on HF).
-      # If this OOMs, fall back to UD-Q3_K_M (14.2G instead of 15.5G).
-      "North-Mini-Code @UD-IQ4_NL [ngram]":
+      # No MTP exists for North (zero nextn tensors, no MTP repo on HF), so
+      # ngram speculation stands in for it. Note it measured 0 accepted of
+      # ~35 proposed on short prompts -- it is expected to pay off on long,
+      # repetitive agent transcripts, not on a 60-token smoke test.
+      # UD-Q3_K_M at 16k measured 14521/15663 GTT *with* -np 1; without -np 1
+      # the same quant only leaves 126 MiB, and UD-IQ4_NL does not fit at all.
+      "North-Mini-Code @UD-Q3_K_M [ngram]":
         cmd: |
           ${base}
           ${ctx_l}
+          -np 1
           ${ngram}
-          -hf unsloth/North-Mini-Code-1.0-GGUF:UD-IQ4_NL
-      # UD-Q4_K_XL is 22.9G (won't fit). If this OOMs, fall back to
-      # UD-IQ3_XXS (14.1G instead of 15.4G).
+          -hf unsloth/North-Mini-Code-1.0-GGUF:UD-Q3_K_M
+      # UD-IQ3_S (14635 MiB) OOMs at 16k on its own -- it needs -np 1, which
+      # measured 14955/15663 (708 MiB spare). The safe fallback is
+      # UD-IQ3_XXS, 1218 MiB smaller, which fits without -np 1.
       "Qwen3.6 35B-A3B @UD-IQ3_S [MTP]":
         cmd: |
           ${base}
           ${ctx_l}
+          -np 1
           ${mtp}
           --spec-draft-n-max 2
+          ${mmproj_host}
           -hf unsloth/Qwen3.6-35B-A3B-MTP-GGUF:UD-IQ3_S
-      # Official repo has MTP but only Q4+ (21.7G, won't fit); bartowski's
-      # build has nextn AND smaller quants. If this OOMs, fall back to Q3_K_S
-      # (16.0G instead of 15.3G) or IQ2_M (12.5G).
-      "Ornith-1.5 35B-A3B @IQ3_XXS [MTP]":
+      # bartowski's build has nextn AND the small quants the official repo lacks
+      # (the official one starts at Q4 = 21.7G). Q2_K_L (12.65G) is the largest
+      # that fits: IQ3_XXS above it fails even at -c 8192. Measures 14151/15663.
+      "Ornith-1.5 35B-A3B @Q2_K_L [MTP]":
         cmd: |
           ${base}
           ${ctx_l}
           ${mtp}
-          -hf bartowski/Ornith-1.5-35B-A3B-GGUF:IQ3_XXS
+          ${mmproj_host}
+          -hf bartowski/Ornith-1.5-35B-A3B-GGUF:Q2_K_L
