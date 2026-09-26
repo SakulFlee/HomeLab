@@ -29,6 +29,14 @@ data:
       # <=12B class gets 32k, 26B/35B class gets 16k (see ceiling note below).
       "ctx_m": "-c 32768"
       "ctx_l": "-c 16384"
+      # Hermes Agent refuses any model reporting under 64K context:
+      #   "Model ... has a context window of 32,768 tokens, which is below the
+      #    minimum 64,000 required by Hermes Agent."
+      # It suggests overriding with model.context_length, but that only moves
+      # the failure to a context-overflow error on llama-server when the
+      # conversation actually exceeds the real -c -- so Hermes' default model
+      # gets a genuinely 64k server instead. Only it needs this.
+      "ctx_h": "-c 65536"
       # NOTE (open, not acted on): the first decode after a cold load sometimes
       # fails in the MTP draft rather than in the model:
       #     E init: invalid token[0] = 248320      (garbage, not a real token)
@@ -118,7 +126,7 @@ data:
       "Qwen3.5 9B @UD-Q4_K_XL [MTP]":
         cmd: |
           ${base}
-          ${ctx_m}
+          ${ctx_h}
           ${mtp}
           --spec-draft-n-max 6
           ${mmproj_host}
