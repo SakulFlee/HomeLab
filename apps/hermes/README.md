@@ -1,4 +1,4 @@
-# Hermes + Unsloth Studio
+# Hermes + llama-swap
 
 Two Flux Kustomizations that ship together:
 
@@ -9,11 +9,65 @@ Two Flux Kustomizations that ship together:
 | `https://hermes-dashboard.sakul-flee.de/` | Monitoring dashboard | 9119 |
 | `https://hermes-dashboard.sakul-flee.de/health` | Gateway liveness probe | 8642 |
 | `https://hermes-dashboard.sakul-flee.de/v1` | Gateway OpenAI API | 8642 |
-| `https://unsloth.sakul-flee.de/` | Unsloth Studio | 8000 |
-| — | Unsloth JupyterLab (ClusterIP only) | 8888 |
+| `http://llama-swap.llama-swap.svc:8080/v1` | **model backend** (ClusterIP, no ingress) | 8080 |
+| `https://unsloth.sakul-flee.de/` | Unsloth Studio — **scaled to 0** | 8000 |
+| — | Unsloth JupyterLab (ClusterIP only) — scaled to 0 | 8888 |
 
-All four hostnames are VPN-only (`wireguard-vpn-only@kubernetescrd`) and use
+All hostnames are VPN-only (`wireguard-vpn-only@kubernetescrd`) and use
 `letsencrypt-production`.
+
+## The backend is llama-swap, not Unsloth
+
+Hermes sends chat to `http://llama-swap.llama-swap.svc:8080/v1` with
+`model.provider: custom` and no API key (llama-swap checks none; it sits behind
+the same VPN reachability). Both keys are pinned in managed scope —
+`apps/hermes/configmap.yaml`, mounted read-only at
+`/etc/hermes/config.yaml`, where it wins over `~/.hermes/config.yaml`.
+
+- **`model.base_url`** — llama-swap's ClusterIP.
+- **`model.default`** — `"Qwen3.5 9B @UD-Q4_K_XL [MTP]"`. It is pinned to a
+  llama-swap id, not an HF path, because the stored default
+  (`unsloth/North-Mini-Code-1.0-GGUF:UD-IQ4_NL`) would 404 against llama-swap's
+  model list. The other nine ids are in `apps/llama-swap/README.md`.
+
+**Managed scope wins, so the dashboard cannot change this.** *Change* in the
+dashboard writes `model.default`, but the pinned key overrides it — use
+`hermes config get model` to see what is actually in effect. To retarget the
+agent, edit the ConfigMap.
+
+**Expect a cold-start delay and one retry.** llama-swap runs one model at a
+time and loads on demand (up to ~45s for the 14G models), unloading 300s after
+the last request. Its first request after idle can also fail with a plain
+`500 Invalid input batch` — a known MTP draft race, documented in
+`apps/llama-swap/README.md`, cleared by retrying. None of this applies while
+Unsloth is the backend.
+
+## Putting Unsloth back
+
+Unsloth Studio is scaled to 0 — its `:studio` image, ROCm bundle and API key
+are all still in place, it just is not scheduled. To go back:
+
+1. In `apps/hermes/configmap.yaml`, swap the `model:` block for:
+
+   ```yaml
+   model:
+     provider: custom
+     base_url: http://unsloth-studio.unsloth.svc:8000/v1
+     api_mode: chat_completions
+     api_key: "${UNSLOTH_API_KEY}"
+   ```
+
+2. **Bump the ConfigMap name** (`-v2` → `-v3`). A value edit alone does not
+   restart the pod; a changed name does, and the mount is read-only.
+3. Re-encrypt `apps/hermes/secrets` if `UNSLOTH_API_KEY` is gone — Studio only
+   stores a hash of it, so it cannot be read back (see step 3 of *Bootstrap
+   order*).
+4. Scale the deployment back up:
+   `kubectl scale deploy/unsloth-studio -n unsloth --replicas=1`.
+
+Hermes's *own* memory limit was reduced 40Gi → 24Gi while doing this (the node
+has 30.6Gi total, so 40Gi could never be reached). The `hermes-data` PVC is
+untouched at 32Gi.
 
 **Adding a hostname means editing three files, not two.** The ingress has to be
 paired with a `match` label in `apps/wireguard/coredns-configmap.yaml` — the A,
@@ -34,6 +88,10 @@ which wins over `~/.hermes/config.yaml` — but only per key, so `model.default`
 (the concrete model id) remains editable from the dashboard.
 
 ## Bootstrap order
+
+Only required when **Unsloth** is the backend — steps 2–4 are meaningless
+against llama-swap, which needs no API key. The current state is the llama-swap
+backend with Unsloth scaled to 0.
 
 1. **Push** this branch; Flux applies `unsloth`/`unsloth-secrets` and
    `hermes`/`hermes-secrets` in parallel. Each app Kustomization creates its
@@ -59,11 +117,14 @@ which wins over `~/.hermes/config.yaml` — but only per key, so `model.default`
 
    `sops` re-encrypts on save; commit the result. Until this step the agent
    gets `401 Unauthorized` from Unsloth — that is the expected signal.
-5. **Pick a model** in the dashboard (*Change*), with `hermes model`
-   (interactive picker), or non-interactively with
-   `hermes config set model.default <repo-id>` — which is what this deployment
-   uses. This writes `model.default`, which managed scope deliberately does not
-   pin. A working default is `ornith-ai/Ornith-1.5-9B-GGUF` (`Q4_K_M`).
+5. **Pick a model.** On the llama-swap backend `model.default` is **pinned** in
+   managed scope, so the dashboard's *Change*, `hermes model`, and
+   `hermes config set model.default <id>` all write a value the mounted config
+   overrides — see *The backend is llama-swap* above. To actually change it,
+   edit `apps/hermes/configmap.yaml` and bump the ConfigMap name (`-v2` →
+   `-v3`); a value edit alone does not restart the pod. On the restored Unsloth
+   backend the key is unpinned again and any of the three works — the old
+   working default was `ornith-ai/Ornith-1.5-9B-GGUF` (`Q4_K_M`).
 6. **Smoke test** from inside the VPN:
 
    ```sh
