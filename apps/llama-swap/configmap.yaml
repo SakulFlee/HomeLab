@@ -139,12 +139,23 @@ data:
       # -- MiniCPM5-2B measured 70/70 accepted at mean length 36.
       # MTP measured 81/106 here; if the race is ever fixed upstream,
       # `${mtp}` + `--spec-draft-n-max 6` is the line to restore.
+      # `--jinja` (on this entry's cmd, below) makes llama-server apply the
+      # GGUF's own chat template through the Jinja engine. Without it the
+      # model never terminates: every direct test returned
+      # finish_reason="length" and never "stop", and through Hermes it
+      # generated 27,821 then 51,638 tokens for "reply with the single word:
+      # pong" -- degenerate repetition, which Hermes itself flagged
+      # ("Response dominated by repeated text"). The loop is the model never
+      # seeing the terminator its template expects. Scoped to this entry
+      # rather than `${base}` deliberately: base is shared with both Gemmas
+      # and nothing here should change them.
       "Qwen3.5 9B @UD-Q4_K_XL [ngram]":
         cmd: |
           ${base}
           ${ctx_h}
           ${ngram}
           ${mmproj_host}
+          --jinja
           -hf unsloth/Qwen3.5-9B-MTP-GGUF:UD-Q4_K_XL
       "Ornith-1.5 9B @Q4_K_M [MTP]":
         cmd: |
