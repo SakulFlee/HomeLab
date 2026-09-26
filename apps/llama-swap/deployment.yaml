@@ -59,6 +59,36 @@ spec:
               value: /root
             - name: LLAMA_ARG_HOST
               value: 0.0.0.0
+            # llama-swap passes its environment to every llama-server it
+            # spawns, so this is where backend-level knobs belong.
+            #
+            # llama.cpp batches up to 100 Vulkan nodes into a single
+            # vkQueueSubmit (llama.cpp #24872). The amdgpu watchdog
+            # `amdgpu.lockup_timeout` is 2000 ms by default: if one such
+            # batch takes longer than that to run on this 680M iGPU, the
+            # kernel cancels the command stream with exactly the line our
+            # logs carry --
+            #   radv/amdgpu: The CS has been cancelled because the context is
+            #   lost. This context is innocent.
+            # ...and llama.cpp reports it as `device lost on Vulkan0` /
+            # vk::Queue::submit: ErrorDeviceLost (#21724 on an AMD APU,
+            # #27076, #27306, #24872).
+            #
+            # What that does to output: the submission never runs, so the
+            # read returns whatever was already in the buffer. The model then
+            # emits ONE constant token for every prompt -- MiniCPM5-2B's
+            # "))))))))". The cancellation is not always announced
+            # (llama.cpp #27634: watchdog cancels submissions and results
+            # "collapse with no error"), so its absence from the log does not
+            # mean it did not happen.
+            #
+            # Keeping every batch far under the 2s watchdog is the fix.
+            # #21724 measured nodes_per_submit=1 at "no measurable
+            # performance regression (actually ~3% faster)" on an AMD APU;
+            # #24872 uses 8 for the Intel iGPU case. The flag exists in
+            # libggml-vulkan.so (build 11176) -- verified, no rebuild needed.
+            - name: GGML_VK_MAX_NODES_PER_SUBMIT
+              value: "1"
           ports:
             - name: http
               containerPort: 8080
