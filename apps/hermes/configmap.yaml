@@ -18,7 +18,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: hermes-managed-config-v2
+  name: hermes-managed-config-v3
   namespace: hermes
 data:
   config.yaml: |
@@ -33,6 +33,17 @@ data:
       # `curl http://llama-swap.llama-swap.svc:8080/v1/models` or see
       # apps/llama-swap/README.md. 9B + native MTP: fast turns, ~8G resident.
       default: "Qwen3.5 9B @UD-Q4_K_XL [MTP]"
+      # Hermes rejects anything reporting under 64K outright:
+      #   "... has a context window of 32,768 tokens, which is below the
+      #    minimum 64,000 required by Hermes Agent."
+      # It does not read this from llama-swap (our /v1/models omits
+      # max_model_len, so it keeps the stale 32768), hence the explicit
+      # override. Honest rather than a workaround: the Qwen3.5 entry runs
+      # `-c 65536` (macro ctx_h), so the server really does have 64k - it
+      # measured 6024 MiB of GTT spare loaded. Bumping this alone would
+      # otherwise just move the failure to a context-overflow error on
+      # llama-server once a conversation passed 32768.
+      context_length: 65536
 
     terminal:
       backend: local
