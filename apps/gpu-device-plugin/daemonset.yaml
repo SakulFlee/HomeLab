@@ -38,8 +38,9 @@ spec:
                     - path: /dev/dri/card1
             # Without this the container device cgroup denies /dev/kfd with
             # EPERM even for root - mounting it via hostPath is not enough.
-            # Consumed by Unsloth Studio, which requests devic.es/rocm and
-            # devic.es/dri together (Jellyfin/llama-swap keep using dri only).
+            # Consumed by the ollama pod, which requests devic.es/rocm and
+            # devic.es/dri together (Jellyfin keeps using dri only - VA-API on
+            # the video engine, which is a few MB and never contended).
             - --device
             - |
               name: rocm

@@ -3,46 +3,55 @@
 # ~/.hermes/.env and the shell environment - but only for the keys it pins,
 # and merging is leaf-by-leaf.
 #
-# `model.default` IS pinned here (llama-swap backend): the old stored default
-# (`unsloth/North-Mini-Code-1.0-GGUF:UD-IQ4_NL`) pointed at Unsloth and would
-# 404 against llama-swap's model list. Change it from the dashboard if you
-# want a different model - managed scope wins, so that edit won't stick while
-# this key is pinned here.
+# `model.default` IS pinned here (Ollama backend): the old stored default was
+# a llama-swap model id (`Qwen3.5 9B @UD-Q4_K_XL [ngram]`), which does not exist
+# in Ollama's tag namespace. Change it from the dashboard if you want a
+# different model - managed scope wins, so that edit won't stick while this key
+# is pinned here.
 #
-# Backend is llama-swap (local llama.cpp, one model resident at a time).
-# Unsloth Studio is scaled to 0; to go back, swap this `model:` block for
-# `base_url: http://unsloth-studio.unsloth.svc:8000/v1` +
-# `api_key: "${UNSLOTH_API_KEY}"` (re-encrypt apps/hermes/secrets if the key
-# is gone) and bump the ConfigMap name - ConfigMap edits alone do not restart
-# the pod, but a changed name does.
+# Backend is Ollama (ROCm), one model resident at a time. This is the
+# in-cluster Service, not the ingress: the split-DNS answer for
+# *.sakul-flee.de only exists for VPN clients, so an external URL would work
+# from a laptop and fail from inside the pod.
+#
+# Bump the ConfigMap name on any edit to this file. ConfigMap edits alone do
+# not restart the pod, but a changed name does - that is why this is v5 and
+# not v4. (v4 was llama-swap; before that Unsloth Studio at
+# `http://unsloth-studio.unsloth.svc:8000/v1`. Both are gone.)
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: hermes-managed-config-v4
+  name: hermes-managed-config-v5
   namespace: hermes
 data:
   config.yaml: |
     model:
       provider: custom
-      # llama-swap takes no auth (it sits behind the same LAN/VPN reachability
-      # as everything else here), so there is no key to expand from secrets.
-      base_url: http://llama-swap.llama-swap.svc:8080/v1
+      # Ollama takes no auth on its OpenAI-compatible endpoint, so there is no
+      # key to expand from secrets.
+      base_url: http://ollama.ollama.svc:11434/v1
       api_mode: chat_completions
       api_key: ""
-      # llama-swap id, not an HF path - the full list is at
-      # `curl http://llama-swap.llama-swap.svc:8080/v1/models` or see
-      # apps/llama-swap/README.md. 9B + native MTP: fast turns, ~8G resident.
-      default: "Qwen3.5 9B @UD-Q4_K_XL [ngram]"
+      # An Ollama TAG, not a llama-swap model id. The list is
+      #   kubectl exec -n ollama deploy/ollama -- ollama list
+      # or Admin Panel -> Models in Open-WebUI.
+      #
+      # This will not resolve until a model with this exact tag exists in the
+      # store, and the store starts EMPTY - nothing is pre-seeded. Import
+      # through Open-WebUI and either name the import this, or change this
+      # line to match. Everything else in this file is correct regardless;
+      # this is the one value that cannot be known until you pick a model.
+      default: "minicpm5-2b"
       # Hermes rejects anything reporting under 64K outright:
       #   "... has a context window of 32,768 tokens, which is below the
       #    minimum 64,000 required by Hermes Agent."
-      # It does not read this from llama-swap (our /v1/models omits
-      # max_model_len, so it keeps the stale 32768), hence the explicit
-      # override. Honest rather than a workaround: the Qwen3.5 entry runs
-      # `-c 65536` (macro ctx_h), so the server really does have 64k - it
-      # measured 6024 MiB of GTT spare loaded. Bumping this alone would
-      # otherwise just move the failure to a context-overflow error on
-      # llama-server once a conversation passed 32768.
+      # It does not read this from Ollama either -- /v1/models omits
+      # max_model_len -- hence the explicit override. The override only
+      # declares intent; Ollama still has to be willing to allocate it, and
+      # its default is `default_num_ctx=4096` (visible in the ollama startup
+      # log). So a model Hermes is meant to drive must be imported with
+      #   PARAMETER num_ctx 65536
+      # in its Modelfile. See apps/ollama/README.md.
       context_length: 65536
 
     terminal:

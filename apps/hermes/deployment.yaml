@@ -45,7 +45,7 @@ spec:
             claimName: hermes-workspace
         - name: managed-config
           configMap:
-            name: hermes-managed-config-v4
+            name: hermes-managed-config-v5
       initContainers:
         - name: seed-agent-src
           image: nousresearch/hermes-agent:latest
@@ -67,15 +67,19 @@ spec:
           env:
             - name: HERMES_HOME
               value: /opt/data
-            # 180s (the default) is not enough behind llama-swap. The agent's
-            # prompt is ~14.5k tokens and llama-server pre-fills at ~91 tok/s,
-            # so prompt eval alone runs ~160s -- and a cold load adds ~45s on
-            # top. Hermes sees the initial role chunk, then nothing while the
-            # whole prompt pre-fills, concludes "Stream stale for 180s ...
-            # Killing connection", and drops a request that was working.
-            # Measured end to end: http 200, 81 chunks, then killed at 197.5s.
-            # 600s covers cold load + pre-fill with room to spare. Raise the
-            # model's own context or speed up prefill and this can come down.
+            # 180s (the default) is not enough for a local model backend. The
+            # agent's prompt is ~14.5k tokens; against llama-swap, llama-server
+            # pre-filled at ~91 tok/s, so prompt eval alone ran ~160s and a cold
+            # load added ~45s on top. Hermes sees the initial role chunk, then
+            # nothing while the whole prompt pre-fills, concludes "Stream stale
+            # for 180s ... Killing connection", and drops a request that was
+            # working. Measured end to end: http 200, 81 chunks, then killed at
+            # 197.5s. 600s covers cold load + pre-fill with room to spare.
+            #
+            # Those numbers are llama-swap's, not Ollama's -- treat 600s as a
+            # safe upper bound rather than a tuned value, and re-measure if
+            # turns feel slow to start. Raise the model's own context or speed
+            # up prefill and this can come down.
             - name: HERMES_STREAM_STALE_TIMEOUT
               value: "600"
             # Both images must agree on ownership of the shared PVC.
@@ -83,12 +87,10 @@ spec:
               value: "1000"
             - name: HERMES_GID
               value: "1000"
-            # Expanded by managed scope for model.api_key.
-            - name: UNSLOTH_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: hermes-secrets
-                  key: UNSLOTH_API_KEY
+            # No model API key. The backend is Ollama, whose OpenAI-compatible
+            # endpoint is unauthenticated, and model.api_key is "" in the
+            # managed config. The old UNSLOTH_API_KEY existed only for Unsloth
+            # Studio and expanded into that key; it is gone from the secret too.
             # OpenAI-compatible API server (the /v1 route).
             - name: API_SERVER_ENABLED
               value: "true"
@@ -181,11 +183,6 @@ spec:
               value: "1000"
             - name: WANTED_GID
               value: "1000"
-            - name: UNSLOTH_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: hermes-secrets
-                  key: UNSLOTH_API_KEY
             # Chat goes through the gateway in the sibling container, so agent
             # tools run inside the full agent image rather than in-process.
             - name: HERMES_WEBUI_CHAT_BACKEND

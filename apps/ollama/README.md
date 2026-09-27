@@ -81,6 +81,38 @@ how you confirm a model actually loaded instead of being silently refused.
 Models are imported through Open-WebUI, not pre-seeded here — the store
 starts empty.
 
+### Hermes needs `num_ctx 65536` at import
+
+This is the one thing that is easy to miss. Ollama's default context is
+**4096**, and its startup log says so outright:
+
+```
+msg="vram-based default context" total_vram="15.3 GiB" default_num_ctx=4096
+```
+
+Hermes refuses to run against anything smaller than 64K:
+
+> ... has a context window of 32,768 tokens, which is below the minimum
+> 64,000 required by Hermes Agent
+
+`apps/hermes/configmap.yaml` sets `context_length: 65536` to override what
+Hermes *believes* the window is, because Ollama's `/v1/models` omits
+`max_model_len` exactly as llama-swap's did. But that override only declares
+intent — Ollama still has to be willing to allocate the context. So any model
+Hermes drives has to be created with:
+
+```
+PARAMETER num_ctx 65536
+```
+
+`OLLAMA_CONTEXT_LENGTH` would set this globally and is deliberately not set: it
+would make every casual Open-WebUI chat reserve a 64K KV cache, and on a
+15.3GiB aperture that is the difference between a 35B quant loading and not.
+Per-model is the right granularity. `ollama ps` prints the context size the
+model actually got, so check it after the first load.
+
+### Do not add a TEMPLATE line
+
 Importing a GGUF with `ollama create` reads `tokenizer.chat_template` from
 the file itself, so **do not add a `TEMPLATE` line** to the Modelfile. Doing
 so overrides a working template: the `TEMPLATE {{ .Prompt }}` fallback that

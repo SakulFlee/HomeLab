@@ -14,7 +14,8 @@ spec:
       storage: 4Gi
 ---
 # The agent's working directory (terminal cwd, git repos, ...). Retained on
-# delete but not restic-backed - same tier llama-swap-style scratch gets.
+# delete but not restic-backed - same tier re-downloadable scratch gets, like
+# the ollama model store.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
