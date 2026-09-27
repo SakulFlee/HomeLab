@@ -117,16 +117,18 @@ spec:
               # so the kernel OOMs THIS container and the runner dies alone
               # instead of the kernel picking a victim elsewhere.
               #
-              # That containment is the entire point. At the old 24Gi limit a
-              # single request (30.5B at num_ctx 65536) drove the node to
-              # 29/30Gi used, load 153, and the k3s apiserver stopped
-              # completing TLS handshakes -- Prometheus was OOMKilled and
-              # `kubectl` was dead until the 5m keep-alive unloaded the model.
-              # A model that cannot fit should fail to load, loudly, here.
+              # That containment is the entire point, and it is verified:
+              # re-running the 30.5B@64K request against this limit bottomed
+              # the node at 700MiB free, killed this container, and the node
+              # recovered to 18Gi with no apiserver interruption and no
+              # OOMKills anywhere. At the old 24Gi limit the same request
+              # wedged the apiserver for ~5 minutes and OOMKilled
+              # Prometheus. A model that cannot fit should fail to load,
+              # loudly, here.
               #
-              # Consequence: north-mini-code-1.0 (18GB) no longer loads at
-              # all. That is intended. It fits the aperture at 77% GPU, but
-              # not alongside the rest of the node.
+              # The 18GB north-mini-code-1.0 that motivated this has since
+              # been deleted from the store, along with minicpm-v4.6. Only
+              # Spark-X2.5-4B remains. See README.md.
               memory: 16Gi
               cpu: "4"
             requests:

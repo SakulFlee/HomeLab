@@ -42,13 +42,16 @@ data:
       # The untagged `:latest` runs at 4096 and Hermes will reject it. See
       # apps/ollama/README.md; do not point this at a `:latest` tag.
       #
-      # The other two models in the store are NOT usable, and neither is
-      # fixable from this repo:
+      # This is the only model in the store. Two others were imported,
+      # tested and removed:
       #   minicpm-v4.6         qwen35, hybrid SSM. Degenerate on ROCm --
       #                        emits one token forever. Clean on CPU, so it
       #                        is the ROCm kernel path, not the weights.
       #   north-mini-code-1.0  18GB, exceeds the ollama container's 16Gi
-      #                        limit at any context. Refused, by design.
+      #                        limit at any context.
+      # Neither is fixable from this repo. Do not re-import either without
+      # reading the "Hybrid SSM models are broken on this ROCm build"
+      # section of apps/ollama/README.md first.
       default: "SparkLLM/Spark-X2.5-4B:64k"
       # Hermes rejects anything reporting under 64K outright:
       #   "... has a context window of 32,768 tokens, which is below the

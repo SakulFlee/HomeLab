@@ -117,6 +117,10 @@ not fixable from this repo — it needs an upstream llama.cpp/ROCm fix. If a
 model you want is hybrid-SSM, the only working option is running it on CPU,
 which is not worth it for a model this small.
 
+`minicpm-v4.6` has been deleted from the store. The diagnosis above is kept
+because the bug is in the ROCm build, not in the model, so it will still be
+here for the next hybrid-SSM model anyone imports.
+
 ## `num_ctx` can take the whole node down
 
 `num_ctx` allocates a KV cache proportional to context, and on an APU that
@@ -141,7 +145,43 @@ For a 30.5B at 64K that is single-digit GiB of cache *plus* 18GB of weights on
 a 30Gi node — it was never going to fit.
 
 The `memory: 16Gi` limit in `deployment.yaml` exists to convert this from a
-node-wide outage into a contained container OOM. Do not raise it.
+node-wide outage into a contained container OOM. Verified: repeating the
+30.5B@64K request against the new limit bottomed the node at 700MiB free,
+killed the ollama container, and the node recovered to 18Gi with the apiserver
+never interrupting and no OOMKills anywhere. Do not raise the limit.
+
+## What is in the store
+
+One model, two tags over the same weights and blobs:
+
+| Tag | Purpose |
+|---|---|
+| `SparkLLM/Spark-X2.5-4B:latest` | as imported; runs at `num_ctx` 4096 |
+| `SparkLLM/Spark-X2.5-4B:64k` | derived, `PARAMETER num_ctx 65536` — **this is what Hermes uses** |
+
+`arch spark2_5`, 4.1B, BF16, native context 1048576, tools + thinking
+capable. At `:64k` it loads at `100% GPU` with an 8.5GiB footprint against the
+15.3Gi aperture, and node memory peaks around 11.5Gi. Tool calling was
+verified explicitly (`get_weather` → `{"city": "Oslo"}`) because Hermes is an
+agent and a model that cannot call tools is not a candidate.
+
+The `:64k` tag exists because Ollama's default context is 4096 and Hermes
+refuses anything under 64K. A derived tag is cheaper and safer than
+`OLLAMA_CONTEXT_LENGTH`, which would apply to every model and, on a 15.3Gi
+aperture, is the difference between a model loading and not.
+
+Recreate it if the store is ever rebuilt:
+
+```sh
+kubectl exec -n ollama deploy/ollama -- sh -c 'cat > /tmp/M <<EOF
+FROM SparkLLM/Spark-X2.5-4B:latest
+PARAMETER num_ctx 65536
+EOF
+ollama create SparkLLM/Spark-X2.5-4B:64k -f /tmp/M'
+```
+
+Note `ollama create` does **not** read a Modelfile from stdin — `-f -` fails
+with "no Modelfile or safetensors files found". It has to be a real file.
 
 ## Constraints worth respecting
 

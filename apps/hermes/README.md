@@ -26,10 +26,12 @@ unauthenticated. Both keys are pinned in managed scope —
 - **`model.base_url`** — Ollama's ClusterIP, deliberately not the ingress
   hostname. The split-DNS answer for `*.sakul-flee.de` only exists for VPN
   clients, so an external URL resolves from a laptop and fails from in here.
-- **`model.default`** — an Ollama **tag**. It is currently `"minicpm5-2b"`,
-  which does not exist yet: the ollama store starts empty and nothing is
-  pre-seeded. Import through Open WebUI, then set this to whatever tag you
-  created. The list is `kubectl exec -n ollama deploy/ollama -- ollama list`.
+- **`model.default`** — an Ollama **tag**, currently
+  `"SparkLLM/Spark-X2.5-4B:64k"`. The `:64k` suffix is not cosmetic: it is a
+  derived tag carrying `PARAMETER num_ctx 65536`, and the untagged `:latest`
+  runs at 4096, which Hermes rejects. Retarget by editing `configmap.yaml`,
+  bumping its name, and updating the volume reference in `deployment.yaml`.
+  The list is `kubectl exec -n ollama deploy/ollama -- ollama list`.
 
 **Managed scope wins, so the dashboard cannot change this.** *Change* in the
 dashboard writes `model.default`, but the pinned key overrides it — use
@@ -42,7 +44,8 @@ Editing values in a ConfigMap does **not** restart the pod, so a changed
 `base_url` or `default` would be silently ignored. Changing the ConfigMap's
 *name* is what rolls the pod — the mount is read-only and the volume reference
 in `deployment.yaml` has to change with it. This is why the file is
-`hermes-managed-config-v5`; v4 was llama-swap, before that Unsloth Studio.
+`hermes-managed-config-v6`; v5 was the Ollama repoint, v4 was llama-swap,
+before that Unsloth Studio.
 
 ### `context_length: 65536` needs a matching `num_ctx` at import
 
