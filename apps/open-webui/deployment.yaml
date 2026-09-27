@@ -1,0 +1,94 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: open-webui
+  namespace: open-webui
+  labels:
+    app: open-webui
+spec:
+  selector:
+    matchLabels:
+      app: open-webui
+  replicas: 1
+  strategy:
+    # One writer against the sqlite database. Two overlapping pods would
+    # both migrate it on startup.
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: open-webui
+    spec:
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: open-webui-data
+      containers:
+        - name: open-webui
+          # Pinned release tag. Renovate tracks this; the floating `main`
+          # tag is a development build and has broken deployments before.
+          image: ghcr.io/open-webui/open-webui:v0.11.4
+          imagePullPolicy: IfNotPresent
+          env:
+            # In-cluster DNS straight to the Service. Not the ingress and not
+            # an external hostname -- the split-DNS answer only exists for
+            # VPN clients, so an external URL here would work from a laptop
+            # and fail from the pod.
+            - name: OLLAMA_BASE_URL
+              value: "http://ollama.ollama.svc:11434"
+            # Without a stable key this is regenerated on every restart and
+            # every session cookie is invalidated, logging everyone out on
+            # each deploy. Secret, not ConfigMap.
+            - name: WEBUI_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: open-webui-secrets
+                  key: WEBUI_SECRET_KEY
+            - name: DATA_DIR
+              value: /app/backend/data
+            # TEMPORARY. The first account to sign up becomes admin, so this
+            # must be true exactly once. Flip it to "false" and commit once
+            # that has happened -- leaving it on lets any VPN client
+            # register, and the first one to arrive after you would be admin.
+            # See README.md.
+            - name: ENABLE_SIGNUP
+              value: "true"
+          ports:
+            - name: http
+              containerPort: 8080
+          volumeMounts:
+            - name: data
+              mountPath: /app/backend/data
+          resources:
+            limits:
+              # No devic.es here on purpose. Open-WebUI is a frontend and
+              # proxy; all inference happens in the ollama pod. Requesting
+              # the GPU here would put a second process on the device, which
+              # is exactly what this node must never do.
+              memory: 4Gi
+              cpu: "2"
+            requests:
+              memory: 1Gi
+          startupProbe:
+            # First start runs database migrations and builds the vector
+            # index, which is slow. Being killed partway through leaves the
+            # sqlite file mid-migration.
+            httpGet:
+              path: /health
+              port: 8080
+            periodSeconds: 10
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 6
