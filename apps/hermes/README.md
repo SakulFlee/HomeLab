@@ -15,6 +15,52 @@ Two Flux Kustomizations that ship together:
 All hostnames are VPN-only (`wireguard-vpn-only@kubernetescrd`) and use
 `letsencrypt-production`.
 
+## Where sessions live, and which UI reads them
+
+**Nothing is browser-local.** Every session is a file on the `hermes-data`
+PVC, so chats survive pod replacement and are shared by every client. There
+are two containers, each with its own `HERMES_HOME` pointed at that *same*
+claim at a different path — and they read **two different stores**:
+
+| Container | `HERMES_HOME` | Reads | Contents |
+| --- | --- | --- | --- |
+| `agent` | `/opt/data` | `state.db` — dashboard, Desktop, gateway | chats + cron runs, grows daily |
+| `webui` | `/home/hermeswebui/.hermes` | `webui/sessions/_index.json` | 5 chats |
+
+So the dashboard showing nothing while `hermes.sakul-flee.de` shows five
+chats is **not** data loss — the two UIs read different indexes. The WebUI's
+chat ids do also exist in `state.db`, so a session made in one shows up in the
+other. Check the store before assuming anything is lost:
+
+```sh
+kubectl exec -n hermes deploy/hermes -c agent -- /opt/hermes/.venv/bin/python -c \
+  'import sqlite3;c=sqlite3.connect("file:/opt/data/state.db?mode=ro",uri=True);\
+print("sessions:",c.execute("select count(*) from sessions").fetchone()[0])'
+```
+
+There is no `sqlite3` binary in the image, hence the Python.
+
+**The WebUI is a frontend, not a backend.** It holds no model of its own:
+
+```
+HERMES_WEBUI_CHAT_BACKEND = gateway
+HERMES_API_URL            = http://127.0.0.1:8642
+```
+
+Chat typed at `hermes.sakul-flee.de` is proxied to the gateway in the same pod,
+which reads the managed config — so it already talks to Ollama. The WebUI's own
+`config.yaml` is *not* in the chat path; only its model picker parses it.
+
+Both `config.yaml` files used to name the deleted Unsloth backend
+(`providers.lmstudio.base_url` → `unsloth-studio.unsloth.svc:8000`, plus a
+`cohere/north-mini-code:free` default via OpenRouter). Those keys are gone.
+Do **not** delete either file to "clean" it: each carries ~26 settings that
+differ from schema defaults — `agent.max_turns: 500`,
+`compression.threshold_tokens: 256000`, the `terminal` sandbox sizing, the
+`tool_loop_guardrails` thresholds, and the whole `platform_toolsets` map.
+Hermes re-normalises both files from managed scope on write, so hand edits get
+reconciled anyway.
+
 ## The backend is Ollama
 
 Hermes sends chat to `http://ollama.ollama.svc:11434/v1` with
@@ -180,6 +226,22 @@ Session cookies from that webview live in
 `~/.config/hermes-desktop/Partitions/hermes-remote-oauth/Cookies`.
 
 ## Troubleshooting
+
+- **Dashboard shows no sessions but the WebUI does** — almost always the
+  dashboard's auth, not the data. It is gated by its own basic-auth provider
+  (`HERMES_DASHBOARD_BASIC_AUTH_USERNAME` / `_PASSWORD`); unauthenticated,
+  `/` 302s to the login page and `/api/sessions` answers `401
+  {"reason":"no_cookie"}`. Confirm in the browser console:
+
+  ```js
+  fetch('/api/auth/me').then(r => r.status)                  // want 200
+  fetch('/api/sessions?limit=5').then(r => r.json())         // want rows
+  ```
+
+  If `/api/auth/me` is 200 *and* `/api/sessions` returns rows, the data is
+  fine and the fault is in SPA rendering — capture the console output. If
+  `/api/sessions` returns rows, the WebUI is reading a different store; see
+  the section above.
 
 - **Everything works but generation is slow** — the model is probably on CPU.
   Ollama does not warn when it falls back: check its startup log for
