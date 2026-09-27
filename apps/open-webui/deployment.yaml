@@ -46,13 +46,19 @@ spec:
                   key: WEBUI_SECRET_KEY
             - name: DATA_DIR
               value: /app/backend/data
-            # TEMPORARY. The first account to sign up becomes admin, so this
-            # must be true exactly once. Flip it to "false" and commit once
-            # that has happened -- leaving it on lets any VPN client
-            # register, and the first one to arrive after you would be admin.
-            # See README.md.
+            # Registration is CLOSED. The first account to sign up became
+            # admin; every later one would be a plain user, and leaving this
+            # on means any VPN client that reaches the ingress can register.
+            # Already-existing accounts (and Open WebUI's own bootstrap user)
+            # keep working -- this only gates the signup endpoint.
+            #
+            # To add someone later, leave this false and create the account
+            # directly:
+            #   kubectl exec -n open-webui deploy/open-webui -- \
+            #     python3 -c "from open_webui.models.auths import Auths; ..."
+            # or flip to "true", register, then flip back. See README.md.
             - name: ENABLE_SIGNUP
-              value: "true"
+              value: "false"
           ports:
             - name: http
               containerPort: 8080

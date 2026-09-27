@@ -3,17 +3,37 @@
 Web frontend for Ollama. Replaces nothing directly — it is the UI for
 `../ollama/`, and it is where models get imported.
 
-## After the first sign-up, close registration
+## Registration is closed
 
-`ENABLE_SIGNUP` is `"true"` in `deployment.yaml` **on purpose, and only until
-you have an account.** The first account to register becomes the admin. While
-signup is open, any other VPN client that reaches this host can register, and
-the first one to arrive after you would be the admin.
+`ENABLE_SIGNUP` is `"false"`. The first account became the admin
+(`SakulFlee` / `open-webui@sakul-flee.de`), then signup was closed in the same
+session. The frontend is VPN-only at the ingress, which limits registration to
+people already on the tunnel — but that is a network gate, not an
+authorization decision, so it does not justify leaving it open.
 
-So: sign in at `https://open-webui.sakul-flee.de` from a VPN client, create the
-admin account, then set `ENABLE_SIGNUP: "false"` and commit. The frontend is
-VPN-only at the ingress, which limits this to people already on the tunnel —
-it does not make it safe to leave open indefinitely.
+`ENABLE_SIGNUP` gates the signup endpoint only. Existing accounts keep working
+and Open WebUI's own bootstrap user is unaffected, so this is not a lockout.
+
+To add someone later, create the account directly rather than reopening
+signup — reopening it means a window in which any VPN client that reaches the
+host can register, and the first to arrive is an admin:
+
+```sh
+kubectl exec -n open-webui deploy/open-webui -- \
+  python3 -c "from open_webui.models.auths import Auths; print(Auths().insert_new_auth(<email>, <name>, <password>))"
+```
+
+Check the current roster without writing anything:
+
+```sh
+kubectl exec -n open-webui deploy/open-webui -- python3 -c \
+  "import sqlite3; c=sqlite3.connect('/app/backend/data/webui.db'); \
+   print(*c.execute('select name,email,role from user').fetchall(), sep='\n')"
+```
+
+The `user` table has no `status` column in v0.11.4 — its columns are `id`,
+`name`, `email`, `role`, `last_active_at`, … Do not add a `WHERE status = 1`
+filter; it fails.
 
 `WEBUI_SECRET_KEY` is a SOPS secret because losing it invalidates every session
 cookie. It is generated once; do not regenerate it casually. Decrypt locally
