@@ -42,8 +42,11 @@ Two environment variables are load-bearing, and **both fail silently** —
 Ollama serves correct-looking responses on CPU with no error in either case.
 If generation is unexpectedly slow, check these before anything else:
 
-- `OLLAMA_IGGPU_ENABLE=1` — without it Ollama logs `dropping integrated GPU`
-  and skips the 680M because it is also the display device.
+- `OLLAMA_IGPU_ENABLE=1` — without it Ollama logs `dropping integrated GPU`
+  and skips the 680M because it is also the display device. **One G:
+  `IGPU`, not `IGGPU`.** A misspelling is treated as an unknown variable and
+  ignored, so the GPU is dropped with no warning whatsoever — that typo
+  shipped here once before being caught.
 - `HSA_OVERRIDE_GFX_VERSION=10.3.0` — `gfx1035` is absent from the ROCm 6.x
   JIT table. The override claims the `gfx1030` sibling; same RDNA2 ISA, so
   the kernels are correct. Verified twice on this hardware.

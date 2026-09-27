@@ -46,9 +46,16 @@ spec:
             # TRAP 1. This box is an APU and the Radeon 680M is the display
             # device. Ollama enumerates it, sees it is also driving a
             # screen, logs "dropping integrated GPU" and silently serves on
-            # CPU. Nothing errors; you just get CPU-speed generation. This
-            # variable is the only thing that keeps the iGPU.
-            - name: OLLAMA_IGGPU_ENABLE
+            # CPU. Nothing errors; you just get CPU-speed generation.
+            #
+            # Mind the spelling: it is IGPU, not IGGPU. A typo here is
+            # ignored as an unknown variable and the GPU is dropped with no
+            # complaint at all -- this exact mistake shipped once. The
+            # startup log line is
+            #   dropping integrated GPU; to enable, set OLLAMA_IGPU_ENABLE=1
+            # and the "inference compute" line that follows must show the
+            # ROCm device, not `id=cpu library=cpu`. See README.md.
+            - name: OLLAMA_IGPU_ENABLE
               value: "1"
             # TRAP 2. gfx1035 is not in the ROCm 6.x JIT table, so the
             # driver refuses to load kernels for it. The override claims
