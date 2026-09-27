@@ -100,12 +100,34 @@ spec:
               # render nodes.
               devic.es/dri: "1"
               devic.es/rocm: "1"
-              # Weights live in system RAM on an APU. 24Gi sits above the
-              # largest sane resident model and below the node's 26Gi, so
-              # an over-large model OOMs this container instead of letting
-              # the kernel pick a victim (Flux controllers, coredns,
-              # traefik -- all of which have been killed that way).
-              memory: 24Gi
+              # Weights live in system RAM on an APU -- the 15.29Gi GTT
+              # aperture is carved out of host memory, so a "GPU resident"
+              # model is still node RAM. This limit is the thing that keeps a
+              # bad request from taking the node down, so it is set from
+              # measurement, not from the size of the biggest model:
+              #
+              #   node total          30Gi
+              #   everything else     ~12Gi at rest (fluxer, prometheus,
+              #                         the *arr/media stack, desktop)
+              #   Spark-X2.5-4B@64K   ~11.5Gi  <- verified peak, works
+              #   north-mini-code@64K >30Gi   <- exhausted the node
+              #
+              # 16Gi comfortably clears the working configuration and caps
+              # the damage: 12Gi of other tenants + 16Gi is still under 30Gi,
+              # so the kernel OOMs THIS container and the runner dies alone
+              # instead of the kernel picking a victim elsewhere.
+              #
+              # That containment is the entire point. At the old 24Gi limit a
+              # single request (30.5B at num_ctx 65536) drove the node to
+              # 29/30Gi used, load 153, and the k3s apiserver stopped
+              # completing TLS handshakes -- Prometheus was OOMKilled and
+              # `kubectl` was dead until the 5m keep-alive unloaded the model.
+              # A model that cannot fit should fail to load, loudly, here.
+              #
+              # Consequence: north-mini-code-1.0 (18GB) no longer loads at
+              # all. That is intended. It fits the aperture at 77% GPU, but
+              # not alongside the rest of the node.
+              memory: 16Gi
               cpu: "4"
             requests:
               memory: 4Gi

@@ -65,6 +65,84 @@ kubectl exec -n ollama deploy/ollama -- ollama ps      # PROCESSOR column
 `ollama ps` also shows the context length and the KV cache size, which is
 how you confirm a model actually loaded instead of being silently refused.
 
+## Hybrid SSM models are broken on this ROCm build
+
+**`minicpm-v4.6` cannot generate on the GPU.** It loads, reports `100% GPU`,
+answers `/health`, and then emits one token forever:
+
+```
+$ curl -s localhost:11434/api/generate -d '{"model":"minicpm-v4.6", ...}'
+prediction aborted, token repeat limit reached
+```
+
+The repeat guard is Ollama's own, in `llm/llama_server.go`: it aborts after
+100 consecutive identical streamed chunks. Unfiltered, the model emits `!`
+at `temperature: 0, top_k: 1` — it is not sampling badly, it is confidently
+wrong. Same result at temperature 0, 0.7 and 1.5, on `/api/generate` with
+`raw: true` (no chat template involved) and on `/api/chat`.
+
+The cause is the architecture. From the GGUF metadata:
+
+```
+qwen35.ssm.conv_kernel          = 4        qwen35.ssm.inner_size  = 2048
+qwen35.ssm.state_size           = 128      qwen35.ssm.group_count = 16
+qwen35.block_count              = 24
+qwen35.full_attention_interval  = 4
+```
+
+This is a **hybrid state-space (Mamba-style) + attention** model: of 24
+layers only every 4th is full attention, the other 18 are SSM. Proved by
+A/B on the identical weights:
+
+| | |
+|---|---|
+| GPU (`100% GPU`) | degenerate, one repeated token |
+| CPU (`100% CPU`, `OLLAMA_LLM_LIBRARY=cpu`) | coherent, correct `<think>` block, correct answer |
+
+So the weights and the quant are fine — the **ROCm/HIP kernel path for this
+architecture is broken**. Two unrelated architectures were clean on the same
+GPU in the same session, which rules out the serving stack, the ROCm setup
+and the model store:
+
+| Model | Arch | Result |
+|---|---|---|
+| `minicpm-v4.6` | `qwen35` (hybrid SSM) | degenerate |
+| `north-mini-code-1.0` | `cohere2moe` | `GPU OK` |
+| `SparkLLM/Spark-X2.5-4B` | `spark2_5` | `GPU OK` |
+
+**Treat any hybrid-SSM architecture as unusable here** until the ROCm build
+fixes it. `nemotron_h` is the same shape (`ssm.*` keys) and is in Ollama's
+MTP/scheduling list alongside `qwen35`, so assume it is affected too. This is
+not fixable from this repo — it needs an upstream llama.cpp/ROCm fix. If a
+model you want is hybrid-SSM, the only working option is running it on CPU,
+which is not worth it for a model this small.
+
+## `num_ctx` can take the whole node down
+
+`num_ctx` allocates a KV cache proportional to context, and on an APU that
+cache is host RAM carved from the 15.29Gi aperture. It is not a rounding
+error. Measured on this node:
+
+| Request | Node memory | Outcome |
+|---|---|---|
+| `Spark-X2.5-4B` @ `num_ctx 65536` | ~11.5Gi peak | fine, `100% GPU` |
+| `north-mini-code-1.0` (30.5B) @ `num_ctx 65536` | **>30Gi** | node exhausted |
+
+The 30.5B at 64K drove the node to 29/30Gi used with load average **153**.
+The k3s apiserver stopped completing TLS handshakes, so `kubectl` was dead,
+and Prometheus was OOMKilled. It recovered on its own ~5 minutes later when
+Ollama's `OLLAMA_KEEP_ALIVE` unloaded the model — no intervention needed, but
+nothing could be managed in the meantime.
+
+**Estimate the KV cache before raising `num_ctx`.** As a rule of thumb, f16 KV
+cache is roughly `2 x layers x kv_heads x head_dim x 2 bytes x num_ctx`, and
+whatever does not fit the aperture is added to host RAM on top of the weights.
+For a 30.5B at 64K that is single-digit GiB of cache *plus* 18GB of weights on
+a 30Gi node — it was never going to fit.
+
+The `memory: 16Gi` limit in `deployment.yaml` exists to convert this from a
+node-wide outage into a contained container OOM. Do not raise it.
+
 ## Constraints worth respecting
 
 - **15.29Gi aperture, one model at a time.** `OLLAMA_MAX_LOADED_MODELS=1`.
@@ -114,13 +192,17 @@ model actually got, so check it after the first load.
 ### Do not add a TEMPLATE line
 
 Importing a GGUF with `ollama create` reads `tokenizer.chat_template` from
-the file itself, so **do not add a `TEMPLATE` line** to the Modelfile. Doing
-so overrides a working template: the `TEMPLATE {{ .Prompt }}` fallback that
-`ollama create` writes when it cannot find one will render raw prompt text
-with no chat formatting, and the model answers that as garbage-looking
-output. Omitting the line entirely is correct and the GGUF template is what
-renders. The same applies to vision projectors — they are dropped on import,
-which costs nothing here.
+the file itself, so **do not hand-write a `TEMPLATE` line** to the Modelfile.
+`ollama create` always writes a `TEMPLATE {{ .Prompt }}` line into the
+generated Modelfile regardless, and that line is inert: Ollama renders with
+the GGUF's own template. `minicpm-v4.6` carries a real Jinja template
+(`tokenizer.chat_template`, with `enable_thinking` handling) and renders
+correctly on CPU with the auto-generated line in place. Supplying your own
+template that does not match the model is what breaks output.
+
+Vision projectors **are** kept on import when the GGUF ships one —
+`minicpm-v4.6` retains its `clip` projector and reports a `vision`
+capability.
 
 ### MTP speculation is opt-in
 
