@@ -15,13 +15,15 @@
 # from a laptop and fail from inside the pod.
 #
 # Bump the ConfigMap name on any edit to this file. ConfigMap edits alone do
-# not restart the pod, but a changed name does - that is why this is v6 and
-# not v5. (v5 was the Ollama repoint; v4 was llama-swap; before that Unsloth
-# Studio at `http://unsloth-studio.unsloth.svc:8000/v1`. Both are gone.)
+# not restart the pod, but a changed name does - that is why this is v7 and
+# not v6. (v6 was the Spark-X2.5-4B repoint via a derived :64k tag; v5 was the
+# Ollama repoint; v4 was llama-swap; before that Unsloth Studio at
+# `http://unsloth-studio.unsloth.svc:8000/v1`. All the earlier backends are
+# gone.)
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: hermes-managed-config-v6
+  name: hermes-managed-config-v7
   namespace: hermes
 data:
   config.yaml: |
@@ -36,11 +38,9 @@ data:
       #   kubectl exec -n ollama deploy/ollama -- ollama list
       # or Admin Panel -> Models in Open-WebUI.
       #
-      # The `:64k` tag is a derived alias of SparkLLM/Spark-X2.5-4B:latest --
-      # same weights, same blobs, no extra disk -- carrying
-      #   PARAMETER num_ctx 65536
-      # The untagged `:latest` runs at 4096 and Hermes will reject it. See
-      # apps/ollama/README.md; do not point this at a `:latest` tag.
+      # Plain `:latest`. There used to be a derived `:64k` tag carrying
+      # PARAMETER num_ctx 65536; it was redundant and has been deleted. See
+      # `context_length` below for why it was never needed.
       #
       # This is the only model in the store. Two others were imported,
       # tested and removed:
@@ -52,15 +52,38 @@ data:
       # Neither is fixable from this repo. Do not re-import either without
       # reading the "Hybrid SSM models are broken on this ROCm build"
       # section of apps/ollama/README.md first.
-      default: "SparkLLM/Spark-X2.5-4B:64k"
-      # Hermes rejects anything reporting under 64K outright:
+      default: "SparkLLM/Spark-X2.5-4B:latest"
+      # THIS IS THE LOAD-BEARING SETTING. Do not remove it.
+      #
+      # It is not a declaration of intent that something else has to honour
+      # -- it is the number Hermes sends. The mechanism, in Hermes' own code:
+      #
+      #   1. `model.ollama_num_ctx` is unset, so Hermes probes the server's
+      #      /api/show for the model's window.
+      #   2. That probe prefers `parameters.num_ctx` (the RUNTIME window)
+      #      and falls back to `model_info.*.context_length` (the GGUF
+      #      TRAINING max). This model advertises 1048576, and with no
+      #      PARAMETER set that is what comes back.
+      #   3. `_configure_ollama_num_ctx` then CAPS the detected value to
+      #      this key, logging "Ollama num_ctx capped: 1048576 -> 65536".
+      #   4. Every request carries `options: {num_ctx: 65536}`, added by
+      #      the `custom` provider's build_api_kwargs_extras. Ollama honours
+      #      a per-request num_ctx, so the server allocates 65536.
+      #
+      # So the 64K floor is met by the request, not by how the model was
+      # imported. Two consequences worth knowing:
+      #   - OLLAMA_CONTEXT_LENGTH on the ollama deployment is irrelevant
+      #     here; Hermes overrides it per request. It is set for Open WebUI.
+      #   - Do not "fix" this by importing the model with a num_ctx
+      #     parameter or by creating a derived tag. Both are redundant, and
+      #     a derived tag additionally lives only in the volatile model
+      #     store, where a PVC delete would silently break this line.
+      #
+      # Hermes refuses to start against a window below 64K:
       #   "... has a context window of 32,768 tokens, which is below the
-      #    minimum 64,000 required by Hermes Agent."
-      # It does not read this from Ollama either -- /v1/models omits
-      # max_model_len -- hence the explicit override. The override only
-      # declares intent; Ollama still has to be willing to allocate it, and
-      # its default is `default_num_ctx=4096` (visible in the ollama startup
-      # log). Hence the `:64k` tag above. See apps/ollama/README.md.
+      #    minimum 64,000 required by Hermes Agent"
+      # It does not learn the window from /v1/models, which omits
+      # max_model_len exactly as llama-swap's did -- hence this key.
       context_length: 65536
 
     terminal:

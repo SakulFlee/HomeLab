@@ -27,11 +27,11 @@ unauthenticated. Both keys are pinned in managed scope —
   hostname. The split-DNS answer for `*.sakul-flee.de` only exists for VPN
   clients, so an external URL resolves from a laptop and fails from in here.
 - **`model.default`** — an Ollama **tag**, currently
-  `"SparkLLM/Spark-X2.5-4B:64k"`. The `:64k` suffix is not cosmetic: it is a
-  derived tag carrying `PARAMETER num_ctx 65536`, and the untagged `:latest`
-  runs at 4096, which Hermes rejects. Retarget by editing `configmap.yaml`,
-  bumping its name, and updating the volume reference in `deployment.yaml`.
-  The list is `kubectl exec -n ollama deploy/ollama -- ollama list`.
+  `"SparkLLM/Spark-X2.5-4B:latest"`. Plain `:latest` is correct: Hermes sends
+  the context itself (see the `context_length` section below), so the model
+  needs no special import. Retarget by editing `configmap.yaml`, bumping its
+  name, and updating the volume reference in `deployment.yaml`. The list is
+  `kubectl exec -n ollama deploy/ollama -- ollama list`.
 
 **Managed scope wins, so the dashboard cannot change this.** *Change* in the
 dashboard writes `model.default`, but the pinned key overrides it — use
@@ -44,21 +44,50 @@ Editing values in a ConfigMap does **not** restart the pod, so a changed
 `base_url` or `default` would be silently ignored. Changing the ConfigMap's
 *name* is what rolls the pod — the mount is read-only and the volume reference
 in `deployment.yaml` has to change with it. This is why the file is
-`hermes-managed-config-v6`; v5 was the Ollama repoint, v4 was llama-swap,
+`hermes-managed-config-v7`; v6 was the Spark-X2.5-4B repoint, v5 the Ollama repoint,
+v4 llama-swap,
 before that Unsloth Studio.
 
-### `context_length: 65536` needs a matching `num_ctx` at import
+### `context_length: 65536` is the load-bearing setting
 
-Hermes refuses to run against anything reporting under 64K:
+Hermes refuses to run against a window below 64K:
 
 > ... has a context window of 32,768 tokens, which is below the minimum
 > 64,000 required by Hermes Agent
 
-`/v1/models` omits `max_model_len`, so Hermes has to be told, hence the pinned
-`context_length`. That only declares intent — Ollama still has to be willing to
-allocate it, and its default is 4096. So **a model Hermes drives must be
-imported with `PARAMETER num_ctx 65536`**. `ollama ps` prints the context the
-model actually got. See `../ollama/README.md`.
+`/v1/models` omits `max_model_len`, so Hermes has to be told the window — hence
+the pinned `context_length`. **It is not just a declaration of intent: it is the
+number Hermes sends.** The mechanism, in Hermes' own code:
+
+1. `model.ollama_num_ctx` is unset, so `query_ollama_num_ctx` probes the
+   server's `/api/show`. That probe prefers `parameters.num_ctx` (the *runtime*
+   window) and falls back to `model_info.*.context_length` (the GGUF *training*
+   max) — `model_metadata.py:_ollama_show_context`, called with
+   `gguf_first=False`. `Spark-X2.5-4B` advertises 1048576, so that is what comes
+   back.
+2. `_configure_ollama_num_ctx` then caps the detected value to
+   `model.context_length`, logging `Ollama num_ctx capped: 1048576 -> 65536`.
+3. Every request carries `options: {num_ctx: 65536}`, added by the `custom`
+   provider's `build_api_kwargs_extras`. Ollama honours a per-request
+   `num_ctx`, so the server allocates 65536.
+
+Verified on the wire against the plain `:latest` tag: `CONTEXT 65536`,
+`100% GPU`, `finish_reason: stop`.
+
+Two things this implies, both of which were got wrong here at least once:
+
+- **`OLLAMA_CONTEXT_LENGTH` on the ollama deployment does not make Hermes
+  work.** Hermes overrides it per request. It is set for Open WebUI's benefit,
+  which does not send `num_ctx`.
+- **Do not import the model with `PARAMETER num_ctx 65536`, and do not create a
+  derived `:64k` tag.** Both are redundant — the request already carries the
+  value. A derived tag is worse than redundant: it exists only in the model
+  store, which is `local-path-volatile` with `reclaimPolicy: Delete`, so a PVC
+  delete would leave `model.default` pointing at a tag that can never resolve,
+  with nothing in git recording how it was made.
+
+`ollama ps` prints the context the model actually got; that is the check.
+See `../ollama/README.md`.
 
 ### Expect a cold-start delay
 
@@ -83,12 +112,12 @@ bound, not a tuned value.
    register becomes the admin** — that is why `ENABLE_SIGNUP` ships as `true`
    and why it must be flipped to `false` immediately afterwards
    (`apps/open-webui/deployment.yaml`, and see that app's README).
-3. **Import a model** via Open WebUI (Admin Panel → Models). Add
-   `PARAMETER num_ctx 65536` if Hermes is going to drive it. Nothing is
-   pre-seeded; the store starts empty.
+3. **Import a model** via Open WebUI (Admin Panel → Models). Add nothing to
+   the Modelfile — Hermes sends the context itself. Nothing is pre-seeded; the
+   store starts empty.
 4. **Point Hermes at it.** Set `model.default` in
    `apps/hermes/configmap.yaml` to the tag you created, bump the ConfigMap to
-   `-v6`, and update the reference in `apps/hermes/deployment.yaml`.
+   `-v7`, and update the reference in `apps/hermes/deployment.yaml`.
 5. **Smoke test** from inside the VPN:
 
    ```sh
@@ -158,7 +187,8 @@ Session cookies from that webview live in
   (silent CPU fallback), and `ollama ps` for the `PROCESSOR` column. The two
   variables that decide this are documented in `../ollama/README.md`.
 - **Model rejected as "below the minimum 64,000 required by Hermes Agent"** —
-  the model was imported without `PARAMETER num_ctx 65536`. See above.
+  `context_length` is missing or wrong in `configmap.yaml`, or the ConfigMap
+  name was not bumped so the pod never picked the change up. See above.
 - **`403 Forbidden` while connected to the VPN** — the hostname is missing from
   the split-horizon allowlist in `apps/wireguard/coredns-configmap.yaml`. Check
   with `dig +short hermes.sakul-flee.de @192.168.178.200`: `192.168.178.200` is

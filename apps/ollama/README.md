@@ -152,36 +152,28 @@ never interrupting and no OOMKills anywhere. Do not raise the limit.
 
 ## What is in the store
 
-One model, two tags over the same weights and blobs:
+One model, one tag:
 
 | Tag | Purpose |
 |---|---|
-| `SparkLLM/Spark-X2.5-4B:latest` | as imported; runs at `num_ctx` 4096 |
-| `SparkLLM/Spark-X2.5-4B:64k` | derived, `PARAMETER num_ctx 65536` — **this is what Hermes uses** |
+| `SparkLLM/Spark-X2.5-4B:latest` | as imported; **this is what Hermes uses** |
 
 `arch spark2_5`, 4.1B, BF16, native context 1048576, tools + thinking
-capable. At `:64k` it loads at `100% GPU` with an 8.5GiB footprint against the
-15.3Gi aperture, and node memory peaks around 11.5Gi. Tool calling was
-verified explicitly (`get_weather` → `{"city": "Oslo"}`) because Hermes is an
-agent and a model that cannot call tools is not a candidate.
+capable. At `num_ctx 65536` it loads at `100% GPU` with an 8.5GiB footprint
+against the 15.3Gi aperture, and node memory peaks around 11.5Gi. Tool calling
+was verified explicitly (`get_weather` → `{"city": "Oslo"}`) because Hermes is
+an agent and a model that cannot call tools is not a candidate.
 
-The `:64k` tag exists because Ollama's default context is 4096 and Hermes
-refuses anything under 64K. A derived tag is cheaper and safer than
-`OLLAMA_CONTEXT_LENGTH`, which would apply to every model and, on a 15.3Gi
-aperture, is the difference between a model loading and not.
+There is no `:64k` tag. It existed for a while — a derived alias carrying
+`PARAMETER num_ctx 65536` — and it was wrong. Hermes sends `num_ctx` on every
+request itself, so the parameter never had any effect; the tag only made the
+`/api/show` probe return a value that was already the answer. It was deleted,
+and nothing in git depends on it any more. See
+"[`context_length` is load-bearing](../hermes/README.md#context_length-65536-is-the-load-bearing-setting)"
+for the mechanism and `../hermes/configmap.yaml` for the setting.
 
-Recreate it if the store is ever rebuilt:
-
-```sh
-kubectl exec -n ollama deploy/ollama -- sh -c 'cat > /tmp/M <<EOF
-FROM SparkLLM/Spark-X2.5-4B:latest
-PARAMETER num_ctx 65536
-EOF
-ollama create SparkLLM/Spark-X2.5-4B:64k -f /tmp/M'
-```
-
-Note `ollama create` does **not** read a Modelfile from stdin — `-f -` fails
-with "no Modelfile or safetensors files found". It has to be a real file.
+Note for the record: `ollama list` double-counts blobs shared between tags, so
+it reported 8.2 GB twice while `du` on the store showed 7.7G total.
 
 ## Constraints worth respecting
 
@@ -199,35 +191,45 @@ with "no Modelfile or safetensors files found". It has to be a real file.
 Models are imported through Open-WebUI, not pre-seeded here — the store
 starts empty.
 
-### Hermes needs `num_ctx 65536` at import
+### How the 64K context actually gets allocated
 
-This is the one thing that is easy to miss. Ollama's default context is
-**4096**, and its startup log says so outright:
+Worth stating precisely, because the obvious-looking answer is wrong.
+
+Ollama's own default is a VRAM heuristic that lands on **4096** here, and says
+so at startup:
 
 ```
 msg="vram-based default context" total_vram="15.3 GiB" default_num_ctx=4096
 ```
 
-Hermes refuses to run against anything smaller than 64K:
+Hermes refuses to run against a window below 64K:
 
 > ... has a context window of 32,768 tokens, which is below the minimum
 > 64,000 required by Hermes Agent
 
-`apps/hermes/configmap.yaml` sets `context_length: 65536` to override what
-Hermes *believes* the window is, because Ollama's `/v1/models` omits
-`max_model_len` exactly as llama-swap's did. But that override only declares
-intent — Ollama still has to be willing to allocate the context. So any model
-Hermes drives has to be created with:
+`/v1/models` omits `max_model_len`, so `apps/hermes/configmap.yaml` pins
+`context_length: 65536`. **That value is the number Hermes sends.** It probes
+`/api/show`, caps what it finds to this key, and puts the result in
+`options.num_ctx` on every request; Ollama honours a per-request `num_ctx`. So
+a model Hermes drives gets its 64K at request time regardless of how it was
+imported.
 
-```
-PARAMETER num_ctx 65536
-```
+Therefore: **import models normally.** Adding `PARAMETER num_ctx 65536` to a
+Modelfile is redundant, and deriving a `:64k` tag to carry it is worse than
+redundant — the tag exists only in the model store, which is
+`local-path-volatile` with `reclaimPolicy: Delete`, so a PVC delete would
+leave `model.default` pointing at a tag that can never resolve, with nothing in
+git recording how it was built.
 
-`OLLAMA_CONTEXT_LENGTH` would set this globally and is deliberately not set: it
-would make every casual Open-WebUI chat reserve a 64K KV cache, and on a
-15.3GiB aperture that is the difference between a 35B quant loading and not.
-Per-model is the right granularity. `ollama ps` prints the context size the
-model actually got, so check it after the first load.
+`OLLAMA_CONTEXT_LENGTH=65536` **is** set in `deployment.yaml`, but not for
+Hermes — that is overridden per request. It is there for Open WebUI, which
+does not send `num_ctx` and would otherwise be capped at 4096 for ordinary
+chats. The cost is a 64K KV cache reserved per loaded model; at 8.5Gi
+resident for Spark-X2.5-4B that peaks node memory near 11.5Gi, inside the 16Gi
+limit. On a model large enough for that to matter, set `PARAMETER num_ctx`
+explicitly on the model instead of inheriting the global.
+
+`ollama ps` prints the context the model actually got — that is the check.
 
 ### Do not add a TEMPLATE line
 

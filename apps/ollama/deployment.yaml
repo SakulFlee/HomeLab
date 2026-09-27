@@ -64,7 +64,7 @@ spec:
             # no kernels are ever loaded, and the model runs on CPU.
             - name: HSA_OVERRIDE_GFX_VERSION
               value: "10.3.0"
-            # The GTT aperture is 15.29Gi carved out of this node's 26Gi
+            # The GTT aperture is 15.29Gi carved out of this node's 30Gi
             # of RAM. A second resident model cannot fit, and an
             # over-large one takes the node down with it rather than just
             # failing to load. One at a time, always.
@@ -75,6 +75,24 @@ spec:
             # aperture cannot pay for anyway.
             - name: OLLAMA_NUM_PARALLEL
               value: "1"
+            # Default context for requests that do not specify their own.
+            # Without it Ollama picks a VRAM heuristic that lands on
+            # default_num_ctx=4096 here, which is small for chat.
+            #
+            # This exists for Open WebUI, NOT for Hermes. Hermes sends
+            # options.num_ctx on every request itself (see the `custom`
+            # provider's build_api_kwargs_extras) and this value is ignored
+            # when it does. So do not expect this to be what makes Hermes
+            # work -- `model.context_length` in apps/hermes/configmap.yaml
+            # is. See apps/ollama/README.md.
+            #
+            # The cost is a 64K KV cache reserved per loaded model even for
+            # a one-line chat. At 8.5Gi resident for Spark-X2.5-4B that
+            # peaks node memory around 11.5Gi, well inside the 16Gi limit
+            # below. A much larger model should set PARAMETER num_ctx
+            # explicitly instead of inheriting this.
+            - name: OLLAMA_CONTEXT_LENGTH
+              value: "65536"
             # OLLAMA_KV_CACHE_TYPE is deliberately unset. q8_0 quantises the
             # KV cache and collapses MTP draft acceptance to zero on this
             # hardware -- the drafts stop being accepted and throughput
