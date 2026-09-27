@@ -15,13 +15,13 @@
 # from a laptop and fail from inside the pod.
 #
 # Bump the ConfigMap name on any edit to this file. ConfigMap edits alone do
-# not restart the pod, but a changed name does - that is why this is v5 and
-# not v4. (v4 was llama-swap; before that Unsloth Studio at
-# `http://unsloth-studio.unsloth.svc:8000/v1`. Both are gone.)
+# not restart the pod, but a changed name does - that is why this is v6 and
+# not v5. (v5 was the Ollama repoint; v4 was llama-swap; before that Unsloth
+# Studio at `http://unsloth-studio.unsloth.svc:8000/v1`. Both are gone.)
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: hermes-managed-config-v5
+  name: hermes-managed-config-v6
   namespace: hermes
 data:
   config.yaml: |
@@ -36,12 +36,20 @@ data:
       #   kubectl exec -n ollama deploy/ollama -- ollama list
       # or Admin Panel -> Models in Open-WebUI.
       #
-      # This will not resolve until a model with this exact tag exists in the
-      # store, and the store starts EMPTY - nothing is pre-seeded. Import
-      # through Open-WebUI and either name the import this, or change this
-      # line to match. Everything else in this file is correct regardless;
-      # this is the one value that cannot be known until you pick a model.
-      default: "minicpm5-2b"
+      # The `:64k` tag is a derived alias of SparkLLM/Spark-X2.5-4B:latest --
+      # same weights, same blobs, no extra disk -- carrying
+      #   PARAMETER num_ctx 65536
+      # The untagged `:latest` runs at 4096 and Hermes will reject it. See
+      # apps/ollama/README.md; do not point this at a `:latest` tag.
+      #
+      # The other two models in the store are NOT usable, and neither is
+      # fixable from this repo:
+      #   minicpm-v4.6         qwen35, hybrid SSM. Degenerate on ROCm --
+      #                        emits one token forever. Clean on CPU, so it
+      #                        is the ROCm kernel path, not the weights.
+      #   north-mini-code-1.0  18GB, exceeds the ollama container's 16Gi
+      #                        limit at any context. Refused, by design.
+      default: "SparkLLM/Spark-X2.5-4B:64k"
       # Hermes rejects anything reporting under 64K outright:
       #   "... has a context window of 32,768 tokens, which is below the
       #    minimum 64,000 required by Hermes Agent."
@@ -49,9 +57,7 @@ data:
       # max_model_len -- hence the explicit override. The override only
       # declares intent; Ollama still has to be willing to allocate it, and
       # its default is `default_num_ctx=4096` (visible in the ollama startup
-      # log). So a model Hermes is meant to drive must be imported with
-      #   PARAMETER num_ctx 65536
-      # in its Modelfile. See apps/ollama/README.md.
+      # log). Hence the `:64k` tag above. See apps/ollama/README.md.
       context_length: 65536
 
     terminal:
