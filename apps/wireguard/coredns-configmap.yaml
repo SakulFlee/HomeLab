@@ -1,7 +1,12 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: wireguard-split-dns
+  # v2: adds `ollama` to the allowlist and drops the retired `unsloth` /
+  # `llama-swap`. The rename is what rolls the pod -- changing a ConfigMap's
+  # contents restarts nothing by itself, and this CoreDNS had no `reload`
+  # plugin at the time, so the edit would have sat on disk unparsed. With
+  # `reload` in the Corefile now, later edits need no rename.
+  name: wireguard-split-dns-v2
   namespace: wireguard
 data:
   Corefile: |
@@ -22,17 +27,17 @@ data:
         # reaches Traefik from a Cloudflare edge IP instead of 100.64.0.x
         # and is rejected with 403 Forbidden even for a connected client.
         template IN A {
-            match "^(hermes-dashboard|hermes|unsloth|jellyfin|sonarr|radarr|prowlarr|qbittorrent|qui|llama-swap|grafana|paperless|syncthing|nas|vpn|pvc-explorer)\.sakul-flee\.de\.$"
+            match "^(hermes-dashboard|hermes|ollama|jellyfin|sonarr|radarr|prowlarr|qbittorrent|qui|grafana|paperless|syncthing|nas|vpn|pvc-explorer)\.sakul-flee\.de\.$"
             answer "{{ .Name }} 60 IN A 192.168.178.200"
             fallthrough
         }
         template IN AAAA {
-            match "^(hermes-dashboard|hermes|unsloth|jellyfin|sonarr|radarr|prowlarr|qbittorrent|qui|llama-swap|grafana|paperless|syncthing|nas|vpn|pvc-explorer)\.sakul-flee\.de\.$"
+            match "^(hermes-dashboard|hermes|ollama|jellyfin|sonarr|radarr|prowlarr|qbittorrent|qui|grafana|paperless|syncthing|nas|vpn|pvc-explorer)\.sakul-flee\.de\.$"
             rcode NOERROR
             fallthrough
         }
         template IN HTTPS {
-            match "^(hermes-dashboard|hermes|unsloth|jellyfin|sonarr|radarr|prowlarr|qbittorrent|qui|llama-swap|grafana|paperless|syncthing|nas|vpn|pvc-explorer)\.sakul-flee\.de\.$"
+            match "^(hermes-dashboard|hermes|ollama|jellyfin|sonarr|radarr|prowlarr|qbittorrent|qui|grafana|paperless|syncthing|nas|vpn|pvc-explorer)\.sakul-flee\.de\.$"
             rcode NOERROR
             fallthrough
         }
@@ -41,4 +46,11 @@ data:
         forward . 9.9.9.9 149.112.112.112
         cache
         errors
+        # Without this, editing this ConfigMap rewrites Corefile on disk and
+        # CoreDNS goes on serving the config it parsed at startup -- the file
+        # and the running server silently disagree, and a name added to the
+        # regexes above appears to do nothing. reload re-parses on change
+        # (kubelet's atomic ..data symlink swap included) within ~30s.
+        # Note the ~60s that the `cache` plugin can then hold a stale answer.
+        reload
     }

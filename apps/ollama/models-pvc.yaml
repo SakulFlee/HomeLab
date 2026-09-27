@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ollama-models
+  namespace: ollama
+spec:
+  storageClassName: local-path-volatile
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      # Model store only. Weights are re-downloadable, so this is volatile
+      # on purpose: local-path reclaims on Delete and there is nothing to
+      # back up. 32Gi holds roughly one mid-size quant (a 9B Q4 is ~6G, a
+      # 12B ~7G) with room for one more. Watch actual usage -- the store
+      # does not preallocate, so a `df` showing pressure means it is
+      # genuinely full rather than merely close to the request.
+      storage: 32Gi

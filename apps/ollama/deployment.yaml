@@ -1,0 +1,128 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama
+  namespace: ollama
+  labels:
+    app: ollama
+spec:
+  selector:
+    matchLabels:
+      app: ollama
+  replicas: 1
+  strategy:
+    # Ollama binds the GPU exclusively while a model is resident and does
+    # not survive losing it. Two overlapping pods would race for the same
+    # 15.29Gi aperture, so never run old and new at once.
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: ollama
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: homelab
+      volumes:
+        - name: dev-dri
+          hostPath:
+            path: /dev/dri
+        - name: models
+          persistentVolumeClaim:
+            claimName: ollama-models
+      containers:
+        - name: ollama
+          # Pinned, not :rocm. The floating tag tracks main; llama-swap's
+          # `:vulkan` pin is why its build number could be stated exactly.
+          # 0.34.4 is the newest stable ROCm tag -- 0.40.0 exists only as
+          # -rc0. Bump the version and the image tag together.
+          image: ollama/ollama:0.34.4-rocm
+          imagePullPolicy: IfNotPresent
+          env:
+            # Without this Ollama binds 127.0.0.1 and the Service has
+            # nothing to connect to -- the pod looks healthy and every
+            # request times out.
+            - name: OLLAMA_HOST
+              value: "0.0.0.0:11434"
+            # TRAP 1. This box is an APU and the Radeon 680M is the display
+            # device. Ollama enumerates it, sees it is also driving a
+            # screen, logs "dropping integrated GPU" and silently serves on
+            # CPU. Nothing errors; you just get CPU-speed generation. This
+            # variable is the only thing that keeps the iGPU.
+            - name: OLLAMA_IGGPU_ENABLE
+              value: "1"
+            # TRAP 2. gfx1035 is not in the ROCm 6.x JIT table, so the
+            # driver refuses to load kernels for it. The override claims
+            # the gfx1030 sibling (same RDNA2 ISA, so the code is correct).
+            # Without it there is no error at all -- the HIP init succeeds,
+            # no kernels are ever loaded, and the model runs on CPU.
+            - name: HSA_OVERRIDE_GFX_VERSION
+              value: "10.3.0"
+            # The GTT aperture is 15.29Gi carved out of this node's 26Gi
+            # of RAM. A second resident model cannot fit, and an
+            # over-large one takes the node down with it rather than just
+            # failing to load. One at a time, always.
+            - name: OLLAMA_MAX_LOADED_MODELS
+              value: "1"
+            # llama.cpp requires n_parallel=1 for MTP speculation to be
+            # usable at all. Raising this buys throughput that this
+            # aperture cannot pay for anyway.
+            - name: OLLAMA_NUM_PARALLEL
+              value: "1"
+            # OLLAMA_KV_CACHE_TYPE is deliberately unset. q8_0 quantises the
+            # KV cache and collapses MTP draft acceptance to zero on this
+            # hardware -- the drafts stop being accepted and throughput
+            # falls below the un-speculated baseline. f16 is the default
+            # and the reason speculation is worth having. Do not
+            # "optimise" this in.
+          ports:
+            - name: http
+              containerPort: 11434
+          volumeMounts:
+            - name: dev-dri
+              mountPath: /dev/dri
+            # Ollama's store. Everything the model creates lands here:
+            # blobs, manifests, and the per-model KV cache.
+            - name: models
+              mountPath: /root/.ollama
+          resources:
+            limits:
+              # /dev/kfd is EPERM through hostPath alone -- the container
+              # device cgroup denies it even as root. The device plugin
+              # has to be asked. Both groups are required together, as
+              # they were for Unsloth: rocm supplies /dev/kfd, dri the
+              # render nodes.
+              devic.es/dri: "1"
+              devic.es/rocm: "1"
+              # Weights live in system RAM on an APU. 24Gi sits above the
+              # largest sane resident model and below the node's 26Gi, so
+              # an over-large model OOMs this container instead of letting
+              # the kernel pick a victim (Flux controllers, coredns,
+              # traefik -- all of which have been killed that way).
+              memory: 24Gi
+              cpu: "4"
+            requests:
+              memory: 4Gi
+          # Ollama answers on / whether or not a model is loaded, so these
+          # catch a hung server but cannot detect a wedged runner. The
+          # startup probe is generous because ROCm enumeration on a large
+          # APU is slow and being killed mid-init is worse than waiting.
+          startupProbe:
+            httpGet:
+              path: /
+              port: 11434
+            periodSeconds: 10
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 11434
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 11434
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 6

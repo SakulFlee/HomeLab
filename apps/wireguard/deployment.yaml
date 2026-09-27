@@ -30,7 +30,7 @@ spec:
             name: wg-access-server-config
         - name: split-dns-config
           configMap:
-            name: wireguard-split-dns
+            name: wireguard-split-dns-v2
       containers:
         - name: wg-access-server
           image: ghcr.io/freifunkmuc/wg-access-server:v1.2.0
