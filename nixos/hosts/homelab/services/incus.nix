@@ -94,8 +94,12 @@ in
   # directories on the NVMe root filesystem and shadow them once the mount
   # appears. 'requires' + 'after' on the .mount unit gives exactly that.
   #
-  # (escapeSystemdPath is used because the mount unit name for a path containing
-  # a dash is not guessable by hand -- systemd escapes it as \x2d.)
+  # The unit name is derived rather than hardcoded: escapeSystemdPath applies
+  # the systemd.unit(5) algorithm, which emits \x2d escapes for any path
+  # component containing a dash. This particular path has none in any component,
+  # so it resolves to the plain 'var-lib-incus-pools.mount' -- verified against
+  # systemd-escape on the host. Deriving it stays correct if the path ever
+  # changes to one that does contain a dash.
   systemd.services.incus = {
     after = [ poolsMount ];
     requires = [ poolsMount ];
