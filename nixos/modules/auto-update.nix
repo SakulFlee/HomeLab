@@ -57,7 +57,14 @@ in {
 
         echo "--- nixos-rebuild start ---"
         EXIT_CODE=0
-        ${nixosRebuildBin} switch --show-trace --print-build-logs || EXIT_CODE=$?
+        # --flake is mandatory: /etc/nixos is the *repo root* and has no
+        # flake.nix of its own (the flake is at ./nixos/flake.nix). Without it
+        # nixos-rebuild falls back to the legacy '<nixpkgs/nixos>' channel path,
+        # which ignores this repo's pinned inputs and forwards our extra flags
+        # to nix-build -- where --print-build-logs is rejected as unrecognised.
+        # The empty attribute after '#' resolves the output from the hostname
+        # (HomeLab).
+        ${nixosRebuildBin} switch --flake nixos/# --show-trace --print-build-logs || EXIT_CODE=$?
         # Exit code 4 means "switched successfully but some services failed" — treat as success
         [ "$EXIT_CODE" -eq 4 ] && EXIT_CODE=0
         echo "--- nixos-rebuild end (exit: $EXIT_CODE) ---"
