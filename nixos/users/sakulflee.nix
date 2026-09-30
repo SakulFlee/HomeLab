@@ -3,7 +3,9 @@
     description = "SakulFlee";
     initialPassword = "nixos";
     isNormalUser = true;
-    extraGroups = [ "networkmanager" "wheel" "video" "render" "uinput" "i2c" "media" ];
+    # incus-admin: full Incus API access (create/remove instances, pools, ...)
+    # as opposed to the read-only "incus" group.
+    extraGroups = [ "networkmanager" "wheel" "video" "render" "uinput" "i2c" "media" "incus-admin" ];
     shell = pkgs.zsh;
   };
 

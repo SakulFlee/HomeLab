@@ -42,6 +42,39 @@
       options = [ "subvol=storage" "compress=zstd" "noauto" ];
     };
 
+  # Incus storage pools: a sibling subvolume on the same SSD, so source data
+  # stays on the SSD and the restic repo stays on the NVMe. Incus' own state
+  # directory (/var/lib/incus -- dqlite DB, sockets, logs) remains on the NVMe,
+  # since only the pools are mounted here.
+  #
+  # The subvolume must exist before this mounts, and NixOS does not create btrfs
+  # subvolumes, so it was created once on the server (2026-09-30). It is a true
+  # top-level sibling of 'storage' -- both report top level 5 -- rather than
+  # nested inside it, so it survives k3s' removal in the final migration phase
+  # and stays clean under quota/snapshot tooling:
+  #
+  #   sudo mkdir -p /mnt/incus-tmp
+  #   sudo mount -t btrfs -o subvol=/ \
+  #     /dev/disk/by-uuid/a8ab0668-28ae-437c-96dc-bed48481b2c0 /mnt/incus-tmp
+  #   sudo btrfs subvolume create /mnt/incus-tmp/incus-pools
+  #   sudo umount /mnt/incus-tmp && sudo rmdir /mnt/incus-tmp
+  #
+  # Verify with: sudo btrfs subvolume list /var/lib/rancher/k3s/storage
+  #
+  # No compression at the mount level: it would also apply to VM disk images
+  # later, where compression and Incus' CoW-off optimisation are mutually
+  # exclusive. Per-volume compression is set in Incus itself instead.
+  #
+  # neededForBoot = false so a missing subvolume cannot block boot; incus.service
+  # has requires/after on this .mount unit, so it refuses to start rather than
+  # silently creating pool directories on the NVMe root filesystem.
+  fileSystems."/var/lib/incus/pools" =
+    { device = "/dev/disk/by-uuid/a8ab0668-28ae-437c-96dc-bed48481b2c0";
+      fsType = "btrfs";
+      options = [ "subvol=incus-pools" ];
+      neededForBoot = false;
+    };
+
   fileSystems."/boot" =
     { device = "/dev/disk/by-uuid/5B72-9486";
       fsType = "vfat";

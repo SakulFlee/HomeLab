@@ -3,7 +3,7 @@
     ./hardware.nix
     ./kernel.nix
     ./network.nix
-    ./services/k3s.nix
+    ./services/_.nix
 
     # Modules
     ../../modules/auto-update.nix
