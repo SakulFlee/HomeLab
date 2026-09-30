@@ -77,10 +77,40 @@ valid_name() {
 }
 
 # --------------------------------------------------------------------------
+# Every mutating Incus call goes through this.
+#
+# Two reasons, both learned the hard way.
+#
+# stdin: the Incus client reads stdin when stdin is not a TTY and sends it as
+# the HTTP request body. A loop that feeds jq's output in with `< <(...)`
+# therefore hands the *next* line of JSON to the server as a body, and the
+# reply is
+#
+#   Error: yaml: construct errors: line 1: field pool not found in
+#   type api.StorageVolumePut
+#
+# which mentions neither the command nor the cause. It only bites at two or
+# more iterations -- with one volume, the earlier `show` consumes the only line
+# and `create` sees EOF -- which is why caddy passed and forgejo did not.
+# Redirecting from /dev/null fixes it at the source rather than per call site.
+#
+# argv: that error text did not identify the offending command once in five CLI
+# surprises, so the exact invocation is logged before it runs.
+incus_run() {
+  log "incus $(printf '%q ' "$@")"
+  incus "$@" </dev/null
+}
+
+# --------------------------------------------------------------------------
 # Nix
 # --------------------------------------------------------------------------
+# One name per line, not the raw JSON. `nix eval --json --apply
+# builtins.attrNames` emits ["caddy","forgejo"] as a *single line*, so a plain
+# mapfile over it produces one element holding the whole array -- and
+# `--all` then fails name validation on the string '["caddy","forgejo"]'.
 flake_instances() {
   nix eval --json "$FLAKE_DIR#incusInstances" --apply builtins.attrNames 2>/dev/null \
+    | jq -r '.[]' \
     || die "cannot read incusInstances from $FLAKE_DIR"
 }
 
@@ -174,7 +204,7 @@ point_alias_at() {
   local current
   current=$(image_fingerprint "$alias" || true)
   if [[ $current != "$fingerprint" ]]; then
-    incus image alias create "$alias" "$fingerprint"
+    incus_run image alias create "$alias" "$fingerprint"
   fi
 }
 
@@ -229,21 +259,31 @@ import_image() {
   fingerprint=$(image_fingerprint "$alias")
   [[ -n $fingerprint ]] || die "$alias resolved to no fingerprint after import"
 
-  # Provenance, recorded on the image the alias now actually names. Setting it
-  # before resolving the alias is what let a stale image end up carrying
-  # someone else's build path.
-  incus image set-property "$alias" "user.build-source=$rootfs" >/dev/null
-  if [[ -n $rev ]]; then
-    incus image set-property "$alias" "user.flake-rev=$rev" >/dev/null
+  # Provenance, recorded on the image the alias provably names.
+  #
+  # Safe to write *now* and not before, because by this point the alias is known
+  # to name the image we built on all three paths: a successful import attached
+  # it, the fast path matched on this very value, and the recovery path moved it
+  # with point_alias_at. Writing it earlier -- before the alias was resolved --
+  # is how a stale image ended up carrying someone else's build path, and that
+  # lie then poisoned every later comparison.
+  if [[ $(image_build_source "$alias") != "$rootfs" ]]; then
+    incus_run image set-property "$alias" "user.build-source=$rootfs"
   fi
 
-  # The invariant the whole fingerprint comparison rests on. If the alias is not
-  # naming the image we just built, the comparison below is meaningless -- so
-  # fail here, loudly, rather than reporting a wrong instance as up to date.
+  # Round-trip check. Every later comparison reads the build path back from the
+  # alias, so the write above has to have landed on the image the alias names and
+  # stayed there. Cheap, and the failure mode it guards is silent.
   if [[ $(image_build_source "$alias") != "$rootfs" ]]; then
     die "$alias names image $fingerprint, whose build-source is" \
         "'$(image_build_source "$alias")' rather than '$rootfs'." \
         "Refusing to compare fingerprints against the wrong image."
+  fi
+
+  # flake-rev is informational and safe to refresh every run, but diffed anyway
+  # so a no-op redeploy performs no writes at all.
+  if [[ -n $rev ]] && [[ $(incus image get-property "$alias" user.flake-rev 2>/dev/null || true) != "$rev" ]]; then
+    incus_run image set-property "$alias" "user.flake-rev=$rev"
   fi
 
   printf '%s\n' "$fingerprint"
@@ -258,8 +298,17 @@ instance_field() {
 }
 
 ensure_volumes() {
-  local name=$1 spec=$2 volume pool volume_name description
-  while IFS= read -r volume; do
+  local name=$1 spec=$2 volume pool volume_name description current
+  local -a volumes
+
+  # mapfile then for, never `while read ... done < <(jq)`. The while-read form
+  # leaves jq's pipe on stdin for every command in the body, which is how the
+  # Incus client ended up POSTing a line of JSON as a request body. mapfile
+  # drains the pipe before the loop starts, so the body inherits the script's own
+  # stdin. See incus_run.
+  mapfile -t volumes < <(jq -c '.volumes[]?' <<<"$spec")
+
+  for volume in ${volumes[@]+"${volumes[@]}"}; do
     pool=$(jq -r '.pool' <<<"$volume")
     volume_name=$(jq -r '.name' <<<"$volume")
     description=$(jq -r '.description // ""' <<<"$volume")
@@ -272,15 +321,34 @@ ensure_volumes() {
     #   Error: Volume by that name already exists
     # on every run after the first. Verified against `incus storage volume
     # show --help` rather than guessed.
-    if incus storage volume show "$pool" "$volume_name" >/dev/null 2>&1; then
-      continue
+    if ! incus storage volume show "$pool" "$volume_name" >/dev/null 2>&1; then
+      step "creating volume $pool/$volume_name"
+      incus_run storage volume create "$pool" "$volume_name"
     fi
-    step "creating volume $pool/$volume_name"
-    incus storage volume create "$pool" "$volume_name" >/dev/null
+
+    # Description is reconciled, not just set on creation. Two reasons: a
+    # volume predating this code keeps whatever it had, and `incus storage
+    # volume list` is where someone reads "never file-back-up, pg_dump only"
+    # next to the PGDATA volume -- which is the whole point of writing it.
+    #
+    # NOT `incus storage volume set <pool> <volume> description=...`.
+    # description is a top-level API field, not a config key, so the CLI
+    # rejects it with
+    #   Error: Invalid option for volume "..." option "description"
+    # The API path needs the volume type segment; the bare form 404s.
     if [[ -n $description ]]; then
-      incus storage volume set "$pool" "$volume_name" "description=$description"
+      # Read via the API, not `incus storage volume show`: that prints YAML,
+      # and piping it to jq dies with
+      #   jq: parse error: Invalid numeric literal at line 1, column 7
+      current=$(incus query "/1.0/storage-pools/$pool/volumes/custom/$volume_name" \
+        | jq -r '.description // ""')
+      if [[ $current != "$description" ]]; then
+        incus_run query -X PATCH \
+          -d "$(jq -cn --arg d "$description" '{description: $d}')" \
+          "/1.0/storage-pools/$pool/volumes/custom/$volume_name"
+      fi
     fi
-  done < <(jq -c '.volumes[]?' <<<"$spec")
+  done
 }
 
 # Incus sets limits.instances itself as a guard rail, and btrfs volumes can
@@ -299,11 +367,11 @@ apply_limits() {
         step "setting limits.$key = $value"
         # key=value in one argument. The two-argument form still works but
         # prints "the <key> <value> syntax is deprecated" on every call.
-        incus config set "$name" "limits.$key=$value"
+        incus_run config set "$name" "limits.$key=$value"
       fi
     elif [[ -n $current ]]; then
       step "clearing limits.$key"
-      incus config unset "$name" "limits.$key"
+      incus_run config unset "$name" "limits.$key"
     fi
   done
 }
@@ -322,27 +390,33 @@ device_matches() {
 sync_devices() {
   local name=$1 spec=$2
   local desired current key device
+  local -a have want
 
   desired=$(jq -c '.devices // {}' <<<"$spec")
   current=$(incus query "/1.0/instances/$name" | jq -c '.devices // {}')
 
+  # mapfile then for, never `while read ... done < <(jq)`: see incus_run for
+  # what a pipe on stdin does to the Incus client.
+  mapfile -t have < <(jq -r 'keys[]' <<<"$current")
+  mapfile -t want < <(jq -r 'keys[]' <<<"$desired")
+
   # Drop devices we previously managed that are no longer declared. root is
   # never in the spec -- it comes from the default profile -- and removing it
   # would destroy the instance's root disk.
-  while IFS= read -r key; do
+  for key in ${have[@]+"${have[@]}"}; do
     if [[ $key == root ]]; then
       continue
     fi
     if ! jq -e --arg k "$key" 'has($k)' <<<"$desired" >/dev/null; then
       step "removing device $key"
-      incus config device remove "$name" "$key"
+      incus_run config device remove "$name" "$key"
     fi
-  done < <(jq -r 'keys[]' <<<"$current")
+  done
 
   # Add or update the rest. remove-then-add rather than a key-by-key diff:
   # changing a device's type is not possible in place, so a full replace is the
   # one path that always works.
-  while IFS= read -r key; do
+  for key in ${want[@]+"${want[@]}"}; do
     device=$(jq -c --arg k "$key" '.[$k]' <<<"$desired")
     if device_matches "$(jq -c --arg k "$key" '.[$k] // {}' <<<"$current")" "$device"; then
       continue
@@ -360,20 +434,23 @@ sync_devices() {
     # Unquoted on purpose: one argv entry per k=v, which is how the CLI wants
     # them. Quoting would pass "pool=backup source=x" as a single key.
     # shellcheck disable=SC2046
-    incus config device add "$name" "$key" \
+    incus_run config device add "$name" "$key" \
       "$(jq -r '.type' <<<"$device")" \
       $(jq -r 'to_entries[] | select(.key != "type") | "\(.key)=\(.value)"' <<<"$device")
-  done < <(jq -r 'keys[]' <<<"$desired")
+  done
 }
 
 # user.description rather than the top-level description field: setting that
 # needs an API PATCH, and a PATCH that is subtly wrong would rewrite the
 # instance's devices. Not worth the risk for a label.
 set_description() {
-  local name=$1 spec=$2 description
+  local name=$1 spec=$2 description current
   description=$(jq -r '.description // empty' <<<"$spec")
   if [[ -n $description ]]; then
-    incus config set "$name" "user.description=$description"
+    current=$(instance_field "$name" '.config["user.description"] // empty')
+    if [[ $current != "$description" ]]; then
+      incus_run config set "$name" "user.description=$description"
+    fi
   fi
 }
 
@@ -435,6 +512,7 @@ report_drift() {
 report_existing_drift() {
   local name=$1 spec=$2 build_path=$3 old_fingerprint=$4
   local key value current want_dev cur_dev device alias recorded
+  local -a want_keys
 
   alias="$IMAGE_PREFIX/$name"
   recorded=$(incus image get-property "$alias" user.build-source 2>/dev/null || true)
@@ -462,12 +540,14 @@ report_existing_drift() {
 
   cur_dev=$(incus query "/1.0/instances/$name" | jq -c '.devices // {}')
   want_dev=$(jq -c '.devices // {}' <<<"$spec")
-  while IFS= read -r key; do
+  # mapfile then for, for the same reason as sync_devices.
+  mapfile -t want_keys < <(jq -r 'keys[]' <<<"$want_dev")
+  for key in ${want_keys[@]+"${want_keys[@]}"}; do
     device=$(jq -c --arg k "$key" '.[$k]' <<<"$want_dev")
     if ! device_matches "$(jq -c --arg k "$key" '.[$k] // {}' <<<"$cur_dev")" "$device"; then
       log "  device $key: have $(jq -c --arg k "$key" '.[$k] // {}' <<<"$cur_dev") want $device"
     fi
-  done < <(jq -r 'keys[]' <<<"$want_dev")
+  done
 }
 
 # --------------------------------------------------------------------------
@@ -551,13 +631,13 @@ apply_instance() {
   elif [[ $existed == 1 ]]; then
     step "image changed (${old_fingerprint:0:12} -> ${fingerprint:0:12}), recreating"
     warn "$name goes down while its root disk is replaced; volumes are untouched"
-    incus delete "$name" --force
+    incus_run delete "$name" --force
     existed=0
   fi
 
   if [[ $existed == 0 ]]; then
     step "creating $name"
-    incus create "$fingerprint" "$name" -p default >/dev/null
+    incus_run create "$fingerprint" "$name" -p default
   fi
 
   set_description "$name" "$spec"
@@ -567,7 +647,7 @@ apply_instance() {
   if [[ $want_running == 1 ]]; then
     if [[ $(instance_field "$name" '.status') != Running ]]; then
       step "starting"
-      incus start "$name" >/dev/null
+      incus_run start "$name"
       # A NIC in the spec means an address is expected; without one there is
       # nothing to wait for.
       want_ip=no
@@ -576,7 +656,7 @@ apply_instance() {
     fi
   elif [[ $(instance_field "$name" '.status') == Running ]]; then
     step "stopping (autostart off, or --no-start)"
-    incus stop "$name" >/dev/null
+    incus_run stop "$name"
   fi
 
   local status addresses

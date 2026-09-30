@@ -140,6 +140,17 @@ in
   # imported images when incusd comes up, which is the entire benefit of
   # deploying images rather than building in place. Rebuilding on every boot
   # would add minutes of boot time for nothing.
+  #
+  # A failed run is retried, because most failures here are transient: incusd
+  # still coming up, a pool not mounted yet, a store lock held by the host
+  # rebuild that triggered this. Without it the unit sits in `failed` until the
+  # next edit, and a redeploy that silently did not happen is the worst
+  # possible outcome. The rate limit is what keeps that from becoming a hot
+  # loop -- a genuinely broken config burns five builds over four minutes and
+  # then stays failed, which is the behaviour we want.
+  #
+  # Restart= on a oneshot is only permitted as on-failure; systemd rejects
+  # always and on-success for Type=oneshot.
   # ---------------------------------------------------------------------
   systemd.services =
     lib.mapAttrs'
@@ -158,7 +169,16 @@ in
             Type = "oneshot";
             WorkingDirectory = flakeDir;
             TimeoutStartSec = 3600;
+            Restart = "on-failure";
+            RestartSec = 60;
+            StartLimitIntervalSec = 2400;
+            StartLimitBurst = 5;
           };
+
+          # A failed redeploy is otherwise silent: nothing on the desktop, and
+          # the journal is not somewhere anyone looks on purpose. The host
+          # already notifies for the auto-update unit, so reuse that shape.
+          onFailure = [ "incus-apply-notify@%n.service" ];
 
           # Only the binaries apply.sh actually shells out to. Notably
           # config.virtualisation.incus.package rather than a hardcoded
@@ -181,6 +201,44 @@ in
       })
       instances
     // {
+      # -----------------------------------------------------------
+      # Failure notification
+      #
+      # Templated on the failed unit's name so one service covers every
+      # instance. The desktop notification is best-effort -- headless is
+      # normal for a homelab -- and the real record stays in the journal.
+      # -----------------------------------------------------------
+      incus-apply-notify = {
+        description = "Notify that an Incus instance redeploy failed";
+        wantedBy = [ "multi-user.target" ];
+        path = with pkgs; [ coreutils gnugrep gnused libnotify ];
+        script = ''
+          set -euo pipefail
+
+          unit=$1
+          # The failed unit is what the journal is filed under, so say so
+          # rather than making the reader go looking.
+          title="Incus redeploy failed"
+          body="$unit -- journalctl -u $unit -n 50"
+
+          for bus in /run/user/*/bus; do
+            [ -S "$bus" ] || continue
+            # The doubled quote escapes a shell dollar-brace from Nix
+            # interpolation, which would otherwise eat it. Same shape as the
+            # notify loop in modules/auto-update.nix.
+            uid="''${bus#/run/user/}"
+            uid="''${uid%%/*}"
+            user=$(id -nu "$uid" 2>/dev/null) || continue
+            sudo -u "$user" \
+              DISPLAY=":0" DBUS_SESSION_BUS_ADDRESS="unix:path=$bus" \
+              notify-send --app-name="Incus Apply" --urgency=critical \
+                "$title" "$body" >/dev/null 2>&1 || true
+          done
+
+          echo "$unit failed; see journalctl -u $unit"
+        '';
+      };
+
       # -----------------------------------------------------------
       # Status
       #

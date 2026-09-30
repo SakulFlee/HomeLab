@@ -102,7 +102,21 @@ The host runs one `incus-apply-<name>.service` and one `.path` unit per
 instance. Any change to that instance's inputs — a hand edit, or the hourly
 `git merge --ff-only` in `nixos-auto-update` — triggers a rebuild. It is safe to
 run on every change because the work is gated on the fingerprint comparison
-above, and a no-op rebuild finds everything already built and returns.
+above, and a settled redeploy performs **zero** Incus writes: every set is
+diffed first.
+
+`incus/apply.sh` runs from the checkout rather than the store, which is what
+makes the trigger work: **pulling the repo both updates the reconciler and
+fires it.** The only case where you must start a service by hand is the first
+deploy after installing the units, because per `systemd.path(5)` a `.path` unit
+does not trigger on activation unless the directive is `PathExists=`.
+
+A failed run is retried — `Restart=on-failure`, `RestartSec=60`, five attempts
+over `StartLimitIntervalSec=2400` — because most failures here are transient
+(incusd still coming up, a pool not mounted, a store lock held by the host
+rebuild that triggered it). A genuinely broken config burns five builds and then
+stays `failed`, and an `OnFailure=` unit sends a desktop notification, because a
+redeploy that silently did not happen is the worst outcome available.
 
 **What each instance watches** is the closure of what its own build reads:
 
@@ -150,7 +164,15 @@ Two things worth knowing:
   `PathExists=` triggers immediately when the condition already holds. So the
   first deploy after installing these units is an explicit
   `systemctl start incus-apply-<name>.service`; everything after that is
-  automatic.
+  automatic, including a plain `git pull`.
+* **The Incus client reads stdin when stdin is not a TTY, and sends it as the
+  request body.** A loop fed by `while read … done < <(jq …)` therefore hands
+  the *next* line of JSON to the server, which replies
+  `field pool not found in type api.StorageVolumePut` — naming neither the
+  command nor the cause. It only bites at two or more iterations, which is why
+  one instance passed and another did not. Every loop is now `mapfile` + `for`,
+  and every mutating call goes through `incus_run`, which redirects stdin from
+  `/dev/null` and logs its own argv.
 
 ## Storage pools
 
