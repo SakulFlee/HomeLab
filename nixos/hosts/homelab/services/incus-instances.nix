@@ -14,20 +14,33 @@ let
   flakeDir = "${repoDir}/nixos";
   applyScript = "${repoDir}/incus/apply.sh";
 
-  # Everything that can change an instance image:
+  # ---------------------------------------------------------------------
+  # What each instance watches
   #
-  #   the flake itself      inputs, mkInstance wrapper, stateVersion
-  #   hosts/<name>          that instance's OS config and Incus spec
-  #   modules/              host-wide modules the image transitively imports
-  #   incus-instances.nix   the registry itself
+  # Scoped to the instance's own inputs, so a caddy rebuild is not triggered by
+  # a forgejo edit. Deliberately so: an unnecessary rebuild costs a nix build
+  # that returns immediately, but with a dozen instances the hourly auto-update
+  # sweep turns "returns immediately" into a visible stall, and the point of
+  # per-instance units is that they actually are per-instance.
   #
-  # Deliberately the whole nixos/ tree rather than a hand-picked subset. An
-  # instance rebuild that turns out to be unnecessary costs a nix build that
-  # finds everything already built and returns immediately; missing a real
-  # dependency costs a stale image nobody notices until it matters.
+  # This is the complete closure of what the flake reads when building one
+  # instance image:
+  #
+  #   flake.nix, flake.lock   inputs, and the mkInstance wrapper
+  #   incus-instances.nix     the registry, which selects the spec
+  #   hosts/<name>/           that instance's default.nix and incus.nix
+  #   modules/                shared NixOS modules -- nothing imports these
+  #                           today, but this is where the first shared module
+  #                           will land, and missing it would be a stale image
+  #                           nobody notices
+  #   incus/apply.sh          the reconciler itself
+  #
+  # Not watched: hosts/homelab/, hardware/ and users/. Those are the *host*,
+  # and the host does not appear in any instance's build closure. Rebuilding
+  # every instance image because the host's NIC changed would be pure waste.
   #
   # Enumerated relative to the flake root, not relative to /etc/nixos, so the
-  # list is the same wherever the flake happens to be checked out -- which is
+  # lists are the same wherever the flake happens to be checked out -- which is
   # what makes this file evaluable off-server. The relative names are re-rooted
   # into the live checkout below.
   #
@@ -36,6 +49,26 @@ let
   # nixos/hosts/homelab/services/ that is three levels up. "./." would enumerate
   # only this directory, and "../../." would silently stop at nixos/hosts.
   flakeRootDir = ../../../.;
+
+  # Top-level files every instance build reads.
+  sharedFiles = [
+    "flake.nix"
+    "flake.lock"
+    "incus-instances.nix"
+  ];
+
+  # Subtrees, relative to the flake root, that feed every image.
+  sharedTrees = [ "modules" ];
+
+  # The apply tooling lives outside the flake (a flake may not read paths above
+  # its own root), so it cannot be enumerated from here. It is one file today and
+  # it is named below. Adding another needs a host rebuild to be watched.
+  #
+  # builtins.pathExists matters: PathModified= against a path that does not
+  # exist makes the whole path unit fail to start, and incus/ is a new directory
+  # that a host which has not pulled yet does not have.
+  toolingNames = [ "apply.sh" ];
+  toolingFiles = builtins.filter (f: builtins.pathExists "${repoDir}/incus/${f}") toolingNames;
 
   # builtins.readDir changed shape. It used to return
   #   { name = { type = "regular" | "directory" | "symlink"; }; }
@@ -67,28 +100,29 @@ let
         (builtins.filter (c: c.isDir) (childrenOf dir))
     );
 
-  # Re-root a relative name into the live checkout. The empty string is the
-  # tree's own root.
-  reRoot = root: rel: if rel == "" then root else "${root}/${rel}";
+  # The subtrees this instance watches, filtered to those that exist. A missing
+  # one degrades to "watches less" rather than failing the whole host eval.
+  treesFor = name: builtins.filter (t: builtins.pathExists "${flakeRootDir}/${t}") (
+    sharedTrees ++ [ "hosts/${name}" ]
+  );
 
-  # The apply tooling lives outside the flake (a flake may not read paths
-  # above its own root), so it cannot be enumerated here. It is one file today
-  # and it is named below. The directory watch still notices a new one
-  # appearing; picking it up needs a host rebuild, which is also when the
-  # registry edit that justifies a third script would be committed anyway.
-  #
-  # builtins.pathExists matters: PathModified= against a path that does not
-  # exist makes the whole path unit fail to start, and incus/ is a new
-  # directory that a host which has not pulled yet does not have.
-  toolingNames = [ "apply.sh" ];
-  toolingFiles = builtins.filter (f: builtins.pathExists "${repoDir}/incus/${f}") toolingNames;
+  filesIn = tree: map (rel: "${flakeDir}/${tree}/${rel}") (listFilesRel "${flakeRootDir}/${tree}");
+  dirsIn = tree:
+    map (rel: if rel == "" then "${flakeDir}/${tree}" else "${flakeDir}/${tree}/${rel}")
+      (listDirsRel "${flakeRootDir}/${tree}");
 
-  watchFiles =
-    map (rel: reRoot flakeDir rel) (listFilesRel flakeRootDir)
+  watchFilesFor = name:
+    map (rel: "${flakeDir}/${rel}") sharedFiles
+    ++ builtins.concatLists (map filesIn (treesFor name))
     ++ map (f: "${repoDir}/incus/${f}") toolingFiles;
 
-  watchDirs =
-    map (rel: reRoot flakeDir rel) (listDirsRel flakeRootDir)
+  watchDirsFor = name:
+    # flakeDir itself, so a new top-level file is still noticed. PathChanged on
+    # a directory fires when an entry is added, removed or renamed -- never when
+    # a file deeper down is merely edited -- so this costs nothing on a normal
+    # commit and closes the gap for genuinely new inputs.
+    [ flakeDir ]
+    ++ builtins.concatLists (map (t: [ "${flakeDir}/${t}" ] ++ dirsIn t) (treesFor name))
     ++ lib.optional (builtins.pathExists "${repoDir}/incus") "${repoDir}/incus";
 
   unitName = name: "incus-apply-${name}";
@@ -203,8 +237,8 @@ in
         # The directories cover the other half -- a file appearing or
         # disappearing changes its parent's mtime.
         pathConfig = {
-          PathModified = watchFiles;
-          PathChanged = watchDirs;
+          PathModified = watchFilesFor name;
+          PathChanged = watchDirsFor name;
           Unit = "${unitName name}.service";
         };
         wantedBy = [ "default.target" ];

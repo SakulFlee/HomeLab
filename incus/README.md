@@ -6,12 +6,17 @@ Incus instances. Everything here is meant to be run on the homelab host, where
 
 ## Layout
 
-| path                       | what it is                                                  |
-| -------------------------- | ----------------------------------------------------------- |
-| `apply.sh`                 | the reconciler: build image, import, create/recreate         |
-| `nixos/incus-instances.nix`| the registry — the only list of instance names               |
-| `nixos/hosts/<n>/default.nix` | the OS config, built into the image                      |
-| `nixos/hosts/<n>/incus.nix`   | the container config: limits, volumes, devices            |
+| path                          | what it is                                                      |
+| ----------------------------- | --------------------------------------------------------------- |
+| `incus/apply.sh`              | the reconciler: build image, import, create/recreate             |
+| `nixos/incus-instances.nix`   | the registry — the only list of instance names                   |
+| `nixos/hosts/<n>/default.nix` | the OS config, built into the image                              |
+| `nixos/hosts/<n>/incus.nix`   | the container config: limits, volumes, devices                  |
+
+**On the host**, this directory is `/etc/nixos/incus/`, so the reconciler lives
+at **`/etc/nixos/incus/apply.sh`**. It runs straight from the checkout rather
+than from a store path, which is what lets the `.path` unit watch it: a store
+path is immutable, so a unit watching one could never fire.
 
 An instance is defined in two files, deliberately split:
 
@@ -85,21 +90,37 @@ forgejo    -          -             homelab/forgejo
 ## Automatic redeploy
 
 The host runs one `incus-apply-<name>.service` and one `.path` unit per
-instance. Any change under `nixos/` — a hand edit, or the hourly
+instance. Any change to that instance's inputs — a hand edit, or the hourly
 `git merge --ff-only` in `nixos-auto-update` — triggers a rebuild. It is safe to
 run on every change because the work is gated on the fingerprint comparison
 above, and a no-op rebuild finds everything already built and returns.
 
+**What each instance watches** is the closure of what its own build reads:
+
+| watched                                 | why                                |
+| --------------------------------------- | ---------------------------------- |
+| `nixos/flake.{nix,lock}`                | inputs, and the `mkInstance` wrapper |
+| `nixos/incus-instances.nix`              | the registry, which selects the spec |
+| `nixos/hosts/<name>/`                   | that instance's `default.nix` and `incus.nix` |
+| `nixos/modules/`                        | shared modules — unused today, but where the first one will land |
+| `incus/apply.sh`                        | the reconciler itself              |
+
+Deliberately **not** watched: `nixos/hosts/homelab/`, `nixos/hardware/`,
+`nixos/users/`. Those are the *host*, and the host does not appear in any
+instance's build closure — rebuilding every image because the host's NIC changed
+would be pure waste.
+
 Two things worth knowing:
 
-* **Every instance watches the whole tree, not just its own directory.** An
-  unnecessary rebuild costs a `nix build` that returns immediately; missing a
-  shared-module change costs a stale image nobody notices. Revisit when the
-  instance count makes the hourly sweep expensive.
-* **The watch list is generated at host build time.** A file added after the
-  last `nixos-rebuild` is not watched yet, though its parent directory is, so
-  its creation is still noticed. Adding an instance means editing the registry,
-  which is itself a rebuild, so this closes on its own.
+* **The watch list is generated at host build time.** A *new* file added after
+  the last `nixos-rebuild` is not watched yet. Its parent directory is, so its
+  creation is still noticed, and the next rebuild closes the gap. Adding an
+  instance means editing the registry, which is itself a rebuild.
+* **A `.path` unit does not fire on activation.** Per `systemd.path(5)`, only
+  `PathExists=` triggers immediately when the condition already holds. So the
+  first deploy after installing these units is an explicit
+  `systemctl start incus-apply-<name>.service`; everything after that is
+  automatic.
 
 ## Storage pools
 

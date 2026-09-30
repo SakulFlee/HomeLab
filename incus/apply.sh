@@ -142,10 +142,22 @@ import_image() {
   local rootfs=$1 metadata_tarball=$2 alias=$3 build_path=$4 rev=$5
   local output
 
+  # Argument order is metadata first, rootfs second:
+  #   incus image import (<tarball>|<directory>|<URL>) [<rootfs tarball>]
+  # The name of the first argument is generic precisely because it is the
+  # *metadata* tarball. Handing them over the other way round gets
+  #   Error: Metadata tarball is missing metadata.yaml
+  # because Incus is reading the squashfs as the metadata and finding no
+  # metadata.yaml in it. The old LXD-era examples online have this backwards.
+  #
   # Re-importing content Incus already holds is not an error, but the wording
   # has moved between releases. Treat "already exists" as the success it is and
   # fail loudly on anything else.
-  if output=$(incus image import "$rootfs" "$metadata_tarball" --alias "$alias" 2>&1); then
+  #
+  # Deliberately no --reuse: it deletes an existing image that already carries
+  # the alias. Without it, importing repoints the alias and the previous image
+  # is left unreferenced for Incus's own GC, which is the outcome we want.
+  if output=$(incus image import "$metadata_tarball" "$rootfs" --alias "$alias" 2>&1); then
     :
   elif grep -qi "already exists" <<<"$output"; then
     step "image byte-identical to one Incus already holds"
