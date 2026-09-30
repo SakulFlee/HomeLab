@@ -128,6 +128,11 @@ Two things worth knowing:
 * **Never delete an image.** A new import repoints the alias and leaves the
   previous image unreferenced for Incus's own GC. There is no `--reuse` here
   precisely because it deletes an image that already carries the alias.
+* **Only tracked files can affect the image.** A `git+file://` flake is built
+  from the git tree, so an untracked file never reaches the image — Nix refuses
+  to evaluate rather than guessing. The dirty-tree warning therefore uses
+  `git status --untracked-files=no`; with the default it fired on every single
+  run over a stray file that could not possibly have mattered.
 * **`incus image import` is not idempotent.** Given content the pool already
   holds it fails with `Image with same fingerprint already exists`, *and it does
   not attach the alias on that path*. So the alias can go on naming a stale

@@ -90,13 +90,25 @@ instance_spec() {
     || die "no instance '$name' -- is it in nixos/incus-instances.nix?"
 }
 
+# Warn when the *tracked* content differs from HEAD, because that is the only
+# thing that can make this image differ from a rebuild of the committed tree.
+#
+# Untracked files are deliberately excluded. A git+file:// flake is built from
+# the git tree, so an untracked file cannot reach the image at all -- Nix says so
+# itself and refuses to evaluate, e.g.
+#   To make it visible to Nix, run: git -C ... add -N "nixos/foo.nix"
+# Including them here produced a permanent false alarm: a stray 79-byte file
+# named "sudo" in the flake directory (a shell redirect that landed there during
+# some earlier debugging) kept every single run reporting a dirty tree.
+#
+# What was actually built is recorded on the image as user.flake-rev, so the
+# commit is recoverable after the fact without needing this at all.
 warn_dirty_tree() {
   local dirty
-  dirty=$(git -C "$REPO_DIR" status --porcelain 2>/dev/null || true)
+  dirty=$(git -C "$REPO_DIR" status --porcelain --untracked-files=no 2>/dev/null || true)
   if [[ -n $dirty ]]; then
-    warn "$REPO_DIR has uncommitted changes. The image is correct for what is"
-    warn "on disk, but will not match a rebuild of the committed tree until"
-    warn "they are committed. That is fine for iterating; do not rely on it."
+    warn "$REPO_DIR has uncommitted changes to tracked files; this image is built"
+    warn "from the working tree, not from $(git -C "$REPO_DIR" rev-parse --short HEAD 2>/dev/null || echo '?')."
   fi
 }
 
