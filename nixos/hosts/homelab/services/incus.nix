@@ -28,7 +28,22 @@ in
     # backports for. Set package = pkgs.incus for the rolling build.
     # package = pkgs.incus;
 
+    # Web UI, served by incusd itself on the REST API port. Currently for
+    # direct LAN/VPN access at https://192.168.178.200:8443 -- self-signed cert,
+    # so expect a browser warning. Caddy fronts this properly in a later phase,
+    # where it gets a real certificate and VPN-only gating.
+    ui.enable = true;
+
     preseed = {
+      # Listen on the LAN address rather than 0.0.0.0 so the API (which is
+      # root-equivalent access to this host once authenticated) is not reachable
+      # from any other interface. VPN clients can reach the same address because
+      # 192.168.178.0/24 is inside the tunnel's allowedIPs.
+      #
+      # Enabling this is what makes the web UI reachable over TCP at all -- by
+      # default incusd only serves its unix socket.
+      config."core.https_address" = "192.168.178.200:8443";
+
       # Two pools, split by backup policy rather than by convenience:
       #
       #   backup      restic'd. Anything whose loss you would actually notice.
