@@ -1,0 +1,57 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: fluxer-pg-dump
+  namespace: fluxer
+spec:
+  schedule: "0 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: pg-dump
+              # 16 to match the server in infra/postgres/deployment.yaml. pg_dump
+              # must be at least the server's major version or it refuses to
+              # connect, so this tag moves together with that one.
+              image: postgres:16-alpine
+              env:
+                # Unlike forgejo and paperless, Fluxer runs a plain Postgres
+                # Deployment rather than a CNPG cluster, so there is no
+                # generated "*-app" secret to read host/port/user/dbname from.
+                # Those four are static in configmap.yaml; only the password is
+                # a secret.
+                - name: PGHOST
+                  value: postgres
+                - name: PGPORT
+                  value: "5432"
+                - name: PGUSER
+                  value: fluxer
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: fluxer-secrets
+                      key: FLUXER_POSTGRES_PASSWORD
+                - name: PGDATABASE
+                  value: fluxer
+              command:
+                - /bin/sh
+                - -ec
+                - |
+                  DATE=$(date +%Y%m%d-%H%M%S)
+                  pg_dump -Fc -f "/dumps/$PGDATABASE-$DATE.dump"
+                  # 48h of dumps on disk, matching the forgejo and paperless
+                  # jobs. Restic's own retention (--keep-hourly 24) is what
+                  # actually bounds history; this just stops the volume growing.
+                  find /dumps -name '*.dump' -type f -mmin +2880 -delete
+              volumeMounts:
+                - name: dumps
+                  mountPath: /dumps
+          volumes:
+            - name: dumps
+              persistentVolumeClaim:
+                claimName: fluxer-pg-dumps

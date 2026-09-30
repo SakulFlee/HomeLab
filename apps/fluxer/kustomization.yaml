@@ -6,6 +6,8 @@ metadata:
 resources:
   - namespace.yaml
   - configmap.yaml
+  - dump-pvc.yaml
+  - dump-cronjob.yaml
   - infra/
   - livekit/
   - api/
