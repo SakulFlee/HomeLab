@@ -25,7 +25,9 @@
 
   environment.systemPackages = with pkgs; [
     curl
-    dig
+    # Deliberately NOT dig: bind-tools drags in perl + boost + icu4c, roughly
+    # 130MB of the image for a debugging convenience. Use `incus exec <name> --
+    # curl` against an upstream, or resolve from the host instead.
     jq
   ];
 

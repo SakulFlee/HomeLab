@@ -33,6 +33,21 @@
             # Match the host so scheduled things line up.
             time.timeZone = "Europe/Berlin";
 
+            # Pinned explicitly: without this the eval warns and defaults to
+            # the current release. It is the *config* format version, not the
+            # NixOS release, so it moves rarely and on purpose.
+            system.stateVersion = "25.11";
+
+            # The NixOS tooling (nixos-rebuild-ng and its python3, plus
+            # nixos-install / nixos-enter / nixos-option) stays in system-path
+            # regardless of system.switch.enable -- measured, not assumed. That
+            # is ~200MB of the image and would never be run here, since these
+            # instances are rebuilt as images on the host and re-imported.
+            # Left enabled deliberately rather than fought with: reaching into
+            # environment.systemPackages to drop them risks breaking the
+            # activation machinery for no reliable gain. Revisit only if the
+            # image size actually matters.
+
             # -------------------------------------------------
             # Strip what lxc-container.nix pulls in by default.
             #
@@ -48,12 +63,17 @@
             #
             # mkForce (priority 50) beats mkOverride 890 outright, so these
             # win regardless of module ordering.
+            #
+            # Do NOT try to disable auto-optimisation here. It was tempting
+            # (nix.autoOptimiseStore, then nix.settings.auto-optimise), but
+            # both spellings write a key that Nix 2.34 rejects:
+            #   error: unknown setting 'auto-optimise'
+            # and it only ever applied to single-user installs anyway. Nix
+            # stays at its defaults.
             # -------------------------------------------------
             documentation.enable = lib.mkForce false;
             documentation.nixos.enable = lib.mkForce false;
             nix.channel.enable = lib.mkForce false;
-            nix.autoOptimiseStore = lib.mkForce false;
-            nix.settings.auto-optimise = lib.mkForce false;
 
             # Nix itself stays enabled: it is what makes `nix build` inside the
             # instance (and any ad-hoc `nix run`) possible. What is disabled
