@@ -10,7 +10,12 @@ let
   #
   # /var/lib/incus itself -- the dqlite database, sockets and logs -- stays on
   # the NVMe, because it is small and latency-sensitive.
-  poolsPath = "/var/lib/incus/pools";
+  #
+  # storage-pools specifically: Incus only accepts pool sources under its state
+  # directory if they live in this subdirectory, and rejects anything else with
+  # 'Only allowed source path under "/var/lib/incus" is
+  # "/var/lib/incus/storage-pools/<name>"'. Mountpoint declared in hardware.nix.
+  poolsPath = "/var/lib/incus/storage-pools";
   poolsMount = "${utils.escapeSystemdPath poolsPath}.mount";
 in
 {
@@ -94,12 +99,10 @@ in
   # directories on the NVMe root filesystem and shadow them once the mount
   # appears. 'requires' + 'after' on the .mount unit gives exactly that.
   #
-  # The unit name is derived rather than hardcoded: escapeSystemdPath applies
-  # the systemd.unit(5) algorithm, which emits \x2d escapes for any path
-  # component containing a dash. This particular path has none in any component,
-  # so it resolves to the plain 'var-lib-incus-pools.mount' -- verified against
-  # systemd-escape on the host. Deriving it stays correct if the path ever
-  # changes to one that does contain a dash.
+  # The unit name must be derived, not written by hand: the 'storage-pools'
+  # component contains a dash, which the systemd.unit(5) algorithm escapes, so
+  # the real unit is 'var-lib-incus-storage\x2dpools.mount' (verified with
+  # systemd-escape on the host). escapeSystemdPath reproduces that exactly.
   systemd.services.incus = {
     after = [ poolsMount ];
     requires = [ poolsMount ];

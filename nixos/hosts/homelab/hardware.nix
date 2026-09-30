@@ -61,6 +61,13 @@
   #
   # Verify with: sudo btrfs subvolume list /var/lib/rancher/k3s/storage
   #
+  # The mountpoint is /var/lib/incus/storage-pools specifically, NOT an arbitrary
+  # directory under /var/lib/incus. Incus rejects any pool source that sits
+  # under its state dir but outside that path:
+  #   Failed to create storage pool "backup": Only allowed source path under
+  #   "/var/lib/incus" is "/var/lib/incus/storage-pools/backup"
+  # It is also the same convention the dir driver defaults to.
+  #
   # No compression at the mount level: it would also apply to VM disk images
   # later, where compression and Incus' CoW-off optimisation are mutually
   # exclusive. Per-volume compression is set in Incus itself instead.
@@ -68,7 +75,7 @@
   # neededForBoot = false so a missing subvolume cannot block boot; incus.service
   # has requires/after on this .mount unit, so it refuses to start rather than
   # silently creating pool directories on the NVMe root filesystem.
-  fileSystems."/var/lib/incus/pools" =
+  fileSystems."/var/lib/incus/storage-pools" =
     { device = "/dev/disk/by-uuid/a8ab0668-28ae-437c-96dc-bed48481b2c0";
       fsType = "btrfs";
       options = [ "subvol=incus-pools" ];
