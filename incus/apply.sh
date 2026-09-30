@@ -133,48 +133,108 @@ build_artifacts() {
 # Incus
 # --------------------------------------------------------------------------
 
-# incus query does NOT resolve image aliases (verified: /1.0/images/<alias>
-# 404s while `incus image list <alias>` works), so go through the list filter.
+# The fingerprint an alias currently names, or empty. `incus query` does NOT
+# resolve image aliases (verified: /1.0/images/<alias> 404s), so go through the
+# list filter.
 image_fingerprint() {
   incus image list "$1" --format json 2>/dev/null \
     | jq -r --arg a "$1" 'map(select(any(.aliases[]?; .name == $a))) | .[0].fingerprint // empty'
 }
 
-import_image() {
-  local rootfs=$1 metadata_tarball=$2 alias=$3 build_path=$4 rev=$5
-  local output
+# The store path of the squashfs the image at an alias was built from. This is
+# how we recognise "already have this exact image" without importing it.
+image_build_source() {
+  incus image get-property "$1" user.build-source 2>/dev/null || true
+}
 
-  # Argument order is metadata first, rootfs second:
-  #   incus image import (<tarball>|<directory>|<URL>) [<rootfs tarball>]
-  # The name of the first argument is generic precisely because it is the
-  # *metadata* tarball. Handing them over the other way round gets
-  #   Error: Metadata tarball is missing metadata.yaml
-  # because Incus is reading the squashfs as the metadata and finding no
-  # metadata.yaml in it. The old LXD-era examples online have this backwards.
-  #
-  # Re-importing content Incus already holds is not an error, but the wording
-  # has moved between releases. Treat "already exists" as the success it is and
-  # fail loudly on anything else.
-  #
-  # Deliberately no --reuse: it deletes an existing image that already carries
-  # the alias. Without it, importing repoints the alias and the previous image
-  # is left unreferenced for Incus's own GC, which is the outcome we want.
-  if output=$(incus image import "$metadata_tarball" "$rootfs" --alias "$alias" 2>&1); then
-    :
-  elif grep -qi "already exists" <<<"$output"; then
-    step "image byte-identical to one Incus already holds"
+# Any image in the pool built from this exact squashfs. Used to recover from an
+# alias that names a stale image when the wanted content is already present.
+image_with_build_source() {
+  incus image list --format json 2>/dev/null \
+    | jq -r --arg s "$1" '.[] | select(.properties["user.build-source"] == $s) | .fingerprint' \
+    | head -1
+}
+
+# Make the alias name an image. Import attaches it for new content, but not when
+# it short-circuits, so this is needed on the recovery path.
+point_alias_at() {
+  local alias=$1 fingerprint=$2
+  local current
+  current=$(image_fingerprint "$alias" || true)
+  if [[ $current != "$fingerprint" ]]; then
+    incus image alias create "$alias" "$fingerprint"
+  fi
+}
+
+# Echo the fingerprint the instance should be based on.
+import_image() {
+  local rootfs=$1 metadata_tarball=$2 alias=$3 rev=$4
+  local output fingerprint
+
+  # Fast path, and the one that runs on every no-op redeploy: the alias already
+  # names an image built from exactly this output, so there is nothing to do.
+  # No import, no Incus mutation, nothing that can go quietly wrong.
+  if [[ -n $(image_fingerprint "$alias" || true) ]] \
+     && [[ $(image_build_source "$alias") == "$rootfs" ]]; then
+    step "image unchanged, Incus already has this exact build"
   else
-    die "image import failed:"$'\n'"$output"
+    # Argument order is metadata first, rootfs second:
+    #   incus image import (<tarball>|<directory>|<URL>) [<rootfs tarball>]
+    # The name of the first argument is generic because it is the *metadata*
+    # tarball. Handing them over the other way round gets
+    #   Error: Metadata tarball is missing metadata.yaml
+    # because Incus is reading the squashfs as the metadata. The old LXD-era
+    # examples online have this backwards.
+    #
+    # Deliberately no --reuse: it deletes an existing image that already carries
+    # the alias.
+    if output=$(incus image import "$metadata_tarball" "$rootfs" --alias "$alias" 2>&1); then
+      :
+    elif grep -qi "already exists" <<<"$output"; then
+      # This is a real failure, not a polite no-op:
+      #   Error: Image with same fingerprint already exists
+      # and the exit status is non-zero. Treating it as success is how this went
+      # wrong once already: Incus does NOT attach the alias on this path, so the
+      # alias keeps naming whatever it named before. Reading the fingerprint
+      # back from the alias then compares against that stale image and declares
+      # the instance up to date while it is running something else entirely.
+      #
+      # So: find the image that actually holds this build, and say so out loud
+      # if there is not one.
+      step "content already in the pool, re-pointing $alias at it"
+      fingerprint=$(image_with_build_source "$rootfs")
+      if [[ -z $fingerprint ]]; then
+        die "this build is already in the pool under no alias and carries no" \
+            "user.build-source, so it cannot be identified. Find it with" \
+            "'incus image list' and either give it an alias or delete it, then retry."
+      fi
+      point_alias_at "$alias" "$fingerprint"
+    else
+      die "image import failed:"$'\n'"$output"
+    fi
   fi
 
-  # Record what produced this image. Read back by --check to tell "the build
-  # inputs changed" from "nothing changed at all" without importing anything.
-  incus image set-property "$alias" "user.build-source=$build_path" >/dev/null
+  fingerprint=$(image_fingerprint "$alias")
+  [[ -n $fingerprint ]] || die "$alias resolved to no fingerprint after import"
+
+  # Provenance, recorded on the image the alias now actually names. Setting it
+  # before resolving the alias is what let a stale image end up carrying
+  # someone else's build path.
+  incus image set-property "$alias" "user.build-source=$rootfs" >/dev/null
   if [[ -n $rev ]]; then
     incus image set-property "$alias" "user.flake-rev=$rev" >/dev/null
   fi
 
-  image_fingerprint "$alias"
+  # The invariant the whole fingerprint comparison rests on. If the alias is not
+  # naming the image we just built, the comparison below is meaningless -- so
+  # fail here, loudly, rather than reporting a wrong instance as up to date.
+  if [[ $(image_build_source "$alias") != "$rootfs" ]]; then
+    die "$alias names image $fingerprint, whose build-source is" \
+        "'$(image_build_source "$alias")' rather than '$rootfs'." \
+        "Refusing to compare fingerprints against the wrong image."
+  fi
+
+  printf '%s\n' "$fingerprint"
 }
 
 instance_exists() {
@@ -469,8 +529,7 @@ apply_instance() {
     return 0
   fi
 
-  fingerprint=$(import_image "$rootfs" "$metadata" "$alias" "$rootfs" "$rev")
-  [[ -n $fingerprint ]] || die "imported $alias but could not resolve its fingerprint"
+  fingerprint=$(import_image "$rootfs" "$metadata" "$alias" "$rev")
   step "image ${fingerprint:0:12}"
 
   ensure_volumes "$name" "$spec"

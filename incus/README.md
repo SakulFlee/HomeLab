@@ -128,6 +128,19 @@ Two things worth knowing:
 * **Never delete an image.** A new import repoints the alias and leaves the
   previous image unreferenced for Incus's own GC. There is no `--reuse` here
   precisely because it deletes an image that already carries the alias.
+* **`incus image import` is not idempotent.** Given content the pool already
+  holds it fails with `Image with same fingerprint already exists`, *and it does
+  not attach the alias on that path*. So the alias can go on naming a stale
+  image while the fingerprint comparison reads it and declares a wrong instance
+  up to date. Every no-op redeploy therefore takes a fast path that never
+  imports at all, and the run ends with an assertion that the alias really does
+  name the image just built — the failure mode here is silent, so it gets a
+  guard rather than a comment.
+* **`user.build-source` is a trusted record.** It is the only handle that maps a
+  build output to a fingerprint, so it is written in exactly one place: after
+  the alias provably names the right image. Writing it before resolving the
+  alias is how an image ends up carrying someone else's build path, and once it
+  has, the record lies and every later comparison inherits the lie.
 * **A `.path` unit does not fire on activation.** Per `systemd.path(5)`, only
   `PathExists=` triggers immediately when the condition already holds. So the
   first deploy after installing these units is an explicit
