@@ -23,8 +23,8 @@
 # Options:
 #   --check     Build the image and report what has drifted. Read-only: no
 #               image import, no instance create, no start.
-#   --no-start  Leave the instance stopped. An instance that was already
-#               running still gets recreated, just not started again.
+#   --no-start  Leave the instance stopped, whatever its spec's autostart says.
+#               For a manual run, not for the automatic ones.
 #   --all       Every instance in the flake.
 #
 # Environment:
@@ -32,9 +32,11 @@
 #   INCUS_FLAKE_DIR     flake to build from    (default $INCUS_REPO_DIR/nixos)
 #   INCUS_IMAGE_PREFIX  image alias prefix     (default homelab)
 #
-# Run state survives a recreate: an instance that was stopped stays stopped, one
-# that was running comes back. Stopping something to debug it is not silently
-# undone by the next rebuild.
+# Run state is declarative: an instance ends up however `autostart` in its spec
+# says. To keep one down across a redeploy, set `autostart = false` in its
+# incus.nix -- which is itself a change, so applying it terminates rather than
+# looping. See the comment in apply_instance for why this replaced an earlier
+# "preserve prior run state" rule.
 #
 # Never deletes an image. Old ones are left for Incus's own GC.
 
@@ -190,13 +192,21 @@ ensure_volumes() {
     volume_name=$(jq -r '.name' <<<"$volume")
     description=$(jq -r '.description // ""' <<<"$volume")
 
-    if incus storage volume show "$pool/$volume_name" >/dev/null 2>&1; then
+    # Pool and volume are separate positional arguments, not "pool/volume":
+    #   incus storage volume show [<remote>:]<pool> [<type>/]<volume>
+    # Passing one combined string parses as pool=backup with the volume
+    # missing, so the command fails even when the volume is there -- and the
+    # code below then tries to create it and dies with
+    #   Error: Volume by that name already exists
+    # on every run after the first. Verified against `incus storage volume
+    # show --help` rather than guessed.
+    if incus storage volume show "$pool" "$volume_name" >/dev/null 2>&1; then
       continue
     fi
     step "creating volume $pool/$volume_name"
     incus storage volume create "$pool" "$volume_name" >/dev/null
     if [[ -n $description ]]; then
-      incus storage volume set "$pool/$volume_name" description "$description"
+      incus storage volume set "$pool" "$volume_name" "description=$description"
     fi
   done < <(jq -c '.volumes[]?' <<<"$spec")
 }
@@ -215,7 +225,9 @@ apply_limits() {
     if [[ -n $value ]]; then
       if [[ $value != "$current" ]]; then
         step "setting limits.$key = $value"
-        incus config set "$name" "limits.$key" "$value"
+        # key=value in one argument. The two-argument form still works but
+        # prints "the <key> <value> syntax is deprecated" on every call.
+        incus config set "$name" "limits.$key=$value"
       fi
     elif [[ -n $current ]]; then
       step "clearing limits.$key"
@@ -265,12 +277,20 @@ sync_devices() {
     fi
     step "applying device $key"
     incus config device remove "$name" "$key" >/dev/null 2>&1 || true
-    # Unquoted on purpose: one argv entry per k=v, which is how
-    # `incus config device add` wants them. Quoting would pass "a=1 b=2" as a
-    # single key and fail.
+    # The device's type is a *positional* argument, not one of the k=v
+    # properties:
+    #
+    #   incus config device add <instance> <key> <type> [<key>=<value>...]
+    #
+    # Passing type=disk as a property instead gives the CLI a type of
+    # "disk=disk=..." and it replies
+    #   Error: Invalid devices: ... Unsupported device type
+    # Unquoted on purpose: one argv entry per k=v, which is how the CLI wants
+    # them. Quoting would pass "pool=backup source=x" as a single key.
     # shellcheck disable=SC2046
     incus config device add "$name" "$key" \
-      $(jq -r 'to_entries[] | "\(.key)=\(.value)"' <<<"$device")
+      "$(jq -r '.type' <<<"$device")" \
+      $(jq -r 'to_entries[] | select(.key != "type") | "\(.key)=\(.value)"' <<<"$device")
   done < <(jq -r 'keys[]' <<<"$desired")
 }
 
@@ -285,17 +305,40 @@ set_description() {
   fi
 }
 
-wait_running() {
-  local name=$1 attempt=0 status
-  while [[ $attempt -lt 30 ]]; do
+# Wait for the instance to be Running *and*, if it has a NIC, to actually have an
+# address. Incus reports Running as soon as the container is started, which is
+# well before systemd-networkd has configured eth0 -- so returning there made
+# apply print "ok -- Running" with an empty address, which reads like a
+# networking failure and is not one.
+wait_ready() {
+  local name=$1 want_ip=$2 attempt=0 status address
+
+  while [[ $attempt -lt 60 ]]; do
     status=$(instance_field "$name" '.status')
     case $status in
-      Running|Frozen) return 0 ;;
-      Stopped|Error)  return 0 ;;
-      *)              sleep 1; attempt=$((attempt + 1)) ;;
+      Stopped|Error) return 0 ;;
     esac
+    if [[ $status == Running || $status == Frozen ]]; then
+      if [[ $want_ip == no ]]; then
+        return 0
+      fi
+      address=$(instance_address "$name")
+      if [[ -n $address ]]; then
+        return 0
+      fi
+    fi
+    sleep 1
+    attempt=$((attempt + 1))
   done
-  warn "$name had not reported Running after 30s"
+  warn "$name had no address on eth0 after 60s (status: $status)"
+}
+
+# The inet addresses on eth0 only. Not every interface: .state.network also
+# carries lo, whose inet address is 127.0.0.1 and would otherwise be reported.
+instance_address() {
+  incus list "$1" --format json \
+    | jq -r '.[0].state.network.eth0.addresses[]? | select(.family == "inet") | .address' \
+    | paste -sd, -
 }
 
 # "vrvf2p9...-nixos-lxc-image-x86_64-linux" from a store path. The hash is the
@@ -361,7 +404,7 @@ report_existing_drift() {
 apply_instance() {
   local name=$1
   local spec alias fingerprint rev build_output
-  local existed=0 was_running=no want_running=1 old_fingerprint=""
+  local existed=0 want_running=1 old_fingerprint=""
   local rootfs metadata
   local -a artifacts
 
@@ -372,21 +415,35 @@ apply_instance() {
 
   if instance_exists "$name"; then
     existed=1
-    if [[ $(instance_field "$name" '.status') == Running ]]; then
-      was_running=yes
-    fi
     old_fingerprint=$(instance_field "$name" '.config["volatile.base_image"] // ""')
   fi
 
-  # Settle the target run state before anything destructive, because after a
-  # recreate the prior state is no longer observable.
-  if [[ $existed == 1 && $was_running == no ]]; then
-    want_running=0
-  fi
+  # Run state is declarative: the instance ends up however `autostart` in its
+  # spec says, full stop. No "preserve whatever it was doing" heuristic.
+  #
+  # An earlier version tried to preserve prior run state, and it had two
+  # failure modes that both reported success while being wrong:
+  #
+  #   * An apply that died between `incus create` and `incus start` left the
+  #     instance Stopped, and the next apply dutifully preserved that -- so a
+  #     half-finished deploy stayed half-finished, printing "ok -- Stopped".
+  #   * Telling a deliberate stop from a never-started instance needed
+  #     volatile.last_state.power, which records STOPPED after a stop, not
+  #     RUNNING. So it could not tell them apart and restarted instances the
+  #     user had deliberately stopped.
+  #
+  # One rule is easier to reason about than a heuristic. To keep an instance
+  # down across a redeploy, set `autostart = false` in its incus.nix -- which is
+  # itself a change, so applying it terminates rather than looping.
+  want_running=1
   if [[ $NO_START == 1 ]]; then
     want_running=0
   fi
-  if [[ $(jq -r '.autostart // true' <<<"$spec") != true ]]; then
+  # NOT `jq -r '.autostart // true'`. In jq, // is the alternative operator and
+  # it treats false as empty, so `false // true` yields *true* -- which silently
+  # inverts the one setting that decides whether the instance comes up. Spell it
+  # out: only an explicit false means false.
+  if [[ $(jq -r 'if has("autostart") then (.autostart | tostring) else "true" end' <<<"$spec") == false ]]; then
     want_running=0
   fi
 
@@ -440,7 +497,11 @@ apply_instance() {
     if [[ $(instance_field "$name" '.status') != Running ]]; then
       step "starting"
       incus start "$name" >/dev/null
-      wait_running "$name"
+      # A NIC in the spec means an address is expected; without one there is
+      # nothing to wait for.
+      want_ip=no
+      jq -e '.devices | to_entries | any(.value.type == "nic")' <<<"$spec" >/dev/null && want_ip=yes
+      wait_ready "$name" "$want_ip"
     fi
   elif [[ $(instance_field "$name" '.status') == Running ]]; then
     step "stopping (autostart off, or --no-start)"
@@ -449,9 +510,7 @@ apply_instance() {
 
   local status addresses
   status=$(instance_field "$name" '.status')
-  addresses=$(incus list "$name" --format json \
-    | jq -r '.[0].state.network // {} | to_entries[]
-             | .value.addresses[]? | select(.family == "inet") | .address' | paste -sd, -)
+  addresses=$(instance_address "$name")
   log "ok -- $status${addresses:+ ($addresses)}"
 }
 

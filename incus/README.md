@@ -63,6 +63,15 @@ is replaced. It only happens when the image actually changes, which is the
 point: the fingerprint comparison is the exact test, so a dirty git tree that
 rebuilds to identical bytes costs nothing.
 
+**Run state is declarative.** An instance ends up running or stopped according to
+`autostart` in its `incus.nix`, and nothing else. There is deliberately no
+"preserve whatever it was doing" rule: that needs to tell a deliberate stop from
+a create that died before its first start, and there is no reliable signal for
+the difference — `volatile.last_state.power` records `STOPPED` after a stop, not
+`RUNNING`. One rule beats a heuristic that silently reports success while being
+wrong. To keep an instance down across a redeploy, set `autostart = false`,
+which is itself a change, so applying it terminates rather than looping.
+
 ## Running it
 
 ```bash
@@ -116,6 +125,9 @@ Two things worth knowing:
   the last `nixos-rebuild` is not watched yet. Its parent directory is, so its
   creation is still noticed, and the next rebuild closes the gap. Adding an
   instance means editing the registry, which is itself a rebuild.
+* **Never delete an image.** A new import repoints the alias and leaves the
+  previous image unreferenced for Incus's own GC. There is no `--reuse` here
+  precisely because it deletes an image that already carries the alias.
 * **A `.path` unit does not fire on activation.** Per `systemd.path(5)`, only
   `PathExists=` triggers immediately when the condition already holds. So the
   first deploy after installing these units is an explicit
