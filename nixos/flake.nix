@@ -126,5 +126,15 @@
         image-caddy = self.nixosConfigurations.caddy.config.system.build.squashfs;
         image-forgejo = self.nixosConfigurations.forgejo.config.system.build.squashfs;
       };
+
+      # The Incus-level half of each instance: limits, volumes, devices. Plain
+      # data, not a NixOS config, so incus/apply.sh can read it with
+      #
+      #   nix eval --json .#incusInstances.caddy
+      #
+      # without evaluating a whole system. Keeping it as an output (rather than
+      # parsing nixos/incus-instances.nix in shell) means the script and the
+      # host's systemd units can never disagree about what an instance is.
+      incusInstances = import ./incus-instances.nix;
     };
 }
