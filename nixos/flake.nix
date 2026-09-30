@@ -78,7 +78,7 @@
             # sshd that is never started is just extra surface.
             services.openssh.enable = lib.mkForce false;
             services.openssh.startWhenNeeded = lib.mkForce false;
-          }
+          })
           "${nixpkgs}/nixos/modules/virtualisation/lxc-container.nix"
           instancePath
         ];
