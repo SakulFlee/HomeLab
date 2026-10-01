@@ -23,11 +23,45 @@ data:
       # Traefik allow-list (100.64.0.0/10) keeps working unchanged.
       cidr: 100.64.0.0/24
       cidrv6: "0"
-      # Split tunnel: VPN subnet + LAN (replaces the old subnet-router
-      # --advertise-routes=192.168.178.0/24).
+      # Split tunnel: VPN subnet + LAN + the Incus bridge (replaces the old
+      # subnet-router --advertise-routes=192.168.178.0/24).
+      #
+      # This list does double duty, and the second job is the non-obvious one.
+      # wg-access-server generates a forwarding guard from it:
+      #
+      #   ip saddr 100.64.0.0/24 ip daddr 100.64.0.0/10   accept
+      #   ip saddr 100.64.0.0/24 ip daddr 192.168.178.0/24 accept
+      #   ip saddr 100.64.0.0/24 ip daddr 100.64.0.1      accept
+      #   ip saddr 100.64.0.0/24                          reject
+      #
+      # Every accept matches on `ip daddr`, i.e. the destination as the client
+      # asked for it. But Incus DNATs in the `prerouting` hook at priority
+      # dstnat, so by the time a forwarded packet reaches the `forward` hook its
+      # destination has already been rewritten. A VPN client dialling
+      # 192.168.178.200:443 is forwarded with daddr 10.0.0.100, matches none of
+      # those rules, and falls into the `reject` -- which emits ICMP
+      # port-unreachable, i.e. ERR_CONNECTION_REFUSED on a phone.
+      #
+      # That is why the whole VPN broke for every proxied hostname when the Caddy
+      # cutover landed: before it, :80 and :443 were locally delivered (Traefik
+      # binds 0.0.0.0 on the host) and never met this chain at all. Only 22 and
+      # 8443 still worked, because those are locally delivered too. LAN clients
+      # were unaffected because their source is not 100.64.0.0/24, so no rule in
+      # the chain matches and FORWARD's own `policy accept` takes them.
+      #
+      # Listing 10.0.0.0/24 here makes wg-access-server generate the accept that
+      # the DNAT'd traffic needs. Editing the ruleset directly would not survive:
+      # the chain is regenerated whenever the pod restarts.
+      #
+      # This does mean VPN clients can reach the container subnet directly rather
+      # than only through Caddy. That is not an escalation -- the Incus vhost's
+      # gate admits 100.64.0.0/10 anyway, and the Incus API still demands a
+      # trusted client certificate -- but it does mean Caddy is no longer the
+      # sole path to a container, which matters more once apps run in them.
       allowedIPs:
         - 100.64.0.0/10
         - 192.168.178.0/24
+        - 10.0.0.0/24
     dns:
       # wg-access-server's embedded DNS forwarder stays off: it cannot
       # serve custom records and would collide with the split-horizon
