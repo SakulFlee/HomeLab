@@ -1,4 +1,4 @@
-{ config, inputs, lib, pkgs, ... }:
+{ lib, pkgs, ... }:
 
 let
   # The names Caddy is fronting, kept in their own file so the list can be
@@ -32,13 +32,6 @@ let
   };
 in
 {
-  # sops-nix itself. The host imports it via nixos/modules/sops.nix, but that
-  # module also declares smb_credentials and adds sops/age/ssh-to-age to the
-  # host's systemPackages; importing it here would hand this instance the whole
-  # secrets surface when Caddy needs one token. Only the module is imported --
-  # the secrets below are declared here and only here.
-  imports = [ inputs.sops-nix.nixosModules.sops ];
-
   # NixOS system container for the Incus instance "caddy".
   #
   # Front door for everything in the homelab. Right now it terminates TLS for
@@ -64,66 +57,20 @@ in
   # problem entirely.
   services.openssh.enable = false;
 
+  # No sops, no age, and no decryption capability of any kind. The Cloudflare
+  # token reaches this instance as a rendered EnvironmentFile that the host
+  # writes in -- see the renderedSecrets stanza in incus.nix. An earlier version
+  # imported sops-nix here and bind-mounted the host's SSH identity key so the
+  # container could decrypt for itself; that granted a root process in here the
+  # ability to read every secret in the host's secrets.yaml, and the only thing
+  # limiting that was remembering not to do it.
   environment.systemPackages = with pkgs; [
-    # sops decryption happens at activation, so the tools have to be here.
-    # age is pulled in by sops-nix's own machinery and sops by this.
-    age
     curl
-    sops
     # Deliberately NOT dig: bind-tools drags in perl + boost + icu4c, roughly
     # 130MB of the image for a debugging convenience. Use `incus exec <name> --
     # curl` against an upstream, or resolve from the host instead.
     jq
   ];
-
-  # ---------------------------------------------------------------------
-  # Secrets
-  # ---------------------------------------------------------------------
-  #
-  # sops, set up inline rather than by importing ../../modules/sops.nix. That
-  # module is written for the host: it declares smb_credentials and drops sops,
-  # age and ssh-to-age into systemPackages. Importing it would hand this
-  # instance decryption of the entire secrets file -- restic password, Forgejo
-  # JWT secret, the PIA VPN credentials -- when the only thing Caddy needs is
-  # one Cloudflare token.
-  #
-  # So: declare exactly one secret. sops still decrypts the whole file into
-  # memory, but only this key is ever written to disk, and /run is a tmpfs.
-  #
-  # The SSH host key is bind-mounted in from the host, read-only, by
-  # hosts/caddy/incus.nix. That is a real widening of the blast radius: this
-  # instance can read the host's SSH identity key. It is accepted because
-  # Caddy is the component that needs a DNS-01 token and there is exactly one
-  # such component. A per-instance age keypair would narrow this to just the
-  # CF token, at the cost of key management and a `sops updatekeys` run
-  # whenever an instance is added.
-  sops = {
-    defaultSopsFile = ../../secrets.yaml;
-    defaultSopsFormat = "yaml";
-    age.sshKeyPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
-    secrets.cloudflare_api_token = { };
-
-    # The token reaches Caddy as an EnvironmentFile, not as a literal in the
-    # unit. Two sops-nix details make this the only correct shape:
-    #
-    #   * sops.placeholder is keyed by *secret name*, not by path, and
-    #   * it is only populated at all when sops.templates is non-empty.
-    #
-    # So the template has to exist for the placeholder to resolve, and rendering
-    # it into a file is what keeps the secret out of the unit text -- a token
-    # in `Environment=` would be readable by anyone who can read the unit.
-    #
-    # The rendered file lives in /run, which is a tmpfs, so it exists only while
-    # the instance is up and never reaches the root disk.
-    templates."caddy-env" = {
-      content = ''
-        CF_API_TOKEN=${config.sops.placeholder.cloudflare_api_token}
-      '';
-      mode = "0400";
-      owner = "caddy";
-      restartUnits = [ "caddy.service" ];
-    };
-  };
 
   # ---------------------------------------------------------------------
   # Caddy
@@ -137,13 +84,10 @@ in
     # the acme_dns global option below is an unknown module.
     package = caddyPkg;
 
-    # The token arrives as an EnvironmentFile rendered by sops-nix, not as a
-    # literal here. Caddy's Caddyfile reads it as {env.CF_API_TOKEN}.
-    # environmentFile, not environmentFiles, and a bare path rather than a list:
-    # the option is `null or absolute path`. sops renders the template to
-    # /run/secrets/rendered/caddy-env, which is a tmpfs, so the token exists
-    # only while the instance is up and never reaches the root disk.
-    environmentFile = config.sops.templates."caddy-env".path;
+    # Written by the host, into the caddy-secrets volume, by apply.sh. Not
+    # optional: if it is missing, systemd should say so plainly rather than
+    # letting Caddy start and then fail on an empty API token.
+    environmentFile = "/var/lib/incus-secrets/caddy-env";
 
     # Written by hand below, then passed through `caddy fmt` so the file Caddy
     # loads is canonical. Nix indented strings are space-indented and Caddy
@@ -183,10 +127,26 @@ in
         #   curl --resolve forgejo.sakul-flee.de:443:10.0.0.1 \
         #        https://forgejo.sakul-flee.de/    ->  http 200, verify 0
         #
-        # tls_server_name is required: the dialled address is an IP, so without
-        # it Traefik gets no SNI and serves the wrong certificate or nothing.
+        # Two things here are load-bearing and neither is guessable:
+        #
+        #   header_up Host {http.request.host}
+        #     Since Caddy v2.11.0, proxying to an https:// upstream sets the
+        #     Host header to the upstream's hostport automatically. So Traefik
+        #     received `Host: 10.0.0.1`, matched no IngressRoute, and answered
+        #     404 for all twenty names while TLS verified perfectly and Caddy
+        #     reported success. {http.request.host} rather than the documented
+        #     {hostport} opt-out, because hostport keeps an explicit :443 if a
+        #     client sends one and Traefik's host matcher would not match it.
+        #
+        #   tls_server_name {http.request.host}
+        #     Traefik turns out to route on Host and not on SNI -- a request
+        #     with no SNI at all still gets 200 -- so this is belt and braces
+        #     rather than the fix. It is here because if Traefik is ever
+        #     reconfigured to select routers by SNI, the dialled address being
+        #     an IP would silently break it.
         (still-traefik) {
           reverse_proxy https://10.0.0.1 {
+            header_up Host {http.request.host}
             transport http {
               tls
               tls_server_name {http.request.host}
@@ -195,7 +155,6 @@ in
         }
 
         ${hostBlocks}
-      
       ''} $out
       # cp from the store preserves mode 0444, which `caddy fmt --overwrite`
       # cannot write to. The build sandbox would fail with "permission denied".

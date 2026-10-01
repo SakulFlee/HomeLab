@@ -30,6 +30,40 @@ single source of the names. It is read twice — once by the flake, which expose
 it as `incusInstances`, and once by the host config, which generates the systemd
 units. There is no second list to keep in sync.
 
+## Secrets
+
+**An instance is given rendered values, never a key.** `incus.nix` declares
+
+```nix
+renderedSecrets = [
+  { file = "caddy-env"; env = "CF_API_TOKEN"; source = "/run/secrets/cloudflare_api_token"; }
+];
+```
+
+and `apply.sh` reads `source` — which the *host* decrypts, with the host's own
+SSH identity key — and writes `ENV_NAME=<value>` into `file` inside the
+instance, on a `persistent` (not restic'd) volume. The value is piped on stdin,
+never a command-line argument, and the write is diffed so a settled redeploy
+touches nothing.
+
+The alternative, which is in the git history, imported sops-nix into the
+instance and bind-mounted the host's `/etc/ssh/ssh_host_ed25519_key` so it could
+decrypt for itself. It worked. It was also the wrong shape: it gave a root
+process in the container the ability to decrypt **every** value in the host's
+`secrets.yaml` — the restic password, the Forgejo JWT secret, the PIA VPN
+credentials — and the only thing limiting that was remembering not to.
+
+This way the instance has no decryption capability at all. It holds one token
+and cannot reach anything else even if it wants to. The price is that the token
+is at rest in the instance's volume, which is why that volume is on the
+not-restic'd pool.
+
+One consequence worth knowing: `/run/secrets/*` does not exist until the host
+has been rebuilt, so a new instance with `renderedSecrets` cannot come up before
+that. `incus-secrets-<name>.path` exists for exactly this — `PathExists=` is the
+one directive that fires on activation when its condition already holds, so the
+instance reconciles itself the moment the host materialises the secret.
+
 ## The model
 
 Instances are **immutable images plus disposable root disks**, in the same

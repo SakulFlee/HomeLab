@@ -376,6 +376,60 @@ apply_limits() {
   done
 }
 
+# Render the host's secrets into the instance as EnvironmentFiles.
+#
+# This is the whole of an instance's access to a secret, and it is deliberately
+# not a key. The alternative -- mounting the host's SSH identity key and running
+# sops-nix inside the container -- works and grants a root process in there the
+# ability to decrypt every value in the host's secrets.yaml, not just the one
+# the instance was given. Handing over a rendered value means the instance has
+# no decryption capability at all.
+#
+# The value is piped in on stdin and never becomes a command-line argument, so
+# it does not land in the process table.
+#
+# Diffed against what is already there, so a settled redeploy writes nothing --
+# a secret file is not something to churn.
+render_secrets() {
+  local name=$1 spec=$2 entry file env source value wanted current
+  local -a entries
+
+  mapfile -t entries < <(jq -c '.renderedSecrets[]?' <<<"$spec")
+  [[ ${#entries[@]} -eq 0 ]] && return 0
+
+  [[ $EUID -eq 0 ]] || die "$name declares renderedSecrets but apply.sh is not root"
+
+  for entry in "${entries[@]}"; do
+    file=$(jq -r '.file' <<<"$entry")
+    env=$(jq -r '.env' <<<"$entry")
+    source=$(jq -r '.source' <<<"$entry")
+
+    if [[ ! -r $source ]]; then
+      # Fail loudly rather than writing an empty file: an empty CF_API_TOKEN
+      # makes Caddy refuse to start, and "environment file missing" is a much
+      # better error than "API token '' appears invalid".
+      die "$source is not readable, so $name's $file cannot be rendered." \
+          "It is materialised by the host's sops.secrets on activation -- is the" \
+          "host missing a nixos-rebuild?"
+    fi
+
+    # Command substitution strips the trailing newline, which is what
+    # EnvironmentFile wants anyway (one KEY=value per line, no continuation).
+    value=$(<"$source")
+    wanted="$env=$value"
+
+    current=$(incus exec "$name" -- cat "/var/lib/incus-secrets/$file" 2>/dev/null || true)
+    if [[ $current == "$wanted" ]]; then
+      continue
+    fi
+
+    step "rendering $name:$file"
+    incus_run exec "$name" -- sh -c \
+      "umask 077 && cat > /var/lib/incus-secrets/$file && chmod 0400 /var/lib/incus-secrets/$file" \
+      <<<"$wanted"
+  done
+}
+
 # True when every key we want is present on the device with the same value.
 # Subset rather than equality: Incus may add defaults we do not care about, and
 # reapplying a device on every run is worse than tolerating an extra key.
@@ -643,6 +697,9 @@ apply_instance() {
   set_description "$name" "$spec"
   apply_limits "$name" "$spec"
   sync_devices "$name" "$spec"
+  # After sync_devices: the secrets volume has to be attached before anything
+  # can be written into it, and it is worthless without the rest of the config.
+  render_secrets "$name" "$spec"
 
   if [[ $want_running == 1 ]]; then
     if [[ $(instance_field "$name" '.status') != Running ]]; then

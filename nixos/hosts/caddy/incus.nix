@@ -32,6 +32,40 @@
       name = "caddy-data";
       description = "Caddy ACME certificates and runtime state";
     }
+    {
+      # Environment files the host renders in from its own sops secrets. Not
+      # restic'd: a backed-up copy of a live API token is a liability, and
+      # nothing here is irreplaceable -- apply.sh rewrites it from the host's
+      # decrypted secret on every run.
+      pool = "persistent";
+      name = "caddy-secrets";
+      description = "Host-rendered EnvironmentFiles; the only secret this instance ever sees";
+    }
+  ];
+
+  # Files the host renders into this instance, from secrets the host itself
+  # decrypts. incus/apply.sh reads `source` on the host and writes
+  # `ENV_NAME=<value>` into `file` inside the instance.
+  #
+  # This is the whole of the instance's access to any secret, and it is
+  # deliberately not a key. An earlier version bind-mounted the host's SSH
+  # identity key and ran sops-nix inside the container, which worked and was the
+  # wrong shape: it let a root process here decrypt every value in the host's
+  # secrets.yaml, not just the Cloudflare token. Handing over a rendered value
+  # means this instance has no decryption capability at all -- it cannot reach
+  # the restic password, the Forgejo JWT secret, or the VPN credentials even if
+  # it wants to.
+  #
+  # The price is that the token is at rest in this volume. That is the trade for
+  # removing a whole-file decryption capability, and the volume is on the
+  # not-restic'd pool so no copy leaves the box.
+  renderedSecrets = [
+    {
+      file = "caddy-env";
+      env = "CF_API_TOKEN";
+      # Materialised by the host's sops.secrets.cloudflare_api_token.
+      source = "/run/secrets/cloudflare_api_token";
+    }
   ];
 
   devices = {
@@ -52,25 +86,11 @@
       path = "/var/lib/caddy";
     };
 
-    # sops needs an identity to decrypt with, and the instances/flake do not
-    # generate SSH host keys. This mounts the host's in, read-only, so
-    # hosts/caddy/default.nix can decrypt the one secret Caddy needs.
-    #
-    # shift=true is required, not decorative: the host's root is mapped into
-    # this instance's uid range, so without it a root-owned host file appears
-    # here owned by uid 100000 and sops cannot read it.
-    #
-    # This is the accepted widening: this instance can read the host's SSH
-    # identity key, and therefore can decrypt anything in secrets.yaml that is
-    # encrypted to it. Only cloudflare_api_token is ever *written* here, but the
-    # capability is broader than the use. It is granted to this one instance
-    # because Caddy is the only component that needs a DNS-01 token.
-    incus-sops-key = {
+    caddy-secrets = {
       type = "disk";
-      source = "/etc/ssh/ssh_host_ed25519_key";
-      path = "/etc/ssh/ssh_host_ed25519_key";
-      shift = true;
-      readonly = true;
+      pool = "persistent";
+      source = "caddy-secrets";
+      path = "/var/lib/incus-secrets";
     };
   };
 }

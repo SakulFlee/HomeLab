@@ -126,6 +126,12 @@ let
     ++ lib.optional (builtins.pathExists "${repoDir}/incus") "${repoDir}/incus";
 
   unitName = name: "incus-apply-${name}";
+
+  # Host paths an instance's renderedSecrets depend on. Empty for instances that
+  # take no secrets, which is what makes the PathExists unit below a no-op for
+  # them rather than a unit that fails on a missing path.
+  renderedSecretSources = spec:
+    lib.unique (map (s: s.source) (spec.renderedSecrets or [ ]));
 in
 {
   # ---------------------------------------------------------------------
@@ -275,32 +281,61 @@ in
     };
 
   # ---------------------------------------------------------------------
-  # Per-instance change trigger
+  # Per-instance change trigger, plus a second trigger for secret readiness
   # ---------------------------------------------------------------------
-  systemd.paths = lib.mapAttrs'
-    (name: _spec: {
-      name = unitName name;
-      value = {
-        # PathChanged/PathModified rather than a `path` option: this NixOS
-        # module models systemd's [Path] section as `pathConfig`, an
-        # attrsOf unitOption, so each directive is a key there.
-        #
-        # Every file is listed individually, and every directory is listed for
-        # PathChanged, because systemd.paths is NOT recursive: PathModified= on
-        # a directory only gets inotify events for that directory's direct
-        # children, so watching the tree root would catch a flake.nix edit and
-        # silently miss hosts/caddy/default.nix. That is precisely the kind of
-        # hole that goes unnoticed for a month.
-        #
-        # The directories cover the other half -- a file appearing or
-        # disappearing changes its parent's mtime.
-        pathConfig = {
-          PathModified = watchFilesFor name;
-          PathChanged = watchDirsFor name;
-          Unit = "${unitName name}.service";
+  #
+  # instancesWithSecrets is filtered because a .path unit with no Path*
+  # condition fails to start with "No path settings found", which would leave a
+  # permanently failed unit per instance for no reason.
+  systemd.paths =
+    lib.mapAttrs'
+      (name: _spec: {
+        name = unitName name;
+        value = {
+          # PathChanged/PathModified rather than a `path` option: this NixOS
+          # module models systemd's [Path] section as `pathConfig`, an
+          # attrsOf unitOption, so each directive is a key there.
+          #
+          # Every file is listed individually, and every directory is listed for
+          # PathChanged, because systemd.paths is NOT recursive: PathModified= on
+          # a directory only gets inotify events for that directory's direct
+          # children, so watching the tree root would catch a flake.nix edit and
+          # silently miss hosts/caddy/default.nix. That is precisely the kind of
+          # hole that goes unnoticed for a month.
+          #
+          # The directories cover the other half -- a file appearing or
+          # disappearing changes its parent's mtime.
+          pathConfig = {
+            PathModified = watchFilesFor name;
+            PathChanged = watchDirsFor name;
+            Unit = "${unitName name}.service";
+          };
+          wantedBy = [ "default.target" ];
         };
-        wantedBy = [ "default.target" ];
-      };
-    })
-    instances;
+      })
+      instances
+    // lib.mapAttrs'
+      (name: spec: {
+        # An instance with renderedSecrets depends on a file the host's sops
+        # activation produces in /run/secrets, which does not exist until the
+        # host is rebuilt. That creates an ordering trap: a pull changes the
+        # image, the path unit above fires, the reconciler recreates the
+        # instance, then dies because the secret is missing -- leaving the
+        # instance stopped. The subsequent `nixos-rebuild switch` materialises
+        # the secret but changes no file under /etc/nixos, so nothing retriggers
+        # the apply and the instance stays down.
+        #
+        # PathExists= is the directive that *does* fire on activation when the
+        # condition already holds, which is exactly what is needed here: the
+        # moment the host has the secret, reconcile the instance that wants it.
+        name = "incus-secrets-${name}";
+        value = {
+          pathConfig = {
+            PathExists = renderedSecretSources spec;
+            Unit = "${unitName name}.service";
+          };
+          wantedBy = [ "default.target" ];
+        };
+      })
+      (lib.filterAttrs (_: spec: (renderedSecretSources spec) != []) instances);
 }
