@@ -93,6 +93,21 @@ in
       # Materialised by the host's sops.secrets.cloudflare_api_token.
       source = "/run/secrets/cloudflare_api_token";
     }
+
+    # format = "raw": the bytes are written through unchanged, because a PEM
+    # cannot be an EnvironmentFile line. `env` would produce
+    # INCS_CLIENT_KEY=-----BEGIN RSA PRIVATE KEY-----\nMIIE...\n and Caddy would
+    # then be handed one enormous malformed variable instead of a key file.
+    {
+      format = "raw";
+      file = "incus-client.crt";
+      source = "/run/secrets/incus_client_cert";
+    }
+    {
+      format = "raw";
+      file = "incus-client.key";
+      source = "/run/secrets/incus_client_key";
+    }
   ];
 
   # Units inside this instance that read a rendered file, and that
@@ -104,6 +119,26 @@ in
   # unit. `try-restart` would be a no-op on a unit that never started, so
   # apply.sh uses an unconditional `restart`.
   secretConsumers = [ "caddy.service" ];
+
+  # Trust this certificate with Incus, so the incus.sakul-flee.de vhost can
+  # authenticate to the API. apply.sh adds it only when absent, and replaces a
+  # same-named entry holding a different certificate -- which is what a rotation
+  # looks like.
+  #
+  # `certificate` is the host-side path, the same one rendered above into the
+  # instance. It is read host-side rather than read back out of the container so
+  # that this does not depend on the instance being reachable, and so the
+  # reconciler never has to move a private key in or out of a container.
+  #
+  # Deliberately NOT `--projects default` / `--restricted`. It looks like least
+  # privilege, but storage pools and networks are not per-project, so a
+  # restricted certificate makes exactly those pages of the UI fail. The VPN gate
+  # is the real control here and the certificate is the second layer, not a
+  # substitute for either.
+  incusTrust = {
+    name = "caddy-proxy";
+    certificate = "/run/secrets/incus_client_cert";
+  };
 
   # ---------------------------------------------------------------------
   # The host's public entry points

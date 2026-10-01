@@ -29,6 +29,19 @@
   # remembering not to do it.
   sops.secrets.cloudflare_api_token = {};
 
+  # The client certificate and key the `caddy` instance authenticates to the
+  # Incus API with, for the incus.sakul-flee.de vhost.
+  #
+  # Declared on the host for the same reason as the token above: the instance
+  # gets the rendered bytes and no decryption capability. Incus authorises a
+  # client by the fingerprint of the certificate it presents, so Caddy holding
+  # this key means anything that passes the vhost's VPN gate is a full Incus
+  # administrator. That is why the gate is `remote_ip 100.64.0.0/10` and nothing
+  # wider -- Incus has no RBAC, so there is no second factor behind it.
+  sops.secrets.incus_client_cert = {};
+
+  sops.secrets.incus_client_key = {};
+
   environment.systemPackages = with pkgs; [
     sops
     age

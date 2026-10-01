@@ -421,7 +421,7 @@ apply_limits() {
 # Diffed against what is already there, so a settled redeploy writes nothing --
 # a secret file is not something to churn.
 render_secrets() {
-  local name=$1 spec=$2 entry file env source value wanted current unit
+  local name=$1 spec=$2 entry file env format source value wanted current unit
   local changed=0
   local -a entries consumers
 
@@ -431,9 +431,28 @@ render_secrets() {
   [[ $EUID -eq 0 ]] || die "$name declares renderedSecrets but apply.sh is not root"
 
   for entry in "${entries[@]}"; do
-    file=$(jq -r '.file' <<<"$entry")
-    env=$(jq -r '.env' <<<"$entry")
-    source=$(jq -r '.source' <<<"$entry")
+    # `// empty`, not a bare `.file`: jq renders a missing key as the *string*
+    # "null", so `[[ -n $file ]]` would pass and the secret would be written to
+    # a file literally called "null" inside the instance.
+    file=$(jq -r '.file // empty' <<<"$entry")
+    format=$(jq -r '.format // "env"' <<<"$entry")
+    env=$(jq -r '.env // empty' <<<"$entry")
+    source=$(jq -r '.source // empty' <<<"$entry")
+
+    [[ -n $file ]] || die "$name has a renderedSecret with no file name: $entry"
+    [[ -n $source ]] || die "$name's $file has no source: $entry"
+
+    # "env" writes `KEY=value`, which is what a systemd EnvironmentFile wants.
+    # "raw" writes the secret's bytes unchanged, for anything that is not a
+    # KEY=value line -- a PEM certificate or private key, for instance, which
+    # has newlines and would be silently mangled into one enormous variable.
+    case $format in
+      env)
+        [[ -n $env ]] || die "$name's $file uses format=env but declares no env name"
+        ;;
+      raw) ;;
+      *) die "$name's $file has unknown format '$format' (want env or raw)" ;;
+    esac
 
     if [[ ! -r $source ]]; then
       # Fail loudly rather than writing an empty file: an empty CF_API_TOKEN
@@ -444,8 +463,11 @@ render_secrets() {
           "host missing a nixos-rebuild?"
     fi
 
-    # Command substitution strips the trailing newline, which is what
-    # EnvironmentFile wants anyway (one KEY=value per line, no continuation).
+    # Command substitution strips trailing newlines. For format=env that is
+    # exactly right: EnvironmentFile wants one KEY=value per line and no
+    # continuation. For format=raw it costs the PEM its final newline, which
+    # nothing downstream cares about -- the internal newlines are what matter
+    # and those survive.
     value=$(<"$source")
 
     # A secret that decrypts to nothing is never valid, and writing the empty
@@ -457,7 +479,11 @@ render_secrets() {
           "the decryption key is wrong."
     fi
 
-    wanted="$env=$value"
+    if [[ $format == raw ]]; then
+      wanted="$value"
+    else
+      wanted="$env=$value"
+    fi
 
     current=$(incus exec "$name" -- cat "/var/lib/incus-secrets/$file" 2>/dev/null || true)
     if [[ $current == "$wanted" ]]; then
@@ -711,6 +737,61 @@ sync_network_forward() {
   done
 }
 
+# --------------------------------------------------------------------------
+# Incus client-certificate trust
+# --------------------------------------------------------------------------
+# Incus decides whether to accept a client by looking up the *fingerprint* of the
+# certificate it was presented, not by checking who signed it. So a self-signed
+# client certificate works, which is what lets an instance authenticate to the
+# API without ever holding the server's CA key.
+#
+# Compared by certificate content rather than fingerprint, because computing a
+# fingerprint needs openssl and openssl is not in the system PATH -- the reconciler
+# gets `/run/current-system/sw/bin` and nothing else. Reading the certificate back
+# out of the trust store avoids the dependency entirely.
+sync_incus_trust() {
+  local name=$1 spec=$2 trust_name source want_norm fingerprint
+  local -a stale
+
+  trust_name=$(jq -r '.incusTrust.name // empty' <<<"$spec")
+  [[ -n $trust_name ]] || return 0
+
+  source=$(jq -r '.incusTrust.certificate // empty' <<<"$spec")
+  [[ -n $source ]] || die "$name declares incusTrust but names no certificate"
+  [[ -r $source ]] || die "$source is not readable, so $name's client certificate" \
+                         "cannot be trusted. It is materialised by the host's" \
+                         "sops.secrets -- is the host missing a nixos-rebuild?"
+
+  want_norm=$(tr -d '[:space:]' <"$source")
+
+  # Trusted already, under any name. Comparing across all entries rather than
+  # just this one means a certificate that was added by hand under a different
+  # name does not get a second, redundant entry.
+  if incus config trust list --format json \
+       | jq -e --arg c "$want_norm" 'any(.certificate | gsub("\\s"; "") == $c)' \
+       >/dev/null; then
+    return 0
+  fi
+
+  [[ $EUID -eq 0 ]] || die "$name declares incusTrust but apply.sh is not root"
+
+  # A same-named entry holding something else means the certificate was rotated.
+  # Remove by fingerprint, not by name: `incus config trust remove <name>` reports
+  # "Certificate not found" and removes nothing.
+  mapfile -t stale < <(incus config trust list --format json \
+    | jq -r --arg n "$trust_name" '.[] | select(.name == $n) | .fingerprint')
+
+  for fingerprint in ${stale[@]+"${stale[@]}"}; do
+    warn "trust entry '$trust_name' holds a different certificate (${fingerprint:0:12}); replacing it"
+    incus_run config trust remove "$fingerprint"
+  done
+
+  step "trusting $name's client certificate as '$trust_name'"
+  incus_run config trust add-certificate --name "$trust_name" \
+    --description "$name: authenticates to the Incus API from its Caddy vhost" \
+    "$source"
+}
+
 # user.description rather than the top-level description field: setting that
 # needs an API PATCH, and a PATCH that is subtly wrong would rewrite the
 # instance's devices. Not worth the risk for a label.
@@ -795,7 +876,8 @@ report_drift() {
 report_existing_drift() {
   local name=$1 spec=$2 build_path=$3 old_fingerprint=$4
   local key value current want_dev cur_dev device alias recorded
-  local -a want_keys
+  local trust_name trust_source want_norm fingerprint
+  local -a want_keys stale_trust
 
   alias="$IMAGE_PREFIX/$name"
   recorded=$(incus image get-property "$alias" user.build-source 2>/dev/null || true)
@@ -861,6 +943,31 @@ report_existing_drift() {
     done
   elif [[ -n $listen ]]; then
     log "  networkForward declared but no nic device names a network"
+  fi
+
+  # Client-certificate trust. Compared the same way sync_incus_trust compares it,
+  # so that this cannot report drift against a state the reconcile considers
+  # settled.
+  local trust_name trust_source want_norm
+  trust_name=$(jq -r '.incusTrust.name // empty' <<<"$spec")
+  if [[ -n $trust_name ]]; then
+    trust_source=$(jq -r '.incusTrust.certificate // empty' <<<"$spec")
+    if [[ ! -r $trust_source ]]; then
+      log "  incusTrust '$trust_name': $trust_source is not readable"
+    else
+      want_norm=$(tr -d '[:space:]' <"$trust_source")
+      if ! incus config trust list --format json \
+           | jq -e --arg c "$want_norm" 'any(.certificate | gsub("\\s"; "") == $c)' \
+           >/dev/null; then
+        log "  incusTrust '$trust_name': this certificate is not trusted yet"
+      fi
+      mapfile -t stale_trust < <(incus config trust list --format json \
+        | jq -r --arg n "$trust_name" --arg c "$want_norm" \
+            '.[] | select(.name == $n and (.certificate | gsub("\\s"; "") != $c)) | .fingerprint')
+      for fingerprint in ${stale_trust[@]+"${stale_trust[@]}"}; do
+        log "  incusTrust '$trust_name': entry ${fingerprint:0:12} holds a different certificate"
+      done
+    fi
   fi
 }
 
@@ -985,6 +1092,11 @@ apply_instance() {
   if [[ $want_running == 1 ]]; then
     render_secrets "$name" "$spec"
   fi
+
+  # After render_secrets, so the certificate it trusts is the one that was just
+  # validated and written. This is the only global Incus state apply.sh touches --
+  # everything else is per-instance -- so it is kept to a single, additive entry.
+  sync_incus_trust "$name" "$spec"
 
   # LAST, after the instance is up and its consumers have been restarted. This
   # is the DNAT that makes the instance reachable from outside, so pointing it at

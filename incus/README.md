@@ -46,6 +46,13 @@ instance, on a `persistent` (not restic'd) volume. The value is piped on stdin,
 never a command-line argument, and the write is diffed so a settled redeploy
 touches nothing.
 
+`format = "raw"` writes the secret's bytes through unchanged instead of
+prefixing `ENV_NAME=`, for anything that is not a `KEY=value` line. The
+incus.sakul-flee.de vhost needs it for a PEM certificate and key: as
+EnvironmentFile lines they would collapse into one enormous malformed variable,
+and Caddy would be handed that instead of a key file. Trailing newlines are
+stripped by the command substitution; the internal ones a PEM is made of survive.
+
 The alternative, which is in the git history, imported sops-nix into the
 instance and bind-mounted the host's `/etc/ssh/ssh_host_ed25519_key` so it could
 decrypt for itself. It worked. It was also the wrong shape: it gave a root
@@ -267,6 +274,39 @@ is the one way this script could take traffic down rather than hand it over.
   old address, so `apply.sh` can print `ok -- Running (10.0.0.150)` while the
   declared address is `10.0.0.101`. It only resolves on a recreate, and a
   redeploy that does not recreate will not notice.
+
+## Incus client-certificate trust
+
+`incusTrust` in an instance's `incus.nix` registers a certificate with Incus on
+the instance's behalf. It exists for the `incus.sakul-flee.de` vhost, where Caddy
+has to authenticate to the API on behalf of a browser that has no certificate of
+its own.
+
+Two things about the Incus side are not guessable:
+
+- **A client is authorised by the fingerprint of the certificate it presents,
+  not by who signed it.** So a *self-signed* client certificate is accepted once
+  its fingerprint is in the trust store. That is what lets the instance
+  authenticate without ever holding the server's CA key. Verified before
+  building anything on top of it: a self-signed cert answered `200` on
+  `/1.0/instances` where no cert got `403`.
+- **`openssl` is not in the system PATH**, so `apply.sh` cannot compute a
+  fingerprint — it gets `/run/current-system/sw/bin` and nothing else. The
+  comparison is therefore made on certificate *content*:
+  `incus config trust list` returns each entry's full PEM, so both sides are
+  whitespace-stripped and compared. Matching against any entry's name rather than
+  only the configured one is deliberate: a cert added by hand under a different
+  name does not get a second, redundant entry.
+
+### Incus CLI shapes that cost a round trip each
+
+| command | shape |
+| --- | --- |
+| `incus config trust add-certificate` | `--name <name> <cert.crt>` — the name is a **flag**, and passing it positionally makes the CLI read it as a remote |
+| `incus config trust remove` | takes the **fingerprint**, not the name; a name reports `Certificate not found` and removes nothing |
+| `incus config trust list --format json` | each entry carries `certificate`, `fingerprint`, `name`, `type`, `projects`, `restricted` |
+| `incus config get core.https_address --expanded` | `cannot be used with a server` |
+| `incus query` | has no `--client-certificate`; to test mTLS, use `curl --cert/--key`, which is what Caddy will do anyway |
 
 ## Storage pools
 
