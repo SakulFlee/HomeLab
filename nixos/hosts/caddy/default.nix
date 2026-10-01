@@ -154,6 +154,74 @@ in
           }
         }
 
+        # -------------------------------------------------------------------
+        # The Incus UI
+        # -------------------------------------------------------------------
+        # The one hostname here that Caddy serves itself rather than handing to
+        # Traefik, and the reason apply.sh renders a client certificate into
+        # this instance and trusts it with Incus (see incusTrust in incus.nix).
+        #
+        # A separate site block, NOT another entry in hostnames.nix: those all
+        # import still-traefik. There is no catch-all site block to collide
+        # with either -- Caddy has no site block for a host it does not know, and
+        # answers those itself with a 404.
+        #
+        # VPN only, and `remote_ip` rather than `client_ip`:
+        #
+        #   remote_ip    The address the connection actually came from. Since
+        #                the incus network forward is a DNAT and does not
+        #                rewrite the source, this is the real client address.
+        #                Unforgeable.
+        #   client_ip    Trusts X-Forwarded-For. Caddy is the edge here, so
+        #                nothing legitimate sets it -- which means anyone can,
+        #                and with no trusted_proxies configured the gate becomes
+        #                a one-header bypass.
+        #
+        # The range is the wg-access-server VPN subnet, matching the
+        # `vpn-only` Traefik middleware that already gates grafana, jellyfin,
+        # paperless and the rest. Deliberately NOT lan-or-vpn: Caddy holds a
+        # trusted client certificate, and Incus has no RBAC, so anything that
+        # passes this gate is a full administrator of the host. The direct API
+        # on :8443 stays reachable from the LAN for the `incus` CLI, which is
+        # gated by your own certificate instead.
+        incus.sakul-flee.de {
+            tls {
+                dns cloudflare {env.CF_API_TOKEN}
+            }
+
+            @notvpn not remote_ip 100.64.0.0/10
+            # `respond` sorts before `reverse_proxy` in Caddy's directive order,
+            # so this short-circuits without needing a handle block. A body
+            # rather than a bare abort: an unexplained connection reset on a
+            # phone is a bad time to be debugging.
+            respond @notvpn "The Incus UI is reachable over the VPN only.\n" 403
+
+            reverse_proxy https://192.168.178.200:8443 {
+                transport http {
+                    tls
+                    # Incus presents a self-signed certificate for the host's own
+                    # names, so verifying it against the name we dialled cannot
+                    # succeed. Pinning to Incus's CA via tls_trusted_ca_certs and
+                    # /1.0/certificates/ca would be stricter; this hop never
+                    # leaves the host, so exploiting it means already owning the
+                    # host. The client certificate below is what authenticates
+                    # *us*, and the gate above is what authenticates the caller.
+                    tls_insecure_skip_verify
+
+                    # Rendered by apply.sh from the host's sops secrets into
+                    # /var/lib/incus-secrets (the `persistent`, not-restic'd
+                    # volume declared in incus.nix).
+                    #
+                    # `tls_client_auth`, not `tls_client_certificate`: the latter
+                    # is not a transport subdirective at all and Caddy rejects the
+                    # whole config with "unrecognized subdirective". Two
+                    # arguments -- cert then key -- with no automate-name first,
+                    # which is also rejected as a wrong argument count.
+                    tls_client_auth /var/lib/incus-secrets/incus-client.crt /var/lib/incus-secrets/incus-client.key
+                }
+            }
+        }
+
         ${hostBlocks}
       ''} $out
       # cp from the store preserves mode 0444, which `caddy fmt --overwrite`

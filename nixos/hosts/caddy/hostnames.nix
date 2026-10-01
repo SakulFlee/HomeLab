@@ -39,8 +39,13 @@
 
 # Not in the list, and why:
 #
-#   incus.sakul-flee.de     added when the Incus UI block lands, with the
-#                           VPN/LAN gating and its own client certificate.
+#   incus.sakul-flee.de     Served by Caddy directly, not handed to Traefik, so
+#                           it is deliberately absent from the list above -- it
+#                           has its own site block in default.nix with the
+#                           VPN-only gate and its own client certificate.
+#                           Included in the split-horizon CoreDNS templates so a
+#                           VPN client resolves it to the host rather than to a
+#                           Cloudflare edge IP.
 #   matrix.sakul-flee.de    Matrix needs the federation listener on :8448 and a
 #   matrix-well-known...    /.well-known on :443. Neither is routed through
 #                           Traefik's web entrypoint today, so there was
