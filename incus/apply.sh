@@ -433,14 +433,20 @@ render_secrets() {
 
   # Only when something actually changed, and only for the units that consume it.
   #
-  # The restart is not optional. A unit whose EnvironmentFile is missing fails
-  # to start, so on a first deploy caddy.service is down at this point with the
-  # file on disk but unread; `try-restart` would be a no-op there, so this is an
-  # unconditional `restart`, which starts a stopped unit as a side effect.
+  # reset-failed first, and it is not optional. A unit whose EnvironmentFile is
+  # missing does not merely fail once: NixOS's caddy module gives it Restart=, so
+  # it retries every few seconds and trips *its own* start rate limit long
+  # before we get here. `systemctl restart` then refuses with
+  #   Job for caddy.service failed because start of the service was attempted
+  #   too often.
+  # reset-failed clears that counter, and is a no-op on a healthy unit.
   [[ $changed == 1 ]] || return 0
   mapfile -t consumers < <(jq -r '.secretConsumers[]?' <<<"$spec")
   for unit in ${consumers[@]+"${consumers[@]}"}; do
     step "restarting $unit for the new secret"
+    incus_run exec "$name" -- systemctl reset-failed "$unit"
+    # Unconditional restart, not try-restart: on a first deploy the unit never
+    # started, and try-restart would leave it down.
     incus_run exec "$name" -- systemctl restart "$unit"
   done
 }

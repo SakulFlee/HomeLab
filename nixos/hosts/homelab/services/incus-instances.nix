@@ -218,16 +218,18 @@ in
       # -----------------------------------------------------------
       # Failure notification
       #
-      # A template, instantiated as incus-apply-notify@<unit>.service.
+      # A template, so the attribute name ends in @ and NixOS renders
+      # incus-apply-notify@.service. Declared as "incus-apply-notify" it produced
+      # a plain incus-apply-notify.service, which cannot be instantiated, and
+      #   Failed to enqueue OnFailure=... job, ignoring:
+      #   Unit incus-apply-notify@incus-apply-caddy.service not found
       #
-      # Deliberately NOT wantedBy anything: enabling a template enables the
-      # bare `incus-apply-notify.service`, and systemd will happily *start* that
-      # too -- with no instance argument, so the script died on
-      #   line 6: $1: unbound variable
-      # and left a failed unit on every boot. The script tolerates a missing
-      # argument regardless.
+      # Deliberately NOT wantedBy anything: enabling a template enables the bare
+      # unit, and systemd will happily *start* that too -- with no instance
+      # argument, so the script died on "$1: unbound variable" and left a failed
+      # unit on every boot. The script tolerates a missing argument regardless.
       # -----------------------------------------------------------
-      incus-apply-notify = {
+      "incus-apply-notify@" = {
         description = "Notify that an Incus instance redeploy failed";
         path = with pkgs; [ coreutils gnugrep gnused libnotify ];
         script = ''
