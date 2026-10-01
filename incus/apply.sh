@@ -179,10 +179,30 @@ warn_dirty_tree() {
 # nix-path-registration, which is what registers them on first boot. Dropping it
 # is the classic way to produce an image that boots and then cannot run nix.
 build_artifacts() {
-  local name=$1 sq_out md_out
+  local name=$1 kind=$2 sq_out md_out
   local -a roots metadata_files
 
   step "building image"
+  if [[ $kind == vm ]]; then
+    # A VM is one qcow2 disk. incus-virtual-machine.nix names it
+    # system.build.qemuImage and emits a single .qcow2; there is no metadata
+    # tarball, because the disk *is* the image.
+    md_out=$(nix build "$FLAKE_DIR#nixosConfigurations.$name.config.system.build.qemuImage" \
+      --no-link --print-out-paths)
+
+    shopt -s nullglob
+    roots=("$md_out"/*.qcow2)
+    shopt -u nullglob
+
+    [[ ${#roots[@]} -eq 1 ]] || die "expected one qcow2 in $md_out, found ${#roots[@]}"
+    # One line only. The caller tells a VM from a container by the *number* of
+    # lines, and a trailing blank line would read as a third, empty artefact:
+    # `mapfile -t` on "path\n\n" yields "path", "", "" because the here-string
+    # adds a further newline.
+    printf '%s\n' "${roots[0]}"
+    return 0
+  fi
+
   sq_out=$(nix build "$FLAKE_DIR#nixosConfigurations.$name.config.system.build.squashfs" \
     --no-link --print-out-paths)
   md_out=$(nix build "$FLAKE_DIR#nixosConfigurations.$name.config.system.build.metadata" \
@@ -258,9 +278,20 @@ import_image() {
     # because Incus is reading the squashfs as the metadata. The old LXD-era
     # examples online have this backwards.
     #
+    # A VM has no metadata tarball -- the qcow2 *is* the image -- so it is
+    # passed alone. Passing an empty second argument is not equivalent: Incus
+    # would try to read "" as a rootfs.
+    #
     # Deliberately no --reuse: it deletes an existing image that already carries
     # the alias.
-    if output=$(incus image import "$metadata_tarball" "$rootfs" --alias "$alias" 2>&1); then
+    local -a import_args
+    if [[ -z $metadata_tarball ]]; then
+      import_args=("$rootfs")
+    else
+      import_args=("$metadata_tarball" "$rootfs")
+    fi
+
+    if output=$(incus image import "${import_args[@]}" --alias "$alias" 2>&1); then
       :
     elif grep -qi "already exists" <<<"$output"; then
       # This is a real failure, not a polite no-op:
@@ -328,7 +359,8 @@ instance_field() {
 }
 
 ensure_volumes() {
-  local name=$1 spec=$2 volume pool volume_name description current
+  local name=$1 spec=$2 kind=$3 volume pool volume_name description current
+  local vtype incus_type
   local -a volumes
 
   # mapfile then for, never `while read ... done < <(jq)`. The while-read form
@@ -343,6 +375,22 @@ ensure_volumes() {
     volume_name=$(jq -r '.name' <<<"$volume")
     description=$(jq -r '.description // ""' <<<"$volume")
 
+    # A container's data volume is a filesystem Incus mounts at `path`. A VM
+    # cannot have that: a guest gets raw block devices and mounts them itself,
+    # so its data volume is `block`.
+    #
+    # Default by instance type rather than making every spec say so, so adding a
+    # volume to a container keeps working unchanged.
+    vtype=$(jq -r '.type // empty' <<<"$volume")
+    if [[ -z $vtype ]]; then
+      if [[ $kind == vm ]]; then vtype=block; else vtype=filesystem; fi
+    fi
+    case $vtype in
+      block) incus_type=block ;;
+      filesystem) incus_type=custom ;;
+      *) die "$name's volume $volume_name has type '$vtype' (want block or filesystem)" ;;
+    esac
+
     # Pool and volume are separate positional arguments, not "pool/volume":
     #   incus storage volume show [<remote>:]<pool> [<type>/]<volume>
     # Passing one combined string parses as pool=backup with the volume
@@ -352,8 +400,8 @@ ensure_volumes() {
     # on every run after the first. Verified against `incus storage volume
     # show --help` rather than guessed.
     if ! incus storage volume show "$pool" "$volume_name" >/dev/null 2>&1; then
-      step "creating volume $pool/$volume_name"
-      incus_run storage volume create "$pool" "$volume_name"
+      step "creating volume $pool/$volume_name ($vtype)"
+      incus_run storage volume create "$pool" "$volume_name" --type "$vtype"
     fi
 
     # Description is reconciled, not just set on creation. Two reasons: a
@@ -370,12 +418,15 @@ ensure_volumes() {
       # Read via the API, not `incus storage volume show`: that prints YAML,
       # and piping it to jq dies with
       #   jq: parse error: Invalid numeric literal at line 1, column 7
-      current=$(incus query "/1.0/storage-pools/$pool/volumes/custom/$volume_name" \
+      # The path segment is Incus's own name for the type, not ours: a
+      # filesystem volume is `custom`, a block volume is `block`. Hardcoding
+      # `custom` 404s on every block volume.
+      current=$(incus query "/1.0/storage-pools/$pool/volumes/$incus_type/$volume_name" \
         | jq -r '.description // ""')
       if [[ $current != "$description" ]]; then
         incus_run query -X PATCH \
           -d "$(jq -cn --arg d "$description" '{description: $d}')" \
-          "/1.0/storage-pools/$pool/volumes/custom/$volume_name"
+          "/1.0/storage-pools/$pool/volumes/$incus_type/$volume_name"
       fi
     fi
   done
@@ -589,8 +640,8 @@ device_matches() {
 }
 
 sync_devices() {
-  local name=$1 spec=$2
-  local desired current key device
+  local name=$1 spec=$2 kind=$3
+  local desired current key device dev_type
   local -a have want
 
   desired=$(jq -c '.devices // {}' <<<"$spec")
@@ -634,9 +685,16 @@ sync_devices() {
     #   Error: Invalid devices: ... Unsupported device type
     # Unquoted on purpose: one argv entry per k=v, which is how the CLI wants
     # them. Quoting would pass "pool=backup source=x" as a single key.
+    dev_type=$(jq -r '.type' <<<"$device")
+    # `path` is how a *container* sees a disk: Incus bind-mounts the filesystem
+    # at that path. A VM gets a raw block device and mounts it in the guest, so
+    # it rejects `path` outright. Dropping it here rather than in every spec
+    # keeps one device declaration usable by both instance types.
+    if [[ $kind == vm && $dev_type == disk ]]; then
+      device=$(jq -c 'del(.path)' <<<"$device")
+    fi
     # shellcheck disable=SC2046
-    incus_run config device add "$name" "$key" \
-      "$(jq -r '.type' <<<"$device")" \
+    incus_run config device add "$name" "$key" "$dev_type" \
       $(jq -r 'to_entries[] | select(.key != "type") | "\(.key)=\(.value)"' <<<"$device")
   done
 }
@@ -1036,7 +1094,7 @@ report_existing_drift() {
 # --------------------------------------------------------------------------
 apply_instance() {
   local name=$1
-  local spec alias fingerprint rev build_output
+  local spec alias fingerprint rev build_output kind
   local existed=0 want_running=1 old_fingerprint=""
   local rootfs metadata
   local -a artifacts
@@ -1044,6 +1102,15 @@ apply_instance() {
   TAG="$name"
   spec=$(instance_spec "$name")
   alias="$IMAGE_PREFIX/$name"
+  # `type` is the Incus instance type. It changes the shape of the build, not
+  # just the device set: a container image is a rootfs plus a metadata tarball,
+  # a VM image is a single qcow2. Defaulting to container keeps every existing
+  # spec working unchanged.
+  kind=$(jq -r '.type // "container"' <<<"$spec")
+  case $kind in
+    container|vm) ;;
+    *) die "$name has type '$kind' (want container or vm)" ;;
+  esac
   rev=$(git -C "$REPO_DIR" rev-parse --short HEAD 2>/dev/null || true)
 
   if instance_exists "$name"; then
@@ -1085,13 +1152,20 @@ apply_instance() {
   # sees, so a `die` inside build_artifacts would print its message and then be
   # swallowed -- the script would carry on with an empty artifact list. With a
   # command substitution the non-zero status lands here, where it is fatal.
-  if ! build_output=$(build_artifacts "$name"); then
+  if ! build_output=$(build_artifacts "$name" "$kind"); then
     die "could not build the $name image (see the build output above)"
   fi
   mapfile -t artifacts <<<"$build_output"
-  [[ ${#artifacts[@]} -eq 2 ]] || die "expected two build artifacts, got ${#artifacts[@]}"
+
+  # Two artefacts for a container (rootfs + metadata tarball), one for a VM (the
+  # qcow2 is the whole image). The count is the discriminator, so build_artifacts
+  # must not pad a VM's output to match.
+  case ${#artifacts[@]} in
+    1) metadata="" ;;
+    2) metadata=${artifacts[1]} ;;
+    *) die "expected 1 build artefact (vm) or 2 (container), got ${#artifacts[@]}" ;;
+  esac
   rootfs=${artifacts[0]}
-  metadata=${artifacts[1]}
 
   if [[ $CHECK_ONLY == 1 ]]; then
     if [[ $existed == 1 ]]; then
@@ -1105,7 +1179,7 @@ apply_instance() {
   fingerprint=$(import_image "$rootfs" "$metadata" "$alias" "$rev")
   step "image ${fingerprint:0:12}"
 
-  ensure_volumes "$name" "$spec"
+  ensure_volumes "$name" "$spec" "$kind"
 
   if [[ $existed == 1 && $old_fingerprint == "$fingerprint" ]]; then
     step "already running this image, not recreating"
@@ -1118,12 +1192,19 @@ apply_instance() {
 
   if [[ $existed == 0 ]]; then
     step "creating $name"
-    incus_run create "$fingerprint" "$name" -p default
+    # -t vm is explicit rather than relying on Incus inferring the type from the
+    # image. Inference is probably fine, but "probably" is not a good property
+    # for the one flag that decides whether this is a container or a VM.
+    if [[ $kind == vm ]]; then
+      incus_run create "$fingerprint" "$name" -p default -t vm
+    else
+      incus_run create "$fingerprint" "$name" -p default
+    fi
   fi
 
   set_description "$name" "$spec"
   apply_limits "$name" "$spec"
-  sync_devices "$name" "$spec"
+  sync_devices "$name" "$spec" "$kind"
 
   if [[ $want_running == 1 ]]; then
     if [[ $(instance_field "$name" '.status') != Running ]]; then

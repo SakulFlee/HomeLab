@@ -141,6 +141,65 @@ the difference — `volatile.last_state.power` records `STOPPED` after a stop, n
 wrong. To keep an instance down across a redeploy, set `autostart = false`,
 which is itself a change, so applying it terminates rather than looping.
 
+## Containers and VMs
+
+An instance is a container unless its `incus.nix` says otherwise:
+
+```nix
+{
+  type = "vm";   # omitted means "container"
+  ...
+}
+```
+
+That one attribute changes four things, so it is worth knowing all four rather
+than discovering them one at a time:
+
+|                    | container                            | vm                                            |
+| ------------------ | ------------------------------------ | --------------------------------------------- |
+| image build        | `squashfs` + `metadata` (two files)  | `qemuImage`, a single qcow2 (one file)        |
+| `incus image import` | metadata tarball **first**, rootfs second | the qcow alone — no second argument      |
+| `incus create`     | no type flag                         | `-t vm`, explicit rather than inferred       |
+| volumes            | `filesystem` type                    | `block` type                                  |
+| disk devices       | `path=/somewhere` mounts it          | **no `path`** — a raw block device            |
+
+`apply.sh` derives the type from the spec rather than from the image, and the
+artefact *count* is what distinguishes the two shapes at the call site: one line
+for a VM, two for a container. So `build_artifacts` must not pad a VM's output
+to match — a trailing blank line reads as a third, empty artefact, because
+`mapfile -t` on `"path\n\n"` yields `path`, `""`, `""`.
+
+Two things are easy to get wrong in the details:
+
+* **The import argument order is metadata first.** It is still that way for
+  containers, and the old LXD-era examples online have it backwards. A VM is
+  unaffected, because it has no metadata tarball — passing an empty second
+  argument is *not* the same as passing none, since Incus would try to read `""`
+  as a rootfs.
+* **The API path segment for a volume is Incus's name for the type, not ours**:
+  a filesystem volume is `/volumes/custom/`, a block volume is `/volumes/block/`.
+  Hardcoding `custom` 404s on every block volume.
+
+### Why WireGuard is a VM and not a container
+
+The rule in this repo is LXC unless something needs `security.privileged`, in
+which case VM. WireGuard needs it: the kernel WireGuard module has to be
+available *inside*, and an LXC shares the host kernel, so the host would have to
+carry the module for a guest's benefit. A VM brings its own.
+
+It also fixes a routing problem that cost real time. The VPN has to be reachable
+at the **host's** LAN address, 192.168.178.200, because that is what the router
+forwards and what every existing client already points at. A container on
+`incusbr0` sits behind DNAT and NAT masquerade and cannot route there at all; a
+macvlan container gets onto the LAN but cannot speak to the host. A **bridged VM
+is a plain L2 peer** and can, which removes the entire DNAT-plus-forward-guard
+class of bug — the one documented under "The host's entry points" — rather than
+just relocating it.
+
+The bridged VM also means its tunnel packets leave `eno1` un-NATted, so Caddy
+still sees a real `100.64.0.0/10` client address and the Incus vhost gate keeps
+working untouched.
+
 ## Running it
 
 ```bash

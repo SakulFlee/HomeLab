@@ -22,4 +22,8 @@
 {
   caddy = import ./hosts/caddy/incus.nix;
   forgejo = import ./hosts/forgejo/incus.nix;
+  # A VM. Its incus.nix sets `type = "vm"`, which is what switches the image
+  # build (qcow2 rather than squashfs+metadata), the create call (`-t vm`), the
+  # volume type (block, not filesystem) and the disk devices (no `path`).
+  wireguard = import ./hosts/wireguard/incus.nix;
 }

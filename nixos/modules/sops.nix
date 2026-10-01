@@ -42,6 +42,24 @@
 
   sops.secrets.incus_client_key = {};
 
+  # The login password and session cookie key for the wireguard VM's web UI.
+  #
+  # Declared on the host for the same reason as everything above: the VM gets
+  # the rendered bytes and no decryption capability. That matters more here than
+  # for Caddy, because this credential can add a VPN client -- and a VPN client
+  # reaches the entire homelab, including this Incus host.
+  #
+  # Neither may be left unset. wireguard-ui's compiled-in defaults are
+  # admin/admin and a fixed session secret that is published in its own source,
+  # so an unset value here means an admin UI anyone can log into, whose session
+  # cookies anyone can forge.
+  sops.secrets.wireguard_ui_password = {};
+
+  # Not a password -- just a long random string used to encrypt session cookies.
+  # Generated with `openssl rand -base64 48` when these were created; there is
+  # nothing to remember and nothing to rotate unless a cookie is suspected.
+  sops.secrets.wireguard_ui_session_secret = {};
+
   environment.systemPackages = with pkgs; [
     sops
     age
