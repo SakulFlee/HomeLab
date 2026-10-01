@@ -126,12 +126,6 @@ let
     ++ lib.optional (builtins.pathExists "${repoDir}/incus") "${repoDir}/incus";
 
   unitName = name: "incus-apply-${name}";
-
-  # Host paths an instance's renderedSecrets depend on. Empty for instances that
-  # take no secrets, which is what makes the PathExists unit below a no-op for
-  # them rather than a unit that fails on a missing path.
-  renderedSecretSources = spec:
-    lib.unique (map (s: s.source) (spec.renderedSecrets or [ ]));
 in
 {
   # ---------------------------------------------------------------------
@@ -263,6 +257,40 @@ in
       };
 
       # -----------------------------------------------------------
+      # Reconcile all instances
+      #
+      # Driven by incus-reconcile.timer, below. See the comment there for why
+      # this exists rather than another path unit.
+      # -----------------------------------------------------------
+      incus-reconcile = {
+        description = "Reconcile every Incus instance against the flake";
+        after = [ "network-online.target" "incus.service" ];
+        wants = [ "network-online.target" ];
+        requires = [ "incus.service" ];
+        onFailure = [ "incus-apply-notify@%p.service" ];
+
+        serviceConfig = {
+          Type = "oneshot";
+          WorkingDirectory = flakeDir;
+          TimeoutStartSec = 3600;
+        };
+
+        path = [
+          pkgs.bash
+          pkgs.coreutils
+          pkgs.findutils
+          pkgs.gnugrep
+          pkgs.gnused
+          pkgs.git
+          pkgs.jq
+          pkgs.nix
+          config.virtualisation.incus.package
+        ];
+
+        script = "${pkgs.bash}/bin/bash ${applyScript} --all";
+      };
+
+      # -----------------------------------------------------------
       # Status
       #
       # A read-only table across every instance, so "did the hourly
@@ -298,61 +326,75 @@ in
     };
 
   # ---------------------------------------------------------------------
-  # Per-instance change trigger, plus a second trigger for secret readiness
-  # ---------------------------------------------------------------------
+  # Per-instance change trigger
   #
-  # instancesWithSecrets is filtered because a .path unit with no Path*
-  # condition fails to start with "No path settings found", which would leave a
-  # permanently failed unit per instance for no reason.
-  systemd.paths =
-    lib.mapAttrs'
-      (name: _spec: {
-        name = unitName name;
-        value = {
-          # PathChanged/PathModified rather than a `path` option: this NixOS
-          # module models systemd's [Path] section as `pathConfig`, an
-          # attrsOf unitOption, so each directive is a key there.
-          #
-          # Every file is listed individually, and every directory is listed for
-          # PathChanged, because systemd.paths is NOT recursive: PathModified= on
-          # a directory only gets inotify events for that directory's direct
-          # children, so watching the tree root would catch a flake.nix edit and
-          # silently miss hosts/caddy/default.nix. That is precisely the kind of
-          # hole that goes unnoticed for a month.
-          #
-          # The directories cover the other half -- a file appearing or
-          # disappearing changes its parent's mtime.
-          pathConfig = {
-            PathModified = watchFilesFor name;
-            PathChanged = watchDirsFor name;
-            Unit = "${unitName name}.service";
-          };
-          wantedBy = [ "default.target" ];
-        };
-      })
-      instances
-    // lib.mapAttrs'
-      (name: spec: {
-        # An instance with renderedSecrets depends on a file the host's sops
-        # activation produces in /run/secrets, which does not exist until the
-        # host is rebuilt. That creates an ordering trap: a pull changes the
-        # image, the path unit above fires, the reconciler recreates the
-        # instance, then dies because the secret is missing -- leaving the
-        # instance stopped. The subsequent `nixos-rebuild switch` materialises
-        # the secret but changes no file under /etc/nixos, so nothing retriggers
-        # the apply and the instance stays down.
+  # Only the per-instance path units. There is deliberately no second trigger
+  # keyed on the instance's secrets appearing on the host: an earlier version
+  # used PathExists= for that, and it is the wrong directive here. Per
+  # systemd.path(5), the monitored paths are re-checked every time the service
+  # they triggered terminates -- successfully or not -- and PathExists= stays
+  # true forever, so it re-fires immediately. The result was a hot loop:
+  #
+  #   03:40:16 reconcile -> 03:40:17 -> :18 -> :19 -> :20 -> start-limit-hit
+  #
+  # Five full reconciles in four seconds, each one restarting Caddy. The
+  # reconcile timer below covers the same ground without depending on
+  # edge-versus-level semantics I got wrong once already.
+  # ---------------------------------------------------------------------
+  systemd.paths = lib.mapAttrs'
+    (name: _spec: {
+      name = unitName name;
+      value = {
+        # PathChanged/PathModified rather than a `path` option: this NixOS
+        # module models systemd's [Path] section as `pathConfig`, an
+        # attrsOf unitOption, so each directive is a key there.
         #
-        # PathExists= is the directive that *does* fire on activation when the
-        # condition already holds, which is exactly what is needed here: the
-        # moment the host has the secret, reconcile the instance that wants it.
-        name = "incus-secrets-${name}";
-        value = {
-          pathConfig = {
-            PathExists = renderedSecretSources spec;
-            Unit = "${unitName name}.service";
-          };
-          wantedBy = [ "default.target" ];
+        # Every file is listed individually, and every directory is listed for
+        # PathChanged, because systemd.paths is NOT recursive: PathModified= on
+        # a directory only gets inotify events for that directory's direct
+        # children, so watching the tree root would catch a flake.nix edit and
+        # silently miss hosts/caddy/default.nix. That is precisely the kind of
+        # hole that goes unnoticed for a month.
+        #
+        # The directories cover the other half -- a file appearing or
+        # disappearing changes its parent's mtime.
+        pathConfig = {
+          PathModified = watchFilesFor name;
+          PathChanged = watchDirsFor name;
+          Unit = "${unitName name}.service";
         };
-      })
-      (lib.filterAttrs (_: spec: (renderedSecretSources spec) != []) instances);
+        wantedBy = [ "default.target" ];
+      };
+    })
+    instances;
+
+  # ---------------------------------------------------------------------
+  # Reconcile timer
+  #
+  # The safety net under the per-instance path units, and the only thing that
+  # covers a secret being re-rendered on the host: /run/secrets changes when
+  # the host is rebuilt, and nothing under /etc/nixos changes with it, so no
+  # path unit fires and the instance would keep a stale token until the next
+  # unrelated edit.
+  #
+  # Fifteen minutes is not a responsiveness requirement, it is a staleness bound.
+  # A settled reconcile is about a second -- nix finds everything already built,
+  # the fingerprint matches, zero Incus writes -- so the cost is a second of CPU
+  # per instance per quarter hour.
+  #
+  # RandomizedDelaySec keeps fifteen instances from all deciding to reconcile at
+  # the same instant. Persistent=false so a host that was off for a week does
+  # not wake up and run fifteen back-to-back reconciles.
+  # ---------------------------------------------------------------------
+  systemd.timers.incus-reconcile = {
+    description = "Periodically reconcile every Incus instance";
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnBootSec = "5min";
+      OnUnitActiveSec = "15min";
+      RandomizedDelaySec = "1min";
+      AccuracySec = "1min";
+      Persistent = false;
+    };
+  };
 }

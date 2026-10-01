@@ -101,6 +101,24 @@ incus_run() {
   incus "$@" </dev/null
 }
 
+# Same, but the caller's stdin survives.
+#
+# incus_run's </dev/null is what stops a pipe left on stdin by a loop from being
+# sent as an HTTP request body, and it is not optional. But render_secrets
+# genuinely pipes the secret in, and routing it through incus_run silently
+# delivered nothing:
+#
+#   -r-------- 1 root root 0 caddy-env
+#
+# A zero-byte EnvironmentFile, which Caddy then rejected for having an empty API
+# token -- so the symptom was "Caddy will not start" with nothing pointing at the
+# cause. The two callers have genuinely different needs, so they are two
+# functions rather than a flag.
+incus_run_stdin() {
+  log "incus $(printf '%q ' "$@")"
+  incus "$@"
+}
+
 # --------------------------------------------------------------------------
 # Nix
 # --------------------------------------------------------------------------
@@ -417,6 +435,16 @@ render_secrets() {
     # Command substitution strips the trailing newline, which is what
     # EnvironmentFile wants anyway (one KEY=value per line, no continuation).
     value=$(<"$source")
+
+    # A secret that decrypts to nothing is never valid, and writing the empty
+    # string produces a file that looks fine and fails somewhere else entirely
+    # ("API token '' appears invalid"). Fail here, where the cause is obvious.
+    if [[ -z $value ]]; then
+      die "$source is empty. That is never a valid secret -- if it should have" \
+          "content then sops decrypted it to nothing, which means the file or" \
+          "the decryption key is wrong."
+    fi
+
     wanted="$env=$value"
 
     current=$(incus exec "$name" -- cat "/var/lib/incus-secrets/$file" 2>/dev/null || true)
@@ -425,7 +453,7 @@ render_secrets() {
     fi
 
     step "rendering $name:$file"
-    incus_run exec "$name" -- sh -c \
+    incus_run_stdin exec "$name" -- sh -c \
       "umask 077 && cat > /var/lib/incus-secrets/$file && chmod 0400 /var/lib/incus-secrets/$file" \
       <<<"$wanted"
     changed=1
