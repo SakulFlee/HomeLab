@@ -208,6 +208,66 @@ Two things worth knowing:
   and every mutating call goes through `incus_run`, which redirects stdin from
   `/dev/null` and logs its own argv.
 
+## The host's entry points
+
+`networkForward` in an instance's `incus.nix` is how the host's own address
+becomes reachable from outside. For `caddy` it is the whole cutover: until it
+exists, Traefik inside k3s serves `:80`/`:443` on the host and Caddy is a
+passenger; once it exists, all twenty hostnames terminate TLS at Caddy and are
+handed back to Traefik over the bridge.
+
+Incus implements a forward as an **nftables DNAT rule, not a socket bind**, and
+that is the entire reason this is safe to do while the incumbent is still
+running. Packets aimed at the forward's listen address are rewritten in
+`PREROUTING`/`OUTPUT` before socket lookup; packets aimed anywhere else on the
+same port are not matched and still reach the old listener. Two consequences
+worth keeping:
+
+* **Rollback is one command and takes effect immediately**, because the old
+  listener never stopped holding the port:
+  `incus network forward delete incusbr0 192.168.178.200`
+* **The catch-all in the Caddyfile is loop-free because of the same asymmetry.**
+  It dials `10.0.0.1:443`, which the rule does not match — it matches the
+  host's LAN address only. If the forward ever listened on `10.0.0.0/24` this
+  would become a loop immediately, and the failure would look like Caddy hanging
+  rather than like a routing bug.
+
+The reconciler applies it **last**, after the instance is up and its consumers
+have been restarted. Pointing a DNAT at anything but a running, serving container
+is the one way this script could take traffic down rather than hand it over.
+
+### Things the network-forward API does that you would not guess
+
+* **`port add` with a comma list stores ONE entry.**
+  `port add … tcp 80,443 10.0.0.100 80,443` gives a single entry with
+  `listen_port: "80,443"`, not two entries. So ports cannot be removed one at a
+  time afterwards.
+* **`port add` then refuses a listen port any existing entry already claims**,
+  grouped or not:
+  `Duplicate listen port 80 for protocol "tcp" in port specification 1`.
+  A grouped entry aimed at an old target is therefore *unfixable by adding* — the
+  reconcile could only skip it (leaving the DNAT wrong) or add alongside it (and
+  die). It is removable by passing the exact stored string:
+  `port remove … tcp "80,443"`.
+  Hence remove-then-add against an exact tuple match, converging on one entry per
+  port from any starting state.
+* **`incus network forward show` prints YAML and has no `--format` flag**, and
+  there is no usable `/1.0/network-forwards/<net>/<addr>` path. The only read
+  that carries the ports is `incus network forward list <net> --format json`.
+* **`incus network forward port remove` takes** `<net> <listen> <protocol>
+  <listen_port>` — not the `show`-style shapes.
+* **jq's `// empty` inside an array constructor removes the element.** `""` is
+  falsey, so `"" // empty` is `empty`, and `[empty, "a", "b"]` is `["a", "b"]`.
+  `forward_params` emits one scalar per line with `// ""` defaults for this
+  reason: with a shorter array the listen address slides into the network slot,
+  the `die` that should catch a NIC with no network never fires, and the
+  reconcile goes on to `incus network forward create <an-ip> <an-ip>`.
+* A changed NIC address does **not** take effect until the instance restarts.
+  `incus config device` rewrites the config immediately and the runtime keeps the
+  old address, so `apply.sh` can print `ok -- Running (10.0.0.150)` while the
+  declared address is `10.0.0.101`. It only resolves on a recreate, and a
+  redeploy that does not recreate will not notice.
+
 ## Storage pools
 
 Three pools, split by backup policy rather than convenience:

@@ -76,6 +76,18 @@ valid_name() {
   [[ $1 =~ ^[a-z0-9]([a-z0-9-]*[a-z0-9])?$ ]]
 }
 
+# Exact, whole-line membership. `[[ " $list " == *" $item "* ]]` would be
+# shorter and is wrong here: these are space-separated tuples, so "tcp 80" is a
+# substring of "tcp 8080" and the forward would be considered already correct.
+in_list() {
+  local needle=$1 item
+  shift
+  for item in ${1+"$@"}; do
+    [[ $item == "$needle" ]] && return 0
+  done
+  return 1
+}
+
 # --------------------------------------------------------------------------
 # Every mutating Incus call goes through this.
 #
@@ -543,6 +555,162 @@ sync_devices() {
   done
 }
 
+# --------------------------------------------------------------------------
+# The host's public entry points
+# --------------------------------------------------------------------------
+# Incus implements a network forward as an nftables DNAT rule, not a socket
+# bind, which is the whole reason this can coexist with the incumbent proxy
+# still listening on 0.0.0.0:80. Packets aimed at the listen address are
+# rewritten before socket lookup; packets aimed anywhere else on the same port
+# are not matched and still reach the old listener. So the cutover is one rule,
+# and the rollback is deleting it -- the old listener never stopped holding the
+# port.
+#
+#   rollback:  incus network forward delete <network> <listen address>
+#
+# Reads here go through `incus network forward list --format json` rather than
+# `incus network forward show`, which prints YAML and has no --format flag.
+# There is no usable /1.0/network-forwards/<net>/<addr> path either; the list
+# is the only route that carries the ports.
+#
+# One port per entry, always, and the shape the spec declares is the shape this
+# converges on. That is not tidiness, it is forced by two Incus behaviours found
+# the hard way:
+#
+#   * `port add ... tcp 80,443 10.0.0.100 80,443` stores ONE entry with
+#     listen_port "80,443", not two entries.
+#   * `port add` then refuses any listen port an existing entry already claims,
+#     grouped or not:
+#       Error: Failed updating forward: Duplicate listen port 80 for
+#       protocol "tcp" in port specification 1
+#
+# So a grouped entry cannot be retargeted by adding alongside it, and cannot be
+# fixed one port at a time either -- but it CAN be removed by passing its exact
+# stored string:
+#   incus network forward port remove <net> <listen> tcp "80,443"
+#
+# Hence remove-then-add against an exact tuple match. Anything not byte-identical
+# to a declared entry is removed, then the declared entries are added back one at
+# a time. That converges from any starting state -- a hand-made forward, or one
+# left over from an older target address -- and once converged it is a no-op.
+#
+# An earlier version tried to add alongside and only remove entries that carried
+# no declared port. Against a grouped entry that meant it skipped the removal,
+# tried the add, and died on the duplicate-listen-port error, leaving the forward
+# stuck pointing at an address nothing serves.
+
+forward_listing() {
+  local network=$1 listing
+  listing=$(incus network forward list "$network" --format json 2>/dev/null || echo '[]')
+  # An empty listing is not valid input for the filters below.
+  [[ -n $listing ]] || listing='[]'
+  printf '%s' "$listing"
+}
+
+# The port entries of one forward, as a JSON array. Empty array if absent.
+forward_ports() {
+  local network=$1 listen=$2
+  forward_listing "$network" \
+    | jq -c --arg l "$listen" '[.[] | select(.listen_address == $l) | .ports[]?]'
+}
+
+# "tcp 80 80 10.0.0.100" per declared port. targetPort defaults to listenPort and
+# targetAddress to the forward's own target, so the usual case is two bare
+# numbers per port.
+declared_forwards() {
+  local spec=$1 target=$2
+  jq -r --arg t "$target" '
+    .networkForward.ports[]?
+    | select(.protocol != null and (.listenPort != null))
+    | "\(.protocol) \(.listenPort) \(.targetPort // .listenPort) \(.targetAddress // $t)"
+  ' <<<"$spec"
+}
+
+# The forward's three scalars, ONE PER LINE: the network, the listen address,
+# the target. The network comes from the NIC device rather than a constant, so
+# renaming the bridge is an edit to one place.
+#
+# The defaults are `// ""` and never `// empty`. Inside an array constructor
+# `empty` does not yield an empty element, it yields *no element*: jq's [] drops
+# it and the array comes back short. So a NIC with no network would silently
+# shift the listen address into the network slot, the die() meant to catch the
+# typo would never fire, and the reconcile would go on to
+# `incus network forward create <an-ip> <an-ip>`.
+#
+# One per line rather than a tab-separated row for the same reason: @tsv also
+# drops empty fields.
+#
+# Read here rather than inline in both callers, so that the reporter and the
+# reconciler cannot disagree about what the spec says.
+forward_params() {
+  jq -r '[
+    ([.devices // {} | to_entries[]
+      | select(.value.type == "nic") | .value.network // ""][0] // ""),
+    (.networkForward.listenAddress // ""),
+    (.networkForward.targetAddress // "")
+  ] | .[]' <<<"$1"
+}
+
+sync_network_forward() {
+  local name=$1 spec=$2 network listen target
+  local -a params
+  mapfile -t params < <(forward_params "$spec")
+  network=${params[0]:-}; listen=${params[1]:-}; target=${params[2]:-}
+
+  # An instance that declares no forward gets none. Note this is a no-op and not
+  # a removal: dropping `networkForward` from the spec does not take the DNAT
+  # away. Repointing or removing a host's public entry points is a deliberate
+  # act that should be a one-line incus command someone typed on purpose, not a
+  # side effect of editing an instance's spec.
+  [[ -n $listen ]] || return 0
+  [[ -n $network ]] || die "networkForward is declared but no nic device names a network"
+  [[ -n $target ]] || die "networkForward is declared but has no targetAddress"
+
+  # Create the forward before its ports: `port add` needs somewhere to attach.
+  if ! forward_listing "$network" \
+       | jq -e --arg l "$listen" 'any(.listen_address == $l)' >/dev/null; then
+    step "creating network forward $network $listen"
+    incus_run network forward create "$network" "$listen"
+  fi
+
+  local -a want have
+  mapfile -t want < <(declared_forwards "$spec" "$target")
+
+  # Removal first, so that a port claimed by a stale entry is free to be re-added
+  # with the right target. Removal keys on the stored listen_port verbatim:
+  # "80,443" is one entry, and taking "80" out of it is not something the CLI
+  # can do.
+  local ports entry proto listen_port target_port target_addr
+  ports=$(forward_ports "$network" "$listen")
+  mapfile -t have < <(jq -r '.[] | "\(.protocol) \(.listen_port) \(.target_port) \(.target_address)"' \
+                     <<<"$ports")
+
+  for entry in ${have[@]+"${have[@]}"}; do
+    if in_list "$entry" "${want[@]+"${want[@]}"}"; then
+      continue
+    fi
+    read -r proto listen_port _ _ <<<"$entry"
+    step "removing forward $listen/$proto/$listen_port (not as declared)"
+    incus_run network forward port remove "$network" "$listen" "$proto" "$listen_port"
+  done
+
+  # Then add. Re-read ports: the removals above changed it, and `have` is now
+  # stale for anything that was removed.
+  ports=$(forward_ports "$network" "$listen")
+  mapfile -t have < <(jq -r '.[] | "\(.protocol) \(.listen_port) \(.target_port) \(.target_address)"' \
+                     <<<"$ports")
+
+  for entry in ${want[@]+"${want[@]}"}; do
+    if in_list "$entry" "${have[@]+"${have[@]}"}"; then
+      continue
+    fi
+    read -r proto listen_port target_port target_addr <<<"$entry"
+    step "forwarding $listen/$proto/$listen_port -> $target_addr/$target_port"
+    incus_run network forward port add "$network" "$listen" \
+      "$proto" "$listen_port" "$target_addr" "$target_port"
+  done
+}
+
 # user.description rather than the top-level description field: setting that
 # needs an API PATCH, and a PATCH that is subtly wrong would rewrite the
 # instance's devices. Not worth the risk for a label.
@@ -605,11 +773,23 @@ store_name() {
 # --------------------------------------------------------------------------
 report_drift() {
   local name=$1 build_path=$2 spec=$3 alias
+  local network listen target port
+  local -a params ports_declared
   alias="$IMAGE_PREFIX/$name"
   log "no instance named $name -- would create it from $alias"
   log "  image build output: $(store_name "$build_path")"
   log "  volumes: $(jq -r '[.volumes[]? | "\(.pool)/\(.name)"] | join(", ")' <<<"$spec")"
   log "  devices: $(jq -r '[.devices | keys[]] | join(", ")' <<<"$spec")"
+  mapfile -t params < <(forward_params "$spec")
+  network=${params[0]:-}; listen=${params[1]:-}; target=${params[2]:-}
+  if [[ -n $listen ]]; then
+    log "  network forward: would point $listen on bridge $network at $target, so this"
+    log "    instance becomes what the outside world reaches the host on"
+    mapfile -t ports_declared < <(declared_forwards "$spec" "$target")
+    for port in ${ports_declared[@]+"${ports_declared[@]}"}; do
+      log "    $port"
+    done
+  fi
 }
 
 report_existing_drift() {
@@ -651,6 +831,37 @@ report_existing_drift() {
       log "  device $key: have $(jq -c --arg k "$key" '.[$k] // {}' <<<"$cur_dev") want $device"
     fi
   done
+
+  # The DNAT. Reported here even though it is applied last, because in --check
+  # nothing is applied at all and this is the one change that carries traffic.
+  #
+  # Same exact-tuple comparison as sync_network_forward, deliberately. A reporter
+  # with its own idea of what counts as a match will disagree with the thing it
+  # is reporting on -- which is how the first version of this ended up printing
+  # drift on a forward that was, by the reconciler's own definition, correct.
+  local network listen target ports entry
+  local -a params
+  mapfile -t params < <(forward_params "$spec")
+  network=${params[0]:-}; listen=${params[1]:-}; target=${params[2]:-}
+  if [[ -n $listen && -n $network ]]; then
+    local -a want have
+    mapfile -t want < <(declared_forwards "$spec" "$target")
+    ports=$(forward_ports "$network" "$listen")
+    mapfile -t have < <(jq -r '.[] | "\(.protocol) \(.listen_port) \(.target_port) \(.target_address)"' \
+                       <<<"$ports")
+    for entry in ${want[@]+"${want[@]}"}; do
+      if ! in_list "$entry" "${have[@]+"${have[@]}"}"; then
+        log "  forward $listen/$entry (want)"
+      fi
+    done
+    for entry in ${have[@]+"${have[@]}"}; do
+      if ! in_list "$entry" "${want[@]+"${want[@]}"}"; then
+        log "  forward $listen/$entry (have, not declared)"
+      fi
+    done
+  elif [[ -n $listen ]]; then
+    log "  networkForward declared but no nic device names a network"
+  fi
 }
 
 # --------------------------------------------------------------------------
@@ -773,6 +984,16 @@ apply_instance() {
   # the thing that has not been written yet. render_secrets restarts it.
   if [[ $want_running == 1 ]]; then
     render_secrets "$name" "$spec"
+  fi
+
+  # LAST, after the instance is up and its consumers have been restarted. This
+  # is the DNAT that makes the instance reachable from outside, so pointing it at
+  # anything but a running, serving container is the one way this script could
+  # take traffic down rather than hand it over. Earlier in the function is
+  # strictly worse: a recreate leaves the instance down for seconds, and a
+  # fresh create has not run its software yet.
+  if [[ $want_running == 1 ]]; then
+    sync_network_forward "$name" "$spec"
   fi
 
   local status addresses

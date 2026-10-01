@@ -7,6 +7,33 @@
 #
 # Read at build time by incus/apply.sh through the `incusInstances` flake
 # output. See ../../../incus-instances.nix for the list.
+let
+  devices = {
+    # Overrides the 'default' profile's eth0 with a fixed address. The profile
+    # supplies type/name/network; only the address is added, so the instance
+    # still gets a veth on incusbr0 and NAT egress.
+    eth0 = {
+      type = "nic";
+      name = "eth0";
+      network = "incusbr0";
+      "ipv4.address" = "10.0.0.100";
+    };
+
+    caddy-data = {
+      type = "disk";
+      pool = "backup";
+      source = "caddy-data";
+      path = "/var/lib/caddy";
+    };
+
+    caddy-secrets = {
+      type = "disk";
+      pool = "persistent";
+      source = "caddy-secrets";
+      path = "/var/lib/incus-secrets";
+    };
+  };
+in
 {
   description = "Reverse proxy for everything in the homelab";
 
@@ -78,29 +105,52 @@
   # apply.sh uses an unconditional `restart`.
   secretConsumers = [ "caddy.service" ];
 
-  devices = {
-    # Overrides the 'default' profile's eth0 with a fixed address. The profile
-    # supplies type/name/network; only the address is added, so the instance
-    # still gets a veth on incusbr0 and NAT egress.
-    eth0 = {
-      type = "nic";
-      name = "eth0";
-      network = "incusbr0";
-      "ipv4.address" = "10.0.0.100";
-    };
+  # ---------------------------------------------------------------------
+  # The host's public entry points
+  # ---------------------------------------------------------------------
+  #
+  # This is the cutover. Until it exists, Traefik inside k3s serves :80 and
+  # :443 on the host and Caddy is a passenger; once it exists, every hostname
+  # terminates TLS at Caddy and is handed back to Traefik over the bridge.
+  #
+  # Incus implements a forward as an nftables DNAT rule, not a socket bind, so
+  # it coexists with Traefik's 0.0.0.0:80 listener. Packets aimed at
+  # listenAddress are rewritten before socket lookup; packets aimed anywhere
+  # else on the same port are not. That asymmetry is the whole reason the
+  # still-traefik catch-all in default.nix is loop-free -- it dials 10.0.0.1,
+  # which this rule does not match.
+  #
+  # Rollback, effective immediately, because Traefik's listener is never
+  # released while the rule exists:
+  #
+  #   incus network forward delete incusbr0 192.168.178.200
+  networkForward = {
+    # The host's LAN address. Must match the host's own address; nothing
+    # validates that, and a forward listening somewhere nothing answers is the
+    # quietest possible failure.
+    listenAddress = "192.168.178.200";
 
-    caddy-data = {
-      type = "disk";
-      pool = "backup";
-      source = "caddy-data";
-      path = "/var/lib/caddy";
-    };
+    # Derived from devices.eth0 above so the two cannot drift.
+    targetAddress = devices.eth0."ipv4.address";
 
-    caddy-secrets = {
-      type = "disk";
-      pool = "persistent";
-      source = "caddy-secrets";
-      path = "/var/lib/incus-secrets";
-    };
+    # One entry per port, not "80,443" in a single entry: `incus network
+    # forward port add` treats a comma list as one grouped entry, which cannot
+    # be removed one port at a time later.
+    #
+    # The raw TCP/UDP services (minecraft 25565, hytale 5520/udp, livekit
+    # 7881/7882, matrix 8448) are deliberately absent. An L7 proxy cannot
+    # carry them; they get their own forward entries here when they move.
+    ports = [
+      {
+        protocol = "tcp";
+        listenPort = 80;
+      }
+      {
+        protocol = "tcp";
+        listenPort = 443;
+      }
+    ];
   };
+
+  devices = devices;
 }
