@@ -51,5 +51,26 @@
       source = "caddy-data";
       path = "/var/lib/caddy";
     };
+
+    # sops needs an identity to decrypt with, and the instances/flake do not
+    # generate SSH host keys. This mounts the host's in, read-only, so
+    # hosts/caddy/default.nix can decrypt the one secret Caddy needs.
+    #
+    # shift=true is required, not decorative: the host's root is mapped into
+    # this instance's uid range, so without it a root-owned host file appears
+    # here owned by uid 100000 and sops cannot read it.
+    #
+    # This is the accepted widening: this instance can read the host's SSH
+    # identity key, and therefore can decrypt anything in secrets.yaml that is
+    # encrypted to it. Only cloudflare_api_token is ever *written* here, but the
+    # capability is broader than the use. It is granted to this one instance
+    # because Caddy is the only component that needs a DNS-01 token.
+    incus-sops-key = {
+      type = "disk";
+      source = "/etc/ssh/ssh_host_ed25519_key";
+      path = "/etc/ssh/ssh_host_ed25519_key";
+      shift = true;
+      readonly = true;
+    };
   };
 }

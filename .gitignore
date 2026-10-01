@@ -1,0 +1,8 @@
+# `nix build` without --no-link drops a `result` symlink in the flake root.
+# Harmless, but it is a store path that changes on every build and it does not
+# belong in git.
+result
+result-*
+
+# Scratch files from debugging the NixOS configuration.
+*.bak
