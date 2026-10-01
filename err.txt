@@ -1,0 +1,5 @@
+   step: rendering t:incus-client.key (mode 0440, group caddy)
+   step: restarting caddy.service for the new secret
+   warn: caddy.service is 'failed' after rendering t's secrets; last lines of its log:
+      caddy: Error: loading initial config: permission denied
+   die:  caddy.service did not come up after rendering t's secrets (state: failed). The instance is running but this consumer is not, so anything depending on it -- for caddy, all hostnames -- is down.

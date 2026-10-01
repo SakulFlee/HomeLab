@@ -421,7 +421,8 @@ apply_limits() {
 # Diffed against what is already there, so a settled redeploy writes nothing --
 # a secret file is not something to churn.
 render_secrets() {
-  local name=$1 spec=$2 entry file env format source value wanted current unit
+  local name=$1 spec=$2 entry file env format mode group source value wanted current unit
+  local path cur_mode cur_group state cmd attempt needs_write
   local changed=0
   local -a entries consumers
 
@@ -437,10 +438,23 @@ render_secrets() {
     file=$(jq -r '.file // empty' <<<"$entry")
     format=$(jq -r '.format // "env"' <<<"$entry")
     env=$(jq -r '.env // empty' <<<"$entry")
+    mode=$(jq -r '.mode // "0400"' <<<"$entry")
+    group=$(jq -r '.group // empty' <<<"$entry")
     source=$(jq -r '.source // empty' <<<"$entry")
 
     [[ -n $file ]] || die "$name has a renderedSecret with no file name: $entry"
     [[ -n $source ]] || die "$name's $file has no source: $entry"
+
+    # file, mode and group are interpolated into a shell command string below,
+    # so they are constrained rather than trusted. `file` in particular is a
+    # path component on the way to a `sh -c`, where a space or a semicolon would
+    # turn a spec into a command.
+    [[ $file =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] \
+      || die "$name's renderedSecret has an unusable file name '$file'"
+    [[ $mode =~ ^[0-7]{3,4}$ ]] \
+      || die "$name's $file has mode '$mode', which is not octal (want e.g. 0440)"
+    [[ -z $group || $group =~ ^[a-z_][a-z0-9_-]*\$?$ ]] \
+      || die "$name's $file has an invalid group '$group'"
 
     # "env" writes `KEY=value`, which is what a systemd EnvironmentFile wants.
     # "raw" writes the secret's bytes unchanged, for anything that is not a
@@ -485,15 +499,30 @@ render_secrets() {
       wanted="$env=$value"
     fi
 
-    current=$(incus exec "$name" -- cat "/var/lib/incus-secrets/$file" 2>/dev/null || true)
-    if [[ $current == "$wanted" ]]; then
-      continue
-    fi
+    # Content AND ownership are both compared, not just content. A file whose
+    # bytes are right but whose mode is not is still broken, and the failure mode
+    # is the confusing one: the consumer cannot read it and exits, while
+    # apply.sh reports that everything is already up to date.
+    path="/var/lib/incus-secrets/$file"
+    current=$(incus exec "$name" -- cat "$path" 2>/dev/null || true)
+    cur_mode=$(incus exec "$name" -- stat -c '%a' "$path" 2>/dev/null || true)
+    cur_group=$(incus exec "$name" -- stat -c '%G' "$path" 2>/dev/null || true)
 
-    step "rendering $name:$file"
-    incus_run_stdin exec "$name" -- sh -c \
-      "umask 077 && cat > /var/lib/incus-secrets/$file && chmod 0400 /var/lib/incus-secrets/$file" \
-      <<<"$wanted"
+    needs_write=0
+    [[ $current == "$wanted" ]] || needs_write=1
+    [[ $cur_mode == "${mode#0}" ]] || needs_write=1
+    if [[ -n $group ]]; then
+      [[ $cur_group == "$group" ]] || needs_write=1
+    fi
+    [[ $needs_write == 0 ]] && continue
+
+    step "rendering $name:$file (mode $mode${group:+, group $group})"
+    cmd="umask 077 && cat > $path"
+    # chgrp before chmod: chown-family calls can clear setuid/setgid bits, and
+    # the mode is the thing being asserted here.
+    [[ -n $group ]] && cmd="$cmd && chgrp $group $path"
+    cmd="$cmd && chmod $mode $path"
+    incus_run_stdin exec "$name" -- sh -c "$cmd" <<<"$wanted"
     changed=1
   done
 
@@ -514,6 +543,37 @@ render_secrets() {
     # Unconditional restart, not try-restart: on a first deploy the unit never
     # started, and try-restart would leave it down.
     incus_run exec "$name" -- systemctl restart "$unit"
+  done
+
+  # Did they actually come up?
+  #
+  # Restarting and returning 0 is not the same as working, and the difference
+  # is invisible from here: a consumer that cannot read the file it was just
+  # given exits within milliseconds. This script used to report a clean deploy
+  # in exactly that situation -- caddy.service was handed a 0400 root-owned PEM
+  # and runs as User=caddy, so every hostname went down while apply.sh printed
+  # "ok". A restart is a request, not a result, so check the result.
+  for unit in ${consumers[@]+"${consumers[@]}"}; do
+    state=""
+    attempt=0
+    # `systemctl restart` is synchronous, so this normally passes first time.
+    # The loop is only for units that report readiness a moment after the job.
+    while [[ $attempt -lt 10 ]]; do
+      state=$(incus exec "$name" -- systemctl is-active "$unit" 2>/dev/null || true)
+      [[ $state == active ]] && break
+      attempt=$((attempt + 1))
+      sleep 1
+    done
+    [[ $state == active ]] && continue
+
+    # Put the reason in the error. Finding this cost a `journalctl` inside the
+    # container by hand, and the whole diagnosis is one line of that output.
+    warn "$unit is '$state' after rendering $name's secrets; last lines of its log:"
+    incus exec "$name" -- journalctl -u "$unit" --no-pager -n 12 2>&1 \
+      | sed 's/^/      /' >&2 || true
+    die "$unit did not come up after rendering $name's secrets (state: ${state:-unknown})." \
+        "The instance is running but this consumer is not, so anything depending" \
+        "on it -- for caddy, all hostnames -- is down."
   done
 }
 

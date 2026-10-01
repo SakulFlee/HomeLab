@@ -98,15 +98,29 @@ in
     # cannot be an EnvironmentFile line. `env` would produce
     # INCS_CLIENT_KEY=-----BEGIN RSA PRIVATE KEY-----\nMIIE...\n and Caddy would
     # then be handed one enormous malformed variable instead of a key file.
+    #
+    # mode/group, not the 0400 root-only default, and this is load-bearing rather
+    # than tidier. caddy.service runs as User=caddy (NixOS's caddy module drops
+    # privileges), and it reads tls_client_auth files itself -- unlike
+    # EnvironmentFile, which systemd opens as root before dropping them. At 0400
+    # root:root Caddy cannot read its own key, exits, and every hostname goes
+    # down while apply.sh cheerfully reports success.
+    #
+    # 0440 root:caddy rather than 0444: the private key stays unreadable by
+    # everything except root and the one user that needs it.
     {
       format = "raw";
       file = "incus-client.crt";
       source = "/run/secrets/incus_client_cert";
+      mode = "0440";
+      group = "caddy";
     }
     {
       format = "raw";
       file = "incus-client.key";
       source = "/run/secrets/incus_client_key";
+      mode = "0440";
+      group = "caddy";
     }
   ];
 

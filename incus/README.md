@@ -53,6 +53,34 @@ EnvironmentFile lines they would collapse into one enormous malformed variable,
 and Caddy would be handed that instead of a key file. Trailing newlines are
 stripped by the command substitution; the internal ones a PEM is made of survive.
 
+`mode` and `group` default to `0400` and no group change, which is right for
+anything read by systemd — `EnvironmentFile` is opened as root *before* the
+service drops privileges. It is **wrong** for a file the service itself opens,
+and caddy.service runs as `User=caddy`. Its `tls_client_auth` certificate is
+read by the Caddy process, so at `0400 root:root` it cannot read its own key,
+exits, and takes every hostname down:
+
+```
+making TLS client config: loading client certificate key pair:
+open /var/lib/incus-secrets/incus-client.crt: permission denied
+```
+
+So the two PEMs declare `mode = "0440"; group = "caddy";`. Two things follow from
+that, both of which were learned the hard way:
+
+* **Ownership is part of the diff, not just content.** A file whose bytes are
+  correct but whose mode is not is still broken, and comparing content alone
+  means apply.sh declares it settled while the consumer cannot read it.
+* **A restart is a request, not a result.** `secretConsumers` are restarted and
+  then **checked with `systemctl is-active`**, and a failure dumps the unit's
+  last journal lines into the error. Without that check this script reported
+  `Result=success` and `ok -- Running` while Caddy was dead and all twenty
+  hostnames were refusing connections — the single most expensive bug in this
+  file, and the diagnosis was one line of a `journalctl` that nothing prompted.
+
+`file`, `mode` and `group` are interpolated into a `sh -c`, so they are pattern-
+checked rather than trusted.
+
 The alternative, which is in the git history, imported sops-nix into the
 instance and bind-mounted the host's `/etc/ssh/ssh_host_ed25519_key` so it could
 decrypt for itself. It worked. It was also the wrong shape: it gave a root
