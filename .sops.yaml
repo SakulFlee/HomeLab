@@ -23,6 +23,22 @@ creation_rules:
         - age16n3ufazps5tru37l4wny0sh4f7em63j22yuhlahhfhxu5kz2ufdsmer7mw
         # HomeLab (User)
         - age1suydyah5q07jdn7xrpt853pzt9ua3ygd7yuu4pys8g0caq2v6dhsmvwcwg
+        # HomeLab (Workstation) -- a dedicated age identity, private half only in
+        # ~/.config/sops/age/keys.txt on the machine that edits this file.
+        #
+        # Deliberately an age key and NOT the operator's SSH key, even though age
+        # itself accepts an `ssh-ed25519` recipient and a plain
+        # `age -r "$(cat ~/.ssh/id_ed25519.pub)"` / `age -d -i` round trip
+        # against it works. The limit is sops, not age: sops turns an SSH private
+        # key into an age identity by shelling out to `ssh-to-age`, and that is
+        # not installed here and is not in the store. Its error names the
+        # locations it searched and SSH_PRIVATE_KEY_FILE is not among them.
+        #
+        # Deliberately added to THIS rule and to no other. The apps/* rules keep
+        # their existing recipients, so nothing reaching the k3s cluster -- a Flux
+        # pod, a notification receiver, a runner -- gains the ability to read the
+        # host's restic password, Forgejo JWT or PIA credentials.
+        - age1ync76d63pk4gc74exrhpxr5fjdg7923rltcvlrwdjhqdll72ffrqa4dq6h
   - path_regex: clusters/.*\.yaml$
     key_groups:
       - age:
