@@ -1,5 +1,5 @@
 creation_rules:
-  # The host's own secret store. Listed first and with all eight recipients
+  # The host's own secret store. Listed first and with all nine recipients
   # rather than the usual three, because this file's existing recipients do not
   # match any other rule in this file.
   #

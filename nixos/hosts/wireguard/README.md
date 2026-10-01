@@ -74,19 +74,39 @@ VM is useful.
 declares them and `nixos/secrets.yaml` does not have them, so the host will fail
 to build until they are added. Run on the host, as root, from `/etc/nixos`:
 
+Both of these are **already in `secrets.yaml`**, encrypted to all nine
+recipients. Re-run them only to *rotate*.
+
 ```bash
 cd /etc/nixos
-printf '%s' "$(openssl rand -base64 24)" | sops set --value-stdin \
-  --input-type binary nixos/secrets.yaml '["wireguard_ui_password"]'
-printf '%s' "$(openssl rand -base64 48)" | sops set --value-stdin \
-  --input-type binary nixos/secrets.yaml '["wireguard_ui_session_secret"]'
+printf '%s' "$(openssl rand -base64 24 | tr -d '\n')" \
+  | jq -Rs . | sops set --value-stdin nixos/secrets.yaml '["wireguard_ui_password"]'
+printf '%s' "$(openssl rand -base64 48 | tr -d '\n')" \
+  | jq -Rs . | sops set --value-stdin nixos/secrets.yaml '["wireguard_ui_session_secret"]'
 ```
 
-`updatekeys -y nixos/secrets.yaml` afterwards if sops asks for recipients.
+The `jq -Rs .` is not optional. `sops set` parses the value from stdin as JSON
+regardless of the target file's format, so a bare base64 string is rejected:
 
-Neither may be skipped. wireguard-ui's compiled-in defaults are `admin`/`admin`
-and a **fixed session secret published in its own source** — leave them unset and
-the admin UI is one known password away, with session cookies anyone can mint.
+```
+Value for --set is not valid JSON
+```
+
+It also adds no trailing newline to the string, which matters: `jq -Rs` over
+input that already ends in one would silently store that `\n` as part of the
+password.
+
+Neither secret may be *absent*. wireguard-ui's compiled-in defaults are
+`admin`/`admin` and a **fixed session secret published in its own source** —
+leave them unset and the admin UI is one known password away, with session
+cookies anyone can mint.
+
+`sops.secrets.wireguard_ui_*` is declared in `nixos/modules/sops.nix`, so **a
+host rebuild fails outright if either is missing** from `secrets.yaml`:
+sops-nix builds each one with `sops -d --extract`, which errors
+`component [...] not found`. The declaration and the value are therefore a pair
+— never land one without the other, or the hourly `nixos-auto-update` fails
+every hour.
 
 **2. A DHCP reservation** for `192.168.178.210`, outside the pool. The guest
 configures its own address, so a lease conflict means two devices fighting and
