@@ -391,8 +391,9 @@ apply_limits() {
 # Diffed against what is already there, so a settled redeploy writes nothing --
 # a secret file is not something to churn.
 render_secrets() {
-  local name=$1 spec=$2 entry file env source value wanted current
-  local -a entries
+  local name=$1 spec=$2 entry file env source value wanted current unit
+  local changed=0
+  local -a entries consumers
 
   mapfile -t entries < <(jq -c '.renderedSecrets[]?' <<<"$spec")
   [[ ${#entries[@]} -eq 0 ]] && return 0
@@ -427,6 +428,20 @@ render_secrets() {
     incus_run exec "$name" -- sh -c \
       "umask 077 && cat > /var/lib/incus-secrets/$file && chmod 0400 /var/lib/incus-secrets/$file" \
       <<<"$wanted"
+    changed=1
+  done
+
+  # Only when something actually changed, and only for the units that consume it.
+  #
+  # The restart is not optional. A unit whose EnvironmentFile is missing fails
+  # to start, so on a first deploy caddy.service is down at this point with the
+  # file on disk but unread; `try-restart` would be a no-op there, so this is an
+  # unconditional `restart`, which starts a stopped unit as a side effect.
+  [[ $changed == 1 ]] || return 0
+  mapfile -t consumers < <(jq -r '.secretConsumers[]?' <<<"$spec")
+  for unit in ${consumers[@]+"${consumers[@]}"}; do
+    step "restarting $unit for the new secret"
+    incus_run exec "$name" -- systemctl restart "$unit"
   done
 }
 
@@ -697,9 +712,6 @@ apply_instance() {
   set_description "$name" "$spec"
   apply_limits "$name" "$spec"
   sync_devices "$name" "$spec"
-  # After sync_devices: the secrets volume has to be attached before anything
-  # can be written into it, and it is worthless without the rest of the config.
-  render_secrets "$name" "$spec"
 
   if [[ $want_running == 1 ]]; then
     if [[ $(instance_field "$name" '.status') != Running ]]; then
@@ -714,6 +726,19 @@ apply_instance() {
   elif [[ $(instance_field "$name" '.status') == Running ]]; then
     step "stopping (autostart off, or --no-start)"
     incus_run stop "$name"
+  fi
+
+  # AFTER the start, not before. render_secrets works through `incus exec`,
+  # which needs a running instance -- so calling it earlier meant the first
+  # deploy of any instance with renderedSecrets died at this line and left the
+  # instance stopped with the image already applied. On a redeploy where the
+  # instance was already running it happened to work, which is why it looked
+  # fine until the first fresh create.
+  #
+  # A consumer unit may be failed at this point, because its EnvironmentFile is
+  # the thing that has not been written yet. render_secrets restarts it.
+  if [[ $want_running == 1 ]]; then
+    render_secrets "$name" "$spec"
   fi
 
   local status addresses

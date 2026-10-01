@@ -68,6 +68,16 @@
     }
   ];
 
+  # Units inside this instance that read a rendered file, and that
+  # apply.sh restarts when the file's contents change.
+  #
+  # Not optional in practice: caddy.service has EnvironmentFile pointing at
+  # caddy-env, so on a first deploy it fails to start because the file is not
+  # there yet, and only comes up once apply.sh has written it and restarted the
+  # unit. `try-restart` would be a no-op on a unit that never started, so
+  # apply.sh uses an unconditional `restart`.
+  secretConsumers = [ "caddy.service" ];
+
   devices = {
     # Overrides the 'default' profile's eth0 with a fixed address. The profile
     # supplies type/name/network; only the address is added, so the instance

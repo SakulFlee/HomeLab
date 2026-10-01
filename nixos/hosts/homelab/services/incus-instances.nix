@@ -177,14 +177,22 @@ in
             TimeoutStartSec = 3600;
             Restart = "on-failure";
             RestartSec = 60;
-            StartLimitIntervalSec = 2400;
-            StartLimitBurst = 5;
           };
 
-          # A failed redeploy is otherwise silent: nothing on the desktop, and
-          # the journal is not somewhere anyone looks on purpose. The host
-          # already notifies for the auto-update unit, so reuse that shape.
-          onFailure = [ "incus-apply-notify@%n.service" ];
+          # startLimit* belong in [Unit], not [Service]. Setting them inside
+          # serviceConfig renders them into [Service], where systemd rejects them:
+          #   Unknown key 'StartLimitIntervalSec' in section [Service], ignoring
+          # which is silently ignored -- so the retry policy was not in effect.
+          startLimitIntervalSec = 2400;
+          startLimitBurst = 5;
+
+          # %p, not %n. %n is the failed unit's *full* name, so it already ends
+          # in ".service" and "@%n.service" produced
+          #   incus-apply-notify@incus-apply-caddy.service.service
+          # which systemd refused to enqueue at all. %p is the prefix, so
+          # "@%p.service" is the correct template instantiation -- and it also
+          # satisfies the option's type, which requires a known unit suffix.
+          onFailure = [ "incus-apply-notify@%p.service" ];
 
           # Only the binaries apply.sh actually shells out to. Notably
           # config.virtualisation.incus.package rather than a hardcoded
@@ -210,18 +218,25 @@ in
       # -----------------------------------------------------------
       # Failure notification
       #
-      # Templated on the failed unit's name so one service covers every
-      # instance. The desktop notification is best-effort -- headless is
-      # normal for a homelab -- and the real record stays in the journal.
+      # A template, instantiated as incus-apply-notify@<unit>.service.
+      #
+      # Deliberately NOT wantedBy anything: enabling a template enables the
+      # bare `incus-apply-notify.service`, and systemd will happily *start* that
+      # too -- with no instance argument, so the script died on
+      #   line 6: $1: unbound variable
+      # and left a failed unit on every boot. The script tolerates a missing
+      # argument regardless.
       # -----------------------------------------------------------
       incus-apply-notify = {
         description = "Notify that an Incus instance redeploy failed";
-        wantedBy = [ "multi-user.target" ];
         path = with pkgs; [ coreutils gnugrep gnused libnotify ];
         script = ''
-          set -euo pipefail
+          set -uo pipefail
 
-          unit=$1
+          # Empty when systemd starts the bare template rather than an
+          # instance of it. Say so rather than dying on set -u.
+          unit="''${1:-incus-apply-?}"
+
           # The failed unit is what the journal is filed under, so say so
           # rather than making the reader go looking.
           title="Incus redeploy failed"
