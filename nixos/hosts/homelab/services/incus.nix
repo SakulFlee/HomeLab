@@ -44,6 +44,26 @@ in
       # default incusd only serves its unix socket.
       config."core.https_address" = "192.168.178.200:8443";
 
+      # Which browser origins may open a websocket against the API.
+      #
+      # Empty by default, and Incus then accepts *same-origin* requests only --
+      # shared/ws/upgrader.go compares the Origin header's host against the
+      # request Host, falling back to this list. The Incus CLI sends no Origin at
+      # all, so `incus webui`, `incus exec` and `incus console` against the
+      # direct address all work with this unset. That is exactly why the UI was
+      # fine locally and broken only through Caddy.
+      #
+      # Set together with `header_up Host {host}` in the Caddy vhost, and the two
+      # are belt and braces: that directive makes the Host comparison succeed,
+      # and this makes the endpoint work whatever Host arrives as. With either
+      # one missing, Terminal and Console fail with "WebSocket is closed before
+      # the connection is established" while every plain API call still succeeds.
+      #
+      # Narrow on purpose. A websocket that can drive an operation is
+      # effectively root on this host, so this names the single hostname the UI
+      # is served from and nothing more.
+      config."core.https_allowed_websocket_origin" = "https://incus.sakul-flee.de";
+
       # Two pools, split by backup policy rather than by convenience:
       #
       #   backup      restic'd. Anything whose loss you would actually notice.
