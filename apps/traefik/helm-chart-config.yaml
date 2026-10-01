@@ -73,3 +73,34 @@ spec:
           default: true
         exposedPort: 7882
         protocol: UDP
+    # -------------------------------------------------------------------------
+    # Trust Caddy's forwarded client IP -- and only Caddy's.
+    #
+    # Before the Incus cutover, Traefik terminated TLS itself and every request
+    # arrived over the public interface, so the TCP peer WAS the real client.
+    # `ipAllowList.sourceRange` on the wireguard-vpn-only / lan-or-vpn
+    # middlewares therefore evaluated the actual client address.
+    #
+    # Caddy now fronts all 20 hostnames and proxies back to 10.0.0.1:443, so
+    # every TCP peer is Caddy at 10.0.0.100. Traefik compares THAT against
+    # sourceRange, finds it is not in 100.64.0.0/10, and answers 403 -- for
+    # every VPN user, on every gated ingress. The real client address is present
+    # in X-Forwarded-For and was being ignored.
+    #
+    # trustedIPs, not `insecure: true`. insecure trusts the header from anyone
+    # who can open a connection, which would let a client forge its own source
+    # address and walk straight through the VPN-only gate protecting 17 internal
+    # services. Only 10.0.0.100 is trusted: that address is reachable solely
+    # from the host and from containers on incusbr0, so the trust boundary is
+    # exactly the bridge.
+    #
+    # additionalArguments rather than ports.websecure.forwardedHeaders because the
+    # chart version is not pinned anywhere in this repository -- apps/traefik/
+    # ships only this HelmChartConfig, not the chart itself -- and the flag form
+    # does not depend on the chart's schema for the key being present.
+    #
+    # Only websecure needs it: all 17 gated ingresses set
+    # traefik.ingress.kubernetes.io/router.entrypoints: websecure, and none use
+    # the plain web entrypoint.
+    additionalArguments:
+      - "--entrypoints.websecure.forwardedHeaders.trustedIPs=10.0.0.100/32"
