@@ -24,23 +24,8 @@ let
     eth0 = {
       type = "nic";
       name = "eth0";
+      network = "eno1";
       nictype = "bridged";
-
-      # `parent`, and it must name a *bridge*.
-      #
-      # `network = "eno1"` fails even though `incus network show eno1` lists an
-      # unmanaged physical network in project default:
-      #   Failed to load network "eno1" for project "default": Network not found
-      #
-      # And `parent = "eno1"` -- a bare NIC -- validates, then fails to start:
-      #   Failed to start device "eth0": Failed to connect to OVS
-      # because nic_bridged.go does
-      #   nativeBridge := network.IsNativeBridge(d.config["parent"])
-      #   if nativeBridge { setupNativeBridgePortVLANs } else { setupOVSBridgePortVLANs }
-      # and a bare NIC is not a native bridge, so Incus assumes OVS -- which is
-      # not running here. Hence br0, the bridge the host now creates around eno1.
-      # See nixos/hosts/homelab/network.nix, which is where that is defined.
-      parent = "br0";
 
       # Pinned rather than left to Incus. The guest matches on this MAC to
       # configure its address, and an Incus-assigned MAC that changes on

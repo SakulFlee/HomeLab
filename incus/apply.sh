@@ -183,47 +183,38 @@ build_artifacts() {
   local -a roots metadata_files
 
   step "building image"
-
-  # The only thing that differs between a container and a VM is where the rootfs
-  # comes from: a squashfs for a container, a qcow2 disk for a VM. Both get a
-  # metadata tarball the same way, because lxc-instance-common.nix -- imported
-  # by both lxc-container.nix and incus-virtual-machine.nix -- pulls in
-  # lxc-image-metadata.nix, so system.build.metadata exists either way.
-  #
-  # A VM is *not* a single-artefact import. That was wrong when first written,
-  # and it cost a failed deploy to find out: `incus image import` takes
-  # `(<tarball>|<directory>|<URL>) [<rootfs tarball>]`, and the first argument is
-  # always the metadata source. Handing it a bare .qcow2 makes Incus read the
-  # disk as a metadata tarball and fail with
-  #   Error: Metadata tarball is missing metadata.yaml
-  # Both kinds therefore pass two arguments, and the VM type is inferred by the
-  # Incus CLI from the rootfs filename ending in .qcow2.
   if [[ $kind == vm ]]; then
-    sq_out=$(nix build "$FLAKE_DIR#nixosConfigurations.$name.config.system.build.qemuImage" \
+    # A VM is one qcow2 disk. incus-virtual-machine.nix names it
+    # system.build.qemuImage and emits a single .qcow2; there is no metadata
+    # tarball, because the disk *is* the image.
+    md_out=$(nix build "$FLAKE_DIR#nixosConfigurations.$name.config.system.build.qemuImage" \
       --no-link --print-out-paths)
-  else
-    sq_out=$(nix build "$FLAKE_DIR#nixosConfigurations.$name.config.system.build.squashfs" \
-      --no-link --print-out-paths)
+
+    shopt -s nullglob
+    roots=("$md_out"/*.qcow2)
+    shopt -u nullglob
+
+    [[ ${#roots[@]} -eq 1 ]] || die "expected one qcow2 in $md_out, found ${#roots[@]}"
+    # One line only. The caller tells a VM from a container by the *number* of
+    # lines, and a trailing blank line would read as a third, empty artefact:
+    # `mapfile -t` on "path\n\n" yields "path", "", "" because the here-string
+    # adds a further newline.
+    printf '%s\n' "${roots[0]}"
+    return 0
   fi
 
-  shopt -s nullglob
-  if [[ $kind == vm ]]; then
-    roots=("$sq_out"/*.qcow2)
-  else
-    # .img is what older nixpkgs emitted, .squashfs what current emits.
-    roots=("$sq_out"/*.squashfs "$sq_out"/*.img)
-  fi
-  shopt -u nullglob
-
-  [[ ${#roots[@]} -eq 1 ]] || die "expected one rootfs image in $sq_out, found ${#roots[@]}"
-
+  sq_out=$(nix build "$FLAKE_DIR#nixosConfigurations.$name.config.system.build.squashfs" \
+    --no-link --print-out-paths)
   md_out=$(nix build "$FLAKE_DIR#nixosConfigurations.$name.config.system.build.metadata" \
     --no-link --print-out-paths)
 
   shopt -s nullglob
+  # .img is what older nixpkgs emitted, .squashfs what current emits.
+  roots=("$sq_out"/*.squashfs "$sq_out"/*.img)
   metadata_files=("$md_out"/tarball/*.tar.xz "$md_out"/*.tar.xz)
   shopt -u nullglob
 
+  [[ ${#roots[@]} -eq 1 ]] || die "expected one rootfs image in $sq_out, found ${#roots[@]}"
   [[ ${#metadata_files[@]} -eq 1 ]] \
     || die "expected one metadata tarball in $md_out, found ${#metadata_files[@]}"
 
@@ -287,17 +278,20 @@ import_image() {
     # because Incus is reading the squashfs as the metadata. The old LXD-era
     # examples online have this backwards.
     #
-    # Unconditional, and two arguments for a VM exactly as for a container.
-    # There is no --type flag on `incus image import`: the Incus CLI derives the
-    # image type from the rootfs filename's extension, sending it as the
-    # `rootfs.img` multipart part when it ends in .qcow2 and `rootfs`
-    # otherwise (cmd/incus/image.go). So a VM needs its metadata tarball just as
-    # much as a container does -- a bare .qcow2 on its own is read as the
-    # metadata source and rejected.
+    # A VM has no metadata tarball -- the qcow2 *is* the image -- so it is
+    # passed alone. Passing an empty second argument is not equivalent: Incus
+    # would try to read "" as a rootfs.
     #
     # Deliberately no --reuse: it deletes an existing image that already carries
     # the alias.
-    if output=$(incus image import "$metadata_tarball" "$rootfs" --alias "$alias" 2>&1); then
+    local -a import_args
+    if [[ -z $metadata_tarball ]]; then
+      import_args=("$rootfs")
+    else
+      import_args=("$metadata_tarball" "$rootfs")
+    fi
+
+    if output=$(incus image import "${import_args[@]}" --alias "$alias" 2>&1); then
       :
     elif grep -qi "already exists" <<<"$output"; then
       # This is a real failure, not a polite no-op:
@@ -366,7 +360,7 @@ instance_field() {
 
 ensure_volumes() {
   local name=$1 spec=$2 kind=$3 volume pool volume_name description current
-  local vtype
+  local vtype incus_type
   local -a volumes
 
   # mapfile then for, never `while read ... done < <(jq)`. The while-read form
@@ -383,18 +377,7 @@ ensure_volumes() {
 
     # A container's data volume is a filesystem Incus mounts at `path`. A VM
     # cannot have that: a guest gets raw block devices and mounts them itself,
-    # so its data volume has *block content*.
-    #
-    # `block` is a content type, not a volume type. Incus's volume types are
-    # container / custom / virtual-machine / image, and both a container's data
-    # volume and a VM's data disk are `custom` -- they differ only in
-    # content_type. So the API path below is `custom` either way, while the
-    # content type is what actually has to differ, and it is passed to
-    # `storage volume create --type`.
-    #
-    # Getting this wrong is not subtle but is easy to reason about wrongly:
-    #   Error: Invalid storage volume type name
-    # from the PATCH, because `/volumes/block/` is not a route.
+    # so its data volume is `block`.
     #
     # Default by instance type rather than making every spec say so, so adding a
     # volume to a container keeps working unchanged.
@@ -403,8 +386,9 @@ ensure_volumes() {
       if [[ $kind == vm ]]; then vtype=block; else vtype=filesystem; fi
     fi
     case $vtype in
-      block|filesystem) ;;
-      *) die "$name's volume $volume_name has content type '$vtype' (want block or filesystem)" ;;
+      block) incus_type=block ;;
+      filesystem) incus_type=custom ;;
+      *) die "$name's volume $volume_name has type '$vtype' (want block or filesystem)" ;;
     esac
 
     # Pool and volume are separate positional arguments, not "pool/volume":
@@ -434,14 +418,15 @@ ensure_volumes() {
       # Read via the API, not `incus storage volume show`: that prints YAML,
       # and piping it to jq dies with
       #   jq: parse error: Invalid numeric literal at line 1, column 7
-      # `custom` for every volume here, whatever its content type. See the note
-      # above: `block` is a content type and `/volumes/block/` is not a route.
-      current=$(incus query "/1.0/storage-pools/$pool/volumes/custom/$volume_name" \
+      # The path segment is Incus's own name for the type, not ours: a
+      # filesystem volume is `custom`, a block volume is `block`. Hardcoding
+      # `custom` 404s on every block volume.
+      current=$(incus query "/1.0/storage-pools/$pool/volumes/$incus_type/$volume_name" \
         | jq -r '.description // ""')
       if [[ $current != "$description" ]]; then
         incus_run query -X PATCH \
           -d "$(jq -cn --arg d "$description" '{description: $d}')" \
-          "/1.0/storage-pools/$pool/volumes/custom/$volume_name"
+          "/1.0/storage-pools/$pool/volumes/$incus_type/$volume_name"
       fi
     fi
   done
@@ -1172,12 +1157,15 @@ apply_instance() {
   fi
   mapfile -t artifacts <<<"$build_output"
 
-  # Two for both kinds: the rootfs (a squashfs, or a qcow2 for a VM) plus the
-  # metadata tarball. `kind` chose where the rootfs came from; it does not change
-  # how many artefacts there are.
-  [[ ${#artifacts[@]} -eq 2 ]] || die "expected two build artifacts, got ${#artifacts[@]}"
+  # Two artefacts for a container (rootfs + metadata tarball), one for a VM (the
+  # qcow2 is the whole image). The count is the discriminator, so build_artifacts
+  # must not pad a VM's output to match.
+  case ${#artifacts[@]} in
+    1) metadata="" ;;
+    2) metadata=${artifacts[1]} ;;
+    *) die "expected 1 build artefact (vm) or 2 (container), got ${#artifacts[@]}" ;;
+  esac
   rootfs=${artifacts[0]}
-  metadata=${artifacts[1]}
 
   if [[ $CHECK_ONLY == 1 ]]; then
     if [[ $existed == 1 ]]; then
@@ -1204,22 +1192,11 @@ apply_instance() {
 
   if [[ $existed == 0 ]]; then
     step "creating $name"
-    # `--vm`, a boolean flag, NOT `-t virtual-machine`.
-    #
-    # `-t/--type` on `incus create` selects a *resource-limit preset* -- c2, m4,
-    # and so on -- not the container/VM distinction. Its help text reads
-    # "Instance type", which is exactly the wrong name to be guessing from. The
-    # server validates the value by splitting on "-" and requiring each field to
-    # start with 'c' or 'm', so both spellings fail identically:
-    #   Error: Provided instance type doesn't exist: vm
-    #   Error: Provided instance type doesn't exist: virtual-machine
-    #
-    # Explicit rather than relying on Incus inferring the type from the image.
-    # Inference would work -- the imported image is typed virtual-machine -- but
-    # "probably" is not a good property for the flag that decides whether this is
-    # a container or a VM.
+    # -t vm is explicit rather than relying on Incus inferring the type from the
+    # image. Inference is probably fine, but "probably" is not a good property
+    # for the one flag that decides whether this is a container or a VM.
     if [[ $kind == vm ]]; then
-      incus_run create "$fingerprint" "$name" -p default --vm
+      incus_run create "$fingerprint" "$name" -p default -t vm
     else
       incus_run create "$fingerprint" "$name" -p default
     fi
