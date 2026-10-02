@@ -73,6 +73,7 @@ in
       # tunnel rather than over this NIC.
       DNS = [ "1.1.1.1" "9.9.9.9" ];
     };
+  };
 
   # 192.168.178.210 must be outside the router's DHCP pool, or it will eventually
   # be handed to something else and the two will fight. Reserved on the router.
