@@ -30,10 +30,19 @@ let
   # anything the host serves.
   bridgeMac = "00:16:3e:00:00:11";
 
+  # The host's own LAN address. Reachable from the tunnel only through the /32
+  # route below, and that is deliberate: clients are handed this address as
+  # their resolver and as the answer to all twenty split-horizon names, so
+  # changing where those point means regenerating every client config. Keeping
+  # the address reachable is what avoids having to.
+  hostAddress = "192.168.178.200";
+
   # The bridge address, and the subnet the forward rule below permits the
   # tunnel to reach. Not configurable per-direction: the rule matches on
   # destination so it does not depend on which interface the kernel calls the
   # second NIC, which is a name we would otherwise have to hardcode or guess.
+  # It is enp6s0, incidentally. Guessing enp5s0 -- eth0's name -- would have
+  # produced a rule that was accepted and never matched.
   bridgeNetwork = "10.0.0.0/24";
   bridgeAddress = "10.0.0.110";
 in
@@ -111,6 +120,48 @@ in
     networkConfig = {
       Address = [ "${bridgeAddress}/24" ];
     };
+
+    # The host's LAN address, reached over the bridge.
+    #
+    # This is the one route that makes the tunnel useful, and it exists because
+    # of a specific asymmetry: clients are told to use 192.168.178.200 as their
+    # DNS server, and every split-horizon name resolves to it. Neither can work
+    # while the host is unreachable, and macvlan cannot reach it.
+    #
+    # Next hop 10.0.0.1 is this same host on incusbr0, so this is a hairpin: a
+    # packet addressed to a LAN address arrives on the bridge interface. The
+    # host accepts it, because it is bound to that address and Linux delivers on
+    # the local address regardless of which interface a packet came in on.
+    # Verified live before being written here, since the alternative -- the
+    # router redirecting us straight back onto macvlan -- does not work:
+    #
+    #   ping 192.168.178.200          -> unreachable
+    #   ip route add 192.168.178.200/32 via 10.0.0.1 dev enp6s0
+    #   ping 192.168.178.200          -> 0% loss, 0.19ms
+    #   host -t A incus.sakul-flee.de 192.168.178.200
+    #                                   -> 192.168.178.200   (not Cloudflare)
+    #   host -t A example.com 192.168.178.200
+    #                                   -> 172.66.147.243   (still forwarded)
+    #
+    # /32, not /24. The connected 192.168.178.0/24 on the LAN NIC has to keep
+    # winning for everything else on the LAN -- NAS at .250, the router's admin
+    # UI at .1 -- and only the host is unreachable that way.
+    #
+    # The return trip is the host's route in
+    # nixos/hosts/homelab/network.nix. This VM needs no matching entry:
+    # 100.64.0.0/24 is connected on wg0, so the reply is addressed somewhere
+    # this VM already has a route to.
+    routes = [
+      {
+        # 10.0.0.1, NOT the destination. The destination is this host's LAN
+        # address and the next hop is the same host on the bridge it can be
+        # reached over. Putting the LAN address in Gateway would ask the kernel
+        # to resolve it on this interface, where it does not exist.
+        Gateway = "10.0.0.1";
+        Destination = "${hostAddress}/32";
+      }
+    ];
+
     linkConfig.RequiredForOnline = false;
   };
 
