@@ -583,7 +583,31 @@ render_secrets() {
     [[ $needs_write == 0 ]] && continue
 
     step "rendering $name:$file (mode $mode${group:+, group $group})"
-    cmd="umask 077 && cat > $path"
+    # mkdir -p the parent first, with the mode stated explicitly.
+    #
+    # apply.sh cannot assume the directory exists. Caddy happens to have one
+    # because a volume is mounted at exactly /var/lib/incus-secrets and Incus
+    # creates the mount point for it. A guest cannot: `path` is stripped from a
+    # VM's disk devices (a container gets a bind mount, a VM gets a raw block
+    # device and mounts it itself), so the wireguard VM has nothing at that path
+    # and the first render died with
+    #   sh: ... /var/lib/incus-secrets/wireguard-ui-password: No such file or
+    #   directory
+    # with nothing to say the directory was the missing piece.
+    #
+    # `chmod` rather than trusting mkdir's default, because mkdir applies the
+    # umask and that is only set later in this same chain. 0700: these are
+    # secrets, and the files inside are 0400.
+    #
+    # PATH is exported because `incus exec -- sh -c` does not get a usable one.
+    # The guest inherits /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:
+    # /bin, where a NixOS system has no coreutils at all -- ls, head and mkdir
+    # are all "command not found". The NixOS profile lives at
+    # /run/current-system/sw/bin. Same trap as the missing `logger` in disk.nix:
+    # a NixOS exec environment does not carry the PATH a shell script assumes.
+    cmd="export PATH=/run/current-system/sw/bin:\$PATH"
+    cmd="$cmd && mkdir -p /var/lib/incus-secrets && chmod 0700 /var/lib/incus-secrets"
+    cmd="$cmd && umask 077 && cat > $path"
     # chgrp before chmod: chown-family calls can clear setuid/setgid bits, and
     # the mode is the thing being asserted here.
     [[ -n $group ]] && cmd="$cmd && chgrp $group $path"

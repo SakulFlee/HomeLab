@@ -141,19 +141,53 @@ in
 
     username = "admin";
 
-    # Both rendered into this instance by incus/apply.sh from the host's sops
-    # secrets. The VM never sees a decryption key -- it gets the plaintext, and
-    # only these two values.
+    # No passwordFile and no sessionSecretFile, and neither default is set.
     #
-    # On the root disk, not on the data volume, and that is deliberate. The data
-    # volume holds the client database and must survive a re-create; the root
-    # disk is wiped on re-create, which makes a missing secret *loud* -- the
-    # service cannot start -- rather than silent. apply.sh re-renders and
-    # restarts on the next reconcile. Putting them under the mount point would
-    # mean writing them to the root disk anyway and having the mount shadow
-    # them, leaving the service running on copies that stopped being current.
-    passwordFile = "/var/lib/incus-secrets/wireguard-ui-password";
-    sessionSecretFile = "/var/lib/incus-secrets/wireguard-ui-session-secret";
+    # Both are left unset deliberately:
+    #
+    #   passwordFile       WGUI_PASSWORD_FILE only seeds the admin account on the
+    #                      very first start, when the users table is empty
+    #                      (store/jsondb/jsondb.go). After that the stored hash is
+    #                      authoritative and the file is never read again -- so it
+    #                      cannot track a password changed in the UI, which is
+    #                      where the password is meant to be changed. Upstream's
+    #                      documented flow is exactly this: start as admin/admin,
+    #                      then change it in the UI.
+    #
+    #   sessionSecretFile  -session-secret is read at every start, so this one
+    #                      would work -- but see the note on renderedSecrets in
+    #                      incus.nix. The accepted consequence of leaving it unset
+    #                      is that session cookies are signed with the compiled-in
+    #                      default, a constant published in the upstream source.
+    #                      Safe only because the UI is VPN-gated.
+  };
+
+  # ---------------------------------------------------------------------
+  # The tunnel
+  # ---------------------------------------------------------------------
+  # wireguard-ui is a config generator, not a WireGuard implementation. It writes
+  # wg0.conf and nothing more: across the whole of v0.6.2 there is no os/exec, and
+  # the single wgctrl.New() is in the read-only status page. Upstream is explicit
+  # about this -- its systemd section is a wgui.path + wgui.service pair whose
+  # ExecStart is `systemctl restart wg-quick@wg0.service`. The UI writes the file
+  # and systemd applies it. Treating the missing interface as a bug, as I did,
+  # sends you looking for a feature that is not supposed to exist.
+  #
+  # So: NixOS's own networking.wg-quick does the applying, which is the same
+  # mechanism under a different name. Its configFile option exists for exactly
+  # this case -- "a useful means of configuring WireGuard if one has an existing
+  # .conf file" -- and it stages the file to /tmp/wg0.conf in ExecStart, not at
+  # build time. That matters: a build-time copy could not work, because the file
+  # does not exist until wireguard-ui has run. Every start re-reads it, so a
+  # rebuild is never required.
+  #
+  # `networking.wg-quick` also brings its own PATH (wireguard-tools), the
+  # modprobe, and After=network-online.target, none of which this module has to
+  # arrange. The one thing it does not do is notice that the file changed, which
+  # is the wgui.path unit in wireguard-ui.nix.
+  networking.wg-quick.interfaces.wg0 = {
+    configFile = "${config.services.wireguard-ui.configFilePath}";
+    autostart = true;
   };
 
   # ---------------------------------------------------------------------

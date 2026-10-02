@@ -96,36 +96,44 @@ in
 
   devices = devices;
 
-  # The web UI login password and its session cookie key, rendered in from the
-  # host's sops secrets. The VM never sees a decryption key, only these values.
+  # No renderedSecrets, deliberately.
   #
-  # format = "raw", not the default "env": these are bare secrets, not KEY=value
-  # pairs, and WGUI_PASSWORD_FILE wants a file whose entire contents are the
-  # value. Writing `PASSWORD=...` into it would make the password literally
-  # "PASSWORD=...".
+  # Both of the secrets this used to render are dead weight for this instance:
   #
-  # 0400 root:root, the default, is correct here. wireguard-ui runs as root (it
-  # needs CAP_NET_ADMIN to bring wg0 up over netlink) and nothing else in this
-  # VM reads these files. caddy's PEMs need mode/group because that service drops
-  # privileges; this one does not.
-  renderedSecrets = [
-    {
-      format = "raw";
-      file = "wireguard-ui-password";
-      source = "/run/secrets/wireguard_ui_password";
-    }
-    {
-      format = "raw";
-      file = "wireguard-ui-session-secret";
-      source = "/run/secrets/wireguard_ui_session_secret";
-    }
-  ];
+  #   wireguard_ui_password          WGUI_PASSWORD_FILE is documented upstream as
+  #                                  "used for db initialization only". The admin
+  #                                  user is created once, when the users table is
+  #                                  empty, and its password hash is then
+  #                                  authoritative. Upstream's own guidance is to
+  #                                  start with the default admin/admin and change
+  #                                  it in the UI once the server is up -- not to
+  #                                  pre-seed a password and leave it. Rendering
+  #                                  it could not keep the account in sync with
+  #                                  the UI afterwards in any case: a password
+  #                                  changed in the UI never round-trips back to
+  #                                  sops.
+  #
+  #   wireguard_ui_session_secret    -session-secret is read at every start, so
+  #                                  this one does work, but the UI is only
+  #                                  reachable over the VPN, which needs a working
+  #                                  tunnel, which needs this file to already
+  #                                  exist. Rendering it needs apply.sh running
+  #                                  as root before the first boot completes --
+  #                                  a genuine ordering dependency for a
+  #                                  convenience. Dropped, and the consequence is
+  #                                  accepted: the compiled-in default is a
+  #                                  constant published in the upstream source, so
+  #                                  session cookies are forgeable by anyone who
+  #                                  has read it. That is acceptable only because
+  #                                  the UI is VPN-gated; it is not acceptable if
+  #                                  this vhost is ever exposed to the LAN.
+  #
+  # The consequence worth stating plainly: because the password is initialised
+  # from a default on first start, a fresh volume comes up as admin/admin. That
+  # is the documented upstream behaviour and the reason the UI is not reachable
+  # until the VPN is up.
+  renderedSecrets = [ ];
 
-  # wireguard-ui.service reads both of the above, and cannot start without them:
-  # the password file is how the admin login is created, and the session secret
-  # is passed on the command line by the wrapper in wireguard-ui.nix. So on a
-  # first deploy the unit is expected to fail until apply.sh renders them and
-  # restarts it. That is the same arrangement as caddy's, and it is why this
-  # list exists -- without it the service would stay down until the next reboot.
-  secretConsumers = [ "wireguard-ui.service" ];
+  # Nothing consumes a rendered secret, so nothing needs restarting after one.
+  secretConsumers = [ ];
 }

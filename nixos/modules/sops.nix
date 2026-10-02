@@ -42,23 +42,36 @@
 
   sops.secrets.incus_client_key = {};
 
-  # The login password and session cookie key for the wireguard VM's web UI.
+  # No sops.secrets for the wireguard VM's web UI, and that is a decision rather
+  # than an omission.
   #
-  # Declared on the host for the same reason as everything above: the VM gets
-  # the rendered bytes and no decryption capability. That matters more here than
-  # for Caddy, because this credential can add a VPN client -- and a VPN client
-  # reaches the entire homelab, including this Incus host.
+  # Two were declared here and both are gone:
   #
-  # Neither may be left unset. wireguard-ui's compiled-in defaults are
-  # admin/admin and a fixed session secret that is published in its own source,
-  # so an unset value here means an admin UI anyone can log into, whose session
-  # cookies anyone can forge.
-  sops.secrets.wireguard_ui_password = {};
-
-  # Not a password -- just a long random string used to encrypt session cookies.
-  # Generated with `openssl rand -base64 48` when these were created; there is
-  # nothing to remember and nothing to rotate unless a cookie is suspected.
-  sops.secrets.wireguard_ui_session_secret = {};
+  #   wireguard_ui_password        WGUI_PASSWORD_FILE is documented upstream as
+  #                                "used for db initialization only". The admin
+  #                                hash is written once, when the users table is
+  #                                empty, and is authoritative from then on. A
+  #                                password changed in the UI never comes back to
+  #                                sops, so this could not have kept the account
+  #                                in sync -- it would have been a secret that
+  #                                looked governed and was not. Upstream's own
+  #                                guidance is to start as admin/admin and change
+  #                                it in the UI, which is what happens.
+  #
+  #   wireguard_ui_session_secret  would have worked, but only at the cost of an
+  #                                ordering constraint that cannot be honoured:
+  #                                the UI is reachable only over the VPN, the VPN
+  #                                needs this file, and the file is rendered by an
+  #                                apply.sh run that has to happen after the guest
+  #                                is already up. Rendering it needs root before
+  #                                the first boot completes.
+  #
+  # The accepted consequence of dropping it: the admin UI signs session cookies
+  # with the compiled-in default, a constant published in the upstream source, so
+  # cookies are forgeable by anyone who has read it. That is tolerable only
+  # because the UI is VPN-gated. If this vhost is ever reachable without the
+  # tunnel, put the secret back here and re-add the -session-secret flag to the
+  # wrapper in hosts/wireguard/wireguard-ui.nix.
 
   environment.systemPackages = with pkgs; [
     sops

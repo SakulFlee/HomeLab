@@ -9,41 +9,34 @@
 #   * the client database is opened as the *relative* path ./db
 #     (main.go: jsondb.New("./db")), which makes the systemd working directory
 #     load-bearing -- see dataDir below;
-#   * there is no exec.Command anywhere in the source, so the interface is
-#     configured over netlink with wgctrl rather than by shelling out to
-#     wg-quick. That is why wireguard-tools is not a dependency here.
+#   * there is no os/exec anywhere in the source, and the only wgctrl.New() is in
+#     the read-only status page, so this binary cannot bring an interface up at
+#     all. It writes wg0.conf and stops; applying that file is systemd's job.
+#     Upstream ships a wgui.path + wgui.service pair for exactly that, and here
+#     the same job is done by NixOS's own networking.wg-quick. See the tunnel
+#     section of hosts/wireguard/default.nix.
 { config, lib, pkgs, ... }:
 
 let
   cfg = config.services.wireguard-ui;
 
-  # -session-secret takes its value inline on the command line, so it cannot be
-  # passed through the environment or an EnvironmentFile. A wrapper is the only
-  # way to keep it out of the Nix store (and therefore out of world-readable
-  # /nix/store, where anyone on the LAN could read it).
+  # The binary is exec'd directly instead of through a generated wrapper.
   #
-  # This matters: the compiled-in default is a fixed string in the upstream
-  # source, published in every checkout of it. Left alone, anyone who has read
-  # it can mint a session cookie for the admin UI and skip the login entirely.
-  # The UI can add a client that reaches the whole homelab.
-  wrapper =
-    let
-      quoted = lib.escapeShellArgs cfg.extraArgs;
-      secretFlag =
-        if cfg.sessionSecretFile == null then
-          ""
-        else
-          # `cat` inside a subshell rather than a Nix readFile, so the value is
-          # only ever read at service start.
-          ''-session-secret "$(cat ${cfg.sessionSecretFile})"'';
-    in
-    pkgs.writeShellScript "wireguard-ui-wrapper" ''
-      set -eu
-      exec ${lib.getExe cfg.package} \
-        -bind-address ${cfg.bindAddress} \
-        ${secretFlag} \
-        ${quoted}
-    '';
+  # A wrapper used to exist for one reason: -session-secret takes its value
+  # inline on the command line, so it could not be passed by environment or
+  # EnvironmentFile, and a generated script was the only way to keep it out of
+  # the world-readable Nix store. With sessionSecretFile gone there is nothing
+  # left to wrap.
+  #
+  # What remains is a bind address and extraArgs, both of which are not secret
+  # and are equally visible either way. A wrapper would only add a store path
+  # between systemd and the binary.
+  wrapper = pkgs.writeShellScript "wireguard-ui-wrapper" ''
+    set -eu
+    exec ${lib.getExe cfg.package} \
+      -bind-address ${cfg.bindAddress} \
+      ${lib.escapeShellArgs cfg.extraArgs}
+  '';
 in
 {
   options.services.wireguard-ui = {
@@ -158,30 +151,17 @@ in
       description = "Web UI login name.";
     };
 
-    passwordFile = lib.mkOption {
-      type = lib.types.path;
-      example = "/run/secrets/wireguard-ui-password";
-      description = ''
-        File holding the web UI password. Use a file rather than `password` so
-        the value comes from the host's sops secrets at deploy time and never
-        enters the Nix store.
+    # No passwordFile / password option. The admin account is created once, from
+    # a default, and its hash is authoritative from then on; the password is
+    # changed in the UI, which is what upstream documents. A Nix-side password
+    # would not be read again after that first start, so it could not track the
+    # change -- and nothing written here would ever be written back to sops.
 
-        Note this is read on first start only: the login user is created in the
-        database then, and changing the file afterwards does not rotate it.
-        Rotate through the UI, or delete the user record on the data volume.
-      '';
-    };
-
-    sessionSecretFile = lib.mkOption {
-      type = lib.types.nullOr lib.types.path;
-      default = null;
-      description = ''
-        File holding the session cookie key. Strongly recommended, and not
-        optional in practice: the compiled-in default is a constant in the
-        upstream source, so leaving it unset leaves the admin UI's session
-        cookies forgeable by anyone who has read the source.
-      '';
-    };
+    # No sessionSecretFile option. It is deliberately not offered: see the note
+    # on renderedSecrets in hosts/wireguard/incus.nix for why the compiled-in
+    # default is accepted for this instance. If that ever stops being true, the
+    # option to add back is a -session-secret flag on the wrapper above, fed
+    # from a rendered secret.
 
     logLevel = lib.mkOption {
       type = lib.types.str;
@@ -216,7 +196,13 @@ in
       # exist".
       environment = {
         WGUI_USERNAME = cfg.username;
-        WGUI_PASSWORD_FILE = cfg.passwordFile;
+
+        # No WGUI_PASSWORD_FILE. Upstream documents it as "used for db
+        # initialization only", so it seeds the admin hash on the first start
+        # against an empty users table and is never read again. Changing the
+        # password in the UI afterwards does not consult it, and there is no path
+        # by which a password chosen in the UI is written back to sops. It would
+        # be a secret that looks managed and is not.
         WGUI_SERVER_INTERFACE_ADDRESSES = lib.concatStringsSep "," cfg.serverInterfaceAddresses;
         WGUI_SERVER_LISTEN_PORT = toString cfg.listenPort;
         WGUI_ENDPOINT_ADDRESS = cfg.endpointAddress;
@@ -261,15 +247,20 @@ in
         # there any more.
         RequiresMountsFor = [ cfg.dataDir ];
 
-        # Creates and configures the wg0 interface over netlink, so it needs
-        # CAP_NET_ADMIN. It runs as root for that reason rather than by choice.
-        AmbientCapabilities = [ "CAP_NET_ADMIN" ];
-        CapabilityBoundingSet = [ "CAP_NET_ADMIN" "CAP_NET_RAW" ];
-
-        # Modest hardening that does not fight the netlink work: ProtectSystem
-        # is left alone because the service writes its config file, and the
-        # kernel tunables/control groups are reachable only via the
-        # capabilities above.
+        # No capabilities, and it does not run as root by choice.
+        #
+        # This service only writes a config file and serves HTTP. It never touches
+        # netlink: there is no os/exec in the binary and the one wgctrl.New() is
+        # in the read-only status page. An earlier version of this module granted
+        # CAP_NET_ADMIN on the reasoning that the app configured wg0 itself -- it
+        # does not, and the capability was doing nothing. The interface belongs to
+        # networking.wg-quick, which runs `wg-quick up` in its own unit and brings
+        # its own privileges.
+        #
+        # PrivateTmp does not conflict with the private staging of
+        # /tmp/wg0.conf that networking.wg-quick does: those are different units
+        # with separate namespaces, and the copy is made by wg-quick's own
+        # ExecStart, not by this service.
         NoNewPrivileges = true;
         PrivateTmp = true;
         ProtectHome = true;
@@ -277,6 +268,77 @@ in
       };
 
       restartIfChanged = true;
+    };
+
+    # Re-apply the tunnel when the UI rewrites the config.
+    #
+    # This is upstream's `wgui.path`, and it is the only half of upstream's pair
+    # that is needed here. Upstream's wgui.service exists solely to run
+    # `systemctl restart wg-quick@wg0.service`; NixOS's networking.wg-quick
+    # already provides that unit as wg-quick-wg0.service, so hand-writing the
+    # service would only be a `systemctl restart` wrapper around something that
+    # already exists.
+    #
+    # The unit name is wg-quick-<iface>, NOT wg-quick@<iface>. Copying upstream's
+    # ExecStart verbatim would restart a unit that does not exist, and because it
+    # is Type=oneshot that failure is quiet -- which is how the tunnel would end
+    # up silently absent again.
+    #
+    # Why a path unit is needed at all: networking.wg-quick copies the config into
+    # /tmp/wg0.conf in its ExecStart, at runtime, on every start. Nothing watches
+    # the source file, so without this a save in the UI would rewrite wg0.conf and
+    # change nothing until the next reboot.
+    #
+    # A restart, not a reload, so this is upstream's behaviour and its cost:
+    # saving in the UI bounces wg0 and drops live connections for a moment. That
+    # is the documented trade-off; a `wg setconf` apply would avoid it but is not
+    # what upstream does.
+    systemd.paths.wgui = {
+      # PathChanged, not PathModified. Both are valid, but PathModified also
+      # fires on a bare touch; either alone gives one trigger per change, and
+      # setting both would restart wg-quick twice for a single save.
+      #
+      # PathChanged tolerates the file not existing yet, which matters because on
+      # a fresh volume wireguard-ui writes wg0.conf after systemd has already
+      # started the path unit. PathDoesNotExist would put the unit in a failed
+      # state until something else restarted it.
+      pathConfig.PathChanged = cfg.configFilePath;
+      wantedBy = [ "multi-user.target" ];
+
+      unitConfig = {
+        Description = "Re-apply wg0 when wireguard-ui rewrites its config";
+      };
+    };
+
+    # The action the path unit runs when the config changes.
+    #
+    # The name is deliberately `wgui.service`, because that is the name a
+    # `.path` unit looks for: systemd's PathChanged= runs `<trigger-unit>.service`
+    # for `<trigger-unit>.path`. Naming it anything else -- wgui-trigger, say --
+    # produces "Refusing to start, unit wgui.service to trigger not loaded", and
+    # since the path unit is Type=oneshot that failure is quiet.
+    #
+    # `wantedBy` on a .path generates RequiredBy, i.e. systemd pulls this in and
+    # orders it before the path unit. Ordering it before the *path* unit is what
+    # creates the cycle, though: paths.target wants every .path unit, and
+    # wg-quick's unit needs network-online.target, which is after paths.target.
+    # The first version of this had `before = [ "wgui.path" ]` and produced
+    #   basic.target/start after paths.target/start after wgui.path/start after
+    #   wgui-trigger.service/start - after basic.target
+    # with systemd deleting a job to break it. No `before` here: the RequiredBy
+    # dependency systemd creates is the right one, and ordering is left to it.
+    #
+    # try-restart, not restart: on the first change after a boot where wg-quick
+    # is already up this is a no-op-safe re-apply, but if wg-quick is not running
+    # (still waiting on network-online, say) try-restart declines rather than
+    # starting a tunnel that is not wanted yet. autostart handles the boot case.
+    systemd.services.wgui = {
+      description = "Restart wg-quick when wireguard-ui rewrites wg0.conf";
+      wantedBy = [ "wgui.path" ];
+      serviceConfig = {
+        Type = "oneshot";
+        ExecStart = "${pkgs.systemd}/bin/systemctl try-restart wg-quick-wg0.service";
+      };
     };
 
     # The config file is created empty so its parent directory exists and the
