@@ -72,36 +72,43 @@ in
       # split-horizon names, and it is unaffected because it travels over the
       # tunnel rather than over this NIC.
       DNS = [ "1.1.1.1" "9.9.9.9" ];
-
-      # Route to the Incus container network, via the host.
-      #
-      # incusbr0 (10.0.0.0/24) lives on the host, behind its LAN address. This
-      # VM is on the LAN over macvlan, so without an explicit route 10.0.0.0/24
-      # falls to the default gateway and is unreachable: `ping 10.0.0.100` from
-      # here fails 100%, and would have done so for every container equally. That
-      # is not a VPN fault -- the tunnel is fine, there was simply no path.
-      #
-      # The next hop is 192.168.178.200, the host, which already has
-      # net.ipv4.ip_forward = 1 (networking.firewall is disabled host-wide), so
-      # it forwards without further configuration. This is the one thing that was
-      # missing.
-      #
-      # The reply path needs no matching rule. Traffic from a VPN client is
-      # already masqueraded to 192.168.178.210 by the rule below, so a container
-      # replies to the VM's LAN address; the host routes that to the VM, which
-      # un-NATs it back down wg0. The container therefore sees every client as
-      # 192.168.178.210 -- the same trade-off as the LAN masquerade, one network
-      # in.
-      #
-      # Only containers need this. VMs on macvlan are on the LAN itself and are
-      # reachable via 192.168.178.0/24 already.
-      Routes = [
-        {
-          Destination = "10.0.0.0/24";
-          Gateway = "192.168.178.200";
-        }
-      ];
     };
+
+    # Route to the Incus container network, via the host.
+    #
+    # incusbr0 (10.0.0.0/24) lives on the host, behind its LAN address. This
+    # VM is on the LAN over macvlan, so without an explicit route 10.0.0.0/24
+    # falls to the default gateway and is unreachable: `ping 10.0.0.100` from
+    # here fails 100%, and would have done so for every container equally. That
+    # is not a VPN fault -- the tunnel is fine, there was simply no path.
+    #
+    # The next hop is 192.168.178.200, the host, which already has
+    # net.ipv4.ip_forward = 1 (networking.firewall is disabled host-wide), so
+    # it forwards without further configuration. This is the one thing that was
+    # missing.
+    #
+    # The reply path needs no matching rule. Traffic from a VPN client is
+    # already masqueraded to 192.168.178.210 by the rule below, so a container
+    # replies to the VM's LAN address; the host routes that to the VM, which
+    # un-NATs it back down wg0. The container therefore sees every client as
+    # 192.168.178.210 -- the same trade-off as the LAN masquerade, one network
+    # in.
+    #
+    # Only containers need this. VMs on macvlan are on the LAN itself and are
+    # reachable via 192.168.178.0/24 already.
+    #
+    # `routes`, not `Routes` inside networkConfig. It is a sibling of
+    # networkConfig -- a list of [Route] sections -- and networkConfig's keys are
+    # checked against systemd.network(5), which has no `Routes` key:
+    #   Systemd Network has extra fields [Routes].
+    #   A definition for option `systemd.network.networks."10-lan".networkConfig'
+    #   is not of type `attribute set of (systemd option)'.
+    routes = [
+      {
+        Destination = "10.0.0.0/24";
+        Gateway = "192.168.178.200";
+      }
+    ];
   };
 
   # 192.168.178.210 must be outside the router's DHCP pool, or it will eventually
