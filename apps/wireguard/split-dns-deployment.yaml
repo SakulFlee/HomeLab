@@ -1,0 +1,103 @@
+# The split-horizon resolver, as its own Deployment.
+#
+# WHY THIS EXISTS
+#
+# Until this was split out, the VPN and the resolver were two containers in a
+# single `wg-access-server` Deployment (see deployment.yaml). That coupling is
+# what this file undoes, and it was the reason retiring the k3s VPN could not be
+# done in one step:
+#
+#   CoreDNS here binds 192.168.178.200:53, the host's own LAN address, and
+#   answers the sixteen VPN-only service names privately. Everything else is
+#   forwarded upstream.
+#
+# It is not only for VPN clients. LAN clients use it too, because it is the
+# only resolver in the homelab that knows the split-horizon zone. Deleting the
+# shared Deployment to retire the VPN would therefore have taken DNS down for
+# every client on the network, not just the ones on the tunnel.
+#
+# So the resolver has to outlive the VPN, and it needs a lifecycle of its own.
+# Moving it to Incus is the eventual destination; keeping it here as an
+# independent Deployment is the intermediate step that makes retiring the VPN
+# safe, and it is deliberately a smaller change than moving the workload.
+#
+# hostNetwork: true is required and not incidental -- the Corefile's `bind`
+# line names 192.168.178.200, which is an address on the host, so the pod has
+# to share the host's network namespace to claim it. Same reason dnsPolicy has
+# to be ClusterFirstWithHostNet: with hostNetwork, the default ClusterFirst
+# policy resolves against the wrong resolv.conf and the pod cannot reach an
+# upstream forwarder at all.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: split-dns
+  namespace: wireguard
+  labels:
+    app: split-dns
+spec:
+  # Recreate, not RollingUpdate, and this is load-bearing rather than
+  # preference. Two pods cannot both bind 192.168.178.200:53, so a rolling
+  # update would start the replacement while the old one still holds the port
+  # and the new pod would CrashLoop until the old one happened to die. Recreate
+  # makes the handover sequential. Same reason replicas is left at 1.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: split-dns
+  template:
+    metadata:
+      labels:
+        app: split-dns
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      nodeSelector:
+        kubernetes.io/hostname: homelab
+      containers:
+        # Unchanged image from the container this was lifted out of. No reason
+        # to move it while the point of this file is to decouple lifecycles; the
+        # version belongs to the same change that migrates DNS to Incus.
+        - name: split-dns
+          image: coredns/coredns:1.12.4
+          imagePullPolicy: IfNotPresent
+          args:
+            - -conf
+            - /etc/coredns/Corefile
+          ports:
+            - name: dns-udp
+              containerPort: 53
+              protocol: UDP
+            - name: dns-tcp
+              containerPort: 53
+              protocol: TCP
+          readinessProbe:
+            tcpSocket:
+              port: 53
+            initialDelaySeconds: 2
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 53
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              memory: 64Mi
+          volumeMounts:
+            - name: split-dns-config
+              mountPath: /etc/coredns
+      volumes:
+        # The same ConfigMap the VPN deployment used, so the zone data stays in
+        # exactly one place. It is still named -v2 for its content; the version
+        # suffix is in the name because changing a ConfigMap does not restart
+        # anything, and at the time it was written this CoreDNS had no `reload`
+        # plugin. It has one now (see the Corefile), but the name is not worth
+        # churning along with a lifecycle split.
+        - name: split-dns-config
+          configMap:
+            name: wireguard-split-dns-v2

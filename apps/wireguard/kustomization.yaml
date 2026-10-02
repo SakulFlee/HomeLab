@@ -8,6 +8,21 @@ resources:
   - configmap.yaml
   - coredns-configmap.yaml
   - data-pvc.yaml
+  # The split-horizon resolver, which used to be the second container inside
+  # deployment.yaml. Listed BEFORE deployment.yaml on purpose, and the position
+  # is load-bearing: kustomize emits resources in this order, so the standalone
+  # resolver is created before the VPN Deployment is edited to drop its copy.
+  #
+  # Both bind 192.168.178.200:53, so the reverse order is the one that bites:
+  # the VPN Deployment would be reconciled first, its pod torn down, and only
+  # then the resolver created -- an interval with nothing on :53 at all, which
+  # takes DNS down for every client on the LAN, not just VPN ones.
+  #
+  # In this order the new resolver pod instead crash-loops briefly against the
+  # old one still holding the port, and recovers within its backoff as soon as
+  # the VPN pod releases it. A pod in CrashLoopBackOff is a visible, harmless
+  # state; an empty port 53 is not.
+  - split-dns-deployment.yaml
   - deployment.yaml
   - service.yaml
   - ingress.yaml
