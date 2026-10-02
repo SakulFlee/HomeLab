@@ -1,30 +1,51 @@
+# What remains in this directory is not a VPN.
+#
+# The wireguard-ui in the Incus VM is the VPN now: it serves UDP 51820 on
+# 192.168.178.210, which is where the router forwards, and the tunnel carries
+# real traffic. The wg-access-server that used to live here was retired along
+# with its Deployment, Service, Ingress, PVC, ConfigMap and SOPS Secret.
+#
+# Two things stayed behind, and both are still load-bearing:
+#
+#   split-dns-deployment.yaml  the split-horizon resolver, binding
+#                              192.168.178.200:53. It is the only resolver in
+#                              the homelab that knows the private zone, so LAN
+#                              clients depend on it as much as VPN ones do.
+#
+#   middleware-vpn-only.yaml   the gate that keeps the VPN-only service names
+#                              private. Referenced by fifteen ingresses across
+#                              nine other apps -- jellyfin, sonarr, radarr,
+#                              prowlarr, qbittorrent, qui, paperless,
+#                              syncthing, hermes, pvc-explorer, ollama,
+#                              open-webui, kube-prometheus, native-services and
+#                              fluxer -- so deleting it with the VPN would have
+#              broken access to every one of them at once.
+#
+# The directory keeps its name because Flux addresses it by path and renaming
+# would mean touching every reference for no gain.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 metadata:
   name: wireguard
   namespace: wireguard
 resources:
+  # Still required: the resolver and both middlewares live in this namespace.
   - namespace.yaml
-  - configmap.yaml
+
+  # The private zone. Referenced by split-dns-deployment.yaml, and kept in this
+  # one file so there is a single place to edit when an app is added -- the
+  # Corefile's own comments spell out that the name lists have to be edited in
+  # lockstep with each app's ingress.yaml.
   - coredns-configmap.yaml
-  - data-pvc.yaml
-  # The split-horizon resolver, which used to be the second container inside
-  # deployment.yaml. Listed BEFORE deployment.yaml on purpose, and the position
-  # is load-bearing: kustomize emits resources in this order, so the standalone
-  # resolver is created before the VPN Deployment is edited to drop its copy.
-  #
-  # Both bind 192.168.178.200:53, so the reverse order is the one that bites:
-  # the VPN Deployment would be reconciled first, its pod torn down, and only
-  # then the resolver created -- an interval with nothing on :53 at all, which
-  # takes DNS down for every client on the LAN, not just VPN ones.
-  #
-  # In this order the new resolver pod instead crash-loops briefly against the
-  # old one still holding the port, and recovers within its backoff as soon as
-  # the VPN pod releases it. A pod in CrashLoopBackOff is a visible, harmless
-  # state; an empty port 53 is not.
+
+  # The resolver itself, with the reasoning for its hostNetwork and Recreate
+  # strategy in the file.
   - split-dns-deployment.yaml
-  - deployment.yaml
-  - service.yaml
-  - ingress.yaml
+
+  # Both gates stay. vpn-only is referenced by fifteen ingresses. lan-or-vpn is
+  # currently referenced by nothing -- the VPN's own ingress was its only user
+  # and that is gone with it -- but it is a self-contained gate with no
+  # dependencies, and it is the natural definition for "reachable from the LAN
+  # or over the tunnel" when the next app wants one. Drop it if it never does.
   - middleware-vpn-only.yaml
   - middleware-lan-or-vpn.yaml

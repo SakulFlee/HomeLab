@@ -3,9 +3,8 @@
 # WHY THIS EXISTS
 #
 # Until this was split out, the VPN and the resolver were two containers in a
-# single `wg-access-server` Deployment (see deployment.yaml). That coupling is
-# what this file undoes, and it was the reason retiring the k3s VPN could not be
-# done in one step:
+# single `wg-access-server` Deployment. That coupling is what this file undoes,
+# and it was the reason retiring the k3s VPN could not be done in one step:
 #
 #   CoreDNS here binds 192.168.178.200:53, the host's own LAN address, and
 #   answers the sixteen VPN-only service names privately. Everything else is

@@ -193,7 +193,7 @@ in
         #                and with no trusted_proxies configured the gate becomes
         #                a one-header bypass.
         #
-        # The range is the wg-access-server VPN subnet, matching the
+        # The range is the WireGuard tunnel subnet, matching the
         # `vpn-only` Traefik middleware that already gates grafana, jellyfin,
         # paperless and the rest. Deliberately NOT lan-or-vpn: Caddy holds a
         # trusted client certificate, and Incus has no RBAC, so anything that
