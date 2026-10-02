@@ -74,48 +74,11 @@ in
       DNS = [ "1.1.1.1" "9.9.9.9" ];
     };
 
-    # Route to the Incus container network, via the host.
-    #
-    # incusbr0 (10.0.0.0/24) lives on the host, behind its LAN address. This
-    # VM is on the LAN over macvlan, so without an explicit route 10.0.0.0/24
-    # falls to the default gateway and is unreachable: `ping 10.0.0.100` from
-    # here fails 100%, and would have done so for every container equally. That
-    # is not a VPN fault -- the tunnel is fine, there was simply no path.
-    #
-    # The next hop is 192.168.178.200, the host, which already has
-    # net.ipv4.ip_forward = 1 (networking.firewall is disabled host-wide), so
-    # it forwards without further configuration. This is the one thing that was
-    # missing.
-    #
-    # The reply path needs no matching rule. Traffic from a VPN client is
-    # already masqueraded to 192.168.178.210 by the rule below, so a container
-    # replies to the VM's LAN address; the host routes that to the VM, which
-    # un-NATs it back down wg0. The container therefore sees every client as
-    # 192.168.178.210 -- the same trade-off as the LAN masquerade, one network
-    # in.
-    #
-    # Only containers need this. VMs on macvlan are on the LAN itself and are
-    # reachable via 192.168.178.0/24 already.
-    #
-    # `routes`, not `Routes` inside networkConfig. It is a sibling of
-    # networkConfig -- a list of [Route] sections -- and networkConfig's keys are
-    # checked against systemd.network(5), which has no `Routes` key:
-    #   Systemd Network has extra fields [Routes].
-    #   A definition for option `systemd.network.networks."10-lan".networkConfig'
-    #   is not of type `attribute set of (systemd option)'.
-    routes = [
-      {
-        Destination = "10.0.0.0/24";
-        Gateway = "192.168.178.200";
-      }
-    ];
-  };
-
   # 192.168.178.210 must be outside the router's DHCP pool, or it will eventually
   # be handed to something else and the two will fight. Reserved on the router.
 
-  # A bridged VM on the LAN, so it answers on the LAN. The web UI is bound to
-  # lanAddress rather than 0.0.0.0 for the reason given in wireguard-ui.nix.
+  # A VM on the LAN over macvlan, so it answers on the LAN. The web UI is bound
+  # to lanAddress rather than 0.0.0.0 for the reason given in wireguard-ui.nix.
   networking.firewall = {
     enable = true;
     allowedTCPPorts = [
@@ -230,16 +193,13 @@ in
     # Pre-filled Allowed IPs for new clients: split tunnel, not 0.0.0.0/0.
     #
     # Matches the ranges the k3s deployment used (apps/wireguard/configmap.yaml),
-    # minus 10.0.0.0/24's old meaning -- see below.
+    # minus 10.0.0.0/24 -- see the note below.
     #
     #   192.168.178.0/24  the LAN, including the host at .200 and every hostname
     #                     that resolves to it. This is how Caddy is reached: the
     #                     container's own 10.0.0.100 is not involved, because the
     #                     split-horizon names resolve to the host's LAN address
     #                     and Caddy binds 0.0.0.0 there.
-    #   10.0.0.0/24       the Incus container network, so a client can reach a
-    #                     container by its own address. Reachable because of the
-    #                     route added in 10-lan above.
     #   100.64.0.0/10     the tunnel, and deliberately /10 rather than /24 to
     #                     match the old config: anything DNAT'd through the host
     #                     can land in that range, and the Incus vhost gate admits
@@ -247,9 +207,22 @@ in
     #
     # Note the ranges are networks. 192.168.178.1/24 would match only that one
     # host, since a /24 has to start on the .0 boundary.
+    #
+    # No 10.0.0.0/24 here, and deliberately. It would be silently dead: this VM is
+    # on macvlan and cannot reach its own parent host, so there is no usable next
+    # hop into incusbr0. Measured, not assumed: `ping 192.168.178.200` from the
+    # VM is 100% loss while `ping 192.168.178.1` is 0%. An AllowedIPs entry that
+    # looks configured and times out is worse than one that is absent.
+    #
+    # Nothing needs it. Everything a client reaches is addressed on the host's LAN
+    # address: Caddy binds 0.0.0.0 and answers every hostname, and anything
+    # published the way Minecraft is today -- a k3s NodePort -- is bound on the
+    # host directly. When a game server moves to an LXC, an Incus `proxy` device
+    # puts it on the same host address and the same port, so no client config
+    # changes and this stays true. 10.0.0.0/24 only ever mattered for hitting a
+    # container by its bridge address, which is in-cluster debugging.
     defaultClientAllowedIPs = [
       "192.168.178.0/24"
-      "10.0.0.0/24"
       "100.64.0.0/10"
     ];
 
