@@ -1,6 +1,24 @@
 {
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+    # A release branch, not nixpkgs-unstable.
+    #
+    # Forgejo is the reason, and it is a hard constraint rather than a
+    # preference. The k3s deployment runs forgejo:16-rootless with
+    # pullPolicy: Always and is in fact on 16.0.5, which is what produced the
+    # database dump being restored. Forgejo's schema migrations only ever run
+    # forwards, so the binary must not be older than the data -- and on
+    # nixpkgs-unstable it was 16.0.0, whose Go (1.26.4) is below the
+    # `toolchain go1.26.5` that 16.0.5 requires. Go then discards the vendor
+    # tree and re-resolves, giving "inconsistent vendoring" from both
+    # directions. No choice of vendorHash fixes that.
+    #
+    # nixos-26.05 carries forgejo 16.0.5 and the Go to build it, so the version
+    # that matters is correct by construction instead of by override. See
+    # pkgs/forgejo.nix for what that removed.
+    #
+    # The cost is deliberate: future nixpkgs updates are no longer a plain
+    # `nix-update` of a moving ref, they are a re-pin of this branch.
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-26.05";
 
     sops-nix = {
       url = "github:Mic92/sops-nix";
