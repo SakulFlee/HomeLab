@@ -1,3 +1,4 @@
+{ pkgs, ... }:
 let
   # The WireGuard VM's second-NIC address on incusbr0, and the next hop for the
   # tunnel subnet. Must match bridgeAddress in nixos/hosts/wireguard/default.nix.
@@ -119,6 +120,28 @@ in
       Type = "oneshot";
       RemainAfterExit = true;
     };
+
+    # `ip` by absolute store path, not by name.
+    #
+    # A hand-written script = '' runs with systemd's default PATH (/usr/local/
+    # sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin), which contains no `ip`
+    # on NixOS -- the binary lives in the store. So the first version of this
+    # unit failed at boot with:
+    #
+    #   line 7: ip: command not found
+    #   Main process exited, code=exited, status=127
+    #
+    # The generated network-addresses-* units do not have this problem because
+    # NixOS sets an explicit Environment="PATH=" for them, carrying iproute2's
+    # bin. Nothing does that for a hand-written script, and a unit with
+    # RemainAfterExit plus wantedBy multi-user will not retry, so it stayed
+    # failed and the route stayed absent while the service claimed to be wired
+    # up. Same class as `logger` in nixos/hosts/wireguard/disk.nix, which needed
+    # an absolute path for the same reason.
+    #
+    # path= would also work and is more conventional, but naming the binary
+    # makes the dependency visible at the point of use.
+    path = [ pkgs.iproute2 ];
 
     script = ''
       # replace, not add: idempotent, so re-running is safe and converging
