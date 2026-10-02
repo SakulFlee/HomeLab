@@ -59,12 +59,19 @@ in
       Address = [ "${lanAddress}/24" ];
       Gateway = "192.168.178.1";
 
-      # The resolver is the host's split-horizon CoreDNS, still running in k3s
-      # at 192.168.178.200:53. Deliberate for now: moving the resolver in the
-      # same change as the VPN would mean debugging DNS and routing together.
-      # This VM is on the LAN, so it can reach it. Once DNS moves too, this
-      # becomes the VM's own address.
-      DNS = [ "192.168.178.200" ];
+      # Public resolvers, NOT the host's CoreDNS at 192.168.178.200.
+      #
+      # This NIC is macvlan (see incus.nix for why), and a macvlan interface
+      # cannot reach its own parent host -- a kernel property, not an Incus one.
+      # Pointing DNS at 192.168.178.200 would leave this VM with a resolver it
+      # can never query, which fails in a way that looks like DNS is broken
+      # rather than like the address is unreachable.
+      #
+      # Nothing is lost. The host runs no service this VM needs, and clients get
+      # their resolver via `dnsServers` below -- the one that actually matters for
+      # split-horizon names, and it is unaffected because it travels over the
+      # tunnel rather than over this NIC.
+      DNS = [ "1.1.1.1" "9.9.9.9" ];
     };
   };
 
@@ -116,6 +123,13 @@ in
     # name and port the router forwards UDP to, not this VM's LAN address.
     endpointAddress = "wg.sakul-flee.de:51820";
 
+    # Handed to VPN clients, and reachable because it is resolved *through the
+    # tunnel* -- a client has a route to 100.64.0.0/24 before it reads this -- so
+    # it does not depend on this VM's LAN path and works unchanged under macvlan.
+    #
+    # 192.168.178.200 is still right here even though the VM cannot reach it: that
+    # is the split-horizon resolver's address, and clients reach it over the VPN
+    # interface, never over the VM's macvlan NIC.
     dnsServers = [ "192.168.178.200" ];
 
     # 1420, matching the interface the k3s deployment uses today. The upstream

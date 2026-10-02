@@ -24,8 +24,30 @@ let
     eth0 = {
       type = "nic";
       name = "eth0";
-      network = "eno1";
-      nictype = "bridged";
+
+      # macvlan, not bridged, and deliberately.
+      #
+      # A bridge would be the textbook way to attach a guest to a physical LAN,
+      # but eno1 is the host's only NIC and it carries the only route into this
+      # machine -- 192.168.178.200 is where the router forwards UDP 51820, and
+      # where the VPN that gives remote access terminates. Bridging it means
+      # moving that address onto a bridge, and a bridge port cannot hold an
+      # address or a route, so the window in which the host has neither is a
+      # window in which the host is unreachable and unrecoverable remotely.
+      #
+      # macvlan adds a second logical interface on the same wire without
+      # touching eno1 at all. The host keeps its address, its route and its
+      # link, so there is no failure mode to design around: nixos/hosts/homelab/
+      # network.nix is not modified by this, and cannot be.
+      #
+      # The trade is that a macvlan interface cannot talk to its own parent
+      # host -- that is a kernel property, not an Incus one, and no amount of
+      # configuration changes it. Nothing here needs it to. The VPN needs the
+      # router to reach it and clients to reach each other, both of which are
+      # ordinary LAN traffic that macvlan handles fine. The host runs no DNS or
+      # database that a guest would have to reach; those belong in containers.
+      nictype = "macvlan";
+      parent = "eno1";
 
       # Pinned rather than left to Incus. The guest matches on this MAC to
       # configure its address, and an Incus-assigned MAC that changes on
