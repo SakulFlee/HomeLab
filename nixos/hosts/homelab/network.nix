@@ -51,5 +51,30 @@
     interface = "eno1";
   };
 
+  # The tunnel subnet, via the WireGuard VM. See nixos/hosts/wireguard/incus.nix.
+  #
+  # The VM reaches this host's containers over its second NIC, on incusbr0, and
+  # deliberately does not masquerade that traffic, so Caddy still sees the real
+  # 100.64.0.x client address and the Incus vhost gate admits it. Un-NATted means
+  # something in the middle has to route the replies, and for a container the
+  # middle is its gateway -- 10.0.0.1, which is this host.
+  #
+  # Without this, Caddy hands each reply to 10.0.0.1, the host looks up
+  # 100.64.0.0/24, finds only the default gateway, and sends it to the router,
+  # which has never heard of the subnet. The symptom is a forward-accept that
+  # appears to work and connections that never establish.
+  #
+  # `via` with no `dev`, on purpose. incusbr0 is Incus's own managed bridge --
+  # its 10.0.0.1/24 is assigned by Incus, not declared here -- so naming it in
+  # Nix would couple this to a device whose name and existence are Incus's to
+  # decide. The kernel can resolve the next hop on its own: 10.0.0.110 is
+  # reachable over exactly one interface, so there is nothing to disambiguate.
+  networking.routes = [
+    {
+      address = "100.64.0.0/24";
+      via = "10.0.0.110";
+    }
+  ];
+
   networking.networkmanager.unmanaged = [ "interface-name:eno1" ];
 }

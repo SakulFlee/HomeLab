@@ -24,6 +24,18 @@ let
   # and a match on a stale MAC means an interface with no address at all --
   # a VM that booted, answered nothing, and gave no obvious reason why.
   lanMac = "00:16:3e:00:00:10";
+
+  # The same, for the second NIC on incusbr0. See 20-incus below and eth1 in
+  # incus.nix; this is why a macvlan-only VM could not resolve or reach
+  # anything the host serves.
+  bridgeMac = "00:16:3e:00:00:11";
+
+  # The bridge address, and the subnet the forward rule below permits the
+  # tunnel to reach. Not configurable per-direction: the rule matches on
+  # destination so it does not depend on which interface the kernel calls the
+  # second NIC, which is a name we would otherwise have to hardcode or guess.
+  bridgeNetwork = "10.0.0.0/24";
+  bridgeAddress = "10.0.0.110";
 in
 {
   imports = [
@@ -73,6 +85,33 @@ in
       # tunnel rather than over this NIC.
       DNS = [ "1.1.1.1" "9.9.9.9" ];
     };
+  };
+
+  # The second NIC, on incusbr0. See eth1 in incus.nix for why it exists.
+  #
+  # This is what makes CoreDNS (10.0.0.1), Caddy (10.0.0.100) and every other
+  # container reachable from the tunnel, none of which the macvlan NIC can do:
+  # macvlan cannot speak to its parent host, the router declined to proxy for
+  # it, and 10.0.0.0/24 is not on the physical wire so no amount of routing on
+  # this side delivers it.
+  #
+  # No Gateway, deliberately. This is not a path to the internet and must not
+  # compete with 10-lan for the default route -- with two NICs, an autodetected
+  # one here would make egress depend on the bridge coming up.
+  #
+  # No DNS either: this NIC's whole purpose is to be told about 10.0.0.1 as a
+  # destination, not to be a source of resolvers. The resolver this VM itself
+  # should use is a separate question and it stays public.
+  #
+  # RequiredForOnline = false for the same reason. networkd-wait-online blocking
+  # on a bridge that is slow or absent would hold up the LAN path, which is the
+  # one carrying UDP 51820 and must not be at the mercy of the second NIC.
+  systemd.network.networks."20-incus" = {
+    matchConfig.MACAddress = bridgeMac;
+    networkConfig = {
+      Address = [ "${bridgeAddress}/24" ];
+    };
+    linkConfig.RequiredForOnline = false;
   };
 
   # 192.168.178.210 must be outside the router's DHCP pool, or it will eventually
@@ -141,6 +180,59 @@ in
     # The LAN NIC. Not left to autodetection: this VM has wg0, lo and the Incus
     # virtio NIC, and guessing wrong here silently produces no masquerade.
     externalInterface = "enp5s0";
+
+    # One extra rule, and no masquerade. This is the whole of what the second
+    # NIC needs from the firewall.
+    #
+    # networking.nat scopes every rule it generates to the single
+    # externalInterface above -- nat-iptables.nix puts `-o ${externalInterface}`
+    # on the MASQUERADE and on the forward-accept alike -- and externalInterface
+    # is a string, not a list. So there is no way to say "and also forward into
+    # the bridge" through the options, which is why this is a rule and not a
+    # second internalIPs entry.
+    #
+    # extraCommands is the documented hook for exactly this, and it is
+    # iptables-only ("incompatible with the nftables based nat module"), which
+    # is the backend this guest uses. See the extraForwardRules note above for
+    # why that distinction matters here.
+    #
+    # Matching on destination rather than on the egress interface is what makes
+    # this robust. The second NIC's kernel name is not knowable at build time --
+    # eth0 arrives as enp5s0 purely because virtio enumeration happened to land
+    # there -- and a rule naming an interface that does not exist is silently
+    # never added, which is the failure mode this file has been bitten by
+    # twice already. 10.0.0.0/24 is only reachable through the second NIC, so
+    # the destination is equivalent and cannot rot.
+    #
+    # No MASQUERADE here, on purpose, and this is the load-bearing decision.
+    # incus/README.md reasons that "the bridged VM means its tunnel packets
+    # leave eno1 un-NATted, so Caddy still sees a real 100.64.0.0/10 client
+    # address and the Incus vhost gate keeps working". That was written for the
+    # bridged design we abandoned; under macvlan the tunnel IS masqueraded out
+    # enp5s0 above, and a VPN-only hostname would arrive at Caddy as
+    # 192.168.178.210 and be rejected by the gate. Leaving the bridge path
+    # un-NATted keeps the real 100.64.0.x intact. The consequence is a route on
+    # the *host*, which is the router Caddy's reply actually traverses: Caddy
+    # sends it to its own gateway, 10.0.0.1, and the host has to know to pass it
+    # on to 10.0.0.110. That half lives in nixos/hosts/homelab/network.nix,
+    # because it is the host's route, and this file does not configure the host.
+    #
+    # This VM needs no matching route. 100.64.0.0/24 is connected on wg0, so the
+    # reply arrives addressed to an address the VM already has a route for, and
+    # forwarding is the only thing missing -- which is what the rule above fixes.
+    extraCommands = ''
+      iptables -w -t filter -A nixos-filter-forward \
+        -s 100.64.0.0/24 -d ${bridgeNetwork} -j ACCEPT
+    '';
+
+    # Symmetric, and tolerant of being a no-op: flushNat deletes and recreates
+    # the chain before this runs, so on a normal stop the rule is already gone
+    # and the -D has nothing to match. Without `|| true` every stop would
+    # report a failure.
+    extraStopCommands = ''
+      iptables -w -t filter -D nixos-filter-forward \
+        -s 100.64.0.0/24 -d ${bridgeNetwork} -j ACCEPT || true
+    '';
   };
 
   # ---------------------------------------------------------------------

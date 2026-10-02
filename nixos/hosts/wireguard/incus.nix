@@ -1,9 +1,15 @@
 # Incus-level definition of the "wireguard" instance.
 #
-# This is a VM, not a container. See ../../../incus/README.md for why: WireGuard
-# has to be reachable at the *host's* LAN address (192.168.178.200), and a
-# container cannot route VPN clients there. A macvlan container cannot even speak
-# to the host. A bridged VM is a plain L2 peer, so it can.
+# This is a VM, not a container. See ../../../incus/README.md for why: the kernel
+# WireGuard module has to be available *inside*, and an LXC shares the host
+# kernel, so the host would have to carry the module for a guest's benefit.
+#
+# Note what this file does NOT do: it does not put WireGuard on the host's LAN
+# address. An earlier version of these comments claimed the VPN had to be
+# reachable at 192.168.178.200, and that claim drove the whole design. It is
+# false -- macvlan on eno1 gives this VM its own address, 192.168.178.210, and
+# the router forwards UDP 51820 there. Reaching the *host* is a different
+# question, and eth1 below is the answer to it.
 #
 # Two files, same split as every other instance:
 #   default.nix  the NixOS system, built into the image
@@ -11,8 +17,9 @@
 #                incus/apply.sh reads with `nix eval --json`
 let
   devices = {
-    # Bridged onto the physical LAN, so the VM has its own address and VPN
-    # clients reach 192.168.178.200 through the router like any other peer.
+    # On the physical LAN via macvlan, so the VM has its own address on the
+    # wire and the router can forward UDP 51820 to it. That is 192.168.178.210,
+    # reserved on the router.
     #
     # NOT nictype = "bridged" on incusbr0: that would put it behind the same
     # DNAT and NAT masquerade as the containers, which is the arrangement that
@@ -29,11 +36,11 @@ let
       #
       # A bridge would be the textbook way to attach a guest to a physical LAN,
       # but eno1 is the host's only NIC and it carries the only route into this
-      # machine -- 192.168.178.200 is where the router forwards UDP 51820, and
-      # where the VPN that gives remote access terminates. Bridging it means
-      # moving that address onto a bridge, and a bridge port cannot hold an
-      # address or a route, so the window in which the host has neither is a
-      # window in which the host is unreachable and unrecoverable remotely.
+      # machine -- 192.168.178.200 is the host's address, where Caddy terminates
+      # and where the split-horizon resolver answers. Bridging it means moving
+      # that address onto a bridge, and a bridge port cannot hold an address or a
+      # route, so the window in which the host has neither is a window in which
+      # the host is unreachable and unrecoverable remotely. That happened.
       #
       # macvlan adds a second logical interface on the same wire without
       # touching eno1 at all. The host keeps its address, its route and its
@@ -41,11 +48,14 @@ let
       # network.nix is not modified by this, and cannot be.
       #
       # The trade is that a macvlan interface cannot talk to its own parent
-      # host -- that is a kernel property, not an Incus one, and no amount of
-      # configuration changes it. Nothing here needs it to. The VPN needs the
-      # router to reach it and clients to reach each other, both of which are
-      # ordinary LAN traffic that macvlan handles fine. The host runs no DNS or
-      # database that a guest would have to reach; those belong in containers.
+      # host -- a kernel property, not an Incus one, and no amount of
+      # configuration changes it. The router will not route around it either.
+      #
+      # This was originally justified by "nothing here needs it". That was wrong,
+      # and it is the reason the VPN carried nothing but tunnel-internal traffic
+      # for as long as it ran. The host runs CoreDNS on two addresses, and all
+      # twenty hostnames resolve to the third thing it runs. eth1 below exists
+      # to reach them.
       nictype = "macvlan";
       parent = "eno1";
 
@@ -54,6 +64,41 @@ let
       # re-create would leave the VM with an interface that has no address and
       # no error. Must match lanMac in default.nix.
       hwaddr = "00:16:3e:00:00:10";
+    };
+
+    # The second NIC, and the one that makes the VPN actually useful.
+    #
+    # macvlan on eth0 is what the router reaches, and it is what keeps the WAN
+    # side untouched: 192.168.178.210 is still on the LAN, still answers UDP
+    # 51820, and tunnel packets still leave eno1. The cost of macvlan is that it
+    # cannot speak to its own parent host -- a kernel property, not an Incus
+    # one, and no configuration changes it. The router will not route around it
+    # either: a `ip route add 192.168.178.200/32 via 192.168.178.1` from the VM
+    # came back as an ICMP Redirect, "New nexthop: 192.168.178.200", which is
+    # the router declining to proxy a destination on its own segment and
+    # pointing back down the blocked path.
+    #
+    # That made the host unreachable, and with it CoreDNS (192.168.178.200 and
+    # 10.0.0.1) and every split-horizon hostname, all of which resolve to the
+    # host. So the tunnel carried nothing but tunnel-internal traffic.
+    #
+    # eth1 is on incusbr0, which is the bridge caddy and forgejo are already
+    # on, and it costs the host nothing: incusbr0 has no physical port and eno1
+    # is not in it, so nothing here can strand 192.168.178.200 the way putting
+    # eno1 into a new bridge did. This is the same operation Incus performed
+    # when it created those two containers -- add a veth to an existing bridge.
+    #
+    # Two NICs is Docker's model and Incus supports it natively: `devices` is a
+    # set and each NIC sits on exactly one network.
+    eth1 = {
+      type = "nic";
+      name = "eth1";
+
+      network = "incusbr0";
+
+      # Pinned for the same reason as eth0: the guest matches on this MAC to
+      # configure its address. Must match bridgeMac in default.nix.
+      hwaddr = "00:16:3e:00:00:11";
     };
 
     # A VM's extra disk is a raw block device, so this volume is `block` and the
