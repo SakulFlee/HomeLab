@@ -40,6 +40,19 @@ in
   # Start on boot, and bring it back up after apply.sh recreates it. An
   # instance that was deliberately stopped stays stopped; see apply.sh.
   autostart = true;
+  #
+  # This also drives Incus's own `boot.autostart`, which apply.sh reconciles from
+  # here. The two are different settings that share a name: the reconciler reads
+  # this to decide whether to start the instance *now*, and Incus reads its own to
+  # decide whether to start it after the daemon comes up. Before that was wired,
+  # every instance reconciled correctly and still failed to come back after a host
+  # reboot, because Incus defaults boot.autostart to false.
+  #
+  # Verified by control rather than by inspection, since "it came back" proves
+  # nothing on its own -- something else could be starting them. With
+  # boot.autostart=false and the instance stopped, a daemon restart left it
+  # STOPPED; with true, forgejo and this VM both came back. The VM's uptime
+  # confirmed a real boot rather than surviving the restart, which containers do.
 
   # Caddy is not a memory hog, but it terminates TLS for every request on the
   # LAN and holds buffers for large uploads. 512MiB is headroom, not a cap
