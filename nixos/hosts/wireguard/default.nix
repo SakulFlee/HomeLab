@@ -89,6 +89,58 @@ in
     # The tunnel itself. This is a UDP port that nothing DNATs to it: the router
     # forwards 51820 to this address directly. See incus/README.md.
     allowedUDPPorts = [ 51820 ];
+
+    # No extraForwardRules here, deliberately. This guest gets the iptables
+    # backend, not nftables -- the generated firewall-start calls
+    # `ip46tables -w ...` and never `nft` -- and extraForwardRules is documented
+    # as nftables-only. It would have been accepted by the module and silently
+    # ignored, which is the same class of failure as the x-systemd.requires
+    # option earlier.
+    #
+    # Forwarding from the tunnel is already covered by networking.nat below, which
+    # emits both halves against this backend:
+    #   -A nixos-nat-post     -s 100.64.0.0/24 -o enp5s0 -j MASQUERADE
+    #   -A nixos-filter-forward -s 100.64.0.0/24 -o enp5s0 -j ACCEPT
+    #   -A nixos-filter-forward -m state --state RELATED,ESTABLISHED -j ACCEPT
+    # Verified live with `iptables -S`, not just by reading the config.
+  };
+
+  # Without this the guest will not route at all: packets arrive on wg0 and are
+  # dropped rather than forwarded, so no AllowedIPs setting on any client can
+  # make the LAN reachable. It was 0 until this was set, which is why the tunnel
+  # could be up and listening and still carry nothing but tunnel-internal traffic.
+  #
+  # `boot.kernel.sysctl`, not a `networking.ipForward`: there is no such option in
+  # this nixpkgs, and sysctl is how NixOS sets it for its own components (see
+  # services/kubernetes/kubelet.nix, which enables net.ipv4.ip_forward the same
+  # way).
+  boot.kernel.sysctl."net.ipv4.ip_forward" = 1;
+
+  # Masquerade, and deliberately so rather than a static route on the router.
+  #
+  # A client on the LAN dialling 192.168.178.x has no idea what 100.64.0.0/24 is:
+  # its reply would go to the gateway, which has no route for that subnet. So the
+  # return path has to be rewritten. That is also what the k3s deployment did --
+  # its configmap masqueraded the pod subnet for exactly this reason -- so this
+  # reproduces the arrangement already in use rather than introducing a topology
+  # that would also need a change on the router.
+  #
+  # The cost, stated plainly: LAN hosts see traffic from a VPN client as coming
+  # from 192.168.178.210, the VM's own address. Anything on the LAN doing
+  # per-client accounting or access control by source IP will attribute it to the
+  # VM. The alternative is a static route on the router, which preserves client
+  # addresses and moves the dependency somewhere else.
+  #
+  # internalIPs, not internalInterfaces: the masquerade has to match the source
+  # range the tunnel actually hands out (100.64.0.0/24, per
+  # serverInterfaceAddresses). Matching the interface instead would masquerade
+  # anything arriving on wg0, which is broader than it needs to be.
+  networking.nat = {
+    enable = true;
+    internalIPs = [ "100.64.0.0/24" ];
+    # The LAN NIC. Not left to autodetection: this VM has wg0, lo and the Incus
+    # virtio NIC, and guessing wrong here silently produces no masquerade.
+    externalInterface = "enp5s0";
   };
 
   # ---------------------------------------------------------------------

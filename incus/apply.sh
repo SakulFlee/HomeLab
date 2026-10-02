@@ -360,6 +360,34 @@ instance_exists() {
   incus info "$1" >/dev/null 2>&1
 }
 
+# Reconcile Incus's boot.autostart from the spec's autostart.
+#
+# Split out of the apply path so it can be tested directly, and because it is a
+# self-contained decision: read the current value, set it only if it differs.
+#
+# `autostart` in a spec means two things that used to be conflated. Deciding
+# whether to start the instance *now* is handled by the caller. This function
+# handles the part that nothing was handling: whether the instance comes back
+# after the host reboots, which is Incus's own `boot.autostart` and defaults to
+# false. All three instances had it unset, so a host reboot with a clean tree
+# would have brought up no Caddy, no Forgejo and no VPN -- masked only by the
+# incus-apply-<name>.path units firing on every edit under the repo.
+#
+# `autostart = false` is deliberately not honoured here. That field means "do not
+# start this on apply"; a service stopped on purpose should still be startable at
+# boot, so a deliberate stop does not silently become unbootable.
+reconcile_boot_autostart() {
+  local name=$1 spec=$2 current_boot
+  # Compared against the literal string "true", not via jq's // operator: // treats
+  # false as empty, so it would report every instance as needing a change and
+  # re-issue the set on every run, forever.
+  current_boot=$(instance_field "$name" '.config["boot.autostart"] // ""')
+  if [[ $current_boot != true ]]; then
+    step "setting boot.autostart = true"
+    incus_run config set "$name" "boot.autostart=true"
+  fi
+}
+
 instance_field() {
   incus query "/1.0/instances/$1" | jq -r "$2"
 }
@@ -1248,6 +1276,32 @@ apply_instance() {
       incus_run create "$fingerprint" "$name" -p default
     fi
   fi
+
+  # Incus's own boot.autostart, reconciled from the same spec field.
+  #
+  # A different setting from the `autostart` handled above, and easy to miss
+  # because they share a name. The one further up decides only what this script
+  # does *right now*: start the instance, or leave it stopped after a reconcile.
+  # It has no effect on what happens at host boot. That is `boot.autostart` on
+  # the instance, and Incus defaults it to false.
+  #
+  # So every instance reconciled correctly and still failed to come up after a
+  # host reboot: all three had boot.autostart unset, and the string
+  # "boot.autostart" appeared nowhere in this script. What masked it is the
+  # incus-apply-<name>.path units -- enabled, and firing on every change under
+  # the repo, so a host being edited continuously kept reconciling instances by
+  # accident. A plain reboot with a clean tree fires nothing, and caddy, forgejo
+  # and the VPN all stay down.
+  #
+  # One field, one meaning: `autostart = true` in a spec now means both "start it
+  # on apply" and "start it on boot", so there is no second list to drift.
+  # `autostart = false` still only governs the apply-time start, deliberately: a
+  # service stopped on purpose should not also become unbootable.
+  #
+  # Compared as a string against the literal "true", not via jq's // operator.
+  # // treats false as empty and would report every instance as needing a change,
+  # turning this into a step that does the same thing on every run.
+  reconcile_boot_autostart "$name" "$spec"
 
   set_description "$name" "$spec"
   apply_limits "$name" "$spec"
