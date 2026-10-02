@@ -72,6 +72,35 @@ in
       # split-horizon names, and it is unaffected because it travels over the
       # tunnel rather than over this NIC.
       DNS = [ "1.1.1.1" "9.9.9.9" ];
+
+      # Route to the Incus container network, via the host.
+      #
+      # incusbr0 (10.0.0.0/24) lives on the host, behind its LAN address. This
+      # VM is on the LAN over macvlan, so without an explicit route 10.0.0.0/24
+      # falls to the default gateway and is unreachable: `ping 10.0.0.100` from
+      # here fails 100%, and would have done so for every container equally. That
+      # is not a VPN fault -- the tunnel is fine, there was simply no path.
+      #
+      # The next hop is 192.168.178.200, the host, which already has
+      # net.ipv4.ip_forward = 1 (networking.firewall is disabled host-wide), so
+      # it forwards without further configuration. This is the one thing that was
+      # missing.
+      #
+      # The reply path needs no matching rule. Traffic from a VPN client is
+      # already masqueraded to 192.168.178.210 by the rule below, so a container
+      # replies to the VM's LAN address; the host routes that to the VM, which
+      # un-NATs it back down wg0. The container therefore sees every client as
+      # 192.168.178.210 -- the same trade-off as the LAN masquerade, one network
+      # in.
+      #
+      # Only containers need this. VMs on macvlan are on the LAN itself and are
+      # reachable via 192.168.178.0/24 already.
+      Routes = [
+        {
+          Destination = "10.0.0.0/24";
+          Gateway = "192.168.178.200";
+        }
+      ];
     };
   };
 
@@ -190,6 +219,46 @@ in
     mtu = 1420;
 
     persistentKeepalive = 25;
+
+    # Pre-filled Allowed IPs for new clients: split tunnel, not 0.0.0.0/0.
+    #
+    # Matches the ranges the k3s deployment used (apps/wireguard/configmap.yaml),
+    # minus 10.0.0.0/24's old meaning -- see below.
+    #
+    #   192.168.178.0/24  the LAN, including the host at .200 and every hostname
+    #                     that resolves to it. This is how Caddy is reached: the
+    #                     container's own 10.0.0.100 is not involved, because the
+    #                     split-horizon names resolve to the host's LAN address
+    #                     and Caddy binds 0.0.0.0 there.
+    #   10.0.0.0/24       the Incus container network, so a client can reach a
+    #                     container by its own address. Reachable because of the
+    #                     route added in 10-lan above.
+    #   100.64.0.0/10     the tunnel, and deliberately /10 rather than /24 to
+    #                     match the old config: anything DNAT'd through the host
+    #                     can land in that range, and the Incus vhost gate admits
+    #                     100.64.0.0/10 too.
+    #
+    # Note the ranges are networks. 192.168.178.1/24 would match only that one
+    # host, since a /24 has to start on the .0 boundary.
+    defaultClientAllowedIPs = [
+      "192.168.178.0/24"
+      "10.0.0.0/24"
+      "100.64.0.0/10"
+    ];
+
+    # The dropdown for picking a client's tunnel address was empty without this.
+    #
+    # It is not a routing list: ValidateAndFixSubnetRanges drops any CIDR not
+    # contained in a server interface, so this can only subdivide the tunnel
+    # network. 192.168.178.0/24 and 10.0.0.0/24 here would both be discarded at
+    # startup with only a log line, and the dropdown would read "No results
+    # found" again -- indistinguishable from being unset.
+    subnetRanges = [
+      {
+        name = "VPN";
+        cidrs = [ "100.64.0.0/24" ];
+      }
+    ];
 
     username = "admin";
 

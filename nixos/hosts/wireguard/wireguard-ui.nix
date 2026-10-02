@@ -133,6 +133,71 @@ in
       '';
     };
 
+    subnetRanges = lib.mkOption {
+      type = lib.types.listOf (lib.types.submodule {
+        options = {
+          name = lib.mkOption {
+            type = lib.types.str;
+            example = "VPN";
+            description = "Label shown in the new-client subnet dropdown.";
+          };
+          cidrs = lib.mkOption {
+            type = lib.types.listOf lib.types.str;
+            example = [ "100.64.0.0/24" ];
+            description = "Ranges the client may be allocated an address from.";
+          };
+        };
+      });
+      default = [ ];
+      example = [
+        {
+          name = "VPN";
+          cidrs = [ "100.64.0.0/24" ];
+        }
+      ];
+      description = ''
+        Address pools offered when creating a client. Upstream calls this
+        SUBNET_RANGES and reads it from the environment (main.go:95) -- note the
+        name has no `WGUI_` prefix, unlike almost every other variable it reads,
+        which is easy to get wrong.
+
+        Every CIDR **must be contained in one of the server's own interface
+        addresses**, or it is dropped at startup with only a log line:
+
+          [VPN] CIDR is outside of all server subnets: 10.0.0.0/24. Removed.
+          [VPN] No valid CIDRs in this subnet range. Removed.
+
+        That is not a warning you will see in the UI. A range naming the LAN or
+        the Incus bridge is silently discarded, and if it was the only one the
+        whole pool disappears and the dropdown reads "No results found" -- which
+        is how this option looks identical to being unset.
+
+        So this only subdivides the tunnel network. It is not a routing list:
+        use the client's Allowed IPs for that.
+      '';
+    };
+
+    defaultClientAllowedIPs = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ "0.0.0.0/0" ];
+      example = [
+        "192.168.178.0/24"
+        "10.0.0.0/24"
+        "100.64.0.0/10"
+      ];
+      description = ''
+        Pre-filled Allowed IPs when creating a client. Upstream reads this as
+        WGUI_DEFAULT_CLIENT_ALLOWED_IPS and defaults it to 0.0.0.0/0, i.e. every
+        destination routed through the tunnel -- a full tunnel by default, which
+        sends all of a phone's traffic out through this VM.
+
+        Split ranges are the sane default here: the tunnel exists to reach the
+        homelab, not to be the phone's default route. It remains editable per
+        client in the UI, so a full tunnel is one field away for anyone who
+        wants one.
+      '';
+    };
+
     configFilePath = lib.mkOption {
       type = lib.types.str;
       default = "${cfg.dataDir}/wg0.conf";
@@ -210,6 +275,17 @@ in
         WGUI_MTU = toString cfg.mtu;
         WGUI_PERSISTENT_KEEPALIVE = toString cfg.persistentKeepalive;
         WGUI_CONFIG_FILE_PATH = cfg.configFilePath;
+
+        # Split on ';' between named pools and ',' between CIDRs, which is the
+        # format ParseSubnetRanges expects (util/config.go:79):
+        #   SR Name:10.0.1.0/24; SR2:10.0.2.0/24,10.0.3.0/24
+        # A name containing ':' would break the parse, so the joiner cannot be
+        # used inside a name.
+        SUBNET_RANGES = lib.concatStringsSep ";" (
+          map (r: "${r.name}:${lib.concatStringsSep "," r.cidrs}") cfg.subnetRanges
+        );
+
+        WGUI_DEFAULT_CLIENT_ALLOWED_IPS = lib.concatStringsSep "," cfg.defaultClientAllowedIPs;
         WGUI_LOG_LEVEL = cfg.logLevel;
 
         # Upstream defaults the firewall mark to 0xca6c and the routing table to
