@@ -1,4 +1,9 @@
-{ ... }: {
+let
+  # The WireGuard VM's second-NIC address on incusbr0, and the next hop for the
+  # tunnel subnet. Must match bridgeAddress in nixos/hosts/wireguard/default.nix.
+  tunnelNextHop = "10.0.0.110";
+in
+{
   # Scope dhcpcd to the one interface that legitimately needs it.
   #
   # dhcpcd runs because networking.useDHCP is true (its module enables the client
@@ -64,36 +69,73 @@
   # which has never heard of the subnet. The symptom is a forward-accept that
   # appears to work and connections that never establish.
   #
-  # Declared on the interface rather than as `networking.routes`, because that
-  # option no longer exists in nixpkgs. The scripted backend -- this host runs
-  # neither NetworkManager nor networkd -- takes extra routes per interface and
-  # always emits an explicit `dev`, so there is nowhere to put a route that
-  # belongs to no particular interface.
+  # This was first declared as networking.interfaces.incusbr0.ipv4.routes, and
+  # that is the natural spelling -- the scripted backend (this host runs neither
+  # NetworkManager nor networkd) accepts extra routes per interface. It was
+  # wrong, and the reason is worth recording because it is not obvious.
   #
-  # incusbr0 is Incus's own managed bridge and its 10.0.0.1/24 is assigned by
-  # Incus, not declared here, so only the route is declared. That is safe: the
-  # generated script adds what is declared and never flushes what it does not
-  # know about, so Incus's address is untouched.
+  # That generates network-addresses-incusbr0.service, WantedBy
+  # sys-subsystem-net-devices-incusbr0.device. On boot that works: Incus creates
+  # the bridge, the device unit appears, and the service starts. On a
+  # `nixos-rebuild switch` it does not. The bridge already exists, so its
+  # .device unit is already active, so systemd sees nothing to re-trigger it.
+  # Meanwhile eno1's device unit *does* get a fresh job during the switch, so
+  # network-addresses-eno1 restarts and re-adds the LAN address -- which is why
+  # the asymmetry is invisible from the LAN and only the VPN breaks.
   #
-  # Ordering is systemd's problem, not this file's. `network-addresses-incusbr0
-  # .service` BindsTo the interface's .device unit, so it starts once Incus has
-  # created the bridge and is stopped and restarted if the bridge goes away.
+  # Observed during the move to nixos-26.05, and worse than a route that was
+  # simply never installed:
+  #
+  #   23:55:24 Stopping Address configuration of incusbr0...
+  #   23:55:24 adding route 100.64.0.0/24... done
+  #
+  # That is ExecStop -- it deletes the route -- with no ExecStart to follow. The
+  # running tunnel then still hands out handshakes, because those terminate at
+  # the VM, but DNS replies have no path home: CoreDNS answers, the host has no
+  # route for 100.64.0.0/24, and the phone sees DNS_PROBE_TIMEOUT rather than a
+  # refusal. The tunnel looks healthy the whole time.
+  #
+  # `systemctl is-active` reports active throughout, because RemainAfterExit
+  # preserves the state of the last completed run. Result=success and
+  # ExecMainStatus=0 say nothing either. Do not trust them for this unit; check
+  # `ip route show 100.64.0.0/24`.
+  #
+  # A oneshot with no device dependency replaces it. `ip route replace` is
+  # idempotent, so a boot and a switch converge on the same state without
+  # needing to know which one is happening.
+
+  systemd.services.wireguard-tunnel-route = {
+    description = "Route the WireGuard tunnel subnet back through the VM";
+
+    wantedBy = [ "multi-user.target" ];
+    # Incus creates incusbr0, so the bridge may not exist yet at this point.
+    after = [ "incus.service" ];
+    # A restart of Incus drops and recreates the bridge, which takes this route
+    # with it. Wants= is not enough on its own; the route has to be re-added
+    # every time Incus restarts, which is a rare but real event.
+    restartTriggers = [ "incus.service" ];
+
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+    };
+
+    script = ''
+      # replace, not add: idempotent, so re-running is safe and converging
+      # rather than failing with "File exists". Fails loudly if the bridge is
+      # missing rather than silently doing nothing.
+      ip route replace 100.64.0.0/24 via ${tunnelNextHop} dev incusbr0 proto static
+    '';
+  };
+
+  # No incusbr0 entry here. The route it used to carry is the oneshot above, and
+  # declaring the interface would reintroduce the device-triggered unit -- and
+  # with it the switch-time deletion. incusbr0's own 10.0.0.1/24 is assigned by
+  # Incus and never needed declaring.
+  #
   # The route installs even while the VM is down: the next hop is inside
   # incusbr0's own 10.0.0.0/24, so the kernel accepts it from the prefix alone
   # and only the ARP resolution waits for the VM.
-  networking.interfaces.incusbr0 = {
-    # networking.useDHCP is true globally, and an unset useDHCP here would
-    # inherit that. eno1 sets it false for the same reason.
-    useDHCP = false;
-
-    ipv4.routes = [
-      {
-        address = "100.64.0.0";
-        prefixLength = 24;
-        via = "10.0.0.110";
-      }
-    ];
-  };
 
   networking.networkmanager.unmanaged = [ "interface-name:eno1" ];
 }
