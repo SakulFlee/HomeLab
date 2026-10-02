@@ -23,12 +23,28 @@ let
   # file adapts fine. withPlugins rebuilds through xcaddy with the one provider
   # needed, rather than libdns and every provider it drags in.
   #
-  # The hash is a fixed-output hash over the Go module graph, so it has to be
+  # The hash is a fixed-output hash over the built binary, so it has to be
   # known before the build. Discovered by building once with `hash =
   # lib.fakeHash`; do that again after touching `plugins`.
+  #
+  # It also moves with the Go toolchain, which is worth stating because it is
+  # not obvious from the expression: the inputs are unchanged (same caddy
+  # 2.11.4, same plugin v0.2.4), but a different Go emits a different binary.
+  # Moving from nixpkgs-unstable to nixos-26.05 took Go from 1.26.4 to 1.26.7
+  # and produced:
+  #
+  #   hash mismatch in fixed-output derivation
+  #     'caddy-src-with-plugins-ea5480ecce2b088b2b65ad3423502471-2.11.4':
+  #      specified: sha256-hEHgAG0F0ozHRAPuxEqLyTATBrE+pajeXDiSNwniorg=
+  #         got:    sha256-dQvk6ezY6TQ1J7PjhCXnThF/SqVgPwBO8/RXzHCY+js=
+  #
+  # So expect to rediscover this on every nixpkgs bump, not just when the
+  # plugin list changes. It fails late and indirectly: the error names the
+  # Caddy package, then etc, then Caddyfile, then the whole image, four levels
+  # away from the line that is actually wrong.
   caddyPkg = pkgs.caddy.withPlugins {
     plugins = [ "github.com/caddy-dns/cloudflare@v0.2.4" ];
-    hash = "sha256-hEHgAG0F0ozHRAPuxEqLyTATBrE+pajeXDiSNwniorg=";
+    hash = "sha256-dQvk6ezY6TQ1J7PjhCXnThF/SqVgPwBO8/RXzHCY+js=";
   };
 in
 {
