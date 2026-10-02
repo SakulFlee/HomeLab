@@ -64,17 +64,36 @@
   # which has never heard of the subnet. The symptom is a forward-accept that
   # appears to work and connections that never establish.
   #
-  # `via` with no `dev`, on purpose. incusbr0 is Incus's own managed bridge --
-  # its 10.0.0.1/24 is assigned by Incus, not declared here -- so naming it in
-  # Nix would couple this to a device whose name and existence are Incus's to
-  # decide. The kernel can resolve the next hop on its own: 10.0.0.110 is
-  # reachable over exactly one interface, so there is nothing to disambiguate.
-  networking.routes = [
-    {
-      address = "100.64.0.0/24";
-      via = "10.0.0.110";
-    }
-  ];
+  # Declared on the interface rather than as `networking.routes`, because that
+  # option no longer exists in nixpkgs. The scripted backend -- this host runs
+  # neither NetworkManager nor networkd -- takes extra routes per interface and
+  # always emits an explicit `dev`, so there is nowhere to put a route that
+  # belongs to no particular interface.
+  #
+  # incusbr0 is Incus's own managed bridge and its 10.0.0.1/24 is assigned by
+  # Incus, not declared here, so only the route is declared. That is safe: the
+  # generated script adds what is declared and never flushes what it does not
+  # know about, so Incus's address is untouched.
+  #
+  # Ordering is systemd's problem, not this file's. `network-addresses-incusbr0
+  # .service` BindsTo the interface's .device unit, so it starts once Incus has
+  # created the bridge and is stopped and restarted if the bridge goes away.
+  # The route installs even while the VM is down: the next hop is inside
+  # incusbr0's own 10.0.0.0/24, so the kernel accepts it from the prefix alone
+  # and only the ARP resolution waits for the VM.
+  networking.interfaces.incusbr0 = {
+    # networking.useDHCP is true globally, and an unset useDHCP here would
+    # inherit that. eno1 sets it false for the same reason.
+    useDHCP = false;
+
+    ipv4.routes = [
+      {
+        address = "100.64.0.0";
+        prefixLength = 24;
+        via = "10.0.0.110";
+      }
+    ];
+  };
 
   networking.networkmanager.unmanaged = [ "interface-name:eno1" ];
 }
