@@ -7,6 +7,22 @@ let
   instances = import ../../../incus-instances.nix;
   instanceNames = lib.attrNames instances;
 
+  # Per-instance Incus project, or "" for Incus's `default`. Same map apply.sh
+  # reads, so the per-instance units and the timer-driven `--all` reconcile can
+  # never disagree about which project an instance lives in -- and an instance
+  # addressed in the wrong project is not found at all, with its volumes
+  # reported missing because volumes are project-scoped.
+  instanceProjects = import ../../../incus-instance-projects.nix;
+
+  # "--project <p>" only when the instance has one, so the default case renders
+  # the same command line it always did.
+  projectArg =
+    name:
+    let
+      p = instanceProjects.${name} or "";
+    in
+    if p == "" then "" else "--project ${p}";
+
   # The checkout, not a store path. incus/apply.sh and the instance specs live
   # here, and a path unit needs a real on-disk path to watch -- a store path is
   # immutable, so a unit watching one could never fire.
@@ -204,7 +220,11 @@ in
             config.virtualisation.incus.package
           ];
 
-          script = "${pkgs.bash}/bin/bash ${applyScript} ${name}";
+          # --project only where the instance declares one. apply.sh also reads the same
+          # map per instance, so this is belt-and-braces for the single-instance
+          # path; --all cannot take a single flag for a set spanning projects and
+          # relies on that per-instance lookup instead.
+          script = "${pkgs.bash}/bin/bash ${applyScript} ${projectArg name} ${name}";
         };
       })
       instances
@@ -307,12 +327,23 @@ in
 
           printf '%-10s %-9s %-13s %s\n' INSTANCE STATE BASE-IMAGE ALIAS
           for name in ${lib.concatStringsSep " " instanceNames}; do
-            if ! incus info "$name" >/dev/null 2>&1; then
+            # Per-instance project, matching what apply.sh uses. Reading these
+            # as bare names would report every project-scoped instance as
+            # missing, which is exactly the "status" question this table exists
+            # to answer.
+            p=${instanceProjects.${name} or ""}
+            pflag=""
+            qs=""
+            if [[ -n $p ]]; then
+              pflag="--project $p"
+              qs="?project=$p"
+            fi
+            if ! incus info $pflag "$name" >/dev/null 2>&1; then
               printf '%-10s %-9s %-13s %s\n' "$name" "-" "-" "homelab/$name"
               continue
             fi
-            state=$(incus query "/1.0/instances/$name" | jq -r '.status')
-            base=$(incus query "/1.0/instances/$name" \
+            state=$(incus query "/1.0/instances/$name$qs" | jq -r '.status')
+            base=$(incus query "/1.0/instances/$name$qs" \
               | jq -r '.config["volatile.base_image"] // "-"' | cut -c1-12)
             printf '%-10s %-9s %-13s %s\n' "$name" "$state" "$base" "homelab/$name"
           done

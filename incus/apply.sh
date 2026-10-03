@@ -76,6 +76,7 @@ CHECK_ONLY=0
 NO_START=0
 ALL=0
 PROJECT=""
+PROJECT_OVERRIDE=""
 declare -a REQUESTED=()
 
 # Set per instance so log lines stay attributable when --all is running several
@@ -187,6 +188,48 @@ instance_spec() {
   local name=$1
   nix eval --json "$FLAKE_DIR#incusInstances.$name" 2>/dev/null \
     || die "no instance '$name' -- is it in nixos/incus-instances.nix?"
+}
+
+# Per-instance Incus project, or empty for Incus's `default`.
+#
+# Read from the flake rather than taken from the command line, because one
+# --project cannot describe a set that spans two projects, and `--all` is run
+# every fifteen minutes by incus-reconcile.timer. An explicit --project on the
+# command line still wins, so a single instance can be reconciled by hand
+# without consulting the map.
+#
+# The map lives beside the registry rather than inside each spec because it is
+# consulted per instance during one invocation; embedding it in the spec would
+# mean a second nix eval per instance to read one string.
+instance_project() {
+  local name=$1
+  # An explicit --project wins, so a single instance can be reconciled by hand
+  # without consulting the map.
+  #
+  # This reads PROJECT_OVERRIDE and NOT PROJECT, and that distinction is the
+  # whole point. PROJECT is reassigned per instance, so guarding on it means
+  # the *previous* instance's project leaks into the next lookup: caddy set it
+  # empty, forgejo set it to "forgejo", and wireguard then saw a non-empty
+  # PROJECT, returned early, and was reconciled in forgejo's project --
+  # reporting "no instance named wireguard -- would create it" for an instance
+  # that was running. On a two-project set that is a duplicate-recreate on every
+  # fifteen-minute reconcile.
+  [[ -n $PROJECT_OVERRIDE ]] && { printf '%s' "$PROJECT_OVERRIDE"; return; }
+  # Ask for the whole map once per call rather than a per-name attribute path.
+  # An unmapped name is an *eval error*, not an empty string -- "does not
+  # provide attribute incusInstanceProjects.wireguard" -- and the `||` fallback
+  # does not rescue it, because the failing command is inside a command
+  # substitution whose exit status the assignment discards. The result was that
+  # PROJECT kept whatever the previous instance had set, so caddy's successor
+  # was reconciled in caddy's project: `wireguard` came back "no instance named
+  # wireguard -- would create it" while it was running, and --all on a
+  # two-project set would have recreated instances as duplicates.
+  #
+  # Reading one jq lookup off the map cannot fail that way: a missing key is
+  # null, and //'' turns it into the empty string that means "default project".
+  nix eval --json "$FLAKE_DIR#incusInstanceProjects" 2>/dev/null \
+    | jq -r --arg n "$name" '.[$n] // ""' \
+    || printf ''
 }
 
 # Warn when the *tracked* content differs from HEAD, because that is the only
@@ -1415,8 +1458,8 @@ while [[ $# -gt 0 ]]; do
     --check)    CHECK_ONLY=1 ;;
     --no-start) NO_START=1 ;;
     --all)      ALL=1 ;;
-    --project)  PROJECT="${2:?--project needs a value}"; shift ;;
-    --project=*) PROJECT="${1#--project=}" ;;
+    --project)  PROJECT_OVERRIDE="${2:?--project needs a value}"; shift ;;
+    --project=*) PROJECT_OVERRIDE="${1#--project=}" ;;
     -h|--help)  usage; exit 0 ;;
     --)         shift; break ;;
     -*)         die "unknown option '$1' (try --help)" ;;
@@ -1453,6 +1496,12 @@ else
 fi
 
 for name in "${REQUESTED[@]}"; do
+  # Set PROJECT per instance rather than once for the run. --all spans projects
+  # -- incus-reconcile.timer runs it every fifteen minutes precisely so nothing
+  # waits on a human -- and one global value would reconcile every instance in
+  # the *last* one's project, which for a two-project set means the other is
+  # reported missing and recreated as a duplicate on every sweep.
+  PROJECT="$(instance_project "$name")"
   apply_instance "$name"
 done
 

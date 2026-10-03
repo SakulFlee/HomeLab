@@ -166,5 +166,20 @@
       # parsing nixos/incus-instances.nix in shell) means the script and the
       # host's systemd units can never disagree about what an instance is.
       incusInstances = import ./incus-instances.nix;
+
+        # Which Incus project each instance lives in, so incus/apply.sh can pass
+        # the right --project per instance:
+        #
+        #   nix eval --raw .#incusInstanceProjects.forgejo
+        #
+        # Separate from incusInstances because it is keyed the same way but
+        # answers a different question, and `--all` has to consult it once per
+        # instance: apply.sh takes a single --project per invocation, so a set
+        # spanning two projects cannot be reconciled in one run -- and
+        # incus-reconcile.timer runs `--all` every fifteen minutes precisely so
+        # that nothing is left waiting on a human.
+        #
+        # An instance absent from this map is in Incus's `default` project.
+        incusInstanceProjects = import ./incus-instance-projects.nix;
     };
 }
