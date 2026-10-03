@@ -29,6 +29,28 @@ for fn in project_qs projects_json project_settings ensure_project project_field
   grep -q "^${fn}()" "$WORK/block.sh" || { echo "FATAL: $fn not in extracted block"; exit 99; }
 done
 
+# --- whole-file invariants -------------------------------------------------
+# These are not about the project block; they are properties of apply.sh that no
+# amount of stubbing this block would catch, and each one corresponds to a bug
+# that actually reached the host.
+whole_file_fail=0
+# Comment lines are excluded deliberately: the prose explaining why
+# `incus_run query` is wrong quotes the string, and the check has to be able to
+# say so. Only actual invocations count.
+if grep -n 'incus_run query' "$APPLY" | grep -vE ':[[:space:]]*#' >/dev/null; then
+  echo "FATAL: 'incus_run query' present -- incus query refuses --project:"
+  grep -n 'incus_run query' "$APPLY" | grep -vE ':[[:space:]]*#' | sed 's/^/  /'
+  whole_file_fail=1
+fi
+if grep -nE '(^|[^_[:alnum:]])incus (image|storage|exec)' "$APPLY" \
+     | grep -vE '^[0-9]+:[[:space:]]*#' | grep -vq .; then
+  echo "FATAL: bare incus against a project-scoped object:"
+  grep -nE '(^|[^_[:alnum:]])incus (image|storage|exec)' "$APPLY" \
+    | grep -vE '^[0-9]+:[[:space:]]*#' | sed 's/^/  /'
+  whole_file_fail=1
+fi
+[[ $whole_file_fail == 0 ]] || exit 99
+
 # --- stubs -----------------------------------------------------------------
 mkdir -p "$WORK/bin"
 cat >"$WORK/bin/incus" <<'STUB'

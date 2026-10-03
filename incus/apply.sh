@@ -311,6 +311,27 @@ incus_run_stdin() {
 }
 
 # --------------------------------------------------------------------------
+# The same logging, for `incus query`, and deliberately WITHOUT --project.
+# --------------------------------------------------------------------------
+# The flag is not ignored on this subcommand, it is refused outright:
+#
+#   incus --project forgejo query /1.0/projects/forgejo
+#     Error: --project cannot be used with the query command
+#
+# It appears in the global flag list right next to --project, so routing these
+# through incus_run looks correct and is not. The project can only be expressed
+# as a query parameter on the URL, which is what project_qs() builds.
+#
+# This is a whole function rather than a "don't" comment on the call site because
+# `incus_run query` is the natural thing to write and there is exactly one call
+# site today. The test asserts the string appears nowhere in the file, so a later
+# edit that reaches for incus_run out of habit fails immediately.
+incus_api() {
+  log "incus query $*"
+  incus query "$@" </dev/null
+}
+
+# --------------------------------------------------------------------------
 # Nix
 # --------------------------------------------------------------------------
 # One name per line, not the raw JSON. `nix eval --json --apply
@@ -746,7 +767,7 @@ ensure_volumes() {
       current=$(incus query "/1.0/storage-pools/$pool/volumes/custom/$volume_name$(project_qs)" \
         | jq -r '.description // ""')
       if [[ $current != "$description" ]]; then
-        incus_run query -X PATCH \
+        incus_api -X PATCH \
           -d "$(jq -cn --arg d "$description" '{description: $d}')" \
           "/1.0/storage-pools/$pool/volumes/custom/$volume_name$(project_qs)"
       fi
