@@ -28,6 +28,8 @@
       # convention anyone has to remember.
       pool = "persistent";
       name = "forgejo-postgres";
+      # Accurate only while services.postgresql.dataDir is
+      # /var/lib/postgresql/data. See the device of the same name below.
       description = "PostgreSQL PGDATA -- never file-back-up, pg_dump only";
     }
     {
@@ -55,6 +57,18 @@
     };
 
     postgres = {
+      # This path and services.postgresql.dataDir are the same string on
+      # purpose, and the coupling is not obvious from either side.
+      #
+      # The postgresql module's default dataDir is /var/lib/postgresql/<major>,
+      # so a volume mounted at /var/lib/postgresql/data is mounted somewhere the
+      # database never looks. That is not hypothetical: it is what happened here,
+      # and it failed completely silently -- the database came up, migrated, and
+      # served HTTP with 72MB of real data on the container's root disk while this
+      # volume sat empty. Caught by asking the running server
+      # `SHOW data_directory`, after a cleanup appeared to do nothing.
+      #
+      # Changing one without the other puts the data back on the root disk.
       type = "disk";
       pool = "persistent";
       source = "forgejo-postgres";

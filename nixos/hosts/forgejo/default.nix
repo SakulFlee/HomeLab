@@ -65,6 +65,34 @@ in
     # the flake pins, so this line is doing real work.
     package = pkgs.postgresql_18; # 18.6
 
+    # The `forgejo-postgres` volume is mounted here, and this line is the only
+    # thing that makes that true.
+    #
+    # The module's default is /var/lib/postgresql/<major> -- literally
+    # `/var/lib/postgresql/18` -- and it was silently winning. PGDATA therefore
+    # lived on the container's root disk while the volume sat empty at
+    # /var/lib/postgresql/data, and nothing complained: the database started, ran
+    # its migrations, and served HTTP perfectly with 72MB of real data in the
+    # wrong place. It was only found by asking the running server
+    #
+    #   psql -tAc 'SHOW data_directory'   ->  /var/lib/postgresql/18
+    #
+    # after a cleanup appeared to do nothing. Every "PostgreSQL PGDATA -- never
+    # file-back-up, pg_dump only" volume description was describing a directory
+    # nothing was using.
+    #
+    # Overriding dataDir is a supported path, not a hack: the module keys its
+    # behaviour on exactly this comparison (a non-default dataDir gets
+    # ReadWritePaths instead of StateDirectory), which is why the ownership unit
+    # below exists -- StateDirectory is what would otherwise have created and
+    # chowned it, and it does not apply here.
+    #
+    # Deliberately pointing the *volume* at /var/lib/postgresql/18 instead would
+    # avoid the ownership unit, and would also re-introduce this exact bug the
+    # next time the major version moved: the device path would still be 18 while
+    # the data would be 19, and nothing would say so.
+    dataDir = "/var/lib/postgresql/data";
+
     # Stated rather than inherited. `local all all peer` in the default pg_hba is
     # what makes the socket connection above work, and the socket's location is
     # PostgreSQL's compiled-in default otherwise -- one upstream change away from
@@ -173,6 +201,26 @@ in
       Type = "oneshot";
       RemainAfterExit = true;
       ExecStart = lib.getExe' pkgs.acl "setfacl" + " -d -m g:git:rwx /var/lib/forgejo/data/git";
+    };
+  };
+
+  # Because dataDir above is not the module's default, StateDirectory does not
+  # apply and nothing would create or chown it. Incus creates the mount point,
+  # owned by root, and initdb refuses to run in a directory it does not own.
+  #
+  # 0700 postgres:postgres, matching what the module's tmpfiles rules would have
+  # produced had StateDirectory applied. Idempotent, and `install -d` keeps
+  # whatever is already inside it.
+  systemd.services.forgejo-postgres-dir = {
+    description = "Create and own PGDATA, which the module does not do for a non-default dataDir";
+    wantedBy = [ "multi-user.target" ];
+    before = [ "postgresql.service" ];
+    after = [ "local-fs.target" ];
+    path = [ pkgs.coreutils ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      ExecStart = lib.getExe' pkgs.coreutils "install" + " -d -m 0700 -o postgres -g postgres /var/lib/postgresql/data";
     };
   };
 
