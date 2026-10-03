@@ -89,6 +89,23 @@
     # profile is host infrastructure -- the root disk and the bridge NIC -- and
     # what the project is meant to isolate is the instance and its volumes, not
     # the NIC the instance is plugged into.
+    #
+    # ORDERING IS LOAD BEARING. Incus refuses the transition once the project
+    # holds anything:
+    #
+    #   Error: Project feature "features.profiles" cannot be disabled on
+    #          non-empty projects
+    #
+    # so this has to be set while the project is still empty -- before the image
+    # import, before the volumes, before the instance. incus/apply.sh calls
+    # ensure_project as the first thing apply_instance does, precisely so the
+    # window is guaranteed rather than incidental. An auto-created default
+    # profile does NOT count as non-empty: verified on a throwaway project that
+    # `incus project create` followed immediately by this key succeeds, and only
+    # fails once an image has been imported.
+    #
+    # If this ever needs changing on the live project, delete the instances and
+    # images from it first. There is no in-place conversion.
     features.profiles = false;
 
     # features.networks is deliberately absent. Networks are not project-scoped
