@@ -326,27 +326,39 @@ in
           set -euo pipefail
 
           printf '%-10s %-9s %-13s %s\n' INSTANCE STATE BASE-IMAGE ALIAS
-          for name in ${lib.concatStringsSep " " instanceNames}; do
-            # Per-instance project, matching what apply.sh uses. Reading these
-            # as bare names would report every project-scoped instance as
-            # missing, which is exactly the "status" question this table exists
-            # to answer.
-            p=${instanceProjects.${name} or ""}
-            pflag=""
-            qs=""
-            if [[ -n $p ]]; then
-              pflag="--project $p"
-              qs="?project=$p"
+          # name=project pairs, emitted by Nix above and read back here.
+          #
+          # A Nix interpolation on the loop variable cannot work: `name` is a
+          # runtime variable, so referencing it at build time is an error, and
+          # the usual escape does not apply because this would be an attribute
+          # path rather than a bare $var. Emitting the pairs keeps every
+          # build-time lookup in Nix and every runtime lookup in the shell.
+          #
+          # NOTE: no doubled apostrophe may appear in a comment in here. It
+          # closes the indented string and everything after it is parsed as Nix,
+          # which surfaces as a syntax error on an unrelated line -- a `while`
+          # reading as "unexpected '='". That is what happened the first two
+          # times this was written.
+          while IFS='=' read -r cname cproject; do
+            [ -n "$cname" ] || continue
+            pflag=""; qs=""
+            if [ -n "$cproject" ]; then
+              pflag="--project $cproject"
+              qs="?project=$cproject"
             fi
-            if ! incus info $pflag "$name" >/dev/null 2>&1; then
-              printf '%-10s %-9s %-13s %s\n' "$name" "-" "-" "homelab/$name"
+            if ! incus info $pflag "$cname" >/dev/null 2>&1; then
+              printf '%-10s %-9s %-13s %s\n' "$cname" "-" "-" "homelab/$cname"
               continue
             fi
-            state=$(incus query "/1.0/instances/$name$qs" | jq -r '.status')
-            base=$(incus query "/1.0/instances/$name$qs" \
+            state=$(incus query "/1.0/instances/$cname$qs" | jq -r '.status')
+            base=$(incus query "/1.0/instances/$cname$qs" \
               | jq -r '.config["volatile.base_image"] // "-"' | cut -c1-12)
-            printf '%-10s %-9s %-13s %s\n' "$name" "$state" "$base" "homelab/$name"
-          done
+            printf '%-10s %-9s %-13s %s\n' "$cname" "$state" "$base" "homelab/$cname"
+          done <<'PAIRS'
+          ${lib.concatStringsSep "\n" (lib.mapAttrsToList
+            (name: _: "${name}=${instanceProjects.${name} or ""}")
+            instances)}
+          PAIRS
 
           echo
           echo "images:"
