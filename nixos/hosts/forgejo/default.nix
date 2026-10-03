@@ -143,28 +143,57 @@ in
   # Regenerating them would invalidate every one of those at the instant of
   # cutover.
   #
-  # Only the mailer password is declared here. The other four are left at the
-  # module's own defaults -- ${customDir}/conf/{secret_key,internal_token,
-  # oauth2_jwt_secret,lfs_jwt_secret} -- and incus.nix writes them exactly there.
-  # That is deliberate rather than convenient:
-  #
-  #   * The module's forgejo-secrets unit generates any of them that is EMPTY,
-  #     and it is sandboxed with ReadWritePaths = [customDir]. Point the four at
-  #     paths outside customDir and on the very first boot -- before apply.sh has
-  #     rendered anything -- that unit would try to create them there, be denied
-  #     by its own sandbox, and fail. forgejo.service Requires it, so Forgejo
-  #     would never start.
-  #   * Writing them where the module already looks makes the generator a no-op
-  #     (the files are non-empty), and needs no mkForce to redirect defaults that
-  #     are already correct.
-  #
   # Consequence worth knowing: because the files live in customDir, they are
   # inside the state directory rather than on a volume. customDir lives on the
   # container's root disk, which is the `persistent` pool, so they are still not
   # restic'd -- consistent with every other secret here.
   #
-  # The single setting that follows from all of this is further down, inside
-  # services.forgejo: only the mailer password, which has no module default.
+  # --------------------------------------------------------------------------
+  # Why *_URI and not services.forgejo.secrets
+  # --------------------------------------------------------------------------
+  # services.forgejo.secrets is the obvious option and it does not work in this
+  # container. It is a wrapper over systemd's LoadCredential=, and inside this
+  # LXC that cannot function:
+  #
+  #   /run/credentials -> ../../dev/.incus-systemd-credentials
+  #
+  # Incus backs that path with a read-only mount so that systemd credentials can
+  # be passed in from the host. systemd then cannot create
+  # /run/credentials/<unit>/ inside it, the directory silently does not appear,
+  # and the module's environment-to-ini step reports
+  #
+  #   Error reading file for FORGEJO__SECURITY__SECRET_KEY__FILE :
+  #   /run/credentials/forgejo.service/… permission denied
+  #
+  # which is at least accurate about the cause and misleading about everything
+  # else. INTERNAL_TOKEN then never reaches app.ini, Forgejo tries to generate
+  # one at startup, and dies writing to a file the module's own pre-start has
+  # just made read-only:
+  #
+  #   generateSaveInternalToken() [F] Error saving internal token: failed to
+  #   save "/var/lib/forgejo/custom/conf/app.ini": permission denied
+  #
+  # Verified rather than inferred: a transient unit in this container with
+  # -p LoadCredential=probe:/etc/hostname --uid=forgejo finds no
+  # /run/credentials/<unit>/ at all, while /run/credentials itself exists and
+  # systemd is 260.4.
+  #
+  # Forgejo's own *_URI settings sidestep it: `file:/path` makes Forgejo read
+  # the file itself, with no systemd involvement. All five values have one --
+  # SECRET_KEY_URI, INTERNAL_TOKEN_URI, JWT_SECRET_URI, LFS_JWT_SECRET_URI and
+  # PASSWD_URI -- so nothing is lost by not using the module's option.
+  #
+  # What is preserved by writing them into customDir/conf: the module's
+  # forgejo-secrets unit generates any of them that is EMPTY, and it is sandboxed
+  # with ReadWritePaths = [customDir]. Point these anywhere else and on a first
+  # boot, before apply.sh has rendered anything, that unit would try to create
+  # them there, be denied by its own sandbox, and fail a unit forgejo.service
+  # Requires. Where they are now, it is a no-op.
+  #
+  # The files are rendered 0440 root:forgejo rather than 0400 root:root, because
+  # Forgejo now reads them as the `forgejo` user instead of systemd doing it as
+  # root. At 0400 root:root, smtp_password -- which apply.sh created before the
+  # setgid bit on customDir/conf existed -- was unreadable to Forgejo.
 
   # --------------------------------------------------------------------------
   # Forgejo
@@ -233,6 +262,10 @@ in
 
         LFS_START_SERVER = true;
 
+        # See the Secrets section: services.forgejo.secrets relies on systemd
+        # LoadCredential, which cannot work inside this container.
+        LFS_JWT_SECRET_URI = "file:${cfg.customDir}/conf/lfs_jwt_secret";
+
         # Git-over-SSH is advertised but NOT served by Forgejo. The host's sshd
         # answers on port 22 and forwards every session into this container as
         # the `git` user, so Forgejo never needs a listener of its own -- and
@@ -288,6 +321,23 @@ in
 
       security = {
         INSTALL_LOCK = true;
+
+        # Read from the rendered file rather than from app.ini. See the Secrets
+        # section above -- services.forgejo.secrets cannot work in this
+        # container, and these two are the ones that made Forgejo fatal.
+        #
+        # INTERNAL_TOKEN_URI matters most: without it Forgejo's
+        # generateSaveInternalToken() fires, tries to write the value into
+        # app.ini, and dies with "permission denied" -- because the module's
+        # pre-start deliberately ends with `chmod u-w` on that file. Its own
+        # docstring says the value is "<random at every install if no uri set>",
+        # so the URI is the supported way to supply one.
+        SECRET_KEY_URI = "file:${cfg.customDir}/conf/secret_key";
+        INTERNAL_TOKEN_URI = "file:${cfg.customDir}/conf/internal_token";
+      };
+
+      oauth2 = {
+        JWT_SECRET_URI = "file:${cfg.customDir}/conf/oauth2_jwt_secret";
       };
 
       mailer = {
@@ -297,12 +347,9 @@ in
         SMTP_PORT = 465;
         USER = "lweber@sakul-flee.de";
         FROM = "forgejo@sakul-flee.de";
+        PASSWD_URI = "file:${cfg.customDir}/conf/smtp_password";
       };
     };
-
-    # Only the mailer password. See the Secrets section above for why the other
-    # four are left at the module's own defaults rather than pointed elsewhere.
-    secrets.mailer.PASSWD = "${cfg.customDir}/conf/smtp_password";
   };
 
   # GPG commit signing is NOT configured yet, and that is a deliberate gap rather

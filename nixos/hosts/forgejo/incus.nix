@@ -102,24 +102,52 @@
   renderedSecrets = [
     {
       format = "raw";
+      # 0440 root:forgejo, not the 0400 root:root default, because Forgejo now
+      # reads these itself via the *_URI settings rather than systemd handing
+      # them over as credentials. At 0400 root:root the forgejo user cannot open
+      # them -- and one of the five already was, having been created before the
+      # setgid bit on customDir/conf existed.
+      mode = "0440";
+      group = "forgejo";
       file = "secret_key";
       dir = "/var/lib/forgejo/custom/conf";
       source = "/run/secrets/forgejo_secret_key";
     }
     {
       format = "raw";
+      # 0440 root:forgejo, not the 0400 root:root default, because Forgejo now
+      # reads these itself via the *_URI settings rather than systemd handing
+      # them over as credentials. At 0400 root:root the forgejo user cannot open
+      # them -- and one of the five already was, having been created before the
+      # setgid bit on customDir/conf existed.
+      mode = "0440";
+      group = "forgejo";
       file = "internal_token";
       dir = "/var/lib/forgejo/custom/conf";
       source = "/run/secrets/forgejo_internal_token";
     }
     {
       format = "raw";
+      # 0440 root:forgejo, not the 0400 root:root default, because Forgejo now
+      # reads these itself via the *_URI settings rather than systemd handing
+      # them over as credentials. At 0400 root:root the forgejo user cannot open
+      # them -- and one of the five already was, having been created before the
+      # setgid bit on customDir/conf existed.
+      mode = "0440";
+      group = "forgejo";
       file = "oauth2_jwt_secret";
       dir = "/var/lib/forgejo/custom/conf";
       source = "/run/secrets/forgejo_jwt_secret";
     }
     {
       format = "raw";
+      # 0440 root:forgejo, not the 0400 root:root default, because Forgejo now
+      # reads these itself via the *_URI settings rather than systemd handing
+      # them over as credentials. At 0400 root:root the forgejo user cannot open
+      # them -- and one of the five already was, having been created before the
+      # setgid bit on customDir/conf existed.
+      mode = "0440";
+      group = "forgejo";
       file = "lfs_jwt_secret";
       dir = "/var/lib/forgejo/custom/conf";
       source = "/run/secrets/forgejo_lfs_secret";
@@ -128,6 +156,13 @@
     # explicitly (services.forgejo.secrets.mailer.PASSWD).
     {
       format = "raw";
+      # 0440 root:forgejo, not the 0400 root:root default, because Forgejo now
+      # reads these itself via the *_URI settings rather than systemd handing
+      # them over as credentials. At 0400 root:root the forgejo user cannot open
+      # them -- and one of the five already was, having been created before the
+      # setgid bit on customDir/conf existed.
+      mode = "0440";
+      group = "forgejo";
       file = "smtp_password";
       dir = "/var/lib/forgejo/custom/conf";
       source = "/run/secrets/forgejo_smtp_password";
