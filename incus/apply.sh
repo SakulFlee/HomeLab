@@ -234,11 +234,53 @@ ensure_project() {
   local key value have
   while IFS='=' read -r key value; do
     [[ -n $key ]] || continue
-    have=$(incus project get "$PROJECT" "$key" 2>/dev/null || printf '')
+    # Read the whole project once, not once per key. `incus project show` is
+    # YAML-only -- there is no --format json on it, and piping that into jq dies
+    # with "Invalid numeric literal at line 1, column 2" -- so the read goes
+    # through `incus query`, which is JSON.
+    if [[ ! -v PROJECT_JSON ]]; then
+      PROJECT_JSON=$(incus query "/1.0/projects/$PROJECT" 2>/dev/null || printf '{}')
+    fi
+    have=$(project_field "$PROJECT_JSON" "$key")
     [[ $have == "$value" ]] && continue
     step "setting $PROJECT $key = $value (was '${have:-unset}')"
-    incus project set "$PROJECT" "$key=$value"
+    # ...and write them back through two different channels, because
+    # `description` is a top-level field and NOT a configuration key:
+    #
+    #   incus project set probe3 description=x
+    #     Error: Invalid project configuration key "description"
+    #
+    # Exactly the trap ensure_volumes already documents for volume descriptions,
+    # and it cost a full reconcile failure for a purely cosmetic field: the run
+    # got as far as printing "setting forgejo description" and then died, before
+    # touching anything load-bearing. Everything under features/ is a config key
+    # and goes through `project set`; everything else is a top-level field and
+    # goes through the API.
+    if [[ $key == features.* ]]; then
+      incus project set "$PROJECT" "$key=$value"
+    else
+      incus query -X PATCH "/1.0/projects/$PROJECT" \
+        -d "$(jq -cn --arg k "$key" --arg v "$value" '{($k): $v}')"
+    fi
+    # Invalidate: a PATCH may have changed other fields, and `project set` may
+    # have changed the config.
+    unset PROJECT_JSON
   done < <(project_settings "$PROJECT")
+  unset PROJECT_JSON
+}
+
+# One setting of one project, as a string, or empty.
+#
+# The features./ prefix is the whole of the distinction, and it is not a guess:
+# `incus project set` rejects anything outside the config namespace with
+# "Invalid project configuration key", so anything reaching the other branch is
+# a field the config namespace does not contain.
+project_field() {
+  jq -r --arg k "$2" '
+    if ($k | startswith("features."))
+    then (.config[$k] // "")
+    else (.[$k] // "")
+    end' <<<"$1"
 }
 
 incus_run() {

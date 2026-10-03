@@ -25,7 +25,7 @@ trap 'rm -rf "$WORK"' EXIT
 START=$(grep -n '^project_qs()' "$APPLY" | cut -d: -f1)
 END=$(grep -n '^incus_run()' "$APPLY" | cut -d: -f1)
 sed -n "${START},$((END - 1))p" "$APPLY" >"$WORK/block.sh"
-for fn in project_qs projects_json project_settings ensure_project; do
+for fn in project_qs projects_json project_settings ensure_project project_field; do
   grep -q "^${fn}()" "$WORK/block.sh" || { echo "FATAL: $fn not in extracted block"; exit 99; }
 done
 
@@ -33,30 +33,60 @@ done
 mkdir -p "$WORK/bin"
 cat >"$WORK/bin/incus" <<'STUB'
 #!/usr/bin/env bash
-# Fake project store: $STATEDIR/<project>/<key> holds each config key.
+# Fake project store. $STATEDIR/<project>/config.<key> holds config keys and
+# $STATEDIR/<project>/field.<key> holds top-level fields, so that reading the
+# wrong namespace comes back empty exactly as the real Incus would.
 log() { printf '%s\n' "$*" >>"$CALLLOG"; }
-state="$STATEDIR/$2"
+show() {
+  local p=$1
+  [[ -d $STATEDIR/$p ]] || return 1
+  # JSON, because `incus project show` is YAML-only in the real CLI and the code
+  # deliberately goes through `incus query` for that reason.
+  printf '{"config":{'
+  local first=1 f k
+  for f in "$STATEDIR/$p"/config.*; do
+    [[ -e $f ]] || continue
+    k=${f##*/config.}
+    [[ $first == 1 ]] || printf ','
+    first=0
+    printf '"%s":"%s"' "$k" "$(cat "$f")"
+  done
+  printf '},"description":"%s","name":"%s"}' \
+    "$(sed -n 's/^description=//p' "$STATEDIR/$p"/fields 2>/dev/null)" "$p"
+}
 case $1 in
   project)
     case $2 in
-      show)
-        [[ -d $STATEDIR/$3 ]] || exit 1
-        ;;
+      show) show "$3" ;;
       create)
         log "project create $3"
         mkdir -p "$STATEDIR/$3"
         ;;
-      get)
-        [[ -f $STATEDIR/$3/$4 ]] || exit 1
-        cat "$STATEDIR/$3/$4"
-        ;;
       set)
         log "project set $3 $4"
+        # Mirror the real CLI: only the features/ namespace is settable.
+        [[ $4 == features.* ]] || { printf 'Error: Invalid project configuration key "%s"\n' "${4%%=*}"; exit 1; }
         mkdir -p "$STATEDIR/$3"
-        printf '%s' "${4#*=}" >"$STATEDIR/$3/${4%%=*}"
+        printf '%s' "${4#*=}" >"$STATEDIR/$3/config.${4%%=*}"
         ;;
       *) log "UNEXPECTED project subcommand: $2 $3" ;;
     esac
+    ;;
+  query)
+    if [[ $2 == -X && $3 == PATCH && $4 == /1.0/projects/* ]]; then
+      p=${4##*/}
+      body=$6
+      log "query PATCH $4 $body"
+      mkdir -p "$STATEDIR/$p"
+      printf '%s' "$body" \
+        | jq -r 'keys[0] as $k | "\($k)=\(.[$k])"' \
+        >"$STATEDIR/$p/fields"
+    elif [[ $2 == /1.0/projects/* ]]; then
+      show "${2##*/}" || exit 1
+      printf '\n'
+    else
+      log "UNEXPECTED query invocation: $*"
+    fi
     ;;
   *) log "UNEXPECTED incus invocation: $*" ;;
 esac
@@ -107,8 +137,9 @@ reset
 PROJECT=forgejo
 ensure_project
 check "created"          "1"  "$(grep -c '^project create forgejo$' "$CALLLOG")"
-check "description set"  "1"  "$(grep -c '^project set forgejo description=HomeLab Forgejo$' "$CALLLOG")"
-check "features.images"  "1"  "$(grep -c '^project set forgejo features.images=true$' "$CALLLOG")"
+check "description via API" "1" "$(grep -c '^query PATCH /1.0/projects/forgejo {"description":"HomeLab Forgejo"}$' "$CALLLOG")"
+check "images as config"  "1"  "$(grep -c '^project set forgejo features.images=true$' "$CALLLOG")"
+check "profiles as config" "1" "$(grep -c '^project set forgejo features.profiles=false$' "$CALLLOG")"
 check "no stray calls"   "0"  "$(grep -c '^UNEXPECTED' "$CALLLOG")"
 
 echo "== 2. second run is a pure no-op =="
@@ -117,11 +148,21 @@ ensure_project
 check "no writes at all" "0"  "$(wc -l <"$CALLLOG2" | tr -d ' ')"
 
 echo "== 3. drift: features.images forced back to false =="
-printf 'false' >"$STATEDIR/forgejo/features.images"
+printf 'false' >"$STATEDIR/forgejo/config.features.images"
 CALLLOG3=$(mktemp); export CALLLOG=$CALLLOG3
 ensure_project
 check "only images fixed" "1" "$(grep -c '^project set forgejo features.images=true$' "$CALLLOG3")"
-check "description alone" "0" "$(grep -c 'description=' "$CALLLOG3")"
+check "description alone" "0" "$(grep -c 'description' "$CALLLOG3")"
+
+echo "== 3a. description is not a config key =="
+# The real CLI says `Error: Invalid project configuration key "description"`,
+# which killed a full reconcile for a cosmetic field. The stub refuses it too,
+# so routing it through `project set` fails here rather than on the host.
+reset
+PROJECT=forgejo
+ensure_project >/dev/null 2>&1
+check "description is a top-level field" "HomeLab Forgejo" "$(sed -n 's/^description=//p' "$STATEDIR/forgejo/fields")"
+check "not stored as a config key"      ""                     "$(cat "$STATEDIR/forgejo/config.description" 2>/dev/null)"
 
 echo "== 3b. a false value is a value, not an absent one =="
 # The trap this guards: `false` read as "unset" would mean features.profiles is
@@ -132,7 +173,7 @@ PROJECT=forgejo
 ensure_project >/dev/null 2>&1
 CALLLOG3b=$(mktemp); export CALLLOG=$CALLLOG3b
 ensure_project
-check "profiles=false kept" "false" "$(cat "$STATEDIR/forgejo/features.profiles")"
+check "profiles=false kept" "false" "$(cat "$STATEDIR/forgejo/config.features.profiles")"
 check "no rewrite of it"  "0" "$(grep -c 'features.profiles' "$CALLLOG3b")"
 check "no writes at all"  "0" "$(wc -l <"$CALLLOG3b" | tr -d ' ')"
 
