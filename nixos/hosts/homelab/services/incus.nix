@@ -64,17 +64,34 @@ in
       # is served from and nothing more.
       config."core.https_allowed_websocket_origin" = "https://incus.sakul-flee.de";
 
-      # Two pools, split by backup policy rather than by convenience:
+      # Two pools, and the split between them is a COMMENT, not a mechanism.
       #
-      #   backup      restic'd. Anything whose loss you would actually notice.
-      #   persistent  NOT restic'd. Deliberately excluded.
+      # Verified on the running host: both are `driver: btrfs` with
+      # `source: /var/lib/incus/storage-pools/<name>`, on the same filesystem,
+      # with no quota and no size limit. Nothing enforces a difference. What
+      # separates them is this paragraph.
       #
-      # 'persistent' exists so that "never file-back-up a live Postgres data
-      # directory" is structural rather than conventional -- a torn PGDATA copy
-      # is worse than no copy. Postgres data dirs go here; the authoritative
-      # artifact is always a pg_dump landing in 'backup' (see the dump CronJobs
-      # in apps/forgejo, apps/paperless, apps/fluxer). Instance root disks also
-      # go here, being reproducible from the flake.
+      # The earlier version of this claimed `backup` was restic'd and
+      # `persistent` was not. Both halves were wrong:
+      #
+      #   * The only restic in this homelab is the homelab-restic DaemonSet
+      #     (apps/storage-class/restic-daemonset.yaml), and it backs up exactly
+      #     one path: BACKUP_TIER="/var/lib/rancher/k3s/storage/backup", the k3s
+      #     PVC tier. It does not know Incus exists.
+      #   * There is no restic binary, service or timer on this host at all.
+      #
+      # So neither pool had ever been backed up, and caddy-data had been sitting
+      # on a pool whose name promised otherwise. That DaemonSet's header still
+      # points at "the NixOS unit's --password-file path" and at
+      # nixos/hosts/homelab/common/backup.nix, which does not exist -- a host
+      # unit was planned for this and never written.
+      #
+      # `persistent` therefore no longer claims to be excluded from backups. The
+      # pools already exist and are in use, and naming a volume after its intended
+      # retention is still useful documentation even when nothing enforces it.
+      # What must not be repeated is the converse mistake: a PGDATA copy is not a
+      # backup, and a pg_dump is. Those are separate claims, and the old text
+      # used the first to argue for the second.
       #
       # No VM pool yet. Incus docs warn against VMs on btrfs and the mitigation
       # is a dir pool, added in the phase that actually provisions VMs.

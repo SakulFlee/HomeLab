@@ -16,28 +16,55 @@
 
   volumes = [
     {
+      # ONE volume for everything Forgejo stores, mounted at its APP_DATA_PATH.
+      #
+      # This started as three -- repositories, lfs, postgres -- and grew to six
+      # when the k3s PV turned out to hold attachments, packages and avatars as
+      # well. That was modelling the k3s deployment's directory layout instead of
+      # Forgejo's, and it bought nothing: one device to mount, one thing to back
+      # up, one path to restore into, and a set of volume descriptions that each
+      # had to be kept true by hand.
+      #
+      # Mounting at /var/lib/forgejo/data puts it exactly where Forgejo already
+      # looks, because APP_DATA_PATH defaults to `data` under WORK_PATH. So
+      #
+      #   git/           repositoryRoot, set in default.nix
+      #   lfs/           lfs.contentDir, the module's default
+      #   attachments/   Forgejo's default
+      #   avatars/       Forgejo's default
+      #   packages/      Forgejo's default
+      #
+      # all resolve inside it with no further configuration, which is the same
+      # layout the k3s PV had. The restore is `cp -a` of that PV's contents into
+      # this volume, minus the directories Forgejo regenerates.
+      #
+      # On `backup` rather than `persistent`: that pool name is a convention, not
+      # a mechanism (see hosts/homelab/services/incus.nix), and if it is ever
+      # backed up at all this is the volume that matters.
       pool = "backup";
-      name = "forgejo-repositories";
-      description = "Git repositories -- the must-survive data from the k3s PV";
+      name = "forgejo-data";
+      description = "Everything Forgejo stores: repos, LFS, attachments, packages, avatars";
     }
     {
-      # Deliberately NOT restic'd. A live PGDATA directory that is copied
-      # mid-write is a corrupt PGDATA directory, which is worse than none. The
-      # authoritative artefact is a pg_dump landing in 'backup' -- see
-      # apps/forgejo/dump-cronjob.yaml. The split is structural, not a
-      # convention anyone has to remember.
+      # Separate from the above because it is a mount for a running database, not
+      # a data directory, and because it has a different lifecycle: this one is
+      # worthless if torn, and a pg_dump is the authoritative artefact.
+      #
+      # Deliberately NOT restic'd. A live PGDATA copied mid-write is a corrupt
+      # PGDATA directory, which is worse than none -- so the argument against
+      # backing it up was never that a copy does harm, only that a copy must
+      # never be the thing you restore from. Worth being precise about, because
+      # the earlier version of this comment conflated the two and used the first
+      # claim to justify the second.
+      #
+      # This path and services.postgresql.dataDir are the same string on purpose.
+      # The module's default dataDir is /var/lib/postgresql/<major>, so a volume
+      # mounted at /var/lib/postgresql/data is mounted somewhere the database
+      # never looks -- and did, silently, with 72MB of live data on the root
+      # disk. Changing one without the other puts it back.
       pool = "persistent";
       name = "forgejo-postgres";
-      # Accurate only while services.postgresql.dataDir is
-      # /var/lib/postgresql/data. See the device of the same name below.
-      description = "PostgreSQL PGDATA -- never file-back-up, pg_dump only";
-    }
-    {
-      # Also persistent: LFS objects are content-addressed blobs, and restoring
-      # them requires a matching repository set. Dumped alongside the repos.
-      pool = "persistent";
-      name = "forgejo-lfs";
-      description = "Git LFS objects";
+      description = "PostgreSQL PGDATA -- restore from pg_dump, never from a file copy";
     }
   ];
 
@@ -49,37 +76,19 @@
       "ipv4.address" = "10.0.0.101";
     };
 
-    repositories = {
+    # Forgejo's APP_DATA_PATH. See the forgejo-data volume above.
+    data = {
       type = "disk";
       pool = "backup";
-      source = "forgejo-repositories";
-      path = "/var/lib/forgejo/data/git";
+      source = "forgejo-data";
+      path = "/var/lib/forgejo/data";
     };
 
     postgres = {
-      # This path and services.postgresql.dataDir are the same string on
-      # purpose, and the coupling is not obvious from either side.
-      #
-      # The postgresql module's default dataDir is /var/lib/postgresql/<major>,
-      # so a volume mounted at /var/lib/postgresql/data is mounted somewhere the
-      # database never looks. That is not hypothetical: it is what happened here,
-      # and it failed completely silently -- the database came up, migrated, and
-      # served HTTP with 72MB of real data on the container's root disk while this
-      # volume sat empty. Caught by asking the running server
-      # `SHOW data_directory`, after a cleanup appeared to do nothing.
-      #
-      # Changing one without the other puts the data back on the root disk.
       type = "disk";
       pool = "persistent";
       source = "forgejo-postgres";
       path = "/var/lib/postgresql/data";
-    };
-
-    lfs = {
-      type = "disk";
-      pool = "persistent";
-      source = "forgejo-lfs";
-      path = "/var/lib/forgejo/data/lfs";
     };
   };
 
@@ -116,11 +125,9 @@
   renderedSecrets = [
     {
       format = "raw";
-      # 0440 root:forgejo, not the 0400 root:root default, because Forgejo now
-      # reads these itself via the *_URI settings rather than systemd handing
-      # them over as credentials. At 0400 root:root the forgejo user cannot open
-      # them -- and one of the five already was, having been created before the
-      # setgid bit on customDir/conf existed.
+      # 0440 root:forgejo, not the 0400 root:root default, because Forgejo reads
+      # these itself via the *_URI settings rather than systemd handing them over
+      # as credentials. At 0400 root:root the forgejo user cannot open them.
       mode = "0440";
       group = "forgejo";
       file = "secret_key";
@@ -129,11 +136,6 @@
     }
     {
       format = "raw";
-      # 0440 root:forgejo, not the 0400 root:root default, because Forgejo now
-      # reads these itself via the *_URI settings rather than systemd handing
-      # them over as credentials. At 0400 root:root the forgejo user cannot open
-      # them -- and one of the five already was, having been created before the
-      # setgid bit on customDir/conf existed.
       mode = "0440";
       group = "forgejo";
       file = "internal_token";
@@ -142,11 +144,6 @@
     }
     {
       format = "raw";
-      # 0440 root:forgejo, not the 0400 root:root default, because Forgejo now
-      # reads these itself via the *_URI settings rather than systemd handing
-      # them over as credentials. At 0400 root:root the forgejo user cannot open
-      # them -- and one of the five already was, having been created before the
-      # setgid bit on customDir/conf existed.
       mode = "0440";
       group = "forgejo";
       file = "oauth2_jwt_secret";
@@ -155,11 +152,6 @@
     }
     {
       format = "raw";
-      # 0440 root:forgejo, not the 0400 root:root default, because Forgejo now
-      # reads these itself via the *_URI settings rather than systemd handing
-      # them over as credentials. At 0400 root:root the forgejo user cannot open
-      # them -- and one of the five already was, having been created before the
-      # setgid bit on customDir/conf existed.
       mode = "0440";
       group = "forgejo";
       file = "lfs_jwt_secret";
@@ -170,11 +162,6 @@
     # explicitly (services.forgejo.secrets.mailer.PASSWD).
     {
       format = "raw";
-      # 0440 root:forgejo, not the 0400 root:root default, because Forgejo now
-      # reads these itself via the *_URI settings rather than systemd handing
-      # them over as credentials. At 0400 root:root the forgejo user cannot open
-      # them -- and one of the five already was, having been created before the
-      # setgid bit on customDir/conf existed.
       mode = "0440";
       group = "forgejo";
       file = "smtp_password";
