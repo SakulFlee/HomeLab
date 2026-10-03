@@ -983,8 +983,36 @@ render_secrets() {
     # with nothing to say the directory was the missing piece.
     #
     # `chmod` rather than trusting mkdir's default, because mkdir applies the
-    # umask and that is only set later in this same chain. 0700: these are
-    # secrets, and the files inside are 0400.
+    # umask and that is only set later in this same chain.
+    #
+    # 0711, and this is not a detail -- it was 0700 until it took the whole site
+    # down. The directory is the *parent* of files whose access control is
+    # carried by their own mode and group:
+    #
+    #   -r--r----- 1 root caddy  /var/lib/incus-secrets/incus-client.crt
+    #
+    # 0440 group caddy on the file grants the caddy user read, and 0700 root:root
+    # on the parent makes that grant unreachable, because the file cannot be
+    # reached. Caddy could not read its own client certificate:
+    #
+    #   loading module 'reverse_proxy': ... loading client certificate key pair:
+    #   open /var/lib/incus-secrets/incus-client.crt: permission denied
+    #
+    # and since caddy serves every hostname on this host, all of them went down.
+    #
+    # Why it had never fired before: the directory was already 0700 when these
+    # secrets were first written, but the render only happens when the content
+    # comparison says something changed, and nothing had -- the old string
+    # compare called the newline-polluted files correct and skipped every one.
+    # The bug sat dormant until that comparison was made byte-exact, the
+    # reconciler started doing real work again, and the first render chmod'd the
+    # directory out from under a running Caddy.
+    #
+    # 0711 rather than 0750 because this one directory holds files belonging to
+    # *different* groups -- forgejo's secrets are root:forgejo, caddy's are
+    # root:caddy -- so no single group grant can open it for every consumer. o+x
+    # is traverse and nothing more: the files' own modes still decide who can
+    # read what, and the contents cannot be listed.
     #
     # PATH is exported because `incus exec -- sh -c` does not get a usable one.
     # The guest inherits /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:
@@ -993,7 +1021,7 @@ render_secrets() {
     # /run/current-system/sw/bin. Same trap as the missing `logger` in disk.nix:
     # a NixOS exec environment does not carry the PATH a shell script assumes.
     cmd="export PATH=/run/current-system/sw/bin:\$PATH"
-    cmd="$cmd && mkdir -p $dir && chmod 0700 $dir"
+    cmd="$cmd && mkdir -p $dir && chmod 0711 $dir"
     cmd="$cmd && umask 077 && cat > $path"
     # chgrp before chmod: chown-family calls can clear setuid/setgid bits, and
     # the mode is the thing being asserted here.

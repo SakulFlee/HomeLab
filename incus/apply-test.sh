@@ -49,6 +49,16 @@ if grep -nE '(^|[^_[:alnum:]])incus (image|storage|exec)' "$APPLY" \
     | grep -vE '^[0-9]+:[[:space:]]*#' | sed 's/^/  /'
   whole_file_fail=1
 fi
+# The directory holding rendered secrets must stay traversable. It was chmod'd
+# 0700 while the files inside are 0440 root:<consumer-group>, so the group grant
+# was on the file and the file could not be reached -- Caddy could not read its
+# own client certificate and every hostname on the host went down. 0711 grants
+# traverse and nothing more.
+if grep -nE 'chmod 0?700 +\$dir\b' "$APPLY" | grep -vE '^[0-9]+:[[:space:]]*#' >/dev/null; then
+  echo "FATAL: secrets directory chmod'd to 0700 -- group-owned files inside become unreachable:"
+  grep -nE 'chmod 0?700 +\$dir\b' "$APPLY" | grep -vE '^[0-9]+:[[:space:]]*#' | sed 's/^/  /'
+  whole_file_fail=1
+fi
 # A herestring into the secret-writing command appends a newline to every
 # rendered secret. It went unnoticed because the read-back stripped it again, so
 # apply.sh compared a 43-byte secret against a 44-byte file, called them equal,
