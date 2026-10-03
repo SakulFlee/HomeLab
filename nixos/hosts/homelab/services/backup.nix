@@ -35,11 +35,42 @@ let
     runtimeInputs = [
       pkgs.restic
       pkgs.coreutils
+      # flock is util-linux, not coreutils. Its absence was not a crash: the
+      # call sits inside an `if !` condition, which set -e exempts, so
+      # "command not found" was indistinguishable from "lock held" and the
+      # script exited 0 having done nothing at all. systemd reported success on
+      # two consecutive runs. See the preflight below.
+      pkgs.util-linux
     ];
     text = ''
       pw=${config.sops.secrets.restic_password.path}
       repo=${lib.escapeShellArg cfg.repository}
       tag=${lib.escapeShellArg cfg.tag}
+
+      # ------------------------------------------------------------------------
+      # Preflight. Every tool this script needs, checked before anything runs.
+      # ------------------------------------------------------------------------
+      # Because the lock test below is an `if !` condition, set -e does not
+      # apply to it, and a *missing* flock is silently read as a *held* lock. That
+      # is the worst possible failure for a backup: the unit goes green, the
+      # timer keeps firing, and nothing is ever backed up. It happened, twice,
+      # before this check existed:
+      #
+      #   restic-backup[...]: .../bin/restic-backup: line 20: flock: command not found
+      #   restic-backup[...]: another restic-backup run holds the lock; skipping this tick
+      #   systemd[1]: restic-backup.service: Deactivated successfully.
+      #
+      # So the tools are verified up front and their absence is fatal. A loud
+      # failure every hour is worth far more than a green unit that backs up
+      # nothing.
+      missing=
+      for tool in restic flock; do
+        command -v "$tool" >/dev/null 2>&1 || missing="$missing $tool"
+      done
+      if [ -n "$missing" ]; then
+        echo "FATAL: not on PATH:$missing -- refusing to report success without doing the backup" >&2
+        exit 1
+      fi
 
       # Two schedules write this repository, so the lock is contended by design
       # and --retry-lock is what makes that a wait rather than an error. flock
@@ -48,6 +79,7 @@ let
       #
       # flock is exited on purpose: if the previous run is still going, the next
       # tick should be a no-op, not a second concurrent backup of the same paths.
+      # That skip is only ever reached now that flock is known to exist.
       exec 9>/run/restic-backup.lock
       if ! flock -n 9; then
         echo "another restic-backup run holds the lock; skipping this tick"
