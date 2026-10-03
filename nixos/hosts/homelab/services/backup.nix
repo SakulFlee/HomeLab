@@ -192,6 +192,14 @@ in
 
     environment.systemPackages = [ pkgs.restic ];
 
+    # The cache directory above, created once by the unit's own ExecStartPre.
+    # DirectoryPermisionsModified is deliberately absent: systemd would then
+    # relax the mode to 0755 on an existing directory, and a restic cache is
+    # only useful to root here anyway.
+    systemd.tmpfiles.rules = [
+      "d /var/cache/restic 0700 root root -"
+    ];
+
     systemd.services.restic-backup = {
       description = "Back up the Incus storage pools to the shared restic repository";
       documentation = [ "man:restic(1)" ];
@@ -201,6 +209,20 @@ in
       # that, failing once an hour with "repository does not exist" in the
       # journal is more informative than masking the condition.
       unitConfig.ConditionPathExists = cfg.repository;
+
+      # restic keeps a local index cache and looks for it under
+      # $XDG_CACHE_HOME or $HOME. A systemd unit has neither, so the first run
+      # logged
+      #
+      #   unable to open cache: neither $XDG_CACHE_HOME nor $HOME are defined
+      #
+      # and every run since re-reads the whole repository index rather than
+      # consulting it. With 31 snapshots and 1M files that is real work to repeat
+      # hourly, and it is a warning easy to stop reading once it is expected.
+      environment = {
+        HOME = "/root";
+        XDG_CACHE_HOME = "/var/cache/restic";
+      };
 
       serviceConfig = {
         Type = "oneshot";
