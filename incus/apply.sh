@@ -26,6 +26,28 @@
 #   --no-start  Leave the instance stopped, whatever its spec's autostart says.
 #               For a manual run, not for the automatic ones.
 #   --all       Every instance in the flake.
+#   --project   Incus project the instances live in (default: default).
+#
+#               Needed because Incus resolves a bare instance name against
+#               the *current* project, and the current project is whichever was
+#               last selected. An instance in the forgejo project that is
+#               addressed as plain `forgejo` is not found at all: `incus info`
+#               fails, `storage volume show` reports the volume missing, and the
+#               run either dies or recreates a duplicate in the wrong project.
+#
+#               Storage volumes are project-scoped, which is the second half of
+#               why this matters. Measured, not assumed: `incus storage volume
+#               list backup --project forgejo` returns nothing while the default
+#               project sees caddy-data and forgejo-repositories. So moving an
+#               instance between projects is not a rename -- it is new, empty
+#               volumes, and they must exist in the target project *before* any
+#               data is restored into them, or the restore lands in a volume
+#               nothing is reading from.
+#
+#               Networks are NOT project-scoped in Incus 7: `incus network list
+#               --project forgejo` lists incusbr0 alongside the rest, so no
+#               features.networks opt-in is needed for the bridge to stay usable
+#               from another project.
 #
 # Environment:
 #   INCUS_REPO_DIR      checkout root          (default /etc/nixos)
@@ -53,6 +75,7 @@ IMAGE_PREFIX="${INCUS_IMAGE_PREFIX:-homelab}"
 CHECK_ONLY=0
 NO_START=0
 ALL=0
+PROJECT=""
 declare -a REQUESTED=()
 
 # Set per instance so log lines stay attributable when --all is running several
@@ -108,9 +131,23 @@ in_list() {
 #
 # argv: that error text did not identify the offending command once in five CLI
 # surprises, so the exact invocation is logged before it runs.
+#
+# --project is injected HERE rather than at each of the ~36 call sites. It is a
+# global flag on the incus CLI, valid for every subcommand from `info` to
+# `network forward port add`, and the alternative -- addressing an instance as
+# `project:name` -- is not accepted by `storage volume` or `network forward`,
+# which are the two that most need it. One insertion point, and every existing
+# call site inherits it. project_args is empty by default so the default-project
+# invocation is byte-identical to what it was before this existed.
+project_args() {
+  [[ -n $PROJECT ]] && printf '%s\0' --project "$PROJECT" || printf ''
+}
+
 incus_run() {
-  log "incus $(printf '%q ' "$@")"
-  incus "$@" </dev/null
+  local -a pargs=()
+  [[ -n $PROJECT ]] && pargs=(--project "$PROJECT")
+  log "incus $(printf '%q ' "${pargs[@]}" "$@")"
+  incus "${pargs[@]}" "$@" </dev/null
 }
 
 # Same, but the caller's stdin survives.
@@ -127,8 +164,10 @@ incus_run() {
 # cause. The two callers have genuinely different needs, so they are two
 # functions rather than a flag.
 incus_run_stdin() {
-  log "incus $(printf '%q ' "$@")"
-  incus "$@"
+  local -a pargs=()
+  [[ -n $PROJECT ]] && pargs=(--project "$PROJECT")
+  log "incus $(printf '%q ' "${pargs[@]}" "$@")"
+  incus "${pargs[@]}" "$@"
 }
 
 # --------------------------------------------------------------------------
@@ -238,20 +277,20 @@ build_artifacts() {
 # resolve image aliases (verified: /1.0/images/<alias> 404s), so go through the
 # list filter.
 image_fingerprint() {
-  incus image list "$1" --format json 2>/dev/null \
+  incus_run image list "$1" --format json 2>/dev/null \
     | jq -r --arg a "$1" 'map(select(any(.aliases[]?; .name == $a))) | .[0].fingerprint // empty'
 }
 
 # The store path of the squashfs the image at an alias was built from. This is
 # how we recognise "already have this exact image" without importing it.
 image_build_source() {
-  incus image get-property "$1" user.build-source 2>/dev/null || true
+  incus_run image get-property "$1" user.build-source 2>/dev/null || true
 }
 
 # Any image in the pool built from this exact squashfs. Used to recover from an
 # alias that names a stale image when the wanted content is already present.
 image_with_build_source() {
-  incus image list --format json 2>/dev/null \
+  incus_run image list --format json 2>/dev/null \
     | jq -r --arg s "$1" '.[] | select(.properties["user.build-source"] == $s) | .fingerprint' \
     | head -1
 }
@@ -357,7 +396,7 @@ import_image() {
 }
 
 instance_exists() {
-  incus info "$1" >/dev/null 2>&1
+  incus_run info "$1" >/dev/null 2>&1
 }
 
 # Reconcile Incus's boot.autostart from the spec's autostart.
@@ -389,7 +428,13 @@ reconcile_boot_autostart() {
 }
 
 instance_field() {
-  incus query "/1.0/instances/$1" | jq -r "$2"
+  # Not incus_run: this is a raw API path, and --project is a CLI flag that
+  # `incus query` does not translate onto the URL. The project has to be a query
+  # parameter here, which is exactly the kind of per-call-site difference that
+  # makes "one insertion point" insufficient on its own.
+  local qs=""
+  [[ -n $PROJECT ]] && qs="?project=$PROJECT"
+  incus query "/1.0/instances/$1$qs" | jq -r "$2"
 }
 
 ensure_volumes() {
@@ -687,7 +732,7 @@ render_secrets() {
     # Put the reason in the error. Finding this cost a `journalctl` inside the
     # container by hand, and the whole diagnosis is one line of that output.
     warn "$unit is '$state' after rendering $name's secrets; last lines of its log:"
-    incus exec "$name" -- journalctl -u "$unit" --no-pager -n 12 2>&1 \
+    incus_run exec "$name" -- journalctl -u "$unit" --no-pager -n 12 2>&1 \
       | sed 's/^/      /' >&2 || true
     die "$unit did not come up after rendering $name's secrets (state: ${state:-unknown})." \
         "The instance is running but this consumer is not, so anything depending" \
@@ -741,7 +786,7 @@ sync_devices() {
       continue
     fi
     step "applying device $key"
-    incus config device remove "$name" "$key" >/dev/null 2>&1 || true
+    incus_run config device remove "$name" "$key" >/dev/null 2>&1 || true
     # The device's type is a *positional* argument, not one of the k=v
     # properties:
     #
@@ -1022,7 +1067,7 @@ wait_ready() {
 # The inet addresses on eth0 only. Not every interface: .state.network also
 # carries lo, whose inet address is 127.0.0.1 and would otherwise be reported.
 instance_address() {
-  incus list "$1" --format json \
+  incus_run list "$1" --format json \
     | jq -r '.[0].state.network.eth0.addresses[]? | select(.family == "inet") | .address' \
     | paste -sd, -
 }
@@ -1370,6 +1415,8 @@ while [[ $# -gt 0 ]]; do
     --check)    CHECK_ONLY=1 ;;
     --no-start) NO_START=1 ;;
     --all)      ALL=1 ;;
+    --project)  PROJECT="${2:?--project needs a value}"; shift ;;
+    --project=*) PROJECT="${1#--project=}" ;;
     -h|--help)  usage; exit 0 ;;
     --)         shift; break ;;
     -*)         die "unknown option '$1' (try --help)" ;;
