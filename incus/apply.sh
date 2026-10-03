@@ -133,15 +133,112 @@ in_list() {
 # argv: that error text did not identify the offending command once in five CLI
 # surprises, so the exact invocation is logged before it runs.
 #
-# --project is injected HERE rather than at each of the ~36 call sites. It is a
-# global flag on the incus CLI, valid for every subcommand from `info` to
+# --project is injected in incus_run rather than at each of the ~36 call sites.
+# It is a global flag on the incus CLI, valid for every subcommand from `info` to
 # `network forward port add`, and the alternative -- addressing an instance as
 # `project:name` -- is not accepted by `storage volume` or `network forward`,
-# which are the two that most need it. One insertion point, and every existing
-# call site inherits it. project_args is empty by default so the default-project
-# invocation is byte-identical to what it was before this existed.
-project_args() {
-  [[ -n $PROJECT ]] && printf '%s\0' --project "$PROJECT" || printf ''
+# which are the two that most need it. One insertion point, and every call site
+# that goes through incus_run inherits it.
+#
+# It was previously `project_args()`, returning a NUL-delimited flag pair. That
+# function was never called by anything: incus_run builds its own array. Deleted
+# rather than left as a second, subtly different way to spell the same thing.
+#
+# ---------------------------------------------------------------------------
+# The URL form, for the calls that CANNOT use incus_run.
+# ---------------------------------------------------------------------------
+# `incus query` takes a raw API path and does not translate --project onto it,
+# so those call sites need ?project= on the URL instead. Every one of them missed
+# it at first and the failures were silent rather than loud:
+#
+#   incus query /1.0/instances/forgejo              -> 404, .devices reads {}
+#       so sync_devices saw no devices and fought the spec forever.
+#   incus query /1.0/storage-pools/persistent/volumes/custom/forgejo-postgres
+#                                                    -> 404, description never set.
+#
+# Both are worse than an outright failure: they read as "nothing is configured"
+# rather than "I looked in the wrong place". So the query string is built here,
+# once, and callers interpolate it.
+#
+# Empty for the default project, which keeps those URLs byte-identical to what
+# they were before projects existed.
+project_qs() {
+  [[ -n $PROJECT ]] && printf '?project=%s' "$PROJECT" || printf ''
+}
+
+# --------------------------------------------------------------------------
+# Projects
+# --------------------------------------------------------------------------
+# incusInstances and incusInstanceProjects are cached for the run, and this is
+# the third of that family. Evaluating the flake is the expensive part of this
+# script, and the reconcile timer runs --all every fifteen minutes across three
+# instances spanning two projects, so the map is fetched once and reused rather
+# than per call. Empty means "not fetched yet", which is distinguishable from
+# "{}" ("fetched, and there are none") because the eval can fail outright on a
+# broken flake -- that must not read as "this project is unmanaged".
+PROJECTS_JSON=""
+projects_json() {
+  if [[ -z $PROJECTS_JSON ]]; then
+    PROJECTS_JSON=$(nix eval --json "$FLAKE_DIR#incusProjects" 2>/dev/null || printf '{}')
+  fi
+  printf '%s' "$PROJECTS_JSON"
+}
+
+# key=value lines of the project config, one per setting, flattened.
+#
+# `features.images = true` is nested two deep in the Nix attrset and Incus wants
+# the dotted key, so objects are expanded one level and everything else is
+# emitted as-is. That covers both shapes the map uses without a schema:
+#
+#   description   = "..."          -> description=...
+#   features.images = true          -> features.images=true
+project_settings() {
+  projects_json | jq -r --arg p "$1" '
+    .[$p] // {} | to_entries[] |
+    if (.value | type) == "object"
+    then (.key as $outer
+          | .value | to_entries[]
+          | "\($outer).\(.key)=\(.value)")
+    else "\(.key)=\(.value)"
+    end'
+}
+
+# Create the project if it is missing, then converge its config keys.
+#
+# Idempotent, diffed key by key, and a no-op on every run once it is right --
+# which is the property everything else in this script is built on. The point is
+# that a project is described in the repository instead of being something a
+# human typed into a live Incus once and never wrote down. `grep -rn 'incus
+# project' nixos/` returned nothing at all before this.
+ensure_project() {
+  [[ -n $PROJECT ]] || return 0
+  # --check promises to change nothing. It still *reports* on the project, so a
+  # missing one shows up as drift rather than being silently created.
+  if [[ $CHECK_ONLY == 1 ]]; then
+    if ! incus project show "$PROJECT" >/dev/null 2>&1; then
+      step "Incus project $PROJECT does not exist; --check will not create it"
+    fi
+    return 0
+  fi
+
+  if ! incus project show "$PROJECT" >/dev/null 2>&1; then
+    step "creating Incus project $PROJECT"
+    # Plain create: it defaults features.images to false, which is what we want
+    # immediately after. The loop below then flips it to whatever the flake says.
+    # Creating it with the final value instead would expose default's images to
+    # the project for the duration of the call, which is the confusion that
+    # features.images=false was originally set to avoid.
+    incus project create "$PROJECT"
+  fi
+
+  local key value have
+  while IFS='=' read -r key value; do
+    [[ -n $key ]] || continue
+    have=$(incus project get "$PROJECT" "$key" 2>/dev/null || printf '')
+    [[ $have == "$value" ]] && continue
+    step "setting $PROJECT $key = $value (was '${have:-unset}')"
+    incus project set "$PROJECT" "$key=$value"
+  done < <(project_settings "$PROJECT")
 }
 
 incus_run() {
@@ -379,7 +476,27 @@ import_image() {
     #
     # Deliberately no --reuse: it deletes an existing image that already carries
     # the alias.
-    if output=$(incus image import "$metadata_tarball" "$rootfs" --alias "$alias" 2>&1); then
+    #
+    # incus_run, and this line is the entire reason the project move could not
+    # work. Images are project-scoped exactly like volumes:
+    #
+    #   incus image list                    -> 22 images
+    #   incus image list --project forgejo  -> none
+    #   incus create --project forgejo <a fingerprint from default>
+    #     Error: Image "082a1138..." not found
+    #
+    # With a bare `incus` the image was imported into `default` while every check
+    # around it read through incus_run and therefore looked in the forgejo
+    # project. The run imported into the wrong project, resolved no fingerprint,
+    # and died on
+    #   ERROR: homelab/forgejo resolved to no fingerprint after import
+    # with the image sitting in the project it was not asked for.
+    #
+    # The captured $output now also carries incus_run's own log line, because
+    # 2>&1 catches the stderr it writes to. Harmless for the "already exists"
+    # match below, and in the failure message it means the error is preceded by
+    # the exact invocation -- which is the thing you want there anyway.
+    if output=$(incus_run image import "$metadata_tarball" "$rootfs" --alias "$alias" 2>&1); then
       :
     elif grep -qi "already exists" <<<"$output"; then
       # This is a real failure, not a polite no-op:
@@ -431,7 +548,12 @@ import_image() {
 
   # flake-rev is informational and safe to refresh every run, but diffed anyway
   # so a no-op redeploy performs no writes at all.
-  if [[ -n $rev ]] && [[ $(incus image get-property "$alias" user.flake-rev 2>/dev/null || true) != "$rev" ]]; then
+  #
+  # incus_run on the read: it was a bare `incus image get-property`, which reads
+  # the alias in `default` even while everything around it reads the forgejo
+  # project. The value it returned was the wrong image's, so it never matched
+  # and this PATCH was re-issued on every single run.
+  if [[ -n $rev ]] && [[ $(incus_run image get-property "$alias" user.flake-rev 2>/dev/null || true) != "$rev" ]]; then
     incus_run image set-property "$alias" "user.flake-rev=$rev"
   fi
 
@@ -471,13 +593,28 @@ reconcile_boot_autostart() {
 }
 
 instance_field() {
-  # Not incus_run: this is a raw API path, and --project is a CLI flag that
-  # `incus query` does not translate onto the URL. The project has to be a query
-  # parameter here, which is exactly the kind of per-call-site difference that
-  # makes "one insertion point" insufficient on its own.
-  local qs=""
-  [[ -n $PROJECT ]] && qs="?project=$PROJECT"
-  incus query "/1.0/instances/$1$qs" | jq -r "$2"
+  instance_json "$1" | jq -r "$2"
+}
+
+# Raw JSON for one instance, project-scoped. The single place an instance is
+# fetched over the API.
+#
+# This used to be spelled out longhand at each of three call sites, and two of
+# them left the project off:
+#
+#   incus query "/1.0/instances/$1?project=$PROJECT"     instance_field  (right)
+#   incus query "/1.0/instances/$name"                   sync_devices   (wrong)
+#   incus query "/1.0/instances/$name"                   check mode     (wrong)
+#
+# Both wrong ones are quiet failures. A 404 makes `incus query` exit non-zero, so
+# under `set -e` inside a command substitution assigned to `current`... the
+# substitution's status is discarded by the assignment, so execution continues
+# with `current` empty and jq never runs at all. sync_devices then compares an
+# empty device set against the spec and re-applies every device, forever, while
+# --check reports drift on an instance that is perfectly correct. One helper,
+# because "did you remember ?project=" is not a question to ask three times.
+instance_json() {
+  incus query "/1.0/instances/$1$(project_qs)"
 }
 
 ensure_volumes() {
@@ -531,7 +668,13 @@ ensure_volumes() {
     #   Error: Volume by that name already exists
     # on every run after the first. Verified against `incus storage volume
     # show --help` rather than guessed.
-    if ! incus storage volume show "$pool" "$volume_name" >/dev/null 2>&1; then
+    #
+    # incus_run, not bare incus: volumes are project-scoped. The bare call
+    # checked `default`, so for an instance in the forgejo project it always
+    # reported "missing" and the next line tried to create a volume that already
+    # existed -- reproducing the very error the comment above warns about, from
+    # a completely different cause.
+    if ! incus_run storage volume show "$pool" "$volume_name" >/dev/null 2>&1; then
       step "creating volume $pool/$volume_name ($vtype)"
       incus_run storage volume create "$pool" "$volume_name" --type "$vtype"
     fi
@@ -552,12 +695,18 @@ ensure_volumes() {
       #   jq: parse error: Invalid numeric literal at line 1, column 7
       # `custom` for every volume here, whatever its content type. See the note
       # above: `block` is a content type and `/volumes/block/` is not a route.
-      current=$(incus query "/1.0/storage-pools/$pool/volumes/custom/$volume_name" \
+      #
+      # $(project_qs), because `incus query` does not translate --project onto
+      # the URL. Without it this 404s for a project-scoped volume and
+      # `current` comes back empty, so the description is re-PATCHed on every
+      # single run -- a write on every sweep of the fifteen-minute timer, for
+      # a value that is already correct.
+      current=$(incus query "/1.0/storage-pools/$pool/volumes/custom/$volume_name$(project_qs)" \
         | jq -r '.description // ""')
       if [[ $current != "$description" ]]; then
         incus_run query -X PATCH \
           -d "$(jq -cn --arg d "$description" '{description: $d}')" \
-          "/1.0/storage-pools/$pool/volumes/custom/$volume_name"
+          "/1.0/storage-pools/$pool/volumes/custom/$volume_name$(project_qs)"
       fi
     fi
   done
@@ -686,9 +835,16 @@ render_secrets() {
     # is the confusing one: the consumer cannot read it and exits, while
     # apply.sh reports that everything is already up to date.
     path="/var/lib/incus-secrets/$file"
-    current=$(incus exec "$name" -- cat "$path" 2>/dev/null || true)
-    cur_mode=$(incus exec "$name" -- stat -c '%a' "$path" 2>/dev/null || true)
-    cur_group=$(incus exec "$name" -- stat -c '%G' "$path" 2>/dev/null || true)
+    # incus_run, not bare incus: an instance name resolves against the *current*
+    # project, so a bare `incus exec forgejo` fails with "Instance not found" for
+    # an instance living in the forgejo project. That would have been the worst
+    # of these bugs, because the three reads below already end in `|| true`:
+    # every one returns empty, `needs_write` is set for every secret on every
+    # run, and render_secrets reports it re-rendered a file that was already
+    # correct. Then it restarts the consumers. Forever, silently.
+    current=$(incus_run exec "$name" -- cat "$path" 2>/dev/null || true)
+    cur_mode=$(incus_run exec "$name" -- stat -c '%a' "$path" 2>/dev/null || true)
+    cur_group=$(incus_run exec "$name" -- stat -c '%G' "$path" 2>/dev/null || true)
 
     needs_write=0
     [[ $current == "$wanted" ]] || needs_write=1
@@ -765,7 +921,7 @@ render_secrets() {
     # `systemctl restart` is synchronous, so this normally passes first time.
     # The loop is only for units that report readiness a moment after the job.
     while [[ $attempt -lt 10 ]]; do
-      state=$(incus exec "$name" -- systemctl is-active "$unit" 2>/dev/null || true)
+      state=$(incus_run exec "$name" -- systemctl is-active "$unit" 2>/dev/null || true)
       [[ $state == active ]] && break
       attempt=$((attempt + 1))
       sleep 1
@@ -800,7 +956,7 @@ sync_devices() {
   local -a have want
 
   desired=$(jq -c '.devices // {}' <<<"$spec")
-  current=$(incus query "/1.0/instances/$name" | jq -c '.devices // {}')
+  current=$(instance_json "$name" | jq -c '.devices // {}')
 
   # mapfile then for, never `while read ... done < <(jq)`: see incus_run for
   # what a pipe on stdin does to the Incus client.
@@ -1153,7 +1309,12 @@ report_existing_drift() {
   local -a want_keys stale_trust
 
   alias="$IMAGE_PREFIX/$name"
-  recorded=$(incus image get-property "$alias" user.build-source 2>/dev/null || true)
+  # incus_run, for the same reason as the flake-rev read above: a bare `incus`
+  # here reports the alias in `default`, so `recorded` came back empty for a
+  # project-scoped instance. Empty is not neutral in the branch below -- it is
+  # the "no image at alias yet" case, which makes every run report the instance
+  # as having no image and skip the "build inputs unchanged" short-circuit.
+  recorded=$(incus_run image get-property "$alias" user.build-source 2>/dev/null || true)
 
   log "instance base image ${old_fingerprint:0:12} ($(instance_field "$name" '.status'))"
   if [[ -z $recorded ]]; then
@@ -1176,7 +1337,7 @@ report_existing_drift() {
     fi
   done
 
-  cur_dev=$(incus query "/1.0/instances/$name" | jq -c '.devices // {}')
+  cur_dev=$(instance_json "$name" | jq -c '.devices // {}')
   want_dev=$(jq -c '.devices // {}' <<<"$spec")
   # mapfile then for, for the same reason as sync_devices.
   mapfile -t want_keys < <(jq -r 'keys[]' <<<"$want_dev")
@@ -1255,6 +1416,10 @@ apply_instance() {
   local -a artifacts
 
   TAG="$name"
+  # Before anything that could need the project to exist: an image import, a
+  # volume, or an instance create all fail with an error that names neither the
+  # project nor the missing prerequisite.
+  ensure_project
   spec=$(instance_spec "$name")
   alias="$IMAGE_PREFIX/$name"
   # `type` is the Incus instance type. It changes the shape of the build, not

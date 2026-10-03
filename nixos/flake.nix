@@ -181,5 +181,22 @@
         #
         # An instance absent from this map is in Incus's `default` project.
         incusInstanceProjects = import ./incus-instance-projects.nix;
+
+        # The shape of each Incus project this host owns, keyed by PROJECT name:
+        #
+        #   nix eval --json .#incusProjects.forgejo
+        #
+        # Presence in this map is what makes incus/apply.sh create the project,
+        # and the keys under it are applied as project config. A third output
+        # rather than a second field on incusInstanceProjects because the two
+        # answer different questions and have different keys: instances name the
+        # project they live in, and a project outlives the instances placed in
+        # it.
+        #
+        # This has to live here at all because the nixpkgs `incus` module has no
+        # `projects` option -- `storage_pools` applies to `default` only -- so
+        # without it a project exists solely because someone typed
+        # `incus project create` into a live Incus once.
+        incusProjects = import ./incus-projects.nix;
     };
 }
