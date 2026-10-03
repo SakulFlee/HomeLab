@@ -13,6 +13,15 @@
 let
   cfg = config.services.forgejo;
 
+  # APP_DATA_PATH. Not set anywhere below, so it is the module default of
+  # ${cfg.stateDir}/data -- but that path is the *mount point* of the forgejo-data
+  # volume, and it is the one directory in this container that the host owns
+  # outright rather than the guest creating it. So it is named here once and used
+  # by name, because getting it wrong is silent in both directions: too high and
+  # Forgejo writes state onto the container's root disk instead of the volume; too
+  # low and it writes into a directory that does not exist.
+  dataPath = "${cfg.stateDir}/data";
+
   # Nothing is written to incus-secrets for this instance. incus/apply.sh writes
   # every secret into the paths the Forgejo module already declares under its own
   # customDir, because that directory is the only one its secret-bootstrap unit
@@ -129,13 +138,91 @@ in
     # and `other` has no access. Being in group forgejo grants r-x on those two,
     # which is exactly traverse and no more.
     #
-    # Deliberately not enough to read anything: custom/conf is 0700, so this
-    # does not let the transport identity see app.ini or any of the five
-    # rendered secrets.
+    # Deliberately not enough to read anything. Group `forgejo` owns the
+    # rendered secrets, so this would be enough -- except that custom/conf is
+    # held at 0700 by forgejo-config-privacy below, which takes group traverse
+    # away and with it any path to app.ini or the five secrets. Verified by
+    # reading them as this account after that unit runs, not inferred.
     extraGroups = [ "forgejo" ];
   };
 
   users.users.forgejo = forgejoUser;
+
+  # The volume root is the one directory in this container that the *host* owns,
+  # and nothing in the guest creates it.
+  #
+  # Incus makes a custom volume a btrfs subvolume created by the daemon as root,
+  # and it uses 0711 -- traverse, but no list and no write. Measured in the
+  # running instance:
+  #
+  #   /var/lib/forgejo/data            drwx--x--x 711 root:root (0:0)
+  #   /var/lib/postgresql/data         drwx------ 700 postgres:postgres
+  #
+  # The contrast is the whole point: the postgres volume has a unit below that
+  # hands it over, and the data volume had no counterpart, so it stayed as Incus
+  # made it. StateDirectory covers ${cfg.stateDir} but not the mount point below
+  # it, and the module ships no tmpfiles at all (checked in the instance:
+  # /usr/lib/tmpfiles.d is empty).
+  #
+  # Forgejo then fails at startup, after the port is already bound:
+  #
+  #   unable to create chunked upload directory:
+  #   mkdir /var/lib/forgejo/data/tmp: permission denied
+  #
+  # 0711 grants traverse, so this is quieter than it should be: the `git`
+  # transport walks the repositories underneath without complaint and only
+  # Forgejo's own writes fail.
+  systemd.services.forgejo-data-dir = {
+    description = "Hand APP_DATA_PATH to forgejo -- Incus creates it 0711 root:root";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "local-fs.target" ];
+    before = [
+      "forgejo-repositories-owner.service"
+      "forgejo.service"
+    ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      # 0750, matching what the `git` user's group grant is documented to rely
+      # on: r-x for group forgejo is exactly traverse, which is all the
+      # transport identity needs, and nothing more -- custom/conf stays 0700.
+      ExecStart = lib.getExe' pkgs.coreutils "install"
+        + " -d -m 0750 -o forgejo -g forgejo "
+        + dataPath;
+    };
+  };
+
+  # custom/conf is where app.ini and all five rendered secrets live, and the
+  # module creates the directory as a StateDirectory at 0750 -- readable by group
+  # `forgejo`. Which is fine right up until `git` is put in group `forgejo` for
+  # the traversal below, at which point the transport identity can read them:
+  #
+  #   -r--r----- 1 forgejo forgejo /var/lib/forgejo/custom/conf/secret_key
+  #   su git -c 'cat .../custom/conf/secret_key'   -> succeeds
+  #
+  # That matters because `git` is who every SSH session on the host lands as, so
+  # anything it can read, anyone who can open a connection can read -- and
+  # SECRET_KEY is the key whose reuse is what keeps the admin's TOTP secrets
+  # decryptable. It also signs session cookies, so it is not a file to hand to a
+  # network-reachable login "harmlessly".
+  #
+  # 0700 puts the boundary back: `forgejo` owns the directory and is the only
+  # thing that ever reads those files, and the files' own 0440 becomes
+  # unreachable once the directory stops granting group traverse.
+  #
+  # Ordered after local-fs.target because that is when systemd applies the
+  # StateDirectory mode, which would otherwise put 0750 straight back.
+  systemd.services.forgejo-config-privacy = {
+    description = "Keep app.ini and the rendered secrets out of group forgejo's reach";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "local-fs.target" ];
+    before = [ "forgejo.service" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      ExecStart = lib.getExe' pkgs.coreutils "chmod" + " 0700 " + cfg.customDir + "/conf";
+    };
+  };
 
   # The repositories volume arrives owned by root, because Incus created the
   # btrfs subvolume. Setgid so repositories Forgejo creates inherit group `git`,
@@ -151,11 +238,14 @@ in
       "forgejo.service"
       "postgresql.service"
     ];
-    after = [ "local-fs.target" ];
+    after = [
+      "local-fs.target"
+      "forgejo-data-dir.service"
+    ];
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
-      ExecStart = lib.getExe' pkgs.coreutils "install" + " -d -m 2775 -o git -g git /var/lib/forgejo/data/git";
+      ExecStart = lib.getExe' pkgs.coreutils "install" + " -d -m 2775 -o git -g git " + cfg.repositoryRoot;
     };
   };
 
@@ -182,6 +272,11 @@ in
   #
   # All three measured in the running instance before this was written down.
   #
+  # The paths in that transcript are /data/git because repositoryRoot was one
+  # level too high when they were taken -- see the repositoryRoot note. The
+  # units now apply the same two operations to whatever repositoryRoot is, so
+  # the mechanism is unchanged; only the directory moved.
+  #
   # system.posixACLs is deliberately NOT enabled. That option remounts / and
   # /var with acl, and the default ACL lives on the `repositories` volume, which
   # is a separate btrfs mount that already accepts ACLs -- verified by the setfacl
@@ -200,7 +295,7 @@ in
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
-      ExecStart = lib.getExe' pkgs.acl "setfacl" + " -d -m g:git:rwx /var/lib/forgejo/data/git";
+      ExecStart = lib.getExe' pkgs.acl "setfacl" + " -d -m g:git:rwx " + cfg.repositoryRoot;
     };
   };
 
@@ -333,12 +428,23 @@ in
       # as well would only add a second, duplicate definition.
     };
 
-    # Where the `repositories` volume is mounted (see incus.nix). The module's
-    # default is ${stateDir}/repositories, which is a path that does not exist
-    # here, so this line is load-bearing rather than documentation: without it
-    # Forgejo would create and use a second repository tree on the container's
-    # root disk, and every push would appear to vanish on the next rebuild.
-    repositoryRoot = "/var/lib/forgejo/data/git";
+    # The volume is mounted at APP_DATA_PATH, and the k3s deployment's own layout
+    # puts the repositories one level below that, under a directory of its own:
+    #
+    #   <data>/git/gitea-repositories/<owner>/<repo>.git
+    #   <data>/git/.ssh          the transport identity's home
+    #   <data>/git/.gnupg        private-keys-v1.d -- the commit-signing keys
+    #
+    # So repositoryRoot is <data>/git/gitea-repositories, NOT <data>/git. Getting
+    # this wrong is quiet: Forgejo stores repository paths in the database
+    # RELATIVE to the root (verified against the restored dump -- zero rows match
+    # '/%'), so a root one level too high is not a parse error, it is Forgejo
+    # looking for SakulFlee/HomeLab.git in a directory that does not exist, and
+    # reporting every repository as missing while the files sit right there.
+    #
+    # The module's own default is ${stateDir}/repositories, which is also not
+    # where they are.
+    repositoryRoot = "${dataPath}/git/gitea-repositories";
 
     # LFS content directory defaults to ${stateDir}/data/lfs, which is exactly
     # where the `lfs` volume is mounted, so only the switch is needed.
