@@ -68,4 +68,74 @@
       path = "/var/lib/forgejo/data/lfs";
     };
   };
+
+  # Secrets the host decrypts and writes into this instance. incus/apply.sh reads
+  # `source` on the host and writes the bytes to `dir/file` inside the instance.
+  #
+  # dir = the Forgejo module's customDir/conf, and every filename below is one
+  # the module already names. That is deliberate, and it is what makes this work
+  # at all:
+  #
+  #   * services.forgejo declares defaults for four of these -- secret_key,
+  #     internal_token, oauth2_jwt_secret, lfs_jwt_secret -- so pointing them
+  #     elsewhere needs `mkForce` to override the module's own definition.
+  #   * Its forgejo-secrets unit generates any of them that is EMPTY, and is
+  #     sandboxed with ReadWritePaths = [ customDir ]. On the first boot, before
+  #     anything has been rendered, it would try to create the missing ones
+  #     wherever they had been pointed and be denied by its own sandbox. That
+  #     unit is Required by forgejo.service, so Forgejo would never start.
+  #
+  # Writing them where the module already looks makes the generator a no-op,
+  # needs no mkForce, and cannot fail that way.
+  #
+  # format = "raw" for all five: these are values app.ini has to receive whole,
+  # and `env` would wrap each in NAME=value, which is not what a Forgejo secret
+  # wants. Raw is also why each one is a separate file.
+  #
+  # The first four are the k3s deployment's values, reused on purpose. From
+  # Forgejo's own configuration cheat sheet: "SECRET_KEY: Global secret key. This
+  # key is VERY IMPORTANT; if you lose it, data encrypted by it (like 2FA secrets)
+  # can no longer be decrypted." So a freshly generated SECRET_KEY would leave
+  # any two-factor secrets in the database being restored permanently
+  # undecryptable, with nothing in the logs. The rest sign tokens clients
+  # already hold.
+  renderedSecrets = [
+    {
+      format = "raw";
+      file = "secret_key";
+      dir = "/var/lib/forgejo/custom/conf";
+      source = "/run/secrets/forgejo_secret_key";
+    }
+    {
+      format = "raw";
+      file = "internal_token";
+      dir = "/var/lib/forgejo/custom/conf";
+      source = "/run/secrets/forgejo_internal_token";
+    }
+    {
+      format = "raw";
+      file = "oauth2_jwt_secret";
+      dir = "/var/lib/forgejo/custom/conf";
+      source = "/run/secrets/forgejo_jwt_secret";
+    }
+    {
+      format = "raw";
+      file = "lfs_jwt_secret";
+      dir = "/var/lib/forgejo/custom/conf";
+      source = "/run/secrets/forgejo_lfs_secret";
+    }
+    # The mailer password has no module default, so the guest points at it
+    # explicitly (services.forgejo.secrets.mailer.PASSWD).
+    {
+      format = "raw";
+      file = "smtp_password";
+      dir = "/var/lib/forgejo/custom/conf";
+      source = "/run/secrets/forgejo_smtp_password";
+    }
+  ];
+
+  # Units inside the instance that read a rendered file, and that must therefore
+  # be restarted when one changes. forgejo.service is the only consumer: the
+  # secrets go in as systemd credentials, which are read once at process start.
+  secretConsumers = [ "forgejo.service" ];
 }

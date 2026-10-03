@@ -816,7 +816,7 @@ apply_limits() {
 # a secret file is not something to churn.
 render_secrets() {
   local name=$1 spec=$2 entry file env format mode group source value wanted current unit
-  local path cur_mode cur_group state cmd attempt needs_write
+  local path dir cur_mode cur_group state cmd attempt needs_write
   local changed=0
   local -a entries consumers
 
@@ -897,7 +897,18 @@ render_secrets() {
     # bytes are right but whose mode is not is still broken, and the failure mode
     # is the confusing one: the consumer cannot read it and exits, while
     # apply.sh reports that everything is already up to date.
-    path="/var/lib/incus-secrets/$file"
+    #
+    # `dir`, defaulting to the one directory everything else has always used.
+    # It exists for Forgejo, whose NixOS module keeps SECRET_KEY,
+    # INTERNAL_TOKEN, JWT_SECRET and LFS_JWT_SECRET at fixed paths under its
+    # customDir and generates any of them that is *empty* -- and that generator
+    # unit is sandboxed with ReadWritePaths = [customDir]. Point the four at
+    # files here instead and the generator would try to create them here, be
+    # denied by its own sandbox, and fail a unit that forgejo.service Requires.
+    # Writing them where the module already expects them makes the generator a
+    # no-op, and needs no mkForce to redirect the module's own defaults.
+    dir=$(jq -r '.dir // "/var/lib/incus-secrets"' <<<"$entry")
+    path="$dir/$file"
     # incus_run, not bare incus: an instance name resolves against the *current*
     # project, so a bare `incus exec forgejo` fails with "Instance not found" for
     # an instance living in the forgejo project. That would have been the worst
@@ -941,7 +952,7 @@ render_secrets() {
     # /run/current-system/sw/bin. Same trap as the missing `logger` in disk.nix:
     # a NixOS exec environment does not carry the PATH a shell script assumes.
     cmd="export PATH=/run/current-system/sw/bin:\$PATH"
-    cmd="$cmd && mkdir -p /var/lib/incus-secrets && chmod 0700 /var/lib/incus-secrets"
+    cmd="$cmd && mkdir -p $dir && chmod 0700 $dir"
     cmd="$cmd && umask 077 && cat > $path"
     # chgrp before chmod: chown-family calls can clear setuid/setgid bits, and
     # the mode is the thing being asserted here.
