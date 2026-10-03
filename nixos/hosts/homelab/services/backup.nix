@@ -172,10 +172,24 @@ in
 
       serviceConfig = {
         Type = "oneshot";
+        # ${script}/bin/restic-backup, NOT ${script}.
+        #
+        # writeShellApplication returns a derivation whose output is a
+        # *directory* containing bin/<name>, so interpolating the derivation
+        # directly yields a path with no /bin/ on the end and systemd fails with
+        #
+        #   Failed at step EXEC spawning /nix/store/…-restic-backup:
+        #   Is a directory
+        #
+        # lib.getExe' is the accessor for exactly this: it takes a derivation and
+        # the name inside it. It cannot be used on pkgs.writeShellApplication
+        # itself, which is a function rather than a derivation -- hence the let
+        # binding above.
+        #
         # Restic reads the password from the sops-rendered file. Not an
         # EnvironmentFile: the value would then be in the unit's environment,
         # visible in /proc/<pid>/environ to anything that can read it.
-        ExecStart = "${script}";
+        ExecStart = lib.getExe' script "restic-backup";
       };
     };
 
