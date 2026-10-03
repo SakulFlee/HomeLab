@@ -37,6 +37,11 @@
   networking.hostName = "HomeLab";
   networking.firewall.enable = false;
   networking.nameservers = [ "192.168.178.1" ];
+  # Hourly restic of the Incus storage pools into the repository the k3s
+  # DaemonSet already writes. Until this existed, nothing on this host was
+  # backed up at all; see services/backup.nix for the whole story.
+  services.restic-backup.enable = true;
+
   environment.systemPackages = with pkgs; [
     kubectl
     neovim
