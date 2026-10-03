@@ -814,6 +814,31 @@ apply_limits() {
 #
 # Diffed against what is already there, so a settled redeploy writes nothing --
 # a secret file is not something to churn.
+  # A helper for the two "is this secret here" questions, because they have
+# different causes and the wrong guess sends people away for a while.
+#
+# A key that is present in secrets.yaml but NOT declared as sops.secrets.<name>
+# is never written to /run/secrets at all, and no number of rebuilds changes
+# that -- only the declaration does. That is the actual cause this ran into,
+# and the message used to blame a missing rebuild, which sent the problem off
+# to be fixed twice over by something that could not possibly have fixed it.
+#
+# So: absent means "not declared", present-but-unreadable means a permissions
+# or ownership problem, and only the second is anything to do with activation.
+assert_secret_readable() {
+  local source=$1 what=$2
+  if [[ ! -e $source ]]; then
+    die "$source does not exist, so $what cannot be rendered." \
+        "sops-nix only writes a secret to /run/secrets if the host declares" \
+        "sops.secrets.$(basename "$source") in nixos/modules/sops.nix. Check the" \
+        "key is both present in secrets.yaml AND declared there -- a rebuild" \
+        "cannot create a file nothing asks for."
+  fi
+  [[ -r $source ]] || die "$source exists but is not readable, so $what cannot" \
+                           "be rendered. That is a permissions problem on the" \
+                           "host, not a missing declaration."
+}
+
 render_secrets() {
   local name=$1 spec=$2 entry file env format mode group source value wanted current unit
   local path dir cur_mode cur_group state cmd attempt needs_write
@@ -862,14 +887,7 @@ render_secrets() {
       *) die "$name's $file has unknown format '$format' (want env or raw)" ;;
     esac
 
-    if [[ ! -r $source ]]; then
-      # Fail loudly rather than writing an empty file: an empty CF_API_TOKEN
-      # makes Caddy refuse to start, and "environment file missing" is a much
-      # better error than "API token '' appears invalid".
-      die "$source is not readable, so $name's $file cannot be rendered." \
-          "It is materialised by the host's sops.secrets on activation -- is the" \
-          "host missing a nixos-rebuild?"
-    fi
+  assert_secret_readable "$source" "$name's $file"
 
     # Command substitution strips trailing newlines. For format=env that is
     # exactly right: EnvironmentFile wants one KEY=value per line and no
@@ -1261,9 +1279,7 @@ sync_incus_trust() {
 
   source=$(jq -r '.incusTrust.certificate // empty' <<<"$spec")
   [[ -n $source ]] || die "$name declares incusTrust but names no certificate"
-  [[ -r $source ]] || die "$source is not readable, so $name's client certificate" \
-                         "cannot be trusted. It is materialised by the host's" \
-                         "sops.secrets -- is the host missing a nixos-rebuild?"
+  assert_secret_readable "$source" "$name's client certificate"
 
   want_norm=$(tr -d '[:space:]' <"$source")
 
