@@ -42,6 +42,34 @@
 
   sops.secrets.incus_client_key = {};
 
+  # The five values services.forgejo.secrets needs, all of them the k3s
+  # deployment's rather than fresh ones. Declared here for the same reason as the
+  # caddy token above: the instance gets rendered bytes and no decryption
+  # capability, so a root process in the forgejo container cannot read the restic
+  # password, the Cloudflare token or the VPN credentials out of this file.
+  #
+  # Declared as a group because they are declared as a group in app.ini, and the
+  # reuse is the point rather than an accident:
+  #
+  #   forgejo_secret_key      Forgejo's own words: "if you lose it, data encrypted
+  #                           by it (like 2FA secrets) can no longer be decrypted."
+  #                           Regenerating it would lock the account out of the
+  #                           database being restored, silently.
+  #   forgejo_internal_token  signs the instance's own API credentials
+  #   forgejo_jwt_secret      signs the API and Actions tokens clients hold
+  #   forgejo_lfs_secret      signs the short-lived LFS bearer tokens
+  #   forgejo_smtp_password   the mailer credential
+  #
+  # The values themselves live in secrets.yaml, and incus/apply.sh reads them
+  # from /run/secrets/<name> and renders them into the instance -- see the
+  # renderedSecrets stanza in hosts/forgejo/incus.nix for where they land and why
+  # that location is not arbitrary.
+  sops.secrets.forgejo_secret_key = {};
+  sops.secrets.forgejo_internal_token = {};
+  sops.secrets.forgejo_jwt_secret = {};
+  sops.secrets.forgejo_lfs_secret = {};
+  sops.secrets.forgejo_smtp_password = {};
+
   # No sops.secrets for the wireguard VM's web UI, and that is a decision rather
   # than an omission.
   #
