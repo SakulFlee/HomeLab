@@ -91,6 +91,20 @@ in
     createHome = false;
     group = "git";
     shell = pkgs.bashInteractive;
+
+    # Traverse, nothing more. Measured rather than assumed: with only the `git`
+    # group, a push fails at the *first* step, not at the write --
+    #
+    #   stat: cannot statx '/var/lib/forgejo/data/git': Permission denied
+    #
+    # because /var/lib/forgejo and /var/lib/forgejo/data are 0750 forgejo:forgejo
+    # and `other` has no access. Being in group forgejo grants r-x on those two,
+    # which is exactly traverse and no more.
+    #
+    # Deliberately not enough to read anything: custom/conf is 0700, so this
+    # does not let the transport identity see app.ini or any of the five
+    # rendered secrets.
+    extraGroups = [ "forgejo" ];
   };
 
   users.users.forgejo = forgejoUser;
@@ -114,6 +128,51 @@ in
       Type = "oneshot";
       RemainAfterExit = true;
       ExecStart = lib.getExe' pkgs.coreutils "install" + " -d -m 2775 -o git -g git /var/lib/forgejo/data/git";
+    };
+  };
+
+  # Setgid alone is not enough, and this is the second half of the same problem.
+  #
+  # The ownership unit above makes the repositories directory 2775 git:git, so
+  # new repositories inherit group `git`. But Forgejo creates them 2755 -- setgid
+  # yes, group write no:
+  #
+  #   /var/lib/forgejo/data/git/probe-a  2755 forgejo:git
+  #   touch …/probe-a/HEAD: Permission denied
+  #
+  # So `git-receive-pack`, arriving as `git`, can read a repository Forgejo
+  # created and cannot write to it. Widening the mode is not an option: Forgejo
+  # chooses 2755 itself, on every repository, and would undo it.
+  #
+  # A default ACL is the mechanism that survives that, because it is inherited
+  # rather than applied:
+  #
+  #   setfacl -d -m g:git:rwx /var/lib/forgejo/data/git
+  #   /var/lib/forgejo/data/git/probe-b  2775 forgejo:git   group:git:rwx
+  #   touch …/probe-b/HEAD: ok
+  #   git init --bare …/probe-c; touch …/probe-c/objects/info/x: ok
+  #
+  # All three measured in the running instance before this was written down.
+  #
+  # system.posixACLs is deliberately NOT enabled. That option remounts / and
+  # /var with acl, and the default ACL lives on the `repositories` volume, which
+  # is a separate btrfs mount that already accepts ACLs -- verified by the setfacl
+  # above succeeding with the option off.
+  #
+  # Idempotent: setfacl replaces the entry rather than adding to it. Ordered
+  # after the ownership unit because that one creates the directory, and before
+  # forgejo.service because repositories created before it exists would not
+  # inherit the ACL.
+  systemd.services.forgejo-repositories-acl = {
+    description = "Make repositories Forgejo creates group-writable for the git transport identity";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "forgejo-repositories-owner.service" ];
+    before = [ "forgejo.service" ];
+    path = [ pkgs.acl ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      ExecStart = lib.getExe' pkgs.acl "setfacl" + " -d -m g:git:rwx /var/lib/forgejo/data/git";
     };
   };
 
