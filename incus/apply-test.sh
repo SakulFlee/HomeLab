@@ -49,6 +49,27 @@ if grep -nE '(^|[^_[:alnum:]])incus (image|storage|exec)' "$APPLY" \
     | grep -vE '^[0-9]+:[[:space:]]*#' | sed 's/^/  /'
   whole_file_fail=1
 fi
+# A herestring into the secret-writing command appends a newline to every
+# rendered secret. It went unnoticed because the read-back stripped it again, so
+# apply.sh compared a 43-byte secret against a 44-byte file, called them equal,
+# and re-rendered nothing. Forgejo derives its TOTP key from SECRET_KEY, so the
+# byte that was added is the byte that decides whether 2FA can be decrypted.
+if grep -nE 'incus_run_stdin exec .*<<<' "$APPLY" | grep -vE '^[0-9]+:[[:space:]]*#' >/dev/null; then
+  echo "FATAL: secret payload written through a herestring (appends a newline):"
+  grep -nE 'incus_run_stdin exec .*<<<' "$APPLY" | grep -vE '^[0-9]+:[[:space:]]*#' | sed 's/^/  /'
+  whole_file_fail=1
+fi
+# Reading a file out of the guest must go through the helper that exports the
+# NixOS profile. A bare `incus_run exec ... cat` can fail to resolve and return
+# empty, and an empty read looks identical to "file absent" or "content
+# differs" -- which is how the mismatch above stayed pinned in place.
+if grep -nE 'incus_run(_stdin)? exec .*-- (cat|stat|sha256sum|cp|mv|rm) ' "$APPLY" \
+     | grep -vE '^[0-9]+:[[:space:]]*#' >/dev/null; then
+  echo "FATAL: guest file operation without the NixOS profile on PATH:"
+  grep -nE 'incus_run(_stdin)? exec .*-- (cat|stat|sha256sum|cp|mv|rm) ' "$APPLY" \
+    | grep -vE '^[0-9]+:[[:space:]]*#' | sed 's/^/  /'
+  whole_file_fail=1
+fi
 [[ $whole_file_fail == 0 ]] || exit 99
 
 # --- stubs -----------------------------------------------------------------

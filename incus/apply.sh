@@ -934,12 +934,35 @@ render_secrets() {
     # every one returns empty, `needs_write` is set for every secret on every
     # run, and render_secrets reports it re-rendered a file that was already
     # correct. Then it restarts the consumers. Forever, silently.
-    current=$(incus_run exec "$name" -- cat "$path" 2>/dev/null || true)
-    cur_mode=$(incus_run exec "$name" -- stat -c '%a' "$path" 2>/dev/null || true)
-    cur_group=$(incus_run exec "$name" -- stat -c '%G' "$path" 2>/dev/null || true)
+    # Every read goes through the NixOS profile explicitly. The guest's inherited
+    # PATH has no coreutils, so a bare `cat`, `stat` or `sha256sum` can fail to
+    # resolve and come back empty -- and an empty read is indistinguishable from
+    # "file absent" or "content differs", which is what silently pinned the
+    # mismatch below in place on every run.
+    g() { incus_run exec "$name" -- sh -c "export PATH=/run/current-system/sw/bin:\$PATH; $*" 2>/dev/null || true; }
+
+    # Compared as a digest of the exact bytes, not as a string.
+    #
+    # `$(cat file)` strips trailing newlines, so a file with one appended newline
+    # compared equal to the same secret without it. That is precisely the bug
+    # this now catches: apply.sh wrote every secret through a herestring, which
+    # appends \n, and then compared the result back through command substitution,
+    # which removes it. The file was one byte longer than the secret and
+    # apply.sh reported it already correct, forever.
+    #
+    # It matters for these five because Forgejo derives its TOTP encryption key
+    # from SECRET_KEY. The k3s app.ini held 43 bytes with no trailing newline;
+    # the rendered file was the same 43 characters plus \n. Whether Forgejo trims
+    # when it reads a `*_URI` file decides whether that is harmless, and rather
+    # than depend on the answer the file is now written with no trailing newline,
+    # so it is byte-identical to the k3s value under either behaviour.
+    current_sum=$(g sha256sum "$path" | awk '{print $1}')
+    want_sum=$(printf '%s' "$wanted" | sha256sum | awk '{print $1}')
+    cur_mode=$(g stat -c '%a' "$path")
+    cur_group=$(g stat -c '%G' "$path")
 
     needs_write=0
-    [[ $current == "$wanted" ]] || needs_write=1
+    [[ -n $current_sum && $current_sum == "$want_sum" ]] || needs_write=1
     [[ $cur_mode == "${mode#0}" ]] || needs_write=1
     if [[ -n $group ]]; then
       [[ $cur_group == "$group" ]] || needs_write=1
@@ -976,7 +999,13 @@ render_secrets() {
     # the mode is the thing being asserted here.
     [[ -n $group ]] && cmd="$cmd && chgrp $group $path"
     cmd="$cmd && chmod $mode $path"
-    incus_run_stdin exec "$name" -- sh -c "$cmd" <<<"$wanted"
+    # printf, not a herestring. `<<<` appends a newline, which put a 44th byte
+    # on a 43-character SECRET_KEY -- see the digest comparison above for why
+    # that went unnoticed and why it is not safe to leave to the consumer's
+    # discretion. printf preserves the internal newlines a PEM needs, so
+    # format=raw is unaffected apart from no longer gaining a trailing one,
+    # which the note on `value=$(<"$source")` already says nothing cares about.
+    printf '%s' "$wanted" | incus_run_stdin exec "$name" -- sh -c "$cmd"
     changed=1
   done
 
