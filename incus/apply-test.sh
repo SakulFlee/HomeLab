@@ -49,14 +49,28 @@ if grep -nE '(^|[^_[:alnum:]])incus (image|storage|exec)' "$APPLY" \
     | grep -vE '^[0-9]+:[[:space:]]*#' | sed 's/^/  /'
   whole_file_fail=1
 fi
-# The directory holding rendered secrets must stay traversable. It was chmod'd
-# 0700 while the files inside are 0440 root:<consumer-group>, so the group grant
-# was on the file and the file could not be reached -- Caddy could not read its
-# own client certificate and every hostname on the host went down. 0711 grants
-# traverse and nothing more.
-if grep -nE 'chmod 0?700 +\$dir\b' "$APPLY" | grep -vE '^[0-9]+:[[:space:]]*#' >/dev/null; then
-  echo "FATAL: secrets directory chmod'd to 0700 -- group-owned files inside become unreachable:"
-  grep -nE 'chmod 0?700 +\$dir\b' "$APPLY" | grep -vE '^[0-9]+:[[:space:]]*#' | sed 's/^/  /'
+# The secrets directory mode has to be derived from who the consumer is, not
+# hardcoded, because the two instances need opposite things and each hardcoded
+# value has already broken one of them:
+#
+#   0700 -> Caddy cannot read its own client certificate. Its files are
+#           root:caddy, so the *caddy user* must traverse a directory it does not
+#           own. Every hostname on the host went down.
+#   0711 -> Forgejo's secrets become readable by `git`, which is in group forgejo
+#           and is who every host SSH session lands as. Measured: all six files.
+#
+# So the check is structural: a bare chmod of the directory means one of those two
+# bugs is being re-introduced. The conditional on ownership is what is required.
+if grep -nE 'chmod +(0?700|0?711) +\$dir\b' "$APPLY" | grep -vE '^[0-9]+:[[:space:]]*#' >/dev/null; then
+  echo "FATAL: secrets directory mode is hardcoded -- one of the two known bugs:"
+  echo "  0700 locks Caddy out of its own certificate; 0711 exposes Forgejo's secrets to git."
+  grep -nE 'chmod +(0?700|0?711) +\$dir\b' "$APPLY" | grep -vE '^[0-9]+:[[:space:]]*#' | sed 's/^/  /'
+  whole_file_fail=1
+fi
+# And the mode must be chosen from the directory's actual owner, not guessed.
+if ! grep -q 'dir_owner=\$(g stat' "$APPLY"; then
+  echo "FATAL: dir_mode is not derived from the directory owner -- the distinction that"
+  echo "  separates Caddy (needs o+x) from Forgejo (must not have it) is ownership."
   whole_file_fail=1
 fi
 # A herestring into the secret-writing command appends a newline to every

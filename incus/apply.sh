@@ -1007,21 +1007,55 @@ render_secrets() {
     # The bug sat dormant until that comparison was made byte-exact, the
     # reconciler started doing real work again, and the first render chmod'd the
     # directory out from under a running Caddy.
+    # The directory mode depends on who the consumer is, because "traversable by
+    # the consumer" has two different meanings across these instances.
     #
-    # 0711 rather than 0750 because this one directory holds files belonging to
-    # *different* groups -- forgejo's secrets are root:forgejo, caddy's are
-    # root:caddy -- so no single group grant can open it for every consumer. o+x
-    # is traverse and nothing more: the files' own modes still decide who can
-    # read what, and the contents cannot be listed.
+    # This was 0700, which broke Caddy: its files are root:caddy, so the *caddy
+    # user* has to traverse the directory to reach them, and 0700 root:root denies
+    # that regardless of the file's own mode.
     #
-    # PATH is exported because `incus exec -- sh -c` does not get a usable one.
-    # The guest inherits /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:
-    # /bin, where a NixOS system has no coreutils at all -- ls, head and mkdir
-    # are all "command not found". The NixOS profile lives at
-    # /run/current-system/sw/bin. Same trap as the missing `logger` in disk.nix:
-    # a NixOS exec environment does not carry the PATH a shell script assumes.
-    cmd="export PATH=/run/current-system/sw/bin:\$PATH"
-    cmd="$cmd && mkdir -p $dir && chmod 0711 $dir"
+    #   loading module 'reverse_proxy': ... loading client certificate key pair:
+    #   open /var/lib/incus-secrets/incus-client.crt: permission denied
+    #
+    # So it became 0711 -- o+x, traverse and nothing more. That fixed Caddy and
+    # opened a hole in Forgejo, which is the case this comment now has to explain.
+    # Forgejo's secrets are root:forgejo, and `git` is in group forgejo:
+    #
+    #   uid=1000(git) gid=997(git) groups=997(git),998(forgejo)
+    #
+    # With o+x on the directory, `git` traverses, and then the files' own 0440
+    # group bit grants it read. Measured on the running instance, all six files:
+    #
+    #   app.ini  internal_token  lfs_jwt_secret
+    #   oauth2_jwt_secret  secret_key  smtp_password        -> all READABLE
+    #
+    # `git` is the identity every SSH session on the host lands as, so this hands
+    # SECRET_KEY -- the key whose reuse keeps the admin's TOTP secrets
+    # decryptable, and which also signs session cookies -- to anyone who can open
+    # a connection.
+    #
+    # The distinction is ownership, not group: caddy does not own its secrets
+    # directory, so it needs o+x; forgejo does own it (User=forgejo, and stat
+    # confirms forgejo:forgejo), so 0700 is both sufficient and correct there.
+    dir_mode=0711
+    if [[ -n $group ]]; then
+      # When the consumer group owns the directory, 0700 closes it to everyone
+      # else -- which is the whole point of the group. Checked rather than
+      # assumed: `stat -c %U` gives a group name on NixOS too, and if the
+      # directory turns out not to be owned by that group we fall back to o+x
+      # rather than silently lock the consumer out of its own secrets.
+      # via g(), not a bare incus_run: the guest's inherited PATH has no coreutils,
+      # so a bare `stat` can fail to resolve and return empty -- and an empty
+      # dir_owner reads as "not the group", which would silently fall back to 0711
+      # and reopen the Forgejo hole this condition exists to close.
+      dir_owner=$(g stat -c '%U' "$dir")
+      if [[ $dir_owner == "$group" ]]; then
+        dir_mode=0700
+      else
+        warn "$name:$file -- $dir is owned by '${dir_owner:-unknown}', not $group; falling back to 0711 so the consumer can still traverse it"
+      fi
+    fi
+    cmd="$cmd && mkdir -p $dir && chmod $dir_mode $dir"
     cmd="$cmd && umask 077 && cat > $path"
     # chgrp before chmod: chown-family calls can clear setuid/setgid bits, and
     # the mode is the thing being asserted here.
