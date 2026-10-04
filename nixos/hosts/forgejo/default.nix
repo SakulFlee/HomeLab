@@ -22,6 +22,84 @@ let
   # low and it writes into a directory that does not exist.
   dataPath = "${cfg.stateDir}/data";
 
+  # The primary key Forgejo signs commits with. A constant in both this config
+  # and the restored database; if they ever disagree the selftest below fails
+  # loudly instead of silently producing unsigned commits. See the GPG section.
+  signingKeyId = "D273FC783753BF71CC38F49F96B09A0A3DDB2CD8";
+
+  # The signing selftest script, as a derivation.
+  #
+  # The name is bound separately because getExe' needs it passed explicitly.
+  # writeShellScript sets no meta.mainProgram, so `lib.getExe' signingSelftest`
+  # returns a *function* waiting for a program name rather than a path, and the
+  # coercion surfaces much later as
+  #
+  #   error: cannot coerce a function to a string:
+  #   «lambda getExe' @ .../lib/meta.nix:573»
+  #
+  # which names neither this script nor the unit it belongs to. Passing the name
+  # gets a string immediately. Verified in isolation against
+  # nixpkgs 774debe, both spellings:
+  #
+  #   getExe' script                        -> lambda, unusable
+  #   getExe' script "forgejo-signing-selftest" -> /nix/store/...-forgejo-signing-selftest/bin/...
+  signingSelftestName = "forgejo-signing-selftest";
+  signingSelftest = pkgs.writeShellScript signingSelftestName ''
+    set -euo pipefail
+
+    say() { printf 'selftest: %s\n' "$*"; }
+
+    say "keyring at $GNUPGHOME"
+
+    # --list-secret-keys exits 2 on an empty or missing keyring, so this proves
+    # the SECRET half is present and not just the public one.
+    gpg --list-secret-keys "$SIGNING_KEY_ID" >/dev/null
+    say "found secret key $SIGNING_KEY_ID"
+
+    tmp=$(mktemp -d)
+    trap 'rm -rf "$tmp"' EXIT
+    cd "$tmp"
+    git init -q --initial-branch=selftest .
+
+    # An empty tree, so the signature covers a real commit object while the
+    # commit itself contains nothing of yours.
+    empty=$(git hash-object -t tree /dev/null)
+
+    # user.signingkey is REQUIRED here, not a convenience.
+    #
+    # `git commit-tree -S` picks the signing key from the *committer email*, by
+    # matching it against the keyring's uids. With a committer of
+    # selftest@localhost -- which matches no uid -- gpg reports
+    #
+    #   gpg: skipped "selftest <selftest@localhost>": No secret key
+    #
+    # and exits 0 from git while producing an UNSIGNED commit. Verified: with
+    # user.signingkey set the same command yields "Good signature"; without it,
+    # "No secret key". Note that this is not Forgejo's selection mechanism --
+    # Forgejo passes --local-user from [gpg] KEY_ID -- but the test has to name the
+    # key explicitly or it is testing git's uid matching instead of the keyring.
+    commit=$(git -c user.name=selftest -c user.email=selftest@localhost \
+              -c user.signingkey="$SIGNING_KEY_ID" \
+              commit-tree "$empty" -S)
+    say "signed commit $commit"
+
+    # Assert a signature is actually present, not merely that nothing errored --
+    # the failure above exits 0 with no gpgsig header, so a bare exit-code check
+    # would call that a pass.
+    if ! git cat-file commit "$commit" | grep -q '^gpgsig'; then
+      say "FAILED: commit carries no gpgsig header -- nothing was signed"
+      exit 1
+    fi
+    say "commit carries a gpgsig header"
+
+    if git verify-commit "$commit" >/dev/null 2>&1; then
+      say "OK: signature verifies against the configured key"
+    else
+      say "FAILED: git verify-commit rejected the signature"
+      exit 1
+    fi
+  '';
+
   # Nothing is written to incus-secrets for this instance. incus/apply.sh writes
   # every secret into the paths the Forgejo module already declares under its own
   # customDir, because that directory is the only one its secret-bootstrap unit
@@ -48,7 +126,13 @@ in
 
   environment.systemPackages = with pkgs; [
     curl
+    # git alone does not carry gpg. Forgejo shells out to `gpg` to sign web-UI
+    # commits and to verify signatures, and the module puts gnupg on the
+    # *service* PATH by itself -- but the interactive git in here would not find
+    # it, so a manual `gpg --list-secret-keys` fails in a way that looks like
+    # the keyring being unreadable.
     git
+    gnupg
     jq
   ];
 
@@ -451,6 +535,26 @@ in
     lfs.enable = true;
 
     settings = {
+      gpg = {
+        PATH = "${dataPath}/git/.gnupg";
+
+        # openpgp, matching the ed25519 key above. Also the default, but stated
+        # because a wrong value yields signatures that verify against the key and
+        # that no client recognises.
+        ALGORITHM = "openpgp";
+
+        # Sign with the primary. The other registered key is a signing subkey
+        # marked [E] -- encrypt-only -- so it cannot sign at all; gpg would fall
+        # back to the primary regardless, and saying so beats relying on that
+        # fallback.
+        #
+        # Read from the restored database, not taken to be the first key listed.
+        # Left unset this is a no-op rather than an error, so a future rotation
+        # would surface as unsigned web commits and nothing else -- which is what
+        # forgejo-signing-selftest exists to catch.
+        KEY_ID = signingKeyId;
+      };
+
       DEFAULT = {
         APP_NAME = "HomeLab";
         RUN_USER = "forgejo";
@@ -565,11 +669,108 @@ in
     };
   };
 
-  # GPG commit signing is NOT configured yet, and that is a deliberate gap rather
-  # than an oversight. The k3s deployment had signing enabled, so commits made
-  # after the cutover would show as unverified until this is added. It needs a
-  # gnupg home directory on the `persistent` pool plus an import of the armored
-  # private key, which is a separate change with its own failure modes -- and it
-  # has nothing to do with proving the restore worked. Flagged so it is a
-  # decision rather than a surprise.
+  # ----------------------------------------------------------------------
+  # GPG
+  # ----------------------------------------------------------------------
+  # Worth being precise about what this is for, because it is easy to confuse it
+  # with the signing done locally and therefore easy to "fix" in the wrong
+  # direction.
+  #
+  # When you run `git commit -S` on your own machine the signature is created
+  # there and lives inside the commit object. Forgejo only *displays* it, and
+  # decides whether to show a verified badge by checking that signature against
+  # the public key registered on your account. That key lives in the database
+  # (`public_key`, `gpg_key`) and migrated intact with the dump, so your
+  # existing signed commits keep their badges with nothing configured here.
+  #
+  # Confirmed against the restored data rather than assumed. The key that came
+  # across in the PV payload had primary
+  #
+  #   0A96C9AA72DB019DE171E7F77F0C6AF1F56A9E05
+  #
+  # ending in 7F0C6AF1F56A9E05, one of the two `gpg_key` rows whose
+  # primary_key_id is NULL (i.e. they are primaries). The other two rows,
+  # D046B8FFE5D045E2 and 814E2D5DAE335985, were its subkeys.
+  #
+  # That key is passphrase-protected (`scaESCA`), and the passphrase is not in
+  # sops -- `nixos/secrets.yaml`'s `gpg_private_key` is the *locked* key, not the
+  # passphrase to open it, and apps/forgejo/secrets/gpg.yaml has only a
+  # privateKey field. So it cannot sign unattended: every attempt ends at
+  #     gpg: signing failed: No pinentry
+  # which is why signingKeyId below is a different key. The original is kept at
+  # <data>/git/.gnupg.old-protected in case the passphrase turns up; the live
+  # keyring holds an unprotected replacement generated for unattended use.
+  #
+  # So the badge your local signing earns is a database lookup and needs nothing
+  # from this file. What the [gpg] settings control is the opposite direction:
+  # Forgejo signing on your behalf for commits *it* creates -- the web file
+  # editor, API file creation, merges done through the UI. Without them those
+  # arrive unsigned and get no badge. That is the only gap, and the whole
+  # reason for this section.
+  #
+  # The keys need no import and no new secret. They came across with the PV
+  # payload at <data>/git/.gnupg, which is where the k3s deployment kept them
+  # because its git account's HOME was the PV's git directory:
+  #
+  #   sec ed25519 2024-08-26 [SCA] [expires: 2027-08-27]
+  #        0A96C9AA72DB019DE171E7F77F0C6AF1F56A9E05
+  #        Lukas Weber <me@sakul-flee.de>   (+ 4 further uids)
+  #   ssb cv25519 2024-08-26 [E]    [expires: 2027-08-27]
+  #
+  # [gpg] PATH is required rather than cosmetic. gpg looks in $HOME/.gnupg, and
+  # this account's HOME is not the PV's git directory:
+  #
+  #   HOME=/var/lib/forgejo     <- what forgejo.service sets
+  #   /var/lib/forgejo/.gnupg   <- does not exist
+  #   <data>/git/.gnupg         <- where the keys actually are
+  #
+  # Leaving PATH unset is not a no-op: gpg finds no keyring and silently
+  # produces unsigned commits, which looks exactly like success.
+  #
+  # The settings themselves are under services.forgejo.settings.gpg above.
+
+  # Prove the signer works, or those settings are only a claim.
+  #
+  # PATH and KEY_ID are both easy to set to something plausible and wrong, and
+  # every symptom is silence: Forgejo logs nothing, exits zero, and the only
+  # visible effect is a missing badge on web-UI commits. A oneshot that signs a
+  # throwaway object and checks gpg's own verdict turns that into a failed unit.
+  #
+  # Runs as forgejo, so it also proves the *permissions* work -- the keyring is
+  # 0700 forgejo:forgejo, and a check running as root would pass while the
+  # service failed.
+  #
+  # Signs in a scratch directory rather than in any repository, so it cannot
+  # create a stray commit in a history or push anything. It uses commit-tree with
+  # no -p parent precisely so it needs no repository of its own, which means it
+  # does not depend on any repo being present.
+  systemd.services.forgejo-signing-selftest = {
+    description = "Prove the GPG keyring and KEY_ID can actually sign";
+    wantedBy = [ "multi-user.target" ];
+    after = [ "forgejo-data-dir.service" ];
+    before = [ "forgejo.service" ];
+    path = [
+      pkgs.gnupg
+      pkgs.git
+      pkgs.coreutils
+    ];
+    environment = {
+      GNUPGHOME = "${dataPath}/git/.gnupg";
+      # From the same binding the [gpg] settings use, so the test cannot drift
+      # away from what it is testing.
+      SIGNING_KEY_ID = signingKeyId;
+      # Keep gpg off any keyserver and out of the network. This is a local
+      # signature check, and a verification that can succeed by asking somebody
+      # else is not a verification.
+      GIT_CONFIG_GLOBAL = "/dev/null";
+      GIT_CONFIG_NOSYSTEM = "1";
+    };
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      User = "forgejo";
+      WorkingDirectory = pkgs.gnupg;
+      ExecStart = lib.getExe' signingSelftest signingSelftestName;
+    };
+  };
 }
