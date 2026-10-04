@@ -27,24 +27,32 @@ let
   # loudly instead of silently producing unsigned commits. See the GPG section.
   signingKeyId = "D273FC783753BF71CC38F49F96B09A0A3DDB2CD8";
 
-  # The signing selftest script, as a derivation.
+  # The signing selftest script.
   #
-  # The name is bound separately because getExe' needs it passed explicitly.
-  # writeShellScript sets no meta.mainProgram, so `lib.getExe' signingSelftest`
-  # returns a *function* waiting for a program name rather than a path, and the
-  # coercion surfaces much later as
+  # Used as "${signingSelftest}", NOT via lib.getExe'. getExe' is wrong here in
+  # two separate ways and both were paid for in a deployed unit:
   #
-  #   error: cannot coerce a function to a string:
-  #   «lambda getExe' @ .../lib/meta.nix:573»
+  #   1. writeShellScript sets no meta.mainProgram, so `getExe' script` returns a
+  #      *function* awaiting a name. Coercing that surfaces as
+  #        error: cannot coerce a function to a string:
+  #        «lambda getExe' @ .../lib/meta.nix:573»
+  #      which names neither this script nor the unit that uses it.
   #
-  # which names neither this script nor the unit it belongs to. Passing the name
-  # gets a string immediately. Verified in isolation against
-  # nixpkgs 774debe, both spellings:
+  #   2. Passing the name explicitly -- `getExe' script "name"` -- gets a string,
+  #      and it evaluates, and then FAILS AT RUNTIME:
+  #        Failed at step EXEC spawning
+  #        /nix/store/...-forgejo-signing-selftest/bin/forgejo-signing-selftest:
+  #        Not a directory
+  #        status=203/EXEC
+  #      because writeShellScript yields a bare executable file, not a directory
+  #      containing bin/. getExe' appends the conventional /bin/<name> suffix
+  #      that a multi-output package would have, so the path it hands systemd
+  #      cannot exist.
   #
-  #   getExe' script                        -> lambda, unusable
-  #   getExe' script "forgejo-signing-selftest" -> /nix/store/...-forgejo-signing-selftest/bin/...
-  signingSelftestName = "forgejo-signing-selftest";
-  signingSelftest = pkgs.writeShellScript signingSelftestName ''
+  # "${derivation}" is the derivation's own path and is exactly the file. Both
+  # failures were verified in a running instance rather than inferred, which is
+  # the only reason this comment is worth trusting.
+  signingSelftest = pkgs.writeShellScript "forgejo-signing-selftest" ''
     set -euo pipefail
 
     say() { printf 'selftest: %s\n' "$*"; }
@@ -770,7 +778,7 @@ in
       RemainAfterExit = true;
       User = "forgejo";
       WorkingDirectory = pkgs.gnupg;
-      ExecStart = lib.getExe' signingSelftest signingSelftestName;
+      ExecStart = "${signingSelftest}";
     };
   };
 }
