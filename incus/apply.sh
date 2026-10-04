@@ -841,7 +841,7 @@ assert_secret_readable() {
 
 render_secrets() {
   local name=$1 spec=$2 entry file env format mode group source value wanted current unit
-  local path dir cur_mode cur_group state cmd attempt needs_write
+  local path dir cur_mode cur_group cur_dir_mode state cmd attempt needs_write
   local changed=0
   local -a entries consumers
 
@@ -956,17 +956,50 @@ render_secrets() {
     # when it reads a `*_URI` file decides whether that is harmless, and rather
     # than depend on the answer the file is now written with no trailing newline,
     # so it is byte-identical to the k3s value under either behaviour.
+    dir_mode=0711
+    if [[ -n $group ]]; then
+      # When the consumer group owns the directory, 0700 closes it to everyone
+      # else -- which is the whole point of the group. Checked rather than
+      # assumed: `stat -c %U` gives a group name on NixOS too, and if the
+      # directory turns out not to be owned by that group we fall back to o+x
+      # rather than silently lock the consumer out of its own secrets.
+      # via g(), not a bare incus_run: the guest's inherited PATH has no coreutils,
+      # so a bare `stat` can fail to resolve and return empty -- and an empty
+      # dir_owner reads as "not the group", which would silently fall back to 0711
+      # and reopen the Forgejo hole this condition exists to close.
+      dir_owner=$(g stat -c '%U' "$dir")
+      if [[ $dir_owner == "$group" ]]; then
+        dir_mode=0700
+      else
+        warn "$name:$file -- $dir is owned by '${dir_owner:-unknown}', not $group; falling back to 0711 so the consumer can still traverse it"
+      fi
+    fi
+
     current_sum=$(g sha256sum "$path" | awk '{print $1}')
     want_sum=$(printf '%s' "$wanted" | sha256sum | awk '{print $1}')
     cur_mode=$(g stat -c '%a' "$path")
     cur_group=$(g stat -c '%G' "$path")
+    cur_dir_mode=$(g stat -c '%a' "$dir")
 
+    # The directory's mode is part of the state this function asserts, not an
+    # incidental side effect of the write that happens to set it.
+    #
+    # Without this check a change to dir_mode can never take effect. The files are
+    # already byte-exact, their mode and group already match, every other check
+    # passes, and the loop `continue`s past all of them. So the 0711 -> 0700 fix for
+    # the Forgejo secret leak would be committed, deployed, reported as done -- and
+    # leave the directory at 0711, which is the state that leaks.
+    #
+    # Not hypothetical: that is exactly what happened on the run which installed it.
+    # Content already matched, so nothing was re-rendered, so the directory kept its
+    # old mode and `git` could still read secret_key.
     needs_write=0
     [[ -n $current_sum && $current_sum == "$want_sum" ]] || needs_write=1
     [[ $cur_mode == "${mode#0}" ]] || needs_write=1
     if [[ -n $group ]]; then
       [[ $cur_group == "$group" ]] || needs_write=1
     fi
+    [[ -n $cur_dir_mode && $cur_dir_mode == "${dir_mode#0}" ]] || needs_write=1
     [[ $needs_write == 0 ]] && continue
 
     step "rendering $name:$file (mode $mode${group:+, group $group})"
@@ -1037,24 +1070,6 @@ render_secrets() {
     # The distinction is ownership, not group: caddy does not own its secrets
     # directory, so it needs o+x; forgejo does own it (User=forgejo, and stat
     # confirms forgejo:forgejo), so 0700 is both sufficient and correct there.
-    dir_mode=0711
-    if [[ -n $group ]]; then
-      # When the consumer group owns the directory, 0700 closes it to everyone
-      # else -- which is the whole point of the group. Checked rather than
-      # assumed: `stat -c %U` gives a group name on NixOS too, and if the
-      # directory turns out not to be owned by that group we fall back to o+x
-      # rather than silently lock the consumer out of its own secrets.
-      # via g(), not a bare incus_run: the guest's inherited PATH has no coreutils,
-      # so a bare `stat` can fail to resolve and return empty -- and an empty
-      # dir_owner reads as "not the group", which would silently fall back to 0711
-      # and reopen the Forgejo hole this condition exists to close.
-      dir_owner=$(g stat -c '%U' "$dir")
-      if [[ $dir_owner == "$group" ]]; then
-        dir_mode=0700
-      else
-        warn "$name:$file -- $dir is owned by '${dir_owner:-unknown}', not $group; falling back to 0711 so the consumer can still traverse it"
-      fi
-    fi
     cmd="$cmd && mkdir -p $dir && chmod $dir_mode $dir"
     cmd="$cmd && umask 077 && cat > $path"
     # chgrp before chmod: chown-family calls can clear setuid/setgid bits, and

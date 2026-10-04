@@ -67,6 +67,16 @@ if grep -nE 'chmod +(0?700|0?711) +\$dir\b' "$APPLY" | grep -vE '^[0-9]+:[[:spac
   grep -nE 'chmod +(0?700|0?711) +\$dir\b' "$APPLY" | grep -vE '^[0-9]+:[[:space:]]*#' | sed 's/^/  /'
   whole_file_fail=1
 fi
+# The directory's mode has to be COMPARED, not merely set on write. Without the
+# comparison a change to dir_mode can never take effect: the files are byte-exact,
+# so every other check passes and the loop continues past all of them -- the fix
+# deploys, reports success, and leaves the directory in the leaking state.
+if ! grep -q 'cur_dir_mode' "$APPLY"; then
+  echo "FATAL: the secrets directory mode is never compared, so a change to it"
+  echo "  cannot take effect. It would be committed, deployed, reported done, and"
+  echo "  the directory would keep its old mode."
+  whole_file_fail=1
+fi
 # And the mode must be chosen from the directory's actual owner, not guessed.
 if ! grep -q 'dir_owner=\$(g stat' "$APPLY"; then
   echo "FATAL: dir_mode is not derived from the directory owner -- the distinction that"
