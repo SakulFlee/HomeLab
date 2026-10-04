@@ -171,43 +171,41 @@ in
         }
 
         # -------------------------------------------------------------------
-        # forgejo-next.sakul-flee.de -- TEMPORARY, for testing the migration
-        # Points at the NEW Forgejo in its own Incus instance (10.0.0.101), rather
-        # than handing the request to Traefik in k3s the way every name in
-        # hostnames.nix does. Delete this block once the cutover is done and
-        # forgejo.sakul-flee.de points at the new instance instead.
+        # forgejo.sakul-flee.de -- CUTOVER: now served by the Incus instance
+        # The first name to leave Traefik. This used to be one entry in
+        # hostnames.nix and inherit the shared still-traefik snippet; it is now a
+        # site block of its own pointing straight at 10.0.0.101:3000.
         #
-        # HTTP only, and the reason is DNS. sakul-flee.de has a wildcard record and
-        # it points at Cloudflare's edge (104.21.x), not at this host -- verified by
-        # resolving random-xyz.sakul-flee.de, which returns Cloudflare addresses. So
-        # forgejo-next resolves publicly but to an address with no origin configured
-        # for it: a public certificate would still validate, which is the trap, and
-        # then every request would land on Cloudflare and fail.
+        # Traefik in k3s is still running and still has this data. Nothing about k3s
+        # has been removed -- only the route in front of it changed. Rolling back is
+        # putting the name back in hostnames.nix and deleting this block.
         #
-        # Plain HTTP sidesteps all of that -- no ACME challenge to attempt, no
-        # certificate to renew, nothing added to Cloudflare. Reach it by bypassing
-        # public DNS:
+        # Plain http:// upstream, not https:// like still-traefik uses. The instance
+        # speaks plain HTTP inside the container and its certificate was issued for a
+        # name that never resolves there, so there is nothing to verify and nothing to
+        # trust.
         #
-        #   curl --resolve forgejo-next.sakul-flee.de:80:217.224.110.155 \
-        #        http://forgejo-next.sakul-flee.de/
+        # header_up Host is required rather than cosmetic. Forgejo compares the Host
+        # header against its configured DOMAIN, forgejo.sakul-flee.de, and answers 404
+        # when they disagree -- so this must send the name the browser asked for, which
+        # is exactly what {http.request.host} is. There is no address rewriting needed:
+        # the upstream is a plain IP and Forgejo is not matching on it.
         #
-        # or add the name to /etc/hosts on whichever machine is testing.
+        # The instance listens on 10.0.0.101:3000. Verified before this change, direct
+        # and through Caddy:
         #
-        # Deliberately NOT in hostnames.nix: those entries import still-traefik and
-        # inherit the shared TLS policy, the opposite of what a throwaway name wants.
-        #
-        # header_up Host is set to the instance's own DOMAIN rather than passed
-        # through, and that is the point rather than an omission. Forgejo compares
-        # Host against its configured DOMAIN, forgejo.sakul-flee.de, so passing
-        # forgejo-next through would be rejected. Sending the name the instance
-        # expects means the request is served, while the test name still keeps this
-        # traffic on its own site block and away from the live one.
-        http://forgejo-next.sakul-flee.de {
+        #   curl http://10.0.0.101:3000/api/v1/version
+        #     ->  {"version":"16.0.5"}          the nixpkgs build
+        #   curl --resolve forgejo.sakul-flee.de:443:127.0.0.1 \
+        #        https://forgejo.sakul-flee.de/api/v1/version
+        #     ->  {"version":"16.0.5+gitea-1.22.0"}   k3s, for contrast
+        forgejo.sakul-flee.de {
           reverse_proxy http://10.0.0.101:3000 {
-            header_up Host forgejo.sakul-flee.de
+            header_up Host {http.request.host}
           }
         }
         # -------------------------------------------------------------------
+
 
         # -------------------------------------------------------------------
         # The Incus UI
