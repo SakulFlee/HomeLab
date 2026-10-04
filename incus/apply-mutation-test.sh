@@ -18,6 +18,7 @@ set -uo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
 
 APPLY_FILE=incus/apply.sh
+SSHD_FILE=nixos/hosts/forgejo/ssh.nix
 SPECS=incus/apply-mutations.tsv
 [[ -f $APPLY_FILE ]] || { echo "FATAL: $APPLY_FILE not found"; exit 99; }
 [[ -f $SPECS ]] || { echo "FATAL: $SPECS not found"; exit 99; }
@@ -25,12 +26,24 @@ SPECS=incus/apply-mutations.tsv
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 cp "$APPLY_FILE" "$WORK/good.sh"
+cp "$SSHD_FILE" "$WORK/good-sshd.nix"
 
 suite_for() {
   case $1 in
     hooks)   echo apply-hooks-test.sh ;;
     forward) echo apply-forward-test.sh ;;
+    sshd)    echo apply-sshd-test.sh ;;
     *)       echo "apply-$1-test.sh" ;;
+  esac
+}
+
+# Which file each suite covers. The sshd transport is Nix configuration rather than
+# shell, and its bug was a PATH, not a statement -- so it cannot be expressed as a
+# mutation of apply.sh at all. One target per suite, named in one place.
+file_for() {
+  case $1 in
+    sshd) echo "$WORK/good-sshd.nix" ;;
+    *)    echo "$WORK/good.sh" ;;
   esac
 }
 
@@ -41,32 +54,45 @@ while IFS=$'\t' read -r label kind match replace skip_next nth; do
   [[ -z ${label:-} || $label == label ]] && continue
   total=$((total + 1))
   suite=$(suite_for "$kind")
+  src=$(file_for "$kind")
   printf '  %-38s ' "$label"
 
   if ! python3 incus/apply-mutate.py \
-        "$WORK/good.sh" "$WORK/mut.sh" "$match" "$replace" "$skip_next" "${nth:-1}" \
+        "$src" "$WORK/mut" "$match" "$replace" "$skip_next" "${nth:-1}" \
         >"$WORK/why" 2>&1; then
     printf 'HARNESS ERROR -- %s\n' "$(head -3 "$WORK/why" | tr '\n' ' ')"
     fails=$((fails + 1))
     continue
   fi
 
-  if cmp -s "$WORK/good.sh" "$WORK/mut.sh"; then
+  if cmp -s "$src" "$WORK/mut"; then
     printf 'HARNESS ERROR -- the mutation changed nothing\n'
     fails=$((fails + 1))
     continue
   fi
 
-  # bash -n first: a mutation that does not even parse would "fail" the suite for
-  # the wrong reason, which is the mistake this file exists to avoid.
-  if ! bash -n "$WORK/mut.sh" 2>"$WORK/syn"; then
+  # A parse check only for shell targets. A .nix file is validated by nix, and the
+  # suite that consumes it is what reports a broken evaluation.
+  if [[ $kind != sshd ]] && ! bash -n "$WORK/mut" 2>"$WORK/syn"; then
     printf 'HARNESS ERROR -- the mutation does not parse: %s\n' "$(head -1 "$WORK/syn")"
     fails=$((fails + 1))
     continue
   fi
 
   out="$WORK/out"
-  if APPLY="$WORK/mut.sh" timeout 300 "./incus/$suite" >"$out" 2>&1; then
+  if [[ $kind == sshd ]]; then
+    # The suite builds from the tree, so the mutated file has to be put back where
+    # it will be read -- and restored afterwards, or the next run inherits it.
+    cp "$WORK/mut" "$SSHD_FILE"
+    NIX_SUDO=1 timeout 2400 "./incus/$suite" >"$out" 2>&1
+    rc=$?
+    cp "$WORK/good-sshd.nix" "$SSHD_FILE"
+  else
+    APPLY="$WORK/mut" timeout 300 "./incus/$suite" >"$out" 2>&1
+    rc=$?
+  fi
+
+  if [[ $rc -eq 0 ]]; then
     printf 'NOT CAUGHT  <-- %s does not test this\n' "$suite"
     fails=$((fails + 1))
     continue

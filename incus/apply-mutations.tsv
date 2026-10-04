@@ -13,3 +13,7 @@ empty-union guard removed	forward	if [[ ${#want[@]} -eq 0 ]]; then	if false; the
 registry-unreadable guard removed	forward	[[ ${#names[@]} -gt 0 ]] || die "cannot read incusInstances; refusing to touch the forward on $network/$listen"	[[ ${#names[@]} -gt 0 ]] || true	0	0
 --check dry-run wiring removed	hooks	[[ $CHECK_ONLY == 1 ]] && dry=1	:	0	0
 --check reported as done	hooks	warn "$name: $last hook file(s) would be rewritten"	step "$name: $last hook file(s) rewritten"	0	0
+AuthorizedKeysCommand back to the store path	sshd	"AuthorizedKeysCommand /etc/ssh/forgejo-ssh-keys %u"	"AuthorizedKeysCommand ${keySource} %u"	0	0
+key script not installed into /etc/ssh	sshd	environment.etc."ssh/forgejo-ssh-keys".source = keySource;	# removed by mutation	0	0
+peer-auth fix reverted	sshd	runuser -u ${cfg.user} -- \	su ${cfg.user} -c	0	0
+key- prefix dropped from serv	sshd	serv key-%s --config	serv %s --config	0	0

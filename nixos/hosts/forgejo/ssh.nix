@@ -162,7 +162,17 @@
         ${forgejo} "$id" ${appIni} "$rest"
     done <<<"$keys"
   '';
+
+  # The installed location, which is NOT the store path keySource resolves to.
+  # See the AuthorizedKeysCommand note below for why that distinction is the whole
+  # difference between a working git transport and a silent one.
+  keyPath = "/etc/ssh/forgejo-ssh-keys";
 in {
+  # NixOS symlinks this into /etc/ssh, root-owned and unwritable along with every
+  # parent, which is what OpenSSH's auth_secure_path() requires. It is the same
+  # mechanism that puts sshd_config there.
+  environment.etc."ssh/forgejo-ssh-keys".source = keySource;
+
   # sshd exists only for git transport. It has no password login, no root
   # login, no forwarding and no terminal; it is reachable only on the network
   # forward the host sets up, and the only thing that can log in is a key that
@@ -190,7 +200,39 @@ in {
       "# sshd runs as root, so AuthorizedKeysCommand can read the database as any"
       "# user. `forgejo` is right: peer authentication over the local unix socket"
       "# needs no password and grants nothing that root does not already have."
-      "AuthorizedKeysCommand ${keySource} %u"
+      #
+      # /etc/ssh/forgejo-ssh-keys, NOT the store path it is built from. OpenSSH
+      # refuses an AuthorizedKeysCommand whose path passes through a group- or
+      # other-writable directory, and /nix/store is:
+      #
+      #   drwxrwxr-t root:nixbld /nix/store
+      #
+      # The group write is what makes it unsafe. So every key lookup fails before
+      # a single key is offered:
+      #
+      #   error: Unsafe AuthorizedKeysCommand ".../forgejo-ssh-keys":
+      #          bad ownership or modes for directory /nix/store
+      #
+      # and the symptom is a bare `Permission denied (publickey)` with no other
+      # explanation. Nothing else is logged at LogLevel INFO, and `sshd -T`
+      # reports the setting as perfectly valid.
+      #
+      # This reached the deployed instance and was invisible to testing, because
+      # the end-to-end test ran the script from /run/e2e -- whose chain is
+      # drwxr-xr-x root:root throughout and therefore fine. The test exercised a
+      # stand-in path and never the path sshd actually reads, and the earlier
+      # conclusion that "/run/... and /nix/store are fine" was wrong on the second
+      # half. incus/apply-sshd-test.sh now walks the real chain from the built
+      # configuration, so a store path fails there rather than on the host.
+      #
+      # /etc/ssh works because its whole chain is root-owned and unwritable:
+      #
+      #   /  /etc  /etc/ssh      drwxr-xr-x root:root
+      #
+      # The installed file is a symlink into the store, which is fine:
+      # auth_secure_path stat()s the target and then walks up the *lexical* path,
+      # so what it actually checks is /etc/ssh, /etc and /.
+      "AuthorizedKeysCommand /etc/ssh/forgejo-ssh-keys %u"
       "AuthorizedKeysCommandUser root"
       ""
       "# Only the key list. This is what turns the old behaviour -- a password"
