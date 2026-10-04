@@ -1,0 +1,15 @@
+label	suite	match	replacement	skip_next	nth
+dispatcher guard removed	hooks	&& ! grep -q 'hooks/	&& true # a direct hook is now rewritten whatever it is	0	0
+HOME= dropped from hook body	hooks	HOME=$home $binary hook --config $ini $args"	$binary hook --config $ini $args"	0	0
+direct-hook compare removed	hooks	if [ "$(cat "$direct")" != "$want" ]; then	if true; then	0	0
+.d compare removed	hooks	if [ ! -f "$d" ] || [ "$(cat "$d")" != "$want" ]; then	if true; then	0	0
+ExecStart unreadable tolerated	hooks	"way to know which binary its hooks must name. Refusing to guess."	|| true	1	0
+binary executable probe removed	hooks	|| die "$name: forgejo.service names '$binary', which is not executable in the guest"	|| true	0	0
+config readable probe removed	hooks	|| die "$name: forgejoHooks.config is '$ini', which is not readable in the guest"	|| true	0	0
+repositoryRoot probe removed	hooks	|| die "$name: forgejoHooks.repositoryRoot is '$repo_root', which is not a directory in the guest"	|| true	0	0
+forward union failure tolerated	forward	|| die "cannot read the declared forwards on $network/$listen; removing nothing"	|| true	0	0
+reporter back to one instance	forward	declarations=$(forward_declarations "$network" "$listen") \	mapfile -t want < <(declared_forwards "$spec" "$target")	1	2
+empty-union guard removed	forward	if [[ ${#want[@]} -eq 0 ]]; then	if false; then	0	1
+registry-unreadable guard removed	forward	[[ ${#names[@]} -gt 0 ]] || die "cannot read incusInstances; refusing to touch the forward on $network/$listen"	[[ ${#names[@]} -gt 0 ]] || true	0	0
+--check dry-run wiring removed	hooks	[[ $CHECK_ONLY == 1 ]] && dry=1	:	0	0
+--check reported as done	hooks	warn "$name: $last hook file(s) would be rewritten"	step "$name: $last hook file(s) rewritten"	0	0

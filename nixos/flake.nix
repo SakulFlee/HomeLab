@@ -112,12 +112,49 @@
                   # No swap device inside a container.
                   swapDevices = [ ];
 
-                  # services.openssh is mkDefault true in that module.
-                  # Containers are reached with `incus exec` and nothing
-                  # forwards port 22, so an sshd that never starts is just
-                  # extra surface.
-                  services.openssh.enable = lib.mkForce false;
-                  services.openssh.startWhenNeeded = lib.mkForce false;
+                  # services.openssh is mkDefault true in that module, and for most
+                  # containers that is the wrong default: they are reached with
+                  # `incus exec` and nothing forwards port 22, so an sshd that
+                  # never starts is just extra surface.
+                  #
+                  # The forgejo container is the exception and opts back in, in its
+                  # own ./hosts/forgejo/ssh.nix. Git transport must be served by an
+                  # sshd *inside* that container, because `forgejo serv` only runs
+                  # as RUN_USER -- see that file for the argument.
+                  #
+                  # Priority 990, which is the whole point of the change and is
+                  # worth being explicit about.
+                  #
+                  # nixpkgs sets this option twice already:
+                  #   lxc-instance-common.nix   services.openssh.enable = lib.mkDefault true;
+                  #   the openssh module itself sets a default too
+                  # Both are mkDefault (1000). Two definitions at the same priority
+                  # are an error, not a merge:
+                  #
+                  #   Definition values:
+                  #   - In `.../flake.nix': false
+                  #     Use `lib.mkForce value` or `lib.mkDefault value` to change the priority
+                  #
+                  # So mkDefault cannot be used here, and mkForce would be wrong:
+                  # mkForce beats a plain `services.openssh.enable = true` in the
+                  # instance, which would make hosts/forgejo/ssh.nix unable to
+                  # re-enable it.
+                  #
+                  # 990 sits above both upstream mkDefaults and below an explicit
+                  # definition in the instance (plain = 100), which is exactly the
+                  # precedence this wants: off by default here, and any instance
+                  # that sets the option to true for itself wins.
+                  services.openssh =
+                    let
+                      # 990 beats both upstream mkDefaults (1000) and loses to a
+                      # plain definition in the instance (100), so an instance that
+                      # wants sshd can still have it.
+                      disabled = lib.mkOverride 990 false;
+                    in
+                    {
+                      enable = disabled;
+                      startWhenNeeded = disabled;
+                    };
                 }
             )
             (

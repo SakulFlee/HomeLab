@@ -1287,6 +1287,36 @@ declared_forwards() {
   ' <<<"$spec"
 }
 
+# Every port claimed by ANY instance on this (network, listen address), one
+# "proto listen target_port target_addr" per line.
+#
+# The union, not one instance's own list -- see the call site for why, and for
+# the outage this prevents. Deduplicated because two instances may legitimately
+# declare the same port to the same target, and `in_list` is exact-match so a
+# duplicate would otherwise look like a port to remove and then re-add on every
+# run.
+#
+# Dies rather than returning nothing if the instance specs cannot be read. An
+# empty result here means "no instance claims any port", which the removal loop
+# would act on by deleting the live forward's ports -- so a read failure has to
+# be loud, not an empty list.
+forward_declarations() {
+  local network=$1 listen=$2 name spec
+  local -a names params
+  mapfile -t names < <(flake_instances)
+  [[ ${#names[@]} -gt 0 ]] || die "cannot read incusInstances; refusing to touch the forward on $network/$listen"
+
+  for name in "${names[@]}"; do
+    spec=$(instance_spec "$name") || die "cannot read the spec for instance '$name'"
+    mapfile -t params < <(forward_params "$spec")
+    # Skip instances with no forward, and ones listening elsewhere: this function
+    # is about one address only.
+    [[ ${params[1]:-} == "$listen" ]] || continue
+    [[ -n ${params[0]:-} && ${params[0]} == "$network" ]] || continue
+    declared_forwards "$spec" "${params[2]:-}"
+  done | sort -u
+}
+
 # The forward's three scalars, ONE PER LINE: the network, the listen address,
 # the target. The network comes from the NIC device rather than a constant, so
 # renaming the bridge is an edit to one place.
@@ -1335,7 +1365,57 @@ sync_network_forward() {
   fi
 
   local -a want have
-  mapfile -t want < <(declared_forwards "$spec" "$target")
+
+  # Every instance that declares a forward on THIS listen address, not just this
+  # one.
+  #
+  # Incus keys a network forward by (network, listen_address): there is one
+  # forward per address and its port list is shared. Caddy holds 80 and 443 on
+  # 192.168.178.200; forgejo now wants 22 on the same address. If `want` came
+  # from this instance's spec alone, reconciling forgejo would compute
+  #
+  #   want = [tcp 22 -> 10.0.0.101]
+  #   have = [tcp 80 -> 10.0.0.100, tcp 443 -> 10.0.0.100]
+  #
+  # and the removal loop below would take Caddy's ports off the public site --
+  # every hostname 404, on the next unattended reconcile. Verified by running
+  # these functions against the live forward and both real specs:
+  #
+  #   WOULD REMOVE: tcp 80 80 10.0.0.100 tcp 443 443 10.0.0.100
+  #   WOULD ADD:    tcp 22 22 10.0.0.101
+  #
+  # So the port list is the union across every instance, and only a port that no
+  # instance claims any more is removed. `forward_declarations` reads every
+  # instance spec; if that cannot be read it dies rather than guessing, because
+  # guessing here means deleting someone else's public entry point.
+  # NOT `mapfile -t want < <(forward_declarations "$network" "$listen")`.
+  #
+  # A process substitution runs the function in a *subshell*, so the die() inside
+  # forward_declarations exits only that subshell. mapfile then reads no output,
+  # succeeds anyway, and `want` comes back EMPTY -- and the removal loop above,
+  # which runs first by design, takes every port off the forward. That is the
+  # outage this whole function exists to prevent, reached *through* the guard that
+  # was supposed to prevent it.
+  #
+  # Found by incus/apply-forward-test.sh test 6, which points the registry stub
+  # at nothing and watches it happen. Reading the code had shown the die(); only
+  # running it showed that the die() did nothing.
+  #
+  # Command substitution keeps the status where die() can act on it.
+  local declarations
+  declarations=$(forward_declarations "$network" "$listen") \
+    || die "cannot read the declared forwards on $network/$listen; removing nothing"
+  want=()
+  [[ -z $declarations ]] || mapfile -t want <<<"$declarations"
+
+  # An empty union while ports exist is a contradiction, not a state to act on:
+  # this instance declares a forward on this very address, so its own port is
+  # necessarily in the union. An empty one therefore means the registry says
+  # something the forward disagrees with, and the removal loop would delete a
+  # live public endpoint on the strength of nothing at all.
+  if [[ ${#want[@]} -eq 0 ]]; then
+    die "no instance declares any port on $network/$listen, yet ports exist; refusing to remove them"
+  fi
 
   # Removal first, so that a port claimed by a stale entry is free to be re-added
   # with the right target. Removal keys on the stored listen_port verbatim:
@@ -1370,6 +1450,166 @@ sync_network_forward() {
     incus_run network forward port add "$network" "$listen" \
       "$proto" "$listen_port" "$target_addr" "$target_port"
   done
+}
+
+
+# --------------------------------------------------------------------------
+# Forgejo git hooks
+# --------------------------------------------------------------------------
+# The hooks in every bare repository name the forgejo binary and its config file
+# by absolute path. Getting either wrong breaks every push's SIDE EFFECTS while
+# leaving the push itself working, which is the worst combination: git says
+# success either way, and nothing anywhere records that Forgejo's post-receive
+# never ran. Verified, not assumed: a push with every hook pointing at a binary
+# that does not exist completes with exit 0 and prints Forgejo's pull-request
+# link, because the outer dispatcher tolerates a failing child.
+#
+# Three things are wrong in a set migrated from the k3s Docker image, all three
+# found by running the hooks rather than by reading them:
+#
+#   1. /usr/local/bin/gitea     the image's binary; absent here
+#   2. /data/gitea/conf/app.ini the image's config; absent here
+#   3. no HOME at all            forgejo aborts in loadSSHFrom() BEFORE reading
+#                                --config, so (1) and (2) produce the identical
+#                                message and a half-fix looks like no fix
+#
+# An absolute path is not itself wrong -- the binary is in an immutable store and
+# the config in the state directory. But the store path is a function of the
+# forgejo package derivation, so a nixpkgs bump changes it and every hook rots
+# again exactly this way. Hence the binary is read out of the running service at
+# apply time and never written down here.
+#
+# Two shapes exist and conflating them is how a fix comes out incomplete:
+#
+#   hooks/pre-receive, update, post-receive   a DISPATCHER running hooks/<n>.d/*
+#   hooks/proc-receive                       the command line DIRECTLY, no .d
+#
+# Rewriting only the .d scripts leaves proc-receive broken -- and proc-receive is
+# the hook git tries FIRST. The Docker image wrote proc-receive directly and gave
+# only the other four the .d indirection: 53 direct hooks and 212 .d scripts
+# across 54 repositories.
+#
+# One `incus exec` for the whole thing, with the rewrite as a shell loop in the
+# guest. Per-file exec would mean ~1300 round trips on every fifteen-minute
+# reconcile, and a partial failure halfway through would leave the tree mixed --
+# which is the state that is hardest to reason about and was the state this whole
+# exercise started from.
+sync_forgejo_hooks() {
+  local name=$1 spec=$2 repo_root ini
+
+  repo_root=$(jq -r '.forgejoHooks.repositoryRoot // empty' <<<"$spec")
+  [[ -n $repo_root ]] || return 0
+
+  ini=$(jq -r '.forgejoHooks.config // empty' <<<"$spec")
+  [[ -n $ini ]] || die "$name declares forgejoHooks but names no config file"
+
+  # The binary comes from the service, not from the spec, and not from the host.
+  #
+  # Not the host: the host's /nix/store does not contain forgejo at all, so any
+  # host-side test of the path would be testing the wrong machine.
+  #
+  # Not the spec: it is a /nix/store path, so writing it into a config file means
+  # a value that is wrong the moment nixpkgs moves and wrong silently, because a
+  # hook naming a store path that no longer exists fails exactly like the Docker
+  # path does now. forgejo.service's own ExecStart is the one place that cannot
+  # drift from what is actually serving pushes.
+  local binary guest_dir
+  binary=$(incus_run exec "$name" -- \
+    systemctl show forgejo.service -p ExecStart --value 2>/dev/null \
+    | grep -oE '/nix/store/[^ ]*/bin/forgejo' | head -1)
+  [[ -n $binary ]] \
+    || die "$name: cannot read forgejo's own ExecStart from the guest, so there is no" \
+       "way to know which binary its hooks must name. Refusing to guess."
+
+  # Verified inside the guest, where the paths actually have to resolve.
+  incus_run exec "$name" -- test -x "$binary" \
+    || die "$name: forgejo.service names '$binary', which is not executable in the guest"
+  incus_run exec "$name" -- test -r "$ini" \
+    || die "$name: forgejoHooks.config is '$ini', which is not readable in the guest"
+  incus_run exec "$name" -- test -d "$repo_root" \
+    || die "$name: forgejoHooks.repositoryRoot is '$repo_root', which is not a directory in the guest"
+
+  # HOME for the hook, read out of the guest's own passwd entry rather than
+  # assumed. This is the one requirement whose absence produces a message that
+  # looks exactly like a config problem, because forgejo aborts in loadSSHFrom()
+  # before it ever opens app.ini -- so a hook with a perfect --config and no HOME
+  # is indistinguishable from a hook with the Docker config path.
+  guest_dir=$(incus_run exec "$name" -- getent passwd forgejo 2>/dev/null | cut -d: -f6)
+  [[ -n $guest_dir ]] || die "$name: the forgejo account has no home directory, so its hooks cannot be given a HOME"
+  incus_run exec "$name" -- test -d "$guest_dir" \
+    || die "$name: forgejo's home is '$guest_dir', which does not exist in the guest"
+
+  # The rewrite, as a loop in the guest. Each site compares before writing, so a
+  # converged tree produces no writes at all -- which matters because this runs on
+  # every reconcile, and a version that rewrote unconditionally would mark all 265
+  # files dirty every fifteen minutes.
+  #
+  # --check runs the same loop with writing turned off, rather than being skipped.
+  # Skipping it would make --check report nothing about the hooks, and this is the
+  # one drift a reconcile silently reintroduces: a nixpkgs bump moves the store
+  # path and all 265 files go back to naming a binary that is not there. A
+  # --check that rewrote instead would be worse -- it would claim to change
+  # nothing while changing 265 files.
+  local dry=0
+  [[ $CHECK_ONLY == 1 ]] && dry=1
+
+  local changed
+  changed=$(incus_run_stdin exec "$name" -- bash -s -- \
+              "$repo_root" "$binary" "$ini" "$guest_dir" "$dry" <<'GUEST' 2>&1
+root=$1; binary=$2; ini=$3; home=$4; dry=$5
+n=0
+for repo in "$root"/*/*.git; do
+  [ -d "$repo/hooks" ] || continue
+  for hook in pre-receive update post-receive proc-receive; do
+    args=$hook
+    [ "$hook" = update ] && args='update $1 $2 $3'
+    want="#!/usr/bin/env bash
+# AUTO GENERATED BY GITEA, DO NOT MODIFY
+HOME=$home $binary hook --config $ini $args"
+
+    # The direct form. proc-receive is this one; the other three are dispatchers
+    # and writing this over them would replace a working indirection with a
+    # hardcoded path -- which is the fragility this function exists to remove.
+    direct="$repo/hooks/$hook"
+    if [ -f "$direct" ] && ! grep -q 'hooks/.*\.d/\*' "$direct"; then
+      if [ "$(cat "$direct")" != "$want" ]; then
+        [ "$dry" = 1 ] || { printf '%s\n' "$want" >"$direct"
+          chmod 0775 "$direct"; chown forgejo "$direct"; }
+        n=$((n+1))
+      fi
+    fi
+
+    # The .d form, only where the dispatcher exists.
+    [ -d "$repo/hooks/$hook.d" ] || continue
+    d="$repo/hooks/$hook.d/gitea"
+    if [ ! -f "$d" ] || [ "$(cat "$d")" != "$want" ]; then
+      [ "$dry" = 1 ] || { printf '%s\n' "$want" >"$d"
+        chmod 0755 "$d"; chown forgejo "$d"; }
+      n=$((n+1))
+    fi
+  done
+done
+echo "$n"
+GUEST
+  )
+
+  # The guest echoes the count on its last line; anything before it is a
+  # diagnostic. A count that is not a number means the loop did not finish, and
+  # reporting success then would be the exact class of bug above.
+  local last
+  last=$(tail -n 1 <<<"$changed")
+  if [[ ! $last =~ ^[0-9]+$ ]]; then
+    die "$name: the hook rewrite in the guest did not complete:"$'\n'"$changed"
+  fi
+  if [[ $last -gt 0 ]]; then
+    if [[ $CHECK_ONLY == 1 ]]; then
+      warn "$name: $last hook file(s) would be rewritten"
+    else
+      step "$name: $last hook file(s) rewritten"
+    fi
+  else
+    step "hooks unchanged"
+  fi
 }
 
 # --------------------------------------------------------------------------
@@ -1559,13 +1799,36 @@ report_existing_drift() {
   # with its own idea of what counts as a match will disagree with the thing it
   # is reporting on -- which is how the first version of this ended up printing
   # drift on a forward that was, by the reconciler's own definition, correct.
-  local network listen target ports entry
+  local network listen target ports entry declarations
   local -a params
   mapfile -t params < <(forward_params "$spec")
   network=${params[0]:-}; listen=${params[1]:-}; target=${params[2]:-}
   if [[ -n $listen && -n $network ]]; then
     local -a want have
-    mapfile -t want < <(declared_forwards "$spec" "$target")
+    # The UNION across instances, the same one sync_network_forward reconciles
+    # against -- NOT this instance's own declared_forwards.
+    #
+    # The reporter is the last thing standing between a mistake here and the
+    # fifteen-minute timer, so it has to agree with the reconciler exactly. With
+    # one instance's list, reconciling forgejo printed:
+    #
+    #   forward 192.168.178.200/tcp 22 22 10.0.0.101 (want)
+    #   forward 192.168.178.200/tcp 80 80 10.0.0.100 (have, not declared)
+    #   forward 192.168.178.200/tcp 443 443 10.0.0.100 (have, not declared)
+    #
+    # i.e. it announced the removal of Caddy's public entry points on every run,
+    # on a forward that is entirely correct. A --check that cries wolf about the
+    # one change that carries all the traffic is a --check that gets ignored --
+    # and the run where it is right is the run nobody reads any more.
+    #
+    # Captured with command substitution rather than mapfile < <(...) for the same
+    # reason as in sync_network_forward: a die() in a process substitution exits
+    # only the subshell, and here that would silently degrade to "this instance
+    # declares nothing" -- which prints exactly the false removals above.
+    declarations=$(forward_declarations "$network" "$listen") \
+      || die "cannot read the declared forwards on $network/$listen"
+    want=()
+    [[ -z $declarations ]] || mapfile -t want <<<"$declarations"
     ports=$(forward_ports "$network" "$listen")
     mapfile -t have < <(jq -r '.[] | "\(.protocol) \(.listen_port) \(.target_port) \(.target_address)"' \
                        <<<"$ports")
@@ -1796,6 +2059,24 @@ apply_instance() {
   # validated and written. This is the only global Incus state apply.sh touches --
   # everything else is per-instance -- so it is kept to a single, additive entry.
   sync_incus_trust "$name" "$spec"
+
+  # The hooks, once the service is up, because the binary path is read out of its
+  # own ExecStart -- which means this needs a RUNNING instance.
+  #
+  # An earlier version of this comment claimed it was fine to run either way, on
+  # the reasoning that a stopped Forgejo still has repositories on disk worth
+  # fixing. That is wrong: `incus exec` against a stopped container fails with
+  #
+  #   Error: Failed to run: Instance is not running
+  #
+  # so a reconcile firing while Forgejo is deliberately stopped -- which reconcile
+  # boot-autostart exists to make a supported state -- would die here, with an
+  # error that names neither hooks nor the instance's actual condition. Guarded
+  # with the same want_running as the DNAT below, which has the same requirement
+  # for the same reason.
+  if [[ $want_running == 1 ]]; then
+    sync_forgejo_hooks "$name" "$spec"
+  fi
 
   # LAST, after the instance is up and its consumers have been restarted. This
   # is the DNAT that makes the instance reachable from outside, so pointing it at

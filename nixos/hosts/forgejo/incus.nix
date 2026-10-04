@@ -1,6 +1,38 @@
 # Incus-level definition of the "forgejo" instance.
 #
 # See ../../caddy/incus.nix for what belongs in this file versus default.nix.
+#
+# The let/in wrapper exists so `networkForward.targetAddress` can be written as
+# devices.eth0."ipv4.address" rather than repeating the literal "10.0.0.101".
+# Caddy does the same thing for its own forward. Without it:
+#
+#   error: undefined variable 'devices'
+#     at hosts/forgejo/incus.nix:119:21
+#
+let
+  devices = {
+    eth0 = {
+      type = "nic";
+      name = "eth0";
+      network = "incusbr0";
+      "ipv4.address" = "10.0.0.101";
+    };
+
+    data = {
+      type = "disk";
+      pool = "backup";
+      source = "forgejo-data";
+      path = "/var/lib/forgejo/data";
+    };
+
+    postgres = {
+      type = "disk";
+      pool = "persistent";
+      source = "forgejo-postgres";
+      path = "/var/lib/postgresql/data";
+    };
+  };
+in
 {
   description = "Git forge (Forgejo)";
 
@@ -68,28 +100,75 @@
     }
   ];
 
-  devices = {
-    eth0 = {
-      type = "nic";
-      name = "eth0";
-      network = "incusbr0";
-      "ipv4.address" = "10.0.0.101";
-    };
+  devices = devices;
 
-    # Forgejo's APP_DATA_PATH. See the forgejo-data volume above.
-    data = {
-      type = "disk";
-      pool = "backup";
-      source = "forgejo-data";
-      path = "/var/lib/forgejo/data";
-    };
+  # Port 22 on the host's LAN address, DNAT'd to this instance's sshd.
+  #
+  # This is the whole reason the host's own SSH moved to 2222 -- see
+  # ../../modules/ssh.nix. Incus implements a network forward as an nftables DNAT
+  # rule, which is per-port and unconditional: there is no way to send port 22 to
+  # Forgejo only for `git@` and keep it for the administrator. Exactly one of the
+  # two could keep 22, and git transport is the one that cannot move, because
+  # SSH_PORT=22 is what Forgejo advertises in every clone URL.
+  #
+  # `incus network forward` accepts several ports on one listen address (Caddy
+  # already holds 80 and 443 on 192.168.178.200), so this adds a port rather than
+  # a second forward. apply.sh converges the port list: it removes entries the
+  # spec no longer declares and adds the ones it does, so this is reconciled
+  # rather than applied once.
+  #
+  # Take this away with:
+  #   incus network forward port remove incusbr0 192.168.178.200 tcp 22
+  networkForward = {
+    # The host's LAN address. Must match the host's own address; nothing
+    # validates that, and a forward listening somewhere nothing answers is the
+    # quietest possible failure.
+    listenAddress = "192.168.178.200";
 
-    postgres = {
-      type = "disk";
-      pool = "persistent";
-      source = "forgejo-postgres";
-      path = "/var/lib/postgresql/data";
-    };
+    # Derived from devices.eth0 above so the two cannot drift.
+    targetAddress = devices.eth0."ipv4.address";
+
+    ports = [
+      {
+        protocol = "tcp";
+        listenPort = 22;
+      }
+    ];
+  };
+
+  # The git hooks, which name the forgejo binary and its config by absolute path.
+  # Read by incus/apply.sh's sync_forgejo_hooks, which rewrites them on every
+  # reconcile.
+  #
+  # This exists because the hooks inherited from the k3s Docker image name paths
+  # that do not exist here -- /usr/local/bin/gitea and /data/gitea/conf/app.ini --
+  # and a set of hooks pointing at a missing binary does NOT stop a push. git
+  # reports success, the branch lands, and Forgejo's own side effects (the
+  # pull-request link, webhooks, mirror sync, the activity feed) silently never
+  # happen. Proven rather than assumed: every push completed with exit 0 while
+  # every hook was broken.
+  #
+  # The binary is asserted here and verified against forgejo.service's own
+  # ExecStart at apply time, so a nixpkgs bump that changes the store path fails
+  # loudly instead of quietly re-breaking all 265 hook files. Nothing writes the
+  # path down twice.
+  #
+  # `config` is the module's own customDir/conf/app.ini, which is where
+  # render_secrets puts it and where the module's *_URI settings read it from.
+  # No `binary` here, deliberately. It is a /nix/store path, and writing it in two
+  # places is exactly the fragility being removed: this file is a plain `import`
+  # of a literal with no module arguments at all, so it cannot read
+  # config.services.forgejo.package, and a hardcoded store path in a config file
+  # is a value that silently rots on the next nixpkgs bump. apply.sh reads the
+  # path out of forgejo.service's own ExecStart inside the guest instead -- one
+  # source of truth, and the one that is actually running.
+  #
+  # The two paths that ARE stable go here, because they are configuration rather
+  # than build output: the module's stateDir and customDir, neither of which
+  # changes when nixpkgs moves.
+  forgejoHooks = {
+    repositoryRoot = "/var/lib/forgejo/data/git/gitea-repositories";
+    config = "/var/lib/forgejo/custom/conf/app.ini";
   };
 
   # Secrets the host decrypts and writes into this instance. incus/apply.sh reads
