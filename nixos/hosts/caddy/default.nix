@@ -171,6 +171,45 @@ in
         }
 
         # -------------------------------------------------------------------
+        # forgejo-next.sakul-flee.de -- TEMPORARY, for testing the migration
+        # Points at the NEW Forgejo in its own Incus instance (10.0.0.101), rather
+        # than handing the request to Traefik in k3s the way every name in
+        # hostnames.nix does. Delete this block once the cutover is done and
+        # forgejo.sakul-flee.de points at the new instance instead.
+        #
+        # HTTP only, and the reason is DNS. sakul-flee.de has a wildcard record and
+        # it points at Cloudflare's edge (104.21.x), not at this host -- verified by
+        # resolving random-xyz.sakul-flee.de, which returns Cloudflare addresses. So
+        # forgejo-next resolves publicly but to an address with no origin configured
+        # for it: a public certificate would still validate, which is the trap, and
+        # then every request would land on Cloudflare and fail.
+        #
+        # Plain HTTP sidesteps all of that -- no ACME challenge to attempt, no
+        # certificate to renew, nothing added to Cloudflare. Reach it by bypassing
+        # public DNS:
+        #
+        #   curl --resolve forgejo-next.sakul-flee.de:80:217.224.110.155 \
+        #        http://forgejo-next.sakul-flee.de/
+        #
+        # or add the name to /etc/hosts on whichever machine is testing.
+        #
+        # Deliberately NOT in hostnames.nix: those entries import still-traefik and
+        # inherit the shared TLS policy, the opposite of what a throwaway name wants.
+        #
+        # header_up Host is set to the instance's own DOMAIN rather than passed
+        # through, and that is the point rather than an omission. Forgejo compares
+        # Host against its configured DOMAIN, forgejo.sakul-flee.de, so passing
+        # forgejo-next through would be rejected. Sending the name the instance
+        # expects means the request is served, while the test name still keeps this
+        # traffic on its own site block and away from the live one.
+        http://forgejo-next.sakul-flee.de {
+          reverse_proxy http://10.0.0.101:3000 {
+            header_up Host forgejo.sakul-flee.de
+          }
+        }
+        # -------------------------------------------------------------------
+
+        # -------------------------------------------------------------------
         # The Incus UI
         # -------------------------------------------------------------------
         # The one hostname here that Caddy serves itself rather than handing to
