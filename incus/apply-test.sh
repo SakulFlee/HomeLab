@@ -11,10 +11,16 @@
 # project_settings, ensure_project) -- the part that was wrong three different
 # ways. The rest of the script is untested and should not be assumed to be.
 #
-# The block is *extracted* rather than sourced, because apply.sh runs main() at
-# the bottom unconditionally and this only wants the functions. The extraction
+# The block is *extracted* rather than sourced, because apply.sh runs its driver
+# at the bottom unconditionally and this only wants the functions. The extraction
 # range is asserted at run time, so reordering apply.sh fails the test rather
 # than silently testing nothing.
+#
+# render_secrets has its own suite in apply-secrets-test.sh. It could not live
+# here: it needs the whole file (incus_run, the logging helpers,
+# assert_secret_readable) and it refuses to run as non-root. That split is why
+# two bugs reached the host -- neither static check nor this suite could see
+# them, and only executing the function could.
 set -uo pipefail
 
 APPLY=${APPLY:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/apply.sh}
@@ -106,6 +112,23 @@ if grep -nE 'incus_run(_stdin)? exec .*-- (cat|stat|sha256sum|cp|mv|rm) ' "$APPL
 fi
 [[ $whole_file_fail == 0 ]] || exit 99
 
+# --- execute render_secrets against the stubs -------------------------------
+# A whole-file invariant cannot catch this class of bug, and neither can the two
+# checks a shell script usually gets:
+#
+#   bash -n     PASSES. Unbound-variable is a runtime error, not a syntax error.
+#   shellcheck  PASSES. `cmd="$cmd && ..."` looks like an assignment, so SC2154
+#                does not fire; only execution reveals that $cmd was never set.
+#
+# That is how `cmd: unbound variable` reached production on 400da3f3: a hoist for
+# the directory-mode comparison dropped the line that initialises cmd, so the very
+# first render died with the directory still at 0711 and the secret still
+# readable. bash -n had passed on the file that shipped.
+#
+# So the only check worth having here is one that RUNS the code path. Both
+# directory modes are exercised, because the whole point of the ownership
+# conditional is that they differ, and a test that only ever renders one of them
+# cannot tell whether the other still works.
 # --- stubs -----------------------------------------------------------------
 mkdir -p "$WORK/bin"
 cat >"$WORK/bin/incus" <<'STUB'

@@ -1070,6 +1070,14 @@ render_secrets() {
     # The distinction is ownership, not group: caddy does not own its secrets
     # directory, so it needs o+x; forgejo does own it (User=forgejo, and stat
     # confirms forgejo:forgejo), so 0700 is both sufficient and correct there.
+    #
+    # PATH is exported because `incus exec -- sh -c` does not get a usable one.
+    # The guest inherits /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:
+    # /bin, where a NixOS system has no coreutils at all -- ls, head and mkdir
+    # are all "command not found". The NixOS profile lives at
+    # /run/current-system/sw/bin. Same trap as the missing `logger` in disk.nix:
+    # a NixOS exec environment does not carry the PATH a shell script assumes.
+    cmd="export PATH=/run/current-system/sw/bin:\$PATH"
     cmd="$cmd && mkdir -p $dir && chmod $dir_mode $dir"
     cmd="$cmd && umask 077 && cat > $path"
     # chgrp before chmod: chown-family calls can clear setuid/setgid bits, and
