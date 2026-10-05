@@ -232,6 +232,70 @@ reset() { rm -rf "$STATEDIR"; mkdir -p "$STATEDIR"; CALLLOG=$(mktemp); export CA
 STATEDIR=$(mktemp -d)
 export STATEDIR
 
+# --- 0. every incus/*.sh is executable in the git index ---------------------
+# Asserted against `git ls-files -s`, NOT against the filesystem. The filesystem
+# is what was wrong: apply.sh lost its +x bit while being recovered from a
+# backup, so it was 100644 both on disk and in the index, and only a `git pull`
+# on the host could turn that into "Permission denied" at 02:00 from a reconciler
+# that had been green all day.
+#
+# The index is the right thing to assert because the index is what a pull
+# materialises. incus-reconcile.service execs the checked-out copy directly, so a
+# missing bit is not a lint nit, it is a deploy that dies on a timer with no
+# human watching. This check is also the reason `git ls-files -s` appears instead
+# of `ls -l`: `ls` would have reported the working tree, which a contributor can
+# chmod without ever staging, and would pass while the deployed copy stayed
+# broken.
+#
+# If the index is unreachable that is a FATAL, not a skip. A check that quietly
+# passes because it could not run is the same failure as no check at all, and
+# worse: it is recorded as evidence.
+INCUS_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+REPO_ROOT=$(cd "$INCUS_DIR/.." && pwd)
+if ! git -C "$REPO_ROOT" rev-parse --git-dir >/dev/null 2>&1; then
+  echo "FATAL: cannot read the git index for $REPO_ROOT"
+  echo "  This check deliberately refuses to skip. A suite that reports success"
+  echo "  without running the check is how a broken reconcile survives a deploy."
+  exit 99
+fi
+echo "== 0. incus/*.sh is executable in the git index =="
+# The pathspec is 'incus/*.sh' from the repo root, not a bare '*.sh'. Git pathspecs
+# are prefix-based, so a bare '*.sh' would match nixos/ scripts too, and this
+# repository does have a NixOS install unit that is shipped as data and correctly
+# has no +x. Demanding the bit off that would be the same class of bug as the one
+# being checked for.
+offenders=""
+inspected=0
+while read -r mode sha stage path; do
+  inspected=$((inspected + 1))
+  if [[ $mode == 100755 ]]; then
+    printf '  ok   %s is 100755\n' "$path"
+  else
+    printf '  FAIL %s is %s in the index\n' "$path" "$mode"
+    offenders="$offenders $path"
+  fi
+done < <(git -C "$REPO_ROOT" ls-files -s -- 'incus/*.sh')
+
+check "no incus/*.sh lost its executable bit" "" "$offenders"
+# Now the guards on the guard, because "the loop found nothing wrong" and "the
+# loop looked at nothing" produce byte-identical output and only one of them is a
+# pass. The filter has to select exactly the tracked scripts: widened, it would
+# sweep in README.md and the mutation table; narrowed, it would select nothing and
+# every assertion above would be vacuously true.
+tracked_sh=$(git -C "$REPO_ROOT" ls-files -s -- 'incus/*.sh' | wc -l)
+tracked_incus=$(git -C "$REPO_ROOT" ls-files -s -- incus | wc -l)
+check "the filter selects exactly the tracked scripts" "$tracked_sh" "$inspected"
+check "and it really does exclude the tracked non-scripts under incus/" "1" \
+  "$([[ $inspected -lt $tracked_incus ]] && echo 1 || echo 0)"
+check "the repository has scripts to check at all" "1" \
+  "$([[ $tracked_sh -ge 1 ]] && echo 1 || echo 0)"
+# And the reason this section exists: apply.sh in particular. Named on its own so
+# the failure says which script the reconciler is about to be unable to exec,
+# rather than only how many were wrong. Read straight from the index rather than
+# from the loop above, so it still holds if the loop's pathspec is broken.
+check "apply.sh is 100755 in the index" "100755" \
+  "$(git -C "$REPO_ROOT" ls-files -s -- incus/apply.sh | cut -d' ' -f1)"
+
 echo "== 1. project absent: created and converged =="
 reset
 PROJECT=forgejo

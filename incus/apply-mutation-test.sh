@@ -50,6 +50,9 @@ suite_for() {
     # apply-hooks-test.sh, so a change to a function only that suite does not exercise
     # had nothing testing it.
     applytest) echo apply-test.sh ;;
+    # The git executable bit on a script. apply-test.sh asserts it against the
+    # index, so the mutation has to change the index -- see the branch below.
+    mode)      echo apply-test.sh ;;
     *)       echo "apply-$1-test.sh" ;;
   esac
 }
@@ -83,6 +86,53 @@ while IFS=$'\t' read -r label kind match replace skip_next nth; do
   suite=$(suite_for "$kind")
   src=$(file_for "$kind")
   printf '  %-38s ' "$label"
+
+  # `mode` is not a line mutation and cannot be expressed as one. What it breaks
+  # is a git index property -- a script recorded as 100644 instead of 100755 --
+  # and no substring replacement in apply.sh can produce that, because the
+  # checker reads the index, not the file.
+  #
+  # It runs in a throwaway clone rather than in this repository. `git update-index
+  # --chmod=-x` against the real index would be the obvious way to do it and is
+  # exactly the wrong one: this session already lost a day of work to an index
+  # mishap, and a harness that mutates the working index can leave it mutated if
+  # it is interrupted between the change and the restore.
+  if [[ $kind == mode ]]; then
+    MODE_DIR=$WORK/mode
+    rm -rf "$MODE_DIR"
+    mkdir -p "$MODE_DIR"
+    cp -a incus "$MODE_DIR/"
+    if ! git -C "$MODE_DIR" init -q . >/dev/null 2>&1 \
+       || ! git -C "$MODE_DIR" add -A >/dev/null 2>&1; then
+      printf 'HARNESS ERROR -- could not stage the throwaway clone\n'
+      fails=$((fails + 1))
+      continue
+    fi
+    chmod -x "$MODE_DIR/$match" 2>/dev/null
+    git -C "$MODE_DIR" add -- "$match" >/dev/null 2>&1
+    if [[ $(git -C "$MODE_DIR" ls-files -s -- "$match" | cut -d' ' -f1) != 100644 ]]; then
+      printf 'HARNESS ERROR -- the index still says 100755; the mutation did not take\n'
+      git -C "$MODE_DIR" ls-files -s -- "$match" | sed 's/^/                  /'
+      fails=$((fails + 1))
+      continue
+    fi
+    out=$MODE_DIR/out
+    timeout 600 "$MODE_DIR/incus/apply-test.sh" >"$out" 2>&1
+    rc=$?
+    if [[ $rc -eq 0 ]]; then
+      printf 'NOT CAUGHT  <-- apply-test.sh does not test the executable bit\n'
+      fails=$((fails + 1))
+      continue
+    fi
+    nfail=$(grep -c 'FAIL' "$out" || true)
+    if [[ $nfail -eq 0 ]]; then
+      printf 'NOT CAUGHT (no failing check) <-- exits non-zero for the wrong reason\n'
+      fails=$((fails + 1))
+      continue
+    fi
+    printf 'caught (%d failing check(s))\n' "$nfail"
+    continue
+  fi
 
   if ! python3 incus/apply-mutate.py \
         "$src" "$WORK/mut" "$match" "$replace" "$skip_next" "${nth:-1}" \

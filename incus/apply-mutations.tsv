@@ -46,3 +46,4 @@ import uses the stock metadata again	applytest	    instance_metadata=$(per_insta
 description is hardcoded, so instances collide again	applytest	\"description\":\"$instance $version\"	\"description\":\"caddy\"	0	0
 tarball repacked with a live mtime	applytest	      --mtime=@1 -cJf "$work/metadata.tar.xz" -C "$work" .	      -cJf "$work/metadata.tar.xz" -C "$work" .	0	0
 absent build reported as an alias problem	applytest	            "  No image in the pool carries:"$'\n'\	            "  (nothing useful):"$'\n'\	0	0
+incus/apply.sh has no +x, so the reconciler cannot exec it	mode	incus/apply.sh	-	0	0
