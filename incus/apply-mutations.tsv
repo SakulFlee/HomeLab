@@ -22,3 +22,8 @@ key- prefix dropped from serv	sshd	serv key-%s --config	serv %s --config	0	0
 no install unit at the expected name	sshd	  systemd.services.forgejo-ssh-keys-install = {	  systemd.services.forgejo-ssh-keys-install-DISABLED = {	0	0
 install writes somewhere sshd does not read	sshd	${keySource} ${keyPath}";	        " -m 0555 -o root -g root ${keySource} /run/forgejo-ssh-keys/elsewhere";	0	0
 config-access ExecStart back to script/bin/name	forgejo	        ExecStart = "${configAccessScript}";	        ExecStart = "${configAccessScript}/bin/${configAccessScript.name}";	0	0
+config-access uses bare su again	forgejo	    $RUNUSER -u git -- $BASH -c \	    su -s ${pkgs.bash}/bin/bash git -c \	0	0
+config-access loses its pre-flight condition	forgejo	    if [ ! -f ${cfg.customDir}/conf/app.ini ]; then	    if false; then	0	0
+config-access tolerates failure at boot again	forgejo	        SuccessExitStatus = 1;	        SuccessExitStatus = 0;	0	0
+apply.sh stops re-running afterRenderSecrets	applysh	  if [[ -n $(jq -r '.afterRenderSecrets // [] | .[]' <<<"$spec" 2>/dev/null) ]]; then	  if false; then # mutation: no re-run after render_secrets	0	0
+apply.sh makes the re-run fatal	applysh	        warn "$unit failed after render_secrets; anything it grants is NOT in place."	        die "$unit failed"	0	0

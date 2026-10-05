@@ -36,6 +36,10 @@ suite_for() {
     forward) echo apply-forward-test.sh ;;
     sshd)    echo apply-sshd-test.sh ;;
     forgejo) echo apply-sshd-test.sh ;;
+    # apply.sh, but asserted by the sshd suite. The reconciler and the transport
+    # are one system -- the unit that grants git its o+x is re-run BY apply.sh --
+    # so the invariants about it belong next to the ones about what it runs.
+    applysh) echo apply-sshd-test.sh ;;
     *)       echo "apply-$1-test.sh" ;;
   esac
 }
@@ -53,6 +57,7 @@ file_for() {
   case $1 in
     sshd)    echo "$WORK/good-sshd.nix" ;;
     forgejo) echo "$WORK/good-forgejo.nix" ;;
+    applysh) echo "$WORK/good.sh" ;;
     *)       echo "$WORK/good.sh" ;;
   esac
 }
@@ -96,7 +101,12 @@ while IFS=$'\t' read -r label kind match replace skip_next nth; do
   fi
 
   out="$WORK/out"
-  if [[ $kind == sshd || $kind == forgejo ]]; then
+  if [[ $kind == applysh ]]; then
+    # The suite reads the reconciler through $APPLY, so the mutated copy is what
+    # it has to be pointed at -- not merely the file on disk.
+    APPLY="$WORK/mut" NIX_SUDO=1 timeout 2400 "./incus/$suite" >"$out" 2>&1
+    rc=$?
+  elif [[ $kind == sshd || $kind == forgejo ]]; then
     # The suite builds from the tree, so the mutated file has to be put back where
     # it will be read -- and restored afterwards, or the next run inherits it.
     target=$SSHD_FILE

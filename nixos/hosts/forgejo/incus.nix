@@ -171,6 +171,26 @@ in
     config = "/var/lib/forgejo/custom/conf/app.ini";
   };
 
+  # Guest units that operate on files the HOST reconciler writes, and so have to be
+  # re-run once those files exist. incus/apply.sh reads this list and restarts each
+  # unit after render_secrets.
+  #
+  # forgejo-config-access is the case that made this necessary. Its ExecStart runs
+  # at BOOT, from WantedBy=multi-user.target, and app.ini is written by
+  # render_secrets afterwards -- measured eight seconds apart on the live instance:
+  #
+  #   03:05:01  chmod: cannot access '/var/lib/forgejo/custom/conf/app.ini'
+  #   03:05:09  app.ini mtime
+  #
+  # So the parent directories got their o+x, the two files inside conf/ did not,
+  # and the unit exited 0. `git` then could not read app.ini and every clone failed
+  # with `Could not chdir to home directory /var/lib/forgejo`, which names the home
+  # directory and not the missing chmod.
+  #
+  # A list rather than a single name, so the reconciler stays generic: nothing
+  # here knows what these units do, only that they need to run again.
+  afterRenderSecrets = [ "forgejo-config-access.service" ];
+
   # Secrets the host decrypts and writes into this instance. incus/apply.sh reads
   # `source` on the host and writes the bytes to `dir/file` inside the instance.
   #

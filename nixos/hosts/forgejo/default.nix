@@ -33,6 +33,43 @@ let
   # The script itself, and the reasoning behind every permission it sets, is
   # next to the unit that runs it.
   configAccessScript = pkgs.writeShellScript "forgejo-config-access" ''
+    # util-linux, by absolute path. NOT bare `su`.
+    #
+    # The unit's PATH is coreutils, findutils, grep, sed and systemd -- there is no
+    # su and no runuser in it. So the verification below ran as
+    #
+    #   line 35: su: command not found
+    #
+    # and the script exited 0 having achieved nothing useful: custom/conf stayed
+    # 0700, app.ini stayed 0440, and `git` could not read either. The check that
+    # existed precisely to catch that was itself the thing that was broken, which
+    # is the worst possible arrangement -- it reported success while proving
+    # nothing. Same reason forgejo-ssh-keys uses `runuser -u forgejo` from an
+    # explicit store path.
+    RUNUSER=${pkgs.util-linux}/bin/runuser
+    BASH=${pkgs.bash}/bin/bash
+
+    # Refuse to do anything at all if the config is not there yet.
+    #
+    # custom/conf is NOT created by this unit and is not among the module's own
+    # directories -- it is where the HOST's reconciler writes app.ini and the five
+    # secrets, and it does that AFTER this unit has already run at boot. Observed
+    # on the live instance, eight seconds apart:
+    #
+    #   03:05:01  forgejo-config-access: chmod: cannot access
+    #              '/var/lib/forgejo/custom/conf/app.ini': No such file or directory
+    #   03:05:09  app.ini mtime
+    #
+    # So the three parent directories got their o+x and the two files inside conf/
+    # did not, and the run exited 0. Failing here instead turns an eight-second
+    # race into a loud unit failure that apply.sh notices and re-runs.
+    if [ ! -f ${cfg.customDir}/conf/app.ini ]; then
+      echo "config-access: ${cfg.customDir}/conf/app.ini does not exist yet." >&2
+      echo "  It is written by the host reconciler, not at boot. This unit must be" >&2
+      echo "  re-run after render_secrets; apply.sh does that." >&2
+      exit 1
+    fi
+
     # o+x on the three directories on the way: traverse, no list, no read.
     # 0750 forgejo:forgejo -> 0751. custom/ is on the list because o+x does not
     # inherit into a 0750 child, and conf/ is inside it.
@@ -46,9 +83,14 @@ let
     # those stay 0440 root:forgejo in a directory this account can now walk
     # through but not read.
     #
+    # That premise is asserted, not assumed: incus/apply-sshd-test.sh reads the
+    # rendered app.ini and fails if any *_URI is not a file: path. If someone
+    # later inlines SECRET_KEY here, 0444 would hand it to every account on the
+    # host and that test is what notices.
+    #
     # 0444 rather than 0644 because the module's forgejo-secrets unit writes the
     # file as the forgejo user under UMask=0027, so it lands 0640 and this has to
-    # widen it on every boot.
+    # widen it after the reconciler has written it.
     chmod 0444 ${cfg.customDir}/conf/app.ini
 
     # Confirm the one thing that must be true, and fail the unit if it is not.
@@ -61,18 +103,13 @@ let
     #
     #   head: cannot open '/var/lib/forgejo/custom/conf/app.ini': Permission denied
     #   exit: 0
-    #
-    # custom/conf is NOT created by this unit and is not among the module's own
-    # directories -- it is where the host's reconciler writes app.ini and the
-    # five secrets. So its mode has to be set here explicitly; chmod on the
-    # parents cannot reach it.
-    su -s ${pkgs.bash}/bin/bash git -c \
+    $RUNUSER -u git -- $BASH -c \
       "head -c 1 ${cfg.customDir}/conf/app.ini >/dev/null"
 
     # And confirm the five are still out of reach, so a future change to these
     # modes cannot quietly reopen them.
     for f in secret_key internal_token oauth2_jwt_secret lfs_jwt_secret smtp_password; do
-      if su -s ${pkgs.bash}/bin/bash git -c \
+      if $RUNUSER -u git -- $BASH -c \
            "head -c 1 ${cfg.customDir}/conf/$f" >/dev/null 2>&1; then
         echo "config-access: $f is readable by git -- refusing to continue" >&2
         exit 1
@@ -437,6 +474,18 @@ in
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
+        # Not fatal at boot. app.ini is written by the HOST's reconciler, which
+        # runs after this unit -- measured eight seconds apart on the live
+        # instance -- so on a fresh or recreated instance this unit is *expected*
+        # to find nothing there. Failing the boot outright would make every
+        # recreate look broken.
+        #
+        # The script exits 1 when app.ini is absent, which is correct: it must not
+        # report success having done nothing. So the failure is expected here and
+        # tolerated, and apply.sh re-runs the unit immediately after
+        # render_secrets, when the file genuinely exists. That second run is the
+        # one whose result matters, and it is not optional.
+        SuccessExitStatus = 1;
         # "${script}/bin/name", NOT lib.getExe' script. getExe' on a
         # writeShellScript result is a *function* awaiting a name, and coercing
         # it fails with an error that names neither this nor the unit:

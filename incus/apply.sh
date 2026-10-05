@@ -1879,8 +1879,8 @@ apply_instance() {
   local name=$1
   local spec alias fingerprint rev build_output kind
   local existed=0 want_running=1 old_fingerprint=""
-  local rootfs metadata
-  local -a artifacts
+  local rootfs metadata unit
+  local -a artifacts after_units
 
   TAG="$name"
   # Before anything that could need the project to exist: an image import, a
@@ -2053,6 +2053,45 @@ apply_instance() {
   # the thing that has not been written yet. render_secrets restarts it.
   if [[ $want_running == 1 ]]; then
     render_secrets "$name" "$spec"
+  fi
+
+  # Re-run the guest's config-access unit now that render_secrets has written the
+  # files it operates on.
+  #
+  # The unit's ExecStart runs at BOOT, from WantedBy=multi-user.target, and the
+  # secrets are written by THIS script afterwards. Measured on the live instance,
+  # eight seconds apart:
+  #
+  #   03:05:01  forgejo-config-access: chmod: cannot access
+  #              '/var/lib/forgejo/custom/conf/app.ini': No such file or directory
+  #   03:05:09  app.ini mtime
+  #
+  # So the parent directories got their o+x and the two files inside conf/ did
+  # not, and the run exited 0. `git` could not read app.ini, so every clone failed
+  # with `Could not chdir to home directory /var/lib/forgejo` -- which points at
+  # the home directory and not at a single missing chmod.
+  #
+  # The reconciler creates those files, so the reconciler is what has to say
+  # "now they exist". Restarting the unit rather than re-implementing its chmods
+  # here keeps exactly one owner for those modes: if apply.sh set them too, the
+  # two would have to be kept in agreement by hand.
+  #
+  # Best effort, and deliberately not fatal. The unit is absent for any instance
+  # that is not Forgejo, and the spec is the only thing that knows which units are
+  # relevant -- so the name is read from the spec rather than hardcoded, and a
+  # failure is a warning. It is a warning rather than silence because a unit that
+  # fails here is the difference between a working and a broken git transport, and
+  # it fails the same way every time: a clone that cannot chdir to its own home.
+  if [[ -n $(jq -r '.afterRenderSecrets // [] | .[]' <<<"$spec" 2>/dev/null) ]]; then
+    mapfile -t after_units < <(jq -r '.afterRenderSecrets[]' <<<"$spec")
+    for unit in ${after_units[@]+"${after_units[@]}"}; do
+      step "re-running $unit now that the secrets exist"
+      if ! incus_run exec "$name" -- systemctl restart "$unit"; then
+        warn "$unit failed after render_secrets; anything it grants is NOT in place."
+        warn "  A git push will fail as 'Could not chdir to home directory', which"
+        warn "  does not name this unit at all. Check: journalctl -u $unit"
+      fi
+    done
   fi
 
   # After render_secrets, so the certificate it trusts is the one that was just
