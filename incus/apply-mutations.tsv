@@ -21,3 +21,4 @@ peer-auth fix reverted	sshd	runuser -u ${cfg.user} -- \	su ${cfg.user} -c	0	0
 key- prefix dropped from serv	sshd	serv key-%s --config	serv %s --config	0	0
 no install unit at the expected name	sshd	  systemd.services.forgejo-ssh-keys-install = {	  systemd.services.forgejo-ssh-keys-install-DISABLED = {	0	0
 install writes somewhere sshd does not read	sshd	${keySource} ${keyPath}";	        " -m 0555 -o root -g root ${keySource} /run/forgejo-ssh-keys/elsewhere";	0	0
+config-access ExecStart back to script/bin/name	forgejo	        ExecStart = "${configAccessScript}";	        ExecStart = "${configAccessScript}/bin/${configAccessScript.name}";	0	0

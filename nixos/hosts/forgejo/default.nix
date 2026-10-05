@@ -446,7 +446,33 @@ in
         #
         # which is the same class of bug the signing selftest comment above
         # records, paid for once already.
-        ExecStart = "${configAccessScript}/bin/${configAccessScript.name}";
+        # ${configAccessScript} IS the script.
+        #
+        # pkgs.writeShellScript returns a derivation whose single output is the
+        # executable file, so interpolating the derivation gives
+        # /nix/store/<hash>-forgejo-config-access -- a FILE. Appending
+        # /bin/<name> to it, as this did, names a path inside a regular file, and
+        # systemd reports the only symptom that matters:
+        #
+        #   Unable to locate executable '/nix/store/<hash>-forgejo-config-access/bin/forgejo-config-access':
+        #       Not a directory
+        #   Result=exit-code  status=203/EXEC
+        #
+        # So the unit that grants `git` traversal never ran, and the o+x modes on
+        # stateDir, data, custom and custom/conf were never applied. Nothing failed
+        # visibly for a long time because `git` was in group `forgejo`, and 0750
+        # hands the GROUP r-x -- the accidental grant covered for the missing one.
+        # Removing `git` from that group, which is the whole point of the secret
+        # boundary, exposed it: git could no longer traverse to its own HOME and
+        # every clone failed with
+        #
+        #   Could not chdir to home directory /var/lib/forgejo: Permission denied
+        #
+        # Two bugs, one masking the other. The same mistake was made once already
+        # for forgejo.service -- see 310e0e22, "ExecStart must be the script path,
+        # not getExe'" -- so it is worth a test that resolves every ExecStart in
+        # the built guest rather than trusting the string.
+        ExecStart = "${configAccessScript}";
       };
     };
 

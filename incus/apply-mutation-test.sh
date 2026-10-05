@@ -19,6 +19,7 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
 
 APPLY_FILE=incus/apply.sh
 SSHD_FILE=nixos/hosts/forgejo/ssh.nix
+FORGEJO_FILE=nixos/hosts/forgejo/default.nix
 SPECS=incus/apply-mutations.tsv
 [[ -f $APPLY_FILE ]] || { echo "FATAL: $APPLY_FILE not found"; exit 99; }
 [[ -f $SPECS ]] || { echo "FATAL: $SPECS not found"; exit 99; }
@@ -27,23 +28,32 @@ WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 cp "$APPLY_FILE" "$WORK/good.sh"
 cp "$SSHD_FILE" "$WORK/good-sshd.nix"
+cp "$FORGEJO_FILE" "$WORK/good-forgejo.nix"
 
 suite_for() {
   case $1 in
     hooks)   echo apply-hooks-test.sh ;;
     forward) echo apply-forward-test.sh ;;
     sshd)    echo apply-sshd-test.sh ;;
+    forgejo) echo apply-sshd-test.sh ;;
     *)       echo "apply-$1-test.sh" ;;
   esac
 }
 
-# Which file each suite covers. The sshd transport is Nix configuration rather than
-# shell, and its bug was a PATH, not a statement -- so it cannot be expressed as a
-# mutation of apply.sh at all. One target per suite, named in one place.
+# Which file each suite covers, and where the pristine copy lives.
+#
+# The Nix targets are separate files rather than one suite covering both, because
+# the mutation replaces an ENTIRE line: a single suite that restored ssh.nix after
+# a run would clobber a mutation made to default.nix in the same pass, or the
+# reverse. One target per suite kind, named in one place.
+#
+# `sshd` and `forgejo` share apply-sshd-test.sh, because that suite builds the
+# whole guest configuration and both files are part of it.
 file_for() {
   case $1 in
-    sshd) echo "$WORK/good-sshd.nix" ;;
-    *)    echo "$WORK/good.sh" ;;
+    sshd)    echo "$WORK/good-sshd.nix" ;;
+    forgejo) echo "$WORK/good-forgejo.nix" ;;
+    *)       echo "$WORK/good.sh" ;;
   esac
 }
 
@@ -72,21 +82,30 @@ while IFS=$'\t' read -r label kind match replace skip_next nth; do
   fi
 
   # A parse check only for shell targets. A .nix file is validated by nix, and the
-  # suite that consumes it is what reports a broken evaluation.
-  if [[ $kind != sshd ]] && ! bash -n "$WORK/mut" 2>"$WORK/syn"; then
+  # suite that consumes it is what reports a broken evaluation. Running bash -n on
+  # one is not a weaker check, it is a wrong one: it reported
+  #
+  #   line 179: syntax error near unexpected token `in'
+  #
+  # for a perfectly valid Nix expression, and the mutation was scored as a harness
+  # error rather than being tested.
+  if [[ $kind != sshd && $kind != forgejo ]] && ! bash -n "$WORK/mut" 2>"$WORK/syn"; then
     printf 'HARNESS ERROR -- the mutation does not parse: %s\n' "$(head -1 "$WORK/syn")"
     fails=$((fails + 1))
     continue
   fi
 
   out="$WORK/out"
-  if [[ $kind == sshd ]]; then
+  if [[ $kind == sshd || $kind == forgejo ]]; then
     # The suite builds from the tree, so the mutated file has to be put back where
     # it will be read -- and restored afterwards, or the next run inherits it.
-    cp "$WORK/mut" "$SSHD_FILE"
+    target=$SSHD_FILE
+    [[ $kind == forgejo ]] && target=$FORGEJO_FILE
+    cp "$WORK/mut" "$target"
     NIX_SUDO=1 timeout 2400 "./incus/$suite" >"$out" 2>&1
     rc=$?
     cp "$WORK/good-sshd.nix" "$SSHD_FILE"
+    cp "$WORK/good-forgejo.nix" "$FORGEJO_FILE"
   else
     APPLY="$WORK/mut" timeout 300 "./incus/$suite" >"$out" 2>&1
     rc=$?

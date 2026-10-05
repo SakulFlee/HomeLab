@@ -234,7 +234,56 @@ else
 fi
 
 echo
-echo "== 9. sshd -t accepts the config =="
+echo "== 9. every ExecStart in the guest resolves to a real executable =="
+# Three separate bugs in this change were a string that LOOKED right and named a
+# path the filesystem disagreed with:
+#
+#   AuthorizedKeysCommand ${keySource}        -> /nix/store is 1775, refused
+#   AuthorizedKeysCommand /etc/ssh/...         -> symlink into /nix/store, refused
+#   ExecStart "${configAccessScript}/bin/..."  -> the script is a FILE; 203/EXEC
+#
+# All three passed review and every static check, and all three were found on the
+# host. The third is what this check is for, and it generalises: resolve each
+# ExecStart against the built closure and require an executable file. A miss is
+# reported rather than skipped, because "not in the closure" IS the failure mode.
+# -L is required, not optional: the guest's /etc is a SYMLINK to the etc
+# derivation, so a plain find does not descend, this check examined zero files,
+# and it passed. The floor below is the other half of that -- a check that
+# examines nothing has proved nothing, and "0 bad" over an empty set looks
+# exactly like a pass.
+units=0; checked=0; badunits=0
+while IFS= read -r unit; do
+  units=$((units + 1))
+  # ExecStart may be a list; take the first word of the first element.
+  exe=$(sed -n 's/^ExecStart=\([^ ]*\).*/\1/p' "$unit" | head -1)
+  [[ -n $exe ]] || continue
+  case $exe in
+    /*) ;;
+    *) continue ;;                        # a systemd keyword, not a path
+  esac
+  checked=$((checked + 1))
+  if [[ -f $exe && -x $exe ]]; then
+    :
+  else
+    badunits=$((badunits + 1))
+    printf '  FAIL %s\n' "${unit#$GUEST/etc/systemd/system/}"
+    printf '         ExecStart=%s\n' "$exe"
+    if [[ -e $exe ]]; then
+      printf '         -> exists but is not an executable file\n'
+    else
+      printf '         -> does not exist in the closure\n'
+    fi
+  fi
+done < <(find -L "$GUEST/etc/systemd/system" -name '*.service' -type f 2>/dev/null)
+check "absolute ExecStarts that resolve" "0" "$badunits"
+if [[ $checked -lt 50 ]]; then
+  bad "only $checked ExecStart(s) examined -- the traversal is broken, not the units"
+else
+  ok "examined $checked absolute ExecStart(s) across $units units"
+fi
+
+echo
+echo "== 10. sshd -t accepts the config =="
 SSHD=$(grep -oE '/nix/store/[^ ]*/bin/sshd' "$SSHD_CONFIG" | head -1)
 if [[ -x $SSHD ]]; then
   if out=$("$SSHD" -t -f "$SSHD_CONFIG" 2>&1); then ok "sshd -t accepts it"
