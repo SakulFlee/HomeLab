@@ -169,11 +169,37 @@ in
   forgejoHooks = {
     repositoryRoot = "/var/lib/forgejo/data/git/gitea-repositories";
 
+    # The tree git ACTUALLY EXECUTES, which is not the per-repository one.
+    #
+    # `core.hooksPath` in the module's own global gitconfig points git at
+    # <data>/home/hooks, and that setting overrides the per-repository hooks
+    # directory entirely. Confirmed in the running guest:
+    #
+    #   $ git -C .../homelab.git config --show-origin --get core.hooksPath
+    #   file:/var/lib/forgejo/data/home/.gitconfig  /var/lib/forgejo/data/home/hooks
+    #
+    # So the 265 files under <repositories>/*/*.git/hooks/ are dead. They are
+    # rewritten, byte-for-byte, on every reconcile, and git never executes one of
+    # them. Meanwhile the four files that DO run are Forgejo's own, regenerated
+    # from its config on every start, so they were naming app.ini -- which `git`
+    # cannot read -- and post-receive never completed.
+    #
+    # Measured: a push reported success and the refs moved, and the branch appeared
+    # in the action table ZERO times. No activity feed, no pull-request link, no
+    # size update. Same failure sync_forgejo_hooks exists to prevent, one level
+    # further up than the tree it was pointed at.
+    #
+    # So repositoryRoot above is kept -- it is still the only honest statement of
+    # where repositories live, and the per-repo hooks are what Forgejo's own
+    # `hook` subcommand writes -- but the reconciler is pointed at the tree git
+    # reads.
+    activeHooksPath = "/var/lib/forgejo/data/home/hooks";
+
     # app-git.ini, NOT app.ini.
     #
     # A push arrives as the guest's `git` account, and the hooks a push runs are
     # also run by that account. app.ini is 0440 root:forgejo, so a hook naming it
-    # fails before it can do anything:
+    # dies before it can do anything:
     #
     #   InitCfgProvider() [F] Unable to init config provider from ".../app.ini"
     #

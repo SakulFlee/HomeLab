@@ -20,6 +20,10 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 1
 APPLY_FILE=incus/apply.sh
 SSHD_FILE=nixos/hosts/forgejo/ssh.nix
 FORGEJO_FILE=nixos/hosts/forgejo/default.nix
+# incus.nix is the container SPEC: limits, volumes, devices, and now the hooks
+# paths. Plain data, imported by the flake rather than built as a module, so it sat
+# outside the mutation set entirely and a change to it had nothing testing it.
+FORGEJO_SPEC=nixos/hosts/forgejo/incus.nix
 SPECS=incus/apply-mutations.tsv
 [[ -f $APPLY_FILE ]] || { echo "FATAL: $APPLY_FILE not found"; exit 99; }
 [[ -f $SPECS ]] || { echo "FATAL: $SPECS not found"; exit 99; }
@@ -29,6 +33,7 @@ trap 'rm -rf "$WORK"' EXIT
 cp "$APPLY_FILE" "$WORK/good.sh"
 cp "$SSHD_FILE" "$WORK/good-sshd.nix"
 cp "$FORGEJO_FILE" "$WORK/good-forgejo.nix"
+cp "$FORGEJO_SPEC" "$WORK/good-forgejo-spec.nix"
 
 suite_for() {
   case $1 in
@@ -36,10 +41,15 @@ suite_for() {
     forward) echo apply-forward-test.sh ;;
     sshd)    echo apply-sshd-test.sh ;;
     forgejo) echo apply-sshd-test.sh ;;
+    spec)    echo apply-hooks-test.sh ;;
     # apply.sh, but asserted by the sshd suite. The reconciler and the transport
     # are one system -- the unit that grants git its o+x is re-run BY apply.sh --
     # so the invariants about it belong next to the ones about what it runs.
     applysh) echo apply-sshd-test.sh ;;
+    # apply.sh against the reconciler suite. `hooks` also mutates apply.sh but runs
+    # apply-hooks-test.sh, so a change to a function only that suite does not exercise
+    # had nothing testing it.
+    applytest) echo apply-test.sh ;;
     *)       echo "apply-$1-test.sh" ;;
   esac
 }
@@ -57,7 +67,9 @@ file_for() {
   case $1 in
     sshd)    echo "$WORK/good-sshd.nix" ;;
     forgejo) echo "$WORK/good-forgejo.nix" ;;
+    spec)    echo "$WORK/good-forgejo-spec.nix" ;;
     applysh) echo "$WORK/good.sh" ;;
+    applytest) echo "$WORK/good.sh" ;;
     *)       echo "$WORK/good.sh" ;;
   esac
 }
@@ -86,7 +98,8 @@ while IFS=$'\t' read -r label kind match replace skip_next nth; do
     continue
   fi
 
-  # A parse check only for shell targets. A .nix file is validated by nix, and the
+  # A parse check only for shell targets. A .nix file is validated by nix or by the
+  # suite that imports it, and the
   # suite that consumes it is what reports a broken evaluation. Running bash -n on
   # one is not a weaker check, it is a wrong one: it reported
   #
@@ -94,14 +107,15 @@ while IFS=$'\t' read -r label kind match replace skip_next nth; do
   #
   # for a perfectly valid Nix expression, and the mutation was scored as a harness
   # error rather than being tested.
-  if [[ $kind != sshd && $kind != forgejo ]] && ! bash -n "$WORK/mut" 2>"$WORK/syn"; then
+  if [[ $kind != sshd && $kind != forgejo && $kind != spec ]] \
+     && ! bash -n "$WORK/mut" 2>"$WORK/syn"; then
     printf 'HARNESS ERROR -- the mutation does not parse: %s\n' "$(head -1 "$WORK/syn")"
     fails=$((fails + 1))
     continue
   fi
 
   out="$WORK/out"
-  if [[ $kind == applysh ]]; then
+  if [[ $kind == applysh || $kind == applytest ]]; then
     # The suite reads the reconciler through $APPLY, so the mutated copy is what
     # it has to be pointed at -- not merely the file on disk.
     APPLY="$WORK/mut" NIX_SUDO=1 timeout 2400 "./incus/$suite" >"$out" 2>&1
@@ -116,6 +130,13 @@ while IFS=$'\t' read -r label kind match replace skip_next nth; do
     rc=$?
     cp "$WORK/good-sshd.nix" "$SSHD_FILE"
     cp "$WORK/good-forgejo.nix" "$FORGEJO_FILE"
+  elif [[ $kind == spec ]]; then
+    # A .nix file, so no bash -n -- but it is not a module either: it is data the
+    # flake imports. Put it back where it is read, and restore it afterwards.
+    cp "$WORK/mut" "$FORGEJO_SPEC"
+    timeout 600 "./incus/$suite" >"$out" 2>&1
+    rc=$?
+    cp "$WORK/good-forgejo-spec.nix" "$FORGEJO_SPEC"
   else
     APPLY="$WORK/mut" timeout 300 "./incus/$suite" >"$out" 2>&1
     rc=$?

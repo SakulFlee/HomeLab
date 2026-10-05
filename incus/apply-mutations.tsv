@@ -38,3 +38,11 @@ git-config puts internal_token back in the refusal loop	forgejo	        for f in
 git-config leaves data/home at 0750	forgejo	        ${pkgs.coreutils}/bin/chmod 0751 ${dataPath}/home	        ${pkgs.coreutils}/bin/chmod 0750 ${dataPath}/home	0	0
 git-config leaves .gitconfig unreadable	forgejo	        ${pkgs.coreutils}/bin/chgrp git ${dataPath}/home/.gitconfig	        ${pkgs.coreutils}/bin/chgrp forgejo ${dataPath}/home/.gitconfig	0	0
 git-config leaves the hooks unexecutable	forgejo	        ${pkgs.coreutils}/bin/chmod -R g+rX ${dataPath}/home/hooks	        ${pkgs.coreutils}/bin/chmod -R g-w ${dataPath}/home/hooks	0	0
+active hooks tree never rewritten	hooks	rewrite "$active"	true # mutation: never rewrite the tree git runs	0	0
+activeHooksPath not read from the spec	hooks	  active=$(jq -r '.forgejoHooks.activeHooksPath // empty' <<<"$spec")	  active=	0	0
+active hooks path not passed to the guest	hooks	              "$repo_root" "$binary" "$ini" "$guest_dir" "$dry" "$active" <<'GUEST' 2>&1	              "$repo_root" "$binary" "$ini" "$guest_dir" "$dry" <<'GUEST' 2>&1	0	0
+spec no longer declares activeHooksPath	spec	    activeHooksPath = "/var/lib/forgejo/data/home/hooks";	    activeHooksPath = "";	0	0
+import uses the stock metadata again	applytest	    instance_metadata=$(per_instance_metadata "$metadata_tarball" "$alias")	    instance_metadata=$metadata_tarball	0	0
+description is hardcoded, so instances collide again	applytest	\"description\":\"$instance $version\"	\"description\":\"caddy\"	0	0
+tarball repacked with a live mtime	applytest	      --mtime=@1 -cJf "$work/metadata.tar.xz" -C "$work" .	      -cJf "$work/metadata.tar.xz" -C "$work" .	0	0
+absent build reported as an alias problem	applytest	            "  No image in the pool carries:"$'\n'\	            "  (nothing useful):"$'\n'\	0	0

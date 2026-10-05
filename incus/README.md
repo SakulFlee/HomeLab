@@ -30,6 +30,55 @@ single source of the names. It is read twice — once by the flake, which expose
 it as `incusInstances`, and once by the host config, which generates the systemd
 units. There is no second list to keep in sync.
 
+## Image identity
+
+Every instance's image is imported from a **rootfs** plus a **metadata tarball**,
+and the two do very different amounts of work.
+
+The fingerprint Incus gives the image comes from the **metadata tarball**, not the
+rootfs. That is not obvious and it has bitten: nixpkgs' `lxc-image-metadata.nix`
+generates ours per nixpkgs revision, so it is byte-identical for every instance
+built from the same revision — `caddy's` and `wireguard's` metadata are the same
+bytes. Two different rootfs, one fingerprint, and the second import is refused:
+
+```
+Error: Image with same fingerprint already exists
+```
+
+which is not a transient condition. Every rebuild of every instance collides, and
+"already exists" stops meaning "this image is already here" and starts meaning
+"something with this fingerprint is here". The recovery path in `import_image`
+looked the image up by `user.build-source` and found nothing — correctly, because
+the build genuinely was not in the pool — and reported a confusing error that
+pointed at the property rather than at the fingerprint.
+
+**The fix is in `per_instance_metadata`.** It repacks the metadata tarball with the
+description rewritten to name the instance, and imports that. The description is
+the only field in `metadata.yaml` that is ours to choose, and it is in the
+fingerprint. Verified on the running instance by rewriting only that one field and
+importing a rootfs that had just been refused:
+
+```
+Error: Image with same fingerprint already exists    <- stock metadata
+Image imported with fingerprint: 560477927d41...      <- description names caddy
+```
+
+Two details that matter and are easy to get wrong:
+
+* **Everything else is copied through untouched.** The tarball also carries the
+  nix store registration and the path registration, and those are what decide
+  whether the container's binaries resolve. Rewriting the tarball is not an
+  opportunity to tidy it.
+* **`tar` is given `--sort=name`, fixed owner/group and `--mtime`.** Without those
+  the archive embeds the current time and member order, so the same instance would
+  produce a different fingerprint on every reconcile and no image would ever be
+  recognised as unchanged.
+
+`user.build-source` is still worth writing, and still worth reading back: it is a
+reliable key for finding an image, because it is set only after the alias is known
+to name one. It was never a reliable way to ask whether a *build* was already in
+the pool, and the two questions look identical in the source.
+
 ## Secrets
 
 **An instance is given rendered values, never a key.** `incus.nix` declares

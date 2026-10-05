@@ -22,7 +22,25 @@ trap 'rm -rf "$WORK"' EXIT
 
 # --- extract ---------------------------------------------------------------
 START=$(grep -n '^sync_forgejo_hooks()' "$APPLY" | cut -d: -f1)
-END=$(awk -v s="$START" 'NR > s && /^}$/ { print NR; exit }' "$APPLY")
+# The end of the function is the first `^}$` that is not inside the GUEST heredoc.
+#
+# awk's `/^}$/` alone stops at the first column-zero brace of ANY kind, and the
+# guest script is a heredoc that now defines a shell function -- so its `}` at
+# column zero truncated the extraction and the suite reported "the GUEST heredoc
+# is not intact" rather than anything about hooks. The fix is to track heredoc
+# state, not to avoid writing functions in the guest script: a `}` inside a
+# heredoc is ordinary shell and the extraction was the thing that was wrong.
+#
+# index() rather than /^<<GUEST/, because the opener is mid-line -- it is the tail
+# of an assignment. Anchored on ^ it never matched, so the function's real closing
+# brace was picked and the guest script came out truncated.
+END=$(awk -v s="$START" '
+  NR < s { next }
+  index($0, "<<'"'"'GUEST'"'"'") { inhere = 1; next }
+  inhere && $0 == "GUEST" { inhere = 0; next }
+  !inhere && /^}$/ { print NR; exit }
+' "$APPLY")
+[[ -n $END ]] || { echo "FATAL: could not find the end of sync_forgejo_hooks"; exit 99; }
 sed -n "${START},${END}p" "$APPLY" >"$WORK/block.sh"
 grep -q '^sync_forgejo_hooks()' "$WORK/block.sh" \
   || { echo "FATAL: sync_forgejo_hooks not extracted"; exit 99; }
@@ -253,6 +271,12 @@ case "\${1:-}" in
         while [[ \${args[0]:-} == -* ]]; do args=("\${args[@]:1}"); done
         cat >"$GUESTFS/.rewrite.sh"
         root=\${args[0]}; bin=\${args[1]}; ini=\${args[2]}; hm=\${args[3]}
+        # SIX positional arguments now: active=\$6, the tree core.hooksPath points
+        # git at. Without it forwarded the guest script's `rewrite "$active"` gets
+        # an empty string, returns immediately, and the tree git actually executes
+        # is left naming the web's app.ini -- which is precisely the bug, arriving
+        # through the stub. Every earlier check in this suite passed in that state.
+        act=\${args[5]:-}
         # The guest script reads its four paths as POSITIONAL arguments, not from
         # the environment. Handing it GUEST_ROOT-style variables instead leaves
         # \$1..\$4 empty, so its "root/*/*.git" glob matches nothing, it writes
@@ -266,7 +290,13 @@ case "\${1:-}" in
         # passed four, so the guest script's dry=\$5 was empty, the --check guard
         # never fired, and the --check test failed with every hook file rewritten
         # -- the exact bug the test exists to catch, arriving through the stub.
-        bash "\$GUESTFS/.rewrite.sh" "\$GUESTFS\$root" "\$bin" "\$ini" "\$hm" "\${args[4]:-0}"
+        # active sits under GUESTFS like root does, so the guest script can test and
+        # write it. \${act} is empty when the spec declares no activeHooksPath, and
+        # that has to stay empty rather than becoming GUESTFS -- an empty path makes
+        # rewrite() return, which is the correct behaviour for a Forgejo that has no
+        # hooksPath set.
+        if [ -n "\$act" ]; then act="\$GUESTFS\$act"; fi
+        bash "\$GUESTFS/.rewrite.sh" "\$GUESTFS\$root" "\$bin" "\$ini" "\$hm" "\${args[4]:-0}" "\$act"
         ;;
       *) exit 0 ;;
     esac
@@ -278,6 +308,9 @@ chmod +x "$WORK/bin/incus"
 
 # The guest script, rewritten to use the environment the stub provides. It is the
 # same loop as the heredoc, with GUESTROOT etc. substituted for \$1..\$4.
+# The start pattern names only the first four assignments, so it still matches the
+# line now that it also carries dry=$5 and active=$6 -- an anchored full-line match
+# would find nothing and guest.sh would come out empty.
 sed -n "/^root=\$1; binary=\$2; ini=\$3; home=\$4/,/^echo \"\$n\"$/p" "$WORK/block.sh" \
   | sed -e 's/^root=\$1; binary=\$2; ini=\$3; home=\$4/root=\$GUEST_ROOT; binary=\$GUEST_BIN; ini=\$GUEST_INI; home=\$GUEST_HOME/' \
         -e "s|\$root|\$GUEST_ROOT|g" -e "s|\$binary|\$GUEST_BIN|g" \
@@ -286,7 +319,20 @@ sed -n "/^root=\$1; binary=\$2; ini=\$3; home=\$4/,/^echo \"\$n\"$/p" "$WORK/blo
 [[ -s $WORK/guest.sh ]] || { echo "FATAL: could not extract the guest rewrite loop"; exit 99; }
 
 export PATH="$WORK/bin:$PATH"
+# The four the rewritten guest script reads.
+#
+# Exported here, and that they had never been exported is a latent bug the active-
+# hooksPath check exposed: guest.sh has its $root/$binary/$ini/$home rewritten to
+# GUEST_* names and never reads the positional arguments the stub passes. With them
+# unset, root="" made the glob "/*/*.git" match nothing and ini="" meant the
+# rewritten hooks would name no config at all -- so every per-repository check was
+# passing on the FIXTURE rather than on a rewrite having happened.
+#
+# GUEST_ROOT is GUESTFS-prefixed, because the guest script globs and writes through
+# it. The other three are the REAL paths, because they go into the hook bodies and
+# the tests compare the generated text against them.
 export CALLLOG GUESTFS FJ INI ROOT HOME_DIR GUESTFS_STUB="$WORK" GUESTFS_STUB_USER
+export GUEST_ROOT="$GUESTFS$ROOT" GUEST_BIN="$FJ" GUEST_INI="$INI" GUEST_HOME="$HOME_DIR"
 
 PROJECT=""; CHECK_ONLY=0; FLAKE_DIR="/nonexistent"; TAG="hooks"
 log()  { printf '%-9s %s\n' "$TAG" "$*" >&2; }
@@ -562,6 +608,85 @@ diag=$( ( sync_forgejo_hooks forgejo "$SPEC" ) 2>&1 ); rc=$?
 check "unusual but legal RUN_USER: accepted" "0" "$rc"
 sed -i 's/^RUN_USER=.*/RUN_USER=forgejo/' "$GUESTFS$INI"
 
+echo "== 5b3. the tree core.hooksPath points git at is reconciled too =="
+# The check that matters most in this suite, and it is here because the whole
+# function aimed at the wrong tree for weeks.
+#
+# core.hooksPath overrides the per-repository hooks directory entirely, so a
+# reconciler that only walks the per-repository tree rewrites hundreds of dead
+# files and leaves the four that git executes naming the web's app.ini -- which
+# `git` cannot read. A push then reports success, the refs move, and post-receive
+# never records anything. Measured: zero rows in the action table after a push git
+# called fine.
+#
+# The fixture has both trees, with different contents, so a reconciler that only
+# did one of them passes everything above and fails this.
+reset
+ACTIVE_REL=/var/lib/forgejo/data/home/hooks
+ACTIVE=$GUESTFS$ACTIVE_REL
+mkdir -p "$ACTIVE"/pre-receive.d "$ACTIVE"/post-receive.d "$ACTIVE"/update.d
+for h in pre-receive post-receive update; do
+  printf '#!/usr/bin/env bash\nfor hook in ${GIT_DIR}/hooks/%s.d/*; do\n  test -x "${hook}" && "${hook}"\ndone\n' "$h" \
+    >"$ACTIVE/$h"
+  chmod 0775 "$ACTIVE/$h"
+  printf '#!/usr/bin/env bash\n# AUTO GENERATED BY GITEA, DO NOT MODIFY\n/usr/local/bin/gitea hook --config=/data/gitea/conf/app.ini %s\n' "$h" \
+    >"$ACTIVE/$h.d/gitea"
+  chmod 0755 "$ACTIVE/$h.d/gitea"
+done
+# The REAL path in the spec, not the fake-root one: the stub is what adds
+# GUESTFS, and passing a prefixed path here gets it prefixed twice.
+SPEC2=$(jq --arg a "$ACTIVE_REL" '.forgejoHooks.activeHooksPath = $a' <<<"$SPEC")
+diag=$( ( sync_forgejo_hooks forgejo "$SPEC2" ) 2>&1 ); rc=$?
+check "active tree: accepted" "0" "$rc"
+# Every .d/gitea now names the config the SPEC named. The point of this block is
+# "the active tree is reconciled at all", not which config that is: which config it
+# is belongs to incus.nix, and is asserted where the spec is built.
+check "active tree: every .d/gitea now names the spec's config" "3" \
+  "$(grep -rl "$INI" "$ACTIVE"/*/gitea 2>/dev/null | wc -l)"
+# And none is left naming the k3s-era Docker path the fixture started from, which is
+# the shape of the real drift: 265 files rewritten to the right config while the
+# four that git actually executes kept naming /data/gitea/conf/app.ini.
+check "active tree: none left naming the stale Docker config" "0" \
+  "$(grep -rl '/data/gitea/conf' "$ACTIVE" 2>/dev/null | wc -l)"
+# And the dispatchers must be left ALONE. They are Forgejo's indirection; writing
+# a hardcoded path over one replaces a working pattern with a brittle copy.
+check "active tree: dispatchers untouched" "3" \
+  "$(grep -rl 'hooks/.*\.d/\*' "$ACTIVE"/* 2>/dev/null | wc -l)"
+
+# Without activeHooksPath in the spec, the per-repository walk still has to happen.
+# A Forgejo with no hooksPath set runs those hooks, and this must not be the thing
+# that breaks it.
+reset
+diag=$( ( sync_forgejo_hooks forgejo "$SPEC" ) 2>&1 ); rc=$?
+check "no activeHooksPath declared: still accepted" "0" "$rc"
+check "no activeHooksPath declared: per-repo tree still rewritten" "1" \
+  "$(grep -c "$INI" "$GUESTFS$ROOT/sakulflee/alpha.git/hooks/proc-receive.d/gitea" 2>/dev/null | grep -c 1)"
+
+# --check on a drifted active tree must report it and write nothing.
+reset
+ACTIVE_REL=/var/lib/forgejo/data/home/hooks
+ACTIVE=$GUESTFS$ACTIVE_REL
+mkdir -p "$ACTIVE/post-receive.d"
+printf '#!/usr/bin/env bash\n/usr/local/bin/gitea hook --config=/data/gitea/conf/app.ini post-receive\n' \
+  >"$ACTIVE/post-receive.d/gitea"
+# The REAL path in the spec, not the fake-root one: the stub is what adds
+# GUESTFS, and passing a prefixed path here gets it prefixed twice.
+SPEC2=$(jq --arg a "$ACTIVE_REL" '.forgejoHooks.activeHooksPath = $a' <<<"$SPEC")
+before=$(cat "$ACTIVE/post-receive.d/gitea")
+# A bare assignment, not a command prefix on the call. As a prefix on a FUNCTION
+# bash leaves the value set after the call returns, and this suite resets it two
+# lines later -- so the reset silently undid the next test's setup instead.
+# Exit 0 on a --check that finds drift, by design -- a --check reports, it does not
+# fail. Asserting non-zero here would be asserting a change to the contract, and it
+# would have "passed" while testing nothing about the active tree at all.
+CHECK_ONLY=1
+diag=$( ( sync_forgejo_hooks forgejo "$SPEC2" ) 2>&1 ); rc=$?
+CHECK_ONLY=0
+check "active tree drift: --check exits 0 (reports, does not fail)" "0" "$rc"
+check "active tree drift: --check says would" "1" \
+  "$(grep -c 'would be rewritten' <<<"$diag")"
+check "active tree drift: --check wrote nothing" "$before" "$(cat "$ACTIVE/post-receive.d/gitea")"
+
 echo "== 5c. the repository root must be a directory in the guest =="
 # Without this, a typo'd path is not an error: the guest loop globs it, matches
 # nothing, and reports zero files rewritten -- a silent no-op on every reconcile.
@@ -573,6 +698,41 @@ check "missing repositoryRoot: says why" "1" \
   "$(grep -c 'not a directory in the guest' <<<"$diag")"
 check "missing repositoryRoot: wrote nothing" "0" "$(writes)"
 mv "$GUESTFS$ROOT.hidden" "$GUESTFS$ROOT"
+
+echo "== 5d. the real spec declares the active hooks path =="
+# Every fixture above builds its own SPEC, so a reconciler can pass all of them while
+# the spec on disk declares nothing to reconcile -- and then the real instance gets
+# no active-tree rewrite at all, which is the failure this whole block exists for.
+# So the file itself is read.
+REPO_ROOT=${REPO_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}
+SPEC_NIX="$REPO_ROOT/nixos/hosts/forgejo/incus.nix"
+if [[ ! -f $SPEC_NIX ]]; then
+  bad "cannot read $SPEC_NIX"
+else
+  declared=$(sed -n 's/.*activeHooksPath *= *"\([^"]*\)".*/\1/p' "$SPEC_NIX" | head -1)
+  repo_root_declared=$(sed -n 's/.*repositoryRoot *= *"\([^"]*\)".*/\1/p' "$SPEC_NIX" | head -1)
+
+  check "the spec declares a non-empty activeHooksPath" "1" \
+    "$( [[ -n $declared ]] && echo 1 || echo 0 )"
+  [[ -z $declared ]] || printf '       declared: %s\n' "$declared"
+
+  # A hooks directory, not the repositories root. Those two are the whole confusion:
+  # repositoryRoot is where Forgejo writes per-repository hooks, activeHooksPath is
+  # where git reads them, and only the second decides whether a push is recorded.
+  case $declared in
+    */hooks) check "and it points at a hooks directory" "1" "1" ;;
+    *)       check "activeHooksPath is a hooks directory, not '$declared'" "1" "0" ;;
+  esac
+
+  # Same value twice is the other shape of the bug: reconciling the per-repository
+  # tree and calling it the active one.
+  if [[ -n $repo_root_declared && $declared == "$repo_root_declared" ]]; then
+    bad "activeHooksPath equals repositoryRoot -- those are different trees"
+  else
+    check "and it is not the same as repositoryRoot" "1" "1"
+  fi
+fi
+
 
 echo "== 6. every generated hook is syntactically valid bash =="
 bad=0

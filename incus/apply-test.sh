@@ -292,6 +292,148 @@ ensure_project
 check "created nothing"  "0"  "$(ls -A "$STATEDIR" | wc -l | tr -d ' ')"
 check "still reported"   "1"  "$(ensure_project 2>&1 >/dev/null | grep -c 'does not exist')"
 
+echo "== 5c. the metadata repack, which is what makes a fingerprint per-instance =="
+# Extracted and executed rather than stubbed, because the whole thing is a tarball
+# rewrite and the only honest test is one that produces a tarball.
+#
+# Incus takes the image fingerprint from the METADATA tarball, and nixpkgs' is
+# byte-identical for every instance built from one nixpkgs revision -- so two
+# instances collide on every rebuild and "already exists" stops meaning what it
+# says. This is the fix, and it is four lines of tar and sed that nothing was
+# testing.
+PIM_START=$(grep -n '^per_instance_metadata()' "$APPLY" | cut -d: -f1)
+PIM_END=$(awk -v s="$PIM_START" 'NR > s && /^}$/ { print NR; exit }' "$APPLY")
+sed -n "${PIM_START},${PIM_END}p" "$APPLY" >"$WORK/pim.sh"
+grep -q '^per_instance_metadata()' "$WORK/pim.sh" \
+  || { echo "FATAL: per_instance_metadata not extracted"; exit 99; }
+# die() is not defined in this suite, so give it one. A function that only ever
+# dies is a function that was never exercised.
+printf 'die() { printf "DIE: %s\\n" "$*" >&2; exit 1; }\n' >"$WORK/die.sh"
+
+# A real metadata tarball, shaped like nixpkgs': one-line JSON, and carrying the
+# store registration beside it.
+mkdir -p "$WORK/md/x"
+printf '{"architecture":"x86_64","creation_date":1,"properties":{"description":"NixOS Yarara lxc-26.05 x86_64-linux","os":"nixos","release":"Yarara"},"templates":{}}' \
+  >"$WORK/md/x/metadata.yaml"
+mkdir -p "$WORK/md/x/nix/store"
+: >"$WORK/md/x/nix-path-registration"
+tar -cJf "$WORK/md.tar.xz" -C "$WORK/md/x" .
+
+# A refusal is a legitimate outcome, not a harness failure. The function is
+# supposed to die rather than repack something it does not recognise, and a first
+# version of this test treated that as "FATAL: produced no file" -- which scored a
+# mutation that REMOVES the description rewrite as "exits non-zero for the wrong
+# reason", when dying there is exactly the right reason.
+repack() {
+  local inst=$1 tarball=$2
+  bash -c 'source "$1"; per_instance_metadata "$2" "$3"' \
+       _ "$WORK/run.sh" "$tarball" "$inst" 2>&1 | tail -1
+}
+{ cat "$WORK/die.sh" "$WORK/pim.sh"; } >"$WORK/run.sh"
+out=$(repack homelab/caddy "$WORK/md.tar.xz")
+# There is no `bad`/`ok` in this suite -- only `check want got` -- and calling an
+# undefined function is a 127 that the harness reads as "exits non-zero for the
+# wrong reason" with nothing counted against it.
+if [[ ! -f $out ]]; then
+  if grep -q 'did not take' <<<"$out"; then
+    check "the description rewrite takes on a well-formed tarball" "1" "0"
+  else
+    check "per_instance_metadata produces a file" "1" "0"
+    echo "       said: $out"
+  fi
+  exit 1
+fi
+
+rm -rf "$WORK/chk"; mkdir -p "$WORK/chk"; tar -xJf "$out" -C "$WORK/chk"
+check "produces a tarball Incus will accept" "1" \
+  "$( [[ -f "$WORK/chk/metadata.yaml" ]] && echo 1 || echo 0 )"
+# -F, and no backslash-escaped quotes in the pattern. The first version of this
+# pattern was written with \" inside a double-quoted shell string, which is a
+# stray backslash to grep -- it warned on every run and still happened to pass,
+# which is the worst combination.
+check "the description names the instance" "1" \
+  "$(grep -qF 'description":"homelab/caddy ' "$WORK/chk/metadata.yaml" && echo 1 || echo 0 )"
+check "and the stock description is gone" "0" \
+  "$(grep -c 'Yarara lxc-26.05' "$WORK/chk/metadata.yaml")"
+# The registration decides whether the container's binaries resolve. It must come
+# through untouched -- a repack that tidies the tarball is a repack that can break
+# every container built from it, silently.
+check "the store registration is carried through" "1" \
+  "$( [[ -f "$WORK/chk/nix-path-registration" ]] && echo 1 || echo 0 )"
+check "the rest of metadata.yaml is intact" "1" \
+  "$(grep -q '"architecture":"x86_64"' "$WORK/chk/metadata.yaml" && echo 1 || echo 0 )"
+# Reproducible. Without a fixed mtime and a fixed member order, tar embeds the
+# clock and the same instance yields a different fingerprint on every reconcile --
+# so no image is ever recognised as unchanged and every run is a full import.
+out2=$(repack homelab/caddy "$WORK/md.tar.xz")
+check "the same input repacks to the same bytes" "1" \
+  "$( [[ $(sha256sum "$out" | cut -d" " -f1) == $(sha256sum "$out2" | cut -d" " -f1) ]] && echo 1 || echo 0 )"
+# And a different instance must NOT collide.
+out3=$(repack homelab/wireguard "$WORK/md.tar.xz")
+# A refusal here is itself a failure -- a rewrite that only works for the instance
+# whose name is hardcoded dies on every other one -- so it is folded into the same
+# check rather than being allowed to escape as a harness error.
+if [[ ! -f $out3 ]]; then
+  check "a second instance can be repacked too" "1" "0"
+  printf '       said: %s\n' "$out3"
+else
+  check "a different instance gets different bytes" "0" \
+    "$( [[ $(sha256sum "$out" | cut -d" " -f1) == $(sha256sum "$out3" | cut -d" " -f1) ]] && echo 1 || echo 0 )"
+fi
+
+# Every member pinned to the epoch. Comparing two repacks does NOT catch this:
+# tar's default mtime is the member FILE's own mtime, which does not move between
+# two runs, so a repack without --mtime produced identical bytes both times and the
+# check above passed with it removed. What actually differs is the mtime carried
+# INTO the archive, which is what makes an image's fingerprint depend on when it was
+# built rather than on what it is.
+bad_mtime=$(tar -tvJf "$out" 2>/dev/null | grep -cvE '1970-01-01| 1970-01-01 ' || true)
+check "every member is pinned to the epoch" "0" "$bad_mtime"
+[[ $bad_mtime -eq 0 ]] || tar -tvJf "$out" 2>/dev/null | head -3 | sed 's/^/       /'
+# Deliberately NOT asserting a sorted member list. `tar --sort=name` sorts path
+# COMPONENTS, so "./nix-path-registration" lands before "./nix/" -- which is not what
+# LC_ALL=C sort produces, and a check written against plain string order fails on a
+# correct archive. Determinism is the property that actually matters, and it is
+# asserted above by comparing the bytes of two repacks.
+
+# A tarball with no metadata.yaml must be refused rather than repacked: Incus
+# rejects it, and finding that out at import time costs the whole reconcile.
+rm -rf "$WORK/bad"; mkdir -p "$WORK/bad"; : >"$WORK/bad/nix-path-registration"
+tar -cJf "$WORK/bad.tar.xz" -C "$WORK/bad" .
+rc=0; repack homelab/caddy "$WORK/bad.tar.xz" >/dev/null 2>&1 || rc=1
+check "a metadata tarball with no metadata.yaml is refused" "1" "$rc"
+
+
+
+echo "== 5d. the errors name what is actually wrong =="
+# `check` and not the FATAL block above, deliberately: the mutation harness scores a
+# FATAL as "exits non-zero for the wrong reason", so an invariant that is meant to
+# CATCH a mutation has to fail as an ordinary failing check.
+if grep -q 'is NOT this build' "$APPLY"; then
+  check "the missing-build error says the build is missing" "1" "1"
+else
+  check "the missing-build error says the build is missing" "0" "1"
+fi
+if grep -q 'No image in the pool carries:' "$APPLY"; then
+  check "and prints the build-source that is absent" "1" "1"
+else
+  check "and prints the build-source that is absent" "0" "1"
+fi
+# The version this replaced pointed at the alias and at user.build-source, both of
+# which were fine and neither of which was the problem, so it sent the reader
+# looking for an image that was never there.
+if grep -q 'already in the pool under no alias' "$APPLY"; then
+  check "the misleading missing-image error is gone" "0" "1"
+else
+  check "the misleading missing-image error is gone" "1" "1"
+fi
+# And the import has to actually go through the repack. Asserted as a call and as an
+# argument, because either alone is satisfiable by a comment or by a dead variable.
+check "import builds the metadata through per_instance_metadata" "1" \
+  "$(grep -c 'instance_metadata=\$(per_instance_metadata' "$APPLY" >/dev/null && echo 1 || echo 0)"
+check "and hands THAT to incus, not the stock tarball" "1" \
+  "$(grep -q 'image import "$instance_metadata"' "$APPLY" && echo 1 || echo 0)"
+
 echo "== 6. project_qs =="
 PROJECT=""
 check "default -> empty"  ""      "$(project_qs)"

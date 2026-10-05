@@ -509,10 +509,68 @@ point_alias_at() {
   fi
 }
 
+# A copy of the metadata tarball whose description names this instance.
+#
+# WHY THIS EXISTS. Incus derives an image fingerprint from the METADATA tarball, and
+# nixpkgs' lxc-image-metadata.nix generates ours per nixpkgs revision -- the file is
+# named nixos-image-lxc-<nixpkgs>-x86_64-linux.tar.xz and nothing in it varies by
+# configuration. So caddy's image and wireguard's image, built from one nixpkgs, have
+# IDENTICAL metadata and therefore the same fingerprint, and the second import is
+# refused:
+#
+#   Error: Image with same fingerprint already exists
+#
+# Which means every instance collides with the previous one on every rebuild, and
+# the pool fills with images that can never be told apart by content. Confirmed on
+# the live instance: 22 unaliased images, two of them carrying the same
+# user.build-source as the aliased image and differing in size by 4096 bytes -- which
+# cannot happen if the fingerprint tracked the rootfs.
+#
+# The description is the only field in metadata.yaml that is ours to choose, and
+# changing it is enough. Measured, on the running instance, by rewriting only that
+# one field and importing the previously-refused rootfs:
+#
+#   Error: Image with same fingerprint already exists   <- original metadata
+#   Image imported with fingerprint: 560477927d41...     <- description says "caddy"
+#
+# So each instance gets a fingerprint of its own, and "already exists" comes to mean
+# what it says: this exact image is already here.
+#
+# Everything else in the tarball -- the nix store registration, the path
+# registration -- is copied through untouched, because those decide whether the
+# container's binaries resolve and they must not be second-guessed here.
+per_instance_metadata() {
+  local src=$1 instance=$2 work version
+  work=$(mktemp -d)
+  tar -xJf "$src" -C "$work" || die "cannot unpack $src"
+  # The description, and nothing else. Spelled as a substitution on the JSON field
+  # rather than a YAML edit because metadata.yaml is machine-generated JSON, and a
+  # pretty-printed YAML rewrite of a file nixpkgs emits as one line is the kind of
+  # change that silently stops matching.
+  #
+  # The version is read out of the description the module generated, not from
+  # `nixos-version`: that tool is not on the reconciler's PATH, and a `\$(...)`
+  # inside these double quotes survives as a LITERAL command substitution and ends up
+  # inside the description string. Both were found by the test rather than by reading.
+  local version
+  version=$(sed -n 's/.*lxc-\([^ ]*\) x86_64.*/\1/p' "$work/metadata.yaml" | head -1)
+  sed -i "s|\"description\":\"[^\"]*\"|\"description\":\"$instance $version\"|" \
+    "$work/metadata.yaml" \
+    || die "cannot rewrite the description in $src"
+  grep -q "\"description\":\"$instance " "$work/metadata.yaml" \
+    || die "the description rewrite did not take in $src"
+  # Repacked with the same format and a fixed mtime, so the same instance always
+  # produces the same tarball. Without -i, tar embeds the current time and every
+  # reconcile would produce a different fingerprint for the same build.
+  tar --format=gnu --sort=name --owner=0 --group=0 --numeric-owner \
+      --mtime=@1 -cJf "$work/metadata.tar.xz" -C "$work" .
+  printf '%s\n' "$work/metadata.tar.xz"
+}
+
 # Echo the fingerprint the instance should be based on.
 import_image() {
   local rootfs=$1 metadata_tarball=$2 alias=$3 rev=$4
-  local output fingerprint
+  local output fingerprint instance_metadata
 
   # Fast path, and the one that runs on every no-op redeploy: the alias already
   # names an image built from exactly this output, so there is nothing to do.
@@ -559,7 +617,11 @@ import_image() {
     # 2>&1 catches the stderr it writes to. Harmless for the "already exists"
     # match below, and in the failure message it means the error is preceded by
     # the exact invocation -- which is the thing you want there anyway.
-    if output=$(incus_run image import "$metadata_tarball" "$rootfs" --alias "$alias" 2>&1); then
+    # The metadata handed to Incus is this instance's own copy, so the fingerprint is
+    # this instance's. See per_instance_metadata for why the stock one cannot work.
+    instance_metadata=$(per_instance_metadata "$metadata_tarball" "$alias")
+
+    if output=$(incus_run image import "$instance_metadata" "$rootfs" --alias "$alias" 2>&1); then
       :
     elif grep -qi "already exists" <<<"$output"; then
       # This is a real failure, not a polite no-op:
@@ -572,14 +634,48 @@ import_image() {
       #
       # So: find the image that actually holds this build, and say so out loud
       # if there is not one.
-      step "content already in the pool, re-pointing $alias at it"
+      # The build we want may not be in the pool at all, and "already exists" says
+      # nothing about which of two possibilities this is.
+      #
+      # Incus derives an image fingerprint from the METADATA tarball, not the rootfs.
+      # Ours is generated per nixpkgs revision and is byte-identical across every
+      # instance built from it -- the file is named
+      # nixos-image-lxc-<nixpkgs>-x86_64-linux.tar.xz and nothing in it varies by
+      # configuration. So importing caddy's and wireguard's images from one nixpkgs
+      # collides on the fingerprint even when the rootfs differs completely, and the
+      # second import is refused:
+      #
+      #   Error: Image with same fingerprint already exists
+      #
+      # Measured on the live pool: two images carrying the SAME user.build-source and
+      # differing in size by 4096 bytes. That cannot happen if the property is derived
+      # from the rootfs, and is exactly what happens if the fingerprint is not.
+      #
+      # So user.build-source is a reliable key for finding an image -- it is written
+      # only after the alias is known to name one -- and an unreliable way to answer
+      # "is this build already here".
+      step "fingerprint already in the pool -- deciding whether it holds THIS build"
       fingerprint=$(image_with_build_source "$rootfs")
-      if [[ -z $fingerprint ]]; then
-        die "this build is already in the pool under no alias and carries no" \
-            "user.build-source, so it cannot be identified. Find it with" \
-            "'incus image list' and either give it an alias or delete it, then retry."
+      if [[ -n $fingerprint ]]; then
+        # The good case: the alias was pointing elsewhere, and this image provably
+        # holds the build we want.
+        step "  the pool does hold this exact build; re-pointing $alias at it"
+        point_alias_at "$alias" "$fingerprint"
+      else
+        # The build is NOT here. Whatever holds the fingerprint was made from
+        # different content, so there is nothing to re-point at. Deleting the
+        # colliding image buys exactly one run -- the next build collides again --
+        # so this is reported as the design fault it is.
+        die "$alias: the image at this fingerprint is NOT this build."$'\n'\
+            "  Incus takes the fingerprint from the metadata tarball, and ours is"$'\n'\
+            "  identical for every instance built from this nixpkgs revision -- so"$'\n'\
+            "  two instances collide and the second import is refused."$'\n'\
+            "  No image in the pool carries:"$'\n'\
+            "    user.build-source = $rootfs"$'\n'\
+            "  which is the build just made, so the content is genuinely absent."$'\n'\
+            "  Deleting the colliding image would only buy one run; the next build"$'\n'\
+            "  collides again. See incus/README.md, 'Image identity'."
       fi
-      point_alias_at "$alias" "$fingerprint"
     else
       die "image import failed:"$'\n'"$output"
     fi
@@ -1495,13 +1591,25 @@ sync_network_forward() {
 # which is the state that is hardest to reason about and was the state this whole
 # exercise started from.
 sync_forgejo_hooks() {
-  local name=$1 spec=$2 repo_root ini
+  local name=$1 spec=$2 repo_root ini active
 
   repo_root=$(jq -r '.forgejoHooks.repositoryRoot // empty' <<<"$spec")
   [[ -n $repo_root ]] || return 0
 
   ini=$(jq -r '.forgejoHooks.config // empty' <<<"$spec")
   [[ -n $ini ]] || die "$name declares forgejoHooks but names no config file"
+
+  # The tree git actually executes. Separate from repositoryRoot on purpose: that
+  # is where repositories live, and Forgejo's own `hook` subcommand writes into
+  # their per-repository hooks directories -- but `core.hooksPath` in the global
+  # gitconfig overrides those, so git runs a different tree entirely. Reconciling
+  # only the per-repository one rewrites hundreds of dead files every fifteen
+  # minutes and leaves the four that matter naming a config `git` cannot read.
+  #
+  # So both are walked, and the active one is what the report leads with. Absent
+  # from the spec it is not an error: a Forgejo without hooksPath set does run the
+  # per-repository hooks, and this must not be the thing that breaks that.
+  active=$(jq -r '.forgejoHooks.activeHooksPath // empty' <<<"$spec")
 
   # The binary comes from the service, not from the spec, and not from the host.
   #
@@ -1578,13 +1686,29 @@ sync_forgejo_hooks() {
   local dry=0
   [[ $CHECK_ONLY == 1 ]] && dry=1
 
+  # One argument more than before: active=$6, the tree git actually executes.
+  #
+  # It comes LAST so the earlier positional arguments keep their meaning -- this
+  # loop is the thing that writes 265 files, and reordering its arguments under a
+  # routine change is how a rewrite ends up pointing every hook at an empty
+  # string. That has happened in this codebase before, with $1 not being forwarded
+  # at all.
   local changed
   changed=$(incus_run_stdin exec "$name" -- bash -s -- \
-              "$repo_root" "$binary" "$ini" "$guest_dir" "$dry" <<'GUEST' 2>&1
-root=$1; binary=$2; ini=$3; home=$4; dry=$5
+              "$repo_root" "$binary" "$ini" "$guest_dir" "$dry" "$active" <<'GUEST' 2>&1
+root=$1; binary=$2; ini=$3; home=$4; dry=$5; active=$6
 n=0
-for repo in "$root"/*/*.git; do
-  [ -d "$repo/hooks" ] || continue
+
+# ONE writer, called once per hooks directory. It was two call sites before, which
+# is exactly how they came to disagree: the per-repository tree got rewritten to
+# app-git.ini while the tree git actually runs kept naming app.ini, because only
+# the first was ever wired up.
+#
+# $base is a hooks DIRECTORY, not a repository. Both trees have the same shape --
+# a dispatcher per hook, plus <hook>.d/gitea -- so one function serves both.
+rewrite() {
+  base=$1
+  [ -n "$base" ] && [ -d "$base" ] || return 0
   for hook in pre-receive update post-receive proc-receive; do
     args=$hook
     [ "$hook" = update ] && args='update $1 $2 $3'
@@ -1595,7 +1719,7 @@ HOME=$home $binary hook --config $ini $args"
     # The direct form. proc-receive is this one; the other three are dispatchers
     # and writing this over them would replace a working indirection with a
     # hardcoded path -- which is the fragility this function exists to remove.
-    direct="$repo/hooks/$hook"
+    direct="$base/$hook"
     if [ -f "$direct" ] && ! grep -q 'hooks/.*\.d/\*' "$direct"; then
       if [ "$(cat "$direct")" != "$want" ]; then
         [ "$dry" = 1 ] || { printf '%s\n' "$want" >"$direct"
@@ -1605,15 +1729,26 @@ HOME=$home $binary hook --config $ini $args"
     fi
 
     # The .d form, only where the dispatcher exists.
-    [ -d "$repo/hooks/$hook.d" ] || continue
-    d="$repo/hooks/$hook.d/gitea"
+    [ -d "$base/$hook.d" ] || continue
+    d="$base/$hook.d/gitea"
     if [ ! -f "$d" ] || [ "$(cat "$d")" != "$want" ]; then
       [ "$dry" = 1 ] || { printf '%s\n' "$want" >"$d"
         chmod 0755 "$d"; chown forgejo "$d"; }
       n=$((n+1))
     fi
   done
+}
+
+for repo in "$root"/*/*.git; do
+  [ -d "$repo/hooks" ] || continue
+  rewrite "$repo/hooks"
 done
+
+# The tree core.hooksPath points git at. This is the one that decides whether a
+# push is recorded, and it is generated by Forgejo on every start -- so without
+# this call it drifts back to naming the web's app.ini within one restart.
+rewrite "$active"
+
 echo "$n"
 GUEST
   )
