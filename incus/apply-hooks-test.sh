@@ -55,7 +55,14 @@ mkdir -p "$GUESTFS$ROOT/sakulflee/alpha.git/hooks/pre-receive.d" \
 # than the rewrite.
 printf '#!/bin/sh\nexit 0\n' >"$GUESTFS$FJ"
 chmod 0555 "$GUESTFS$FJ"
-printf 'APP_NAME = forgejo\n' >"$GUESTFS$INI"
+# RUN_USER, because the reconciler now reads it to decide which account must be
+# able to open this file, and then checks that account rather than root. Without it
+# the fixture is rejected before the hook loop ever runs, so every assertion below
+# reports the same failure and the suite looks like it is testing the check.
+# No spaces around the =. Forgejo writes RUN_USER=forgejo, and the reconciler
+# matches `^RUN_USER=`, so a fixture written `RUN_USER = forgejo` declares nothing
+# as far as it is concerned -- which reads as a config with no RUN_USER at all.
+printf 'APP_NAME=forgejo\nRUN_USER=forgejo\n' >"$GUESTFS$INI"
 chmod 0440 "$GUESTFS$INI"
 
 # Dispatchers: three of the four are these, and they must be left alone.
@@ -101,9 +108,40 @@ done
 # quoted the probe command names with them, and bash duly tried to execute those
 # three names as commands while writing the stub file. No backticks below.
 mkdir -p "$WORK/bin"
+
+# Stands in for runuser: answers "can THIS account read THAT file" using a
+# sidecar list, because the fixture tree cannot be chowned. Ownership is not the
+# thing under test here -- the reconciler's question is which account the hooks
+# will run as, and whether that account can open the config they name.
+#
+# The sidecar is <file>.readers, one whitespace-separated user per line. A file
+# with no sidecar is readable by everyone, which is the common case in these tests
+# and keeps them from all having to say so out loud.
+cat >"$WORK/bin/as-user" <<'ASUSER'
+#!/usr/bin/env bash
+user=$1; shift
+while [[ ${1:-} == -* ]]; do shift; done
+path=${1:?no path given}
+side="$path.readers"
+if [[ -f $side ]]; then
+  grep -qx "$user" "$side" || exit 1
+fi
+# Still has to be a real open, so a missing file fails the way it would in the
+# guest rather than passing on the strength of the sidecar alone.
+[[ -r $path ]]
+ASUSER
+chmod +x "$WORK/bin/as-user"
+
 cat >"$WORK/bin/incus" <<STUB
 #!/usr/bin/env bash
-log() { printf '%s\n' "\$*" >>"\$CALLLOG"; }
+# Guarded, because an unset CALLLOG makes >> expand to a file literally named
+# "\$CALLLOG" -- and since the stub inherits the suite's working directory, that
+# lands in the repository root. It happened: a 6-byte file named that way turned up
+# in git status, from a hand-run of the stub with the environment unset.
+#
+# Escaped here like everything else in this unquoted heredoc, so the comment
+# describes the name rather than expanding to nothing while the file is written.
+log() { [[ -n \${CALLLOG:-} ]] || return 0; printf '%s\n' "\$*" >>"\$CALLLOG"; }
 log "\$*"
 
 # Strip the project's own flags, then the -- that separates them from the command.
@@ -132,10 +170,34 @@ case "\${1:-}" in
     args=()
     for a in "\$@"; do
       case "\$a" in
-        test|getent|systemctl|bash) cmd=\$a ;;
+        test|getent|systemctl|bash|sh|runuser|head|sed) cmd=\$a ;;
         *) args+=("\$a") ;;
       esac
     done
+    # GUESTFS and INI, not the GUEST_* names the sed further down writes into
+    # guest.sh. Those are never assigned in this file -- the stub never reads that
+    # copy -- so reaching for them here answers every probe with an empty path and
+    # every test fails on "no RUN_USER" rather than on what it means.
+    #
+    # A bare `sh -c "..."` reaches here with args[0]=-c. The reconciler uses that
+    # form for the RUN_USER and readability probes because the guest has no usable
+    # PATH for a direct exec, so it has to be answered here or those two probes
+    # silently fail -- which reads exactly like a config no account can read.
+    if [[ \${args[0]:-} == -c ]]; then
+      script=\${args[1]:-}
+      case "\$script" in
+        *RUN_USER*) sed -n 's/^RUN_USER *= *//p' "\$GUESTFS\$INI" ;;
+        # runuser -u <user> -- head -c 1 <path>, all unquoted: the reconciler
+        # constrains RUN_USER to a POSIX user-name shape before it goes near a
+        # shell, precisely so it needs no quoting here. Strip the flags off and
+        # hand the question to as-user, which is the only thing in this stub that
+        # knows the answer.
+        *head*)     user=\${script#*runuser -u }; user=\${user%% *}
+                    "\$GUESTFS_STUB/bin/as-user" "\$user" "\$GUESTFS\$INI" ;;
+        *)          exit 0 ;;
+      esac
+      exit \$?
+    fi
     case \$cmd in
       test)
         op=\${args[0]}; p=\${args[1]}
@@ -148,6 +210,25 @@ case "\${1:-}" in
         ;;
       getent)
         printf 'forgejo:x:998:998::$HOME_DIR:/run/current-system/sw/bin/bash\n'
+        ;;
+      runuser)
+        # \$GUESTFS_STUB has to be escaped, like every other variable in here. This
+        # heredoc is UNQUOTED, so an unescaped one is expanded while the stub is
+        # being WRITTEN -- before the export line below has run -- and under the
+        # suite's `set -u` that aborts the redirection. The stub then lands on disk
+        # zero bytes, and every later test fails on the missing binary rather than
+        # on the thing it is testing. An unescaped $ in an unquoted heredoc is a
+        # build-time expansion, not a runtime one; that is worth stating because the
+        # symptom (an empty file) names nothing at all.
+        #
+        # Answer the readability question for the account actually named. Dropping
+        # the -u and just letting root read the file would pass for every fixture,
+        # including one where the hooks' own account is locked out of their config
+        # -- and the whole point of the check is that this is the question that
+        # matters.
+        shift
+        [[ \${1:-} == -u ]] && shift 2
+        exec "\$GUESTFS_STUB/bin/as-user" \${GUESTFS_STUB_USER:-root} "\$@"
         ;;
       systemctl)
         # The one thing the function reads the binary path out of. The args it
@@ -205,7 +286,7 @@ sed -n "/^root=\$1; binary=\$2; ini=\$3; home=\$4/,/^echo \"\$n\"$/p" "$WORK/blo
 [[ -s $WORK/guest.sh ]] || { echo "FATAL: could not extract the guest rewrite loop"; exit 99; }
 
 export PATH="$WORK/bin:$PATH"
-export CALLLOG GUESTFS FJ INI ROOT HOME_DIR
+export CALLLOG GUESTFS FJ INI ROOT HOME_DIR GUESTFS_STUB="$WORK" GUESTFS_STUB_USER
 
 PROJECT=""; CHECK_ONLY=0; FLAKE_DIR="/nonexistent"; TAG="hooks"
 log()  { printf '%-9s %s\n' "$TAG" "$*" >&2; }
@@ -408,15 +489,78 @@ check "non-executable binary: says why" "1" \
   "$(grep -c 'not executable in the guest' <<<"$diag")"
 chmod 0555 "$GUESTFS$FJ"
 
-echo "== 5b. the config must be readable in the guest =="
+echo "== 5b. the config must be readable BY THE ACCOUNT THE HOOKS RUN AS =="
+# Root reads everything, so a missing file is the easy half. The half that matters
+# is a file that exists, root can open, and the account the hooks will run as cannot
+# -- which is exactly what app-git.ini looks like to a bug, and exactly what the old
+# `test -r` check could not see.
 reset
 mv "$GUESTFS$INI" "$GUESTFS$INI.hidden"
 diag=$( ( sync_forgejo_hooks forgejo "$SPEC" ) 2>&1 ); rc=$?
 check "missing config: non-zero" "1" "$((rc != 0))"
 check "missing config: says why" "1" \
-  "$(grep -c 'not readable in the guest' <<<"$diag")"
+  "$(grep -c "declares no RUN_USER, so the account" <<<"$diag")"
 check "missing config: wrote nothing" "0" "$(writes)"
 mv "$GUESTFS$INI.hidden" "$GUESTFS$INI"
+
+# The case the previous version of this check could not express: the config exists,
+# root can open it, and the account its own RUN_USER names cannot.
+#
+# The mismatch is made by moving RUN_USER rather than by withdrawing access from
+# forgejo. Both would work, but they assert different things: withdrawing access
+# from forgejo only proves the sidecar list is consulted, whereas a config whose
+# RUN_USER is an account nobody has granted anything is the actual failure -- the
+# web's app.ini paired with a hook that will run as the transport identity, which is
+# what this reconciler must refuse.
+reset
+sed -i 's/^RUN_USER=forgejo$/RUN_USER=git/' "$GUESTFS$INI"
+# The sidecar has to be here for the NEGATIVE case too. Without it as-user treats
+# the file as readable by everyone -- which is the right default for every other
+# fixture, and which makes this case pass for the wrong reason: the probe succeeds
+# because nobody was asked, not because git was refused.
+printf 'forgejo\n' >"$GUESTFS$INI.readers"
+diag=$( ( sync_forgejo_hooks forgejo "$SPEC" ) 2>&1 ); rc=$?
+check "config unreadable by RUN_USER: non-zero" "1" "$((rc != 0))"
+# It has to NAME the account. "not readable" alone is what the old check said, and
+# it was never seen by anyone: the failure surfaced as a push rejected at pre-receive
+# with an InitCfgProvider error naming a config file.
+check "config unreadable by RUN_USER: names the account" "1" \
+  "$(grep -c "run as 'git', which cannot read it" <<<"$diag")"
+check "config unreadable by RUN_USER: wrote nothing" "0" "$(writes)"
+
+# And the converse, so the check cannot be satisfied by refusing everything: the
+# same config, once git can read it, has to be accepted.
+printf 'forgejo\ngit\n' >"$GUESTFS$INI.readers"
+diag=$( ( sync_forgejo_hooks forgejo "$SPEC" ) 2>&1 ); rc=$?
+check "config readable by RUN_USER: accepted" "0" "$rc"
+rm -f "$GUESTFS$INI.readers"
+sed -i 's/^RUN_USER=git$/RUN_USER=forgejo/' "$GUESTFS$INI"
+
+echo "== 5b2. a RUN_USER that is not an account name is refused =="
+# RUN_USER is read out of a file inside the instance and goes straight into a
+# `sh -c`. Constrained or not, `git; rm -rf /` is a shell word.
+#
+# The shape of the check is what matters: a probe that answers "can this account
+# read it" by trying, without constraining the name first, is a probe whose answer
+# depends on what the shell did with the argument on the way. The mutation that
+# replaces the constraint with `true` is caught here and by nothing else, because
+# every other case in 5b names a real account and so reads fine either way.
+reset
+sed -i 's/^RUN_USER=forgejo$/RUN_USER=git; rm -rf \/tmp\/nothing/' "$GUESTFS$INI"
+diag=$( ( sync_forgejo_hooks forgejo "$SPEC" ) 2>&1 ); rc=$?
+check "unusable RUN_USER: non-zero" "1" "$((rc != 0))"
+check "unusable RUN_USER: says why" "1" \
+  "$(grep -c 'is not a usable account name' <<<"$diag")"
+check "unusable RUN_USER: wrote nothing" "0" "$(writes)"
+
+# A name that is merely unusual must still be accepted -- an account called
+# forgejo_2 or a trailing $ are legal, and a constraint that rejects them would
+# push someone towards putting the name in a second place instead.
+reset
+sed -i 's/^RUN_USER=.*/RUN_USER=forgejo_2/' "$GUESTFS$INI"
+diag=$( ( sync_forgejo_hooks forgejo "$SPEC" ) 2>&1 ); rc=$?
+check "unusual but legal RUN_USER: accepted" "0" "$rc"
+sed -i 's/^RUN_USER=.*/RUN_USER=forgejo/' "$GUESTFS$INI"
 
 echo "== 5c. the repository root must be a directory in the guest =="
 # Without this, a typo'd path is not an error: the guest loop globs it, matches

@@ -421,6 +421,138 @@ else
 fi
 
 echo
+echo "== 11a. the git transport identity's config, derived and fenced =="
+# The unit that makes `git@` work at all, and one that generates a security
+# boundary at runtime -- so it is asserted rather than reviewed.
+#
+# Read out of the BUILT guest closure, not out of the source that produced it: the
+# ExecStart is what systemd runs, so a rewrite that never reaches the unit cannot
+# pass here. Same reasoning as check 9.
+#
+# $GUEST, which check 1 already built, and not a search of the store.
+#
+# A `find /nix/store -name '*-forgejo-git-config'` looks equivalent and is not: a
+# store full of older builds answers it too. This suite's own mutation runs leave
+# dozen mutated copies behind, and they were all being asserted against -- so the
+# block failed on code that is not the code, and the failure names a line nobody
+# changed. The current source is the only thing that should be under test.
+#
+# -L is load-bearing, not stylistic: etc/systemd/system is a SYMLINK to a shared
+# system-units derivation, so a find without it descends nothing. (Check 9 hit the
+# same /etc-is-a-symlink trap and needed -L for it.)
+GC_UNIT=$(find -L "$GUEST/etc/systemd/system" -maxdepth 1 \
+  -name 'forgejo-git-config.service' 2>/dev/null | head -1)
+if [[ -z $GC_UNIT ]]; then
+  bad "forgejo-git-config.service is not in the built guest -- check 11a has nothing to assert"
+else
+  ok "forgejo-git-config.service is installed in the built guest"
+fi
+
+for gc_unit in ${GC_UNIT:+"$GC_UNIT"}; do
+  gc_script=$(grep -oE 'ExecStart=[^ ]+' "$gc_unit" | head -1 | cut -d= -f2-)
+  if [[ -z $gc_script || ! -f $gc_script ]]; then
+    bad "ExecStart in $gc_unit does not resolve to a real file (got '$gc_script')"
+    continue
+  fi
+  ok "its ExecStart resolves to a real file"
+
+  # Comments stripped first: writeShellScript keeps them, and this file explains at
+  # length why `su` is banned -- so a version of this check that matched the word
+  # found its own documentation. (Paid for once already, in check 10.)
+  CODE_GC=$(sed 's/[[:space:]]*#.*$//' "$gc_script")
+
+  # RUN_USER must become git. mustCurrentRunUserMatch() compares it against the
+  # current uid and fatals on a mismatch for EVERY subcommand, so a config that kept
+  # forgejo here means every push dies before a key is offered.
+  # Anchored to the sed that does the work. A bare grep for RUN_USER=git passes on
+  # the unit's own assertion further down -- which mentions the very string being
+  # looked for -- so a mutation that stops rewriting it is caught by nothing. The
+  # same trap as the INTERNAL_TOKEN_URI comparison above, and it is why every check
+  # in this block names the construct rather than the value.
+  grep -qE '^[[:space:]]*-e "s\|\^RUN_USER=' <<<"$CODE_GC" \
+    && grep -qE 'RUN_USER=git\|"' <<<"$CODE_GC" \
+    && ok "the derived config says RUN_USER=git, in the sed that writes it" \
+    || bad "nothing rewrites RUN_USER to git -- every push fails in mustCurrentRunUserMatch"
+
+  # The *_URI filter, as a filter. Not four deletions by name: the keys are
+  # SECRET_KEY_URI, JWT_SECRET_URI, LFS_JWT_SECRET_URI and PASSWD_URI, so a list
+  # written from the four secret NAMES deletes three of four and serv still dies in
+  # loadSecret. Anything matching *_URI that is not INTERNAL_TOKEN_URI must go.
+  grep -qF '/_URI=/ { /INTERNAL_TOKEN_URI/!d }' <<<"$CODE_GC" \
+    && ok "every *_URI but INTERNAL_TOKEN_URI is dropped, by filter not by name" \
+    || bad "the *_URI filter is missing or name-based -- a secret added to app.ini later would be handed to git"
+
+  # And the premise is asserted in the unit itself, so a filter that lets one
+  # through fails the unit rather than sitting unnoticed.
+  # The comparison, anchored to the start of its own line. grep -q 'INTERNAL_TOKEN_URI"'
+  # was the first attempt and it matched the sed expression's own mention of the
+  # name -- passing on the very line it was meant to be checking against.
+  grep -qE '^[[:space:]]*\[ "\$f" = INTERNAL_TOKEN_URI \]' <<<"$CODE_GC" \
+    && ok "the unit asserts which *_URI survived, rather than trusting the sed" \
+    || bad "the unit does not assert which *_URI survived -- a filter bug would be silent"
+
+  # git must own it, because serv WRITES to it: it saves its own oauth2 signing key
+  # there on first use, and a config it cannot write is a fatal loadOAuth2From.
+  grep -q 'chown git:git' <<<"$CODE_GC" \
+    && ok "the config is owned by git, which serv writes to" \
+    || bad "the config is not chowned to git -- serv saves its own oauth2 key and cannot"
+
+  # internal_token is the ONE grant: group git, and 0440. Not group forgejo, and not
+  # world-readable.
+  grep -qE 'chown root:git .*internal_token' <<<"$CODE_GC" \
+    && ok "internal_token becomes root:git, the single grant" \
+    || bad "internal_token is not made readable to the git group"
+  grep -qE 'chmod 0440 .*internal_token' <<<"$CODE_GC" \
+    && ok "and at 0440, not world-readable" \
+    || bad "internal_token is not 0440"
+
+  # The four that must stay shut, by name. "The loop covers them" is a weaker claim
+  # than "these four are the ones", and it is the one that has to hold.
+  for f in secret_key oauth2_jwt_secret lfs_jwt_secret smtp_password; do
+    grep -q "$f" <<<"$CODE_GC" \
+      && ok "  $f is asserted unreadable by git" \
+      || bad "$f is not in the unit's refusal list"
+  done
+  # internal_token must NOT be in that loop. It is deliberately reachable now, and
+  # leaving it in would make the unit exit 1 on every single run.
+  if grep -qE 'for f in [^;]*internal_token' <<<"$CODE_GC"; then
+    bad "internal_token is still in the refusal loop -- the unit can never succeed"
+  else
+    ok "internal_token is NOT in the refusal loop (it is meant to be readable)"
+  fi
+
+  # Forgejo sets HOME=<data>/home for the git subprocess (commonBaseEnvs() in
+  # v16.0.5), so THAT is the gitconfig a push reads -- not the passwd home. Miss it
+  # and the push dies on "detected dubious ownership", naming git's ownership check
+  # rather than the config that would have answered it.
+  grep -qE 'chmod 0751 .*data/home' <<<"$CODE_GC" \
+    && ok "data/home is traversable, so its .gitconfig is reachable" \
+    || bad "data/home is not opened up -- the transport identity cannot read Forgejo's own gitconfig"
+  grep -qE 'chgrp git .*\.gitconfig' <<<"$CODE_GC" \
+    && ok "and .gitconfig is group-readable, for safe.directory = *" \
+    || bad "the gitconfig is not readable by git -- every push fails on dubious ownership"
+
+  # The hooks. core.hooksPath points git at data/home/hooks, and at 0750 they are
+  # all skipped. The push then SUCCEEDS -- refs move -- and post-receive never runs,
+  # so nothing reaches the database: measured, the branch appeared in the action
+  # table zero times after a push that reported success.
+  grep -qE 'chmod -R g\+rX .*hooks' <<<"$CODE_GC" \
+    && ok "the hooks tree is made group-readable and executable" \
+    || bad "the hooks are left at 0750 -- pushes succeed but are never recorded"
+  grep -qE 'chgrp -R git .*hooks' <<<"$CODE_GC" \
+    && ok "and owned by group git" \
+    || bad "the hooks are not in group git"
+
+  # runuser by absolute path, for the reason config-access documents: this unit's
+  # PATH has no util-linux in it, and a bare `runuser` inside an `if` is a check
+  # that silently passes -- which is how config-access came to prove nothing.
+  if grep -qE '(^|[;&|(]|[[:space:]])runuser[[:space:]]' <<<"$CODE_GC"; then
+    bad "invokes a bare runuser, which is not in this unit's PATH"
+  else
+    ok "runuser comes from an explicit store path"
+  fi
+done
+
 echo "== 12. sshd -t accepts the config =="
 SSHD=$(grep -oE '/nix/store/[^ ]*/bin/sshd' "$SSHD_CONFIG" | head -1)
 if [[ -x $SSHD ]]; then

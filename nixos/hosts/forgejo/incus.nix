@@ -168,7 +168,20 @@ in
   # changes when nixpkgs moves.
   forgejoHooks = {
     repositoryRoot = "/var/lib/forgejo/data/git/gitea-repositories";
-    config = "/var/lib/forgejo/custom/conf/app.ini";
+
+    # app-git.ini, NOT app.ini.
+    #
+    # A push arrives as the guest's `git` account, and the hooks a push runs are
+    # also run by that account. app.ini is 0440 root:forgejo, so a hook naming it
+    # fails before it can do anything:
+    #
+    #   InitCfgProvider() [F] Unable to init config provider from ".../app.ini"
+    #
+    # and the push is rejected at pre-receive with a message that names the
+    # transport identity and not the account doing the reading. app-git.ini is the
+    # same config with RUN_USER=git and only INTERNAL_TOKEN_URI, derived at runtime
+    # by forgejo-git-config -- so apply.sh must run AFTER that unit, not before.
+    config = "/var/lib/forgejo/custom/conf/app-git.ini";
   };
 
   # Guest units that operate on files the HOST reconciler writes, and so have to be
@@ -189,7 +202,15 @@ in
   #
   # A list rather than a single name, so the reconciler stays generic: nothing
   # here knows what these units do, only that they need to run again.
-  afterRenderSecrets = [ "forgejo-config-access.service" ];
+  #
+  # forgejo-git-config is second in the list and that order matters: it derives
+  # app-git.ini from app.ini, so on a first run it has nothing to derive from until
+  # render_secrets has written the source. apply.sh restarts these in the order
+  # given.
+  afterRenderSecrets = [
+    "forgejo-config-access.service"
+    "forgejo-git-config.service"
+  ];
 
   # Secrets the host decrypts and writes into this instance. incus/apply.sh reads
   # `source` on the host and writes the bytes to `dir/file` inside the instance.

@@ -1,43 +1,63 @@
 # Forgejo's own git transport, served by an sshd inside this container.
 #
-# Why here and not on the host
-# ----------------------------
-# The obvious design is to keep port 22 on the host and have the host's sshd
-# hand `git@` sessions into the container. That does not work, and the reason is
-# not a configuration detail:
+# Why an sshd in here rather than on the host
+# --------------------------------------------
+# Two independent reasons, and the first one is the one that used to be believed
+# to be the whole story.
 #
-#   $ forgejo serv key-13 --config ...      # as the guest's git user
-#   setting.go:203:mustCurrentRunUserMatch() [F]
-#   Expect user 'forgejo' but current user is: 'git'
+# 1. `forgejo serv` refuses to run as anything except RUN_USER:
 #
-# `forgejo serv` refuses to run as anything except RUN_USER. The check lives in
-# LoadSettings, so it fires for every subcommand, and there is no override --
-# GITEA_I_AM_BEING_UNSAFE_RUNNING_AS_ROOT permits *root* and does not touch it.
-# Verified both ways on the running instance:
+#      $ forgejo serv key-13 --config ...      # as the guest's git user
+#      setting.go:203:mustCurrentRunUserMatch() [F]
+#      Expect user 'forgejo' but current user is: 'git'
 #
-#   as git     -> Expect user 'forgejo' but current user is 'git'
-#   as forgejo -> advertises refs for SakulFlee/HomeLab (works)
+#    The check lives in LoadSettings, so it fires for every subcommand, and there
+#    is no override. The host's sshd cannot satisfy it, because satisfying it means
+#    the session must arrive as the *guest's* forgejo account, and the host has no
+#    such account to authenticate against.
 #
-# So the session must arrive as `forgejo`, which means the sshd that runs the
-# forced command has to be able to log in as `forgejo` -- i.e. it lives in here.
-# The host's sshd cannot do that, because it would have to authenticate against
-# the guest's accounts.
+# 2. The key list is read from the guest's own database, over the guest's own unix
+#    socket, by peer authentication. `AuthorizedKeysCommandUser` is root in the
+#    guest, so the script runs there and needs no cross-container incus exec, no
+#    --project and no --user that can be got wrong.
 #
-# The consequence, stated plainly because it is the cost of this design: a push
-# runs as `forgejo`, the identity that owns app.ini and can read SECRET_KEY,
-# INTERNAL_TOKEN and the SMTP password. The alternative -- host sshd, serv as
-# forgejo -- has the identical property, and the only thing it adds is a second
-# place for the forced command to live. Running sshd here at least keeps the
-# whole path inside the container, so the key list, the forced command and serv
-# are all reading one database on one filesystem.
+# So the session has to originate in here. That much has not changed. What HAS
+# changed -- and this is the substance of the file -- is which account it arrives
+# as.
 #
-# What this does NOT do
-# ---------------------
-# It does not re-expose the secrets to a transport identity. There is no `git`
-# login here at all: sshd runs as root, authenticates the key against the
-# database, and the forced command is `forgejo serv`, which does its own
-# authorisation. Nothing runs as the guest's `git` account, so nothing gains
-# anything from that account's deliberately restricted view of the filesystem.
+# A push arrives as `git`, not as `forgejo`
+# ----------------------------------------
+# The earlier version of this file concluded that a push must run as `forgejo`,
+# and recorded that as an unavoidable cost. It was avoidable, and the reasoning
+# was wrong in a specific and interesting way: it read serv's refusal to start as
+# serv *needing* the secrets.
+#
+# serv needs exactly one: INTERNAL_TOKEN, which it sends as a bearer token to the
+# web process's own /api/internal endpoint. Everything else -- key lookup,
+# repository lookup, the permission check that decides whether the key may write
+# at all -- happens inside the web process, as `forgejo`, over that socket.
+# Verified against v16.0.5's cmd/serv.go and routers/private/serv.go, and measured:
+#
+#   GET /api/internal/serv/none/13   no token -> 403  @ private/internal.go:23
+#   GET /api/internal/serv/none/13   token    -> 200  @ private/serv.go:51
+#
+# So `git` is given internal_token and a derived config (app-git.ini, built by
+# forgejo-git-config in ./default.nix) that names no other secret. It cannot read
+# SECRET_KEY, the oauth2 or LFS JWT secrets, or the mailer password, and it never
+# touches the database at all.
+#
+# Why this matters rather than being tidiness: every registered SSH key executes
+# as whichever account this file logs in as. Running as `forgejo` means every push
+# runs with the identity that can read SECRET_KEY -- the key that signs session
+# cookies -- and there are nine accounts on this instance, several of them bots.
+# A scoped database role, the fix this replaces, would have been worse still: it
+# would have handed the push identity SELECT on `user`, which holds passwd, salt and
+# the two-factor rows.
+#
+# The cost that remains, stated plainly: `git` can reach /api/internal with a valid
+# bearer token, and that surface includes manager/shutdown. See the
+# forgejo-git-config comment for why that is the smaller of the two exposures on
+# offer.
 {
   config,
   lib,
@@ -48,12 +68,18 @@
 
   forgejo = "${pkgs.forgejo}/bin/forgejo";
 
-  # Where Forgejo keeps app.ini. Passed explicitly because `forgejo serv` run
-  # outside forgejo.service derives its config from the binary's own directory,
-  # and under Nix that is a /nix/store path with no conf/app.ini beside it:
+  # Where Forgejo keeps the WEB's app.ini -- the one the web process runs on, which
+  # names all five secrets. The forced command does NOT use it; see gitIni below.
   #
-  #   InitCfgProvider() [F] Unable to init config provider
+  # It is still referenced because it is the config forgejo-git-config derives
+  # gitIni from, and the tests assert against it.
   appIni = "${cfg.customDir}/conf/app.ini";
+
+  # The transport identity's config: app.ini with RUN_USER=git and every *_URI
+  # except INTERNAL_TOKEN_URI dropped. Generated at runtime by forgejo-git-config,
+  # not written here -- the settings live in services.forgejo.settings and a second
+  # hand-maintained copy of them is a second thing to rot.
+  gitIni = "${cfg.customDir}/conf/app-git.ini";
 
   # The key list, straight from Forgejo's own database.
   #
@@ -158,8 +184,13 @@
       # Verified by running the generated script's own output back through a
       # shell the way sshd does. The form matches what Forgejo itself writes into
       # a managed authorized_keys file.
+      # --config names app-git.ini, NOT app.ini. app.ini is 0440 root:forgejo and
+      # names four secrets; serv reads every *_URI in whatever config it is given
+      # and dies in loadSecret if one is unreadable. app-git.ini is the same config
+      # with RUN_USER=git and only INTERNAL_TOKEN_URI, and it is what makes this
+      # session able to run as `git` at all.
       printf 'command="%s serv key-%s --config %s",no-pty %s\n' \
-        ${forgejo} "$id" ${appIni} "$rest"
+        ${forgejo} "$id" ${gitIni} "$rest"
     done <<<"$keys"
   '';
 

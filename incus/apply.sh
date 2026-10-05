@@ -1524,8 +1524,33 @@ sync_forgejo_hooks() {
   # Verified inside the guest, where the paths actually have to resolve.
   incus_run exec "$name" -- test -x "$binary" \
     || die "$name: forgejo.service names '$binary', which is not executable in the guest"
-  incus_run exec "$name" -- test -r "$ini" \
-    || die "$name: forgejoHooks.config is '$ini', which is not readable in the guest"
+  # Readable by ROOT is not the requirement, and checking that is how this check
+  # came to be vacuous: app-git.ini is 0600 git:git, apply.sh runs as root, and root
+  # reads anything. So `test -r` passed while the account the hooks actually run as
+  # -- the guest's `git` -- could not open the file.
+  #
+  # What has to be true is that the account named by the config's own RUN_USER can
+  # read it. That is read out of the config rather than assumed, because the config
+  # is what decides it: a hook naming app.ini is 0440 root:forgejo and root reads
+  # that perfectly well too.
+  local ini_user
+  ini_user=$(incus_run exec "$name" -- sh -c \
+      "export PATH=/run/current-system/sw/bin:\$PATH; sed -n 's/^RUN_USER=//p' '$ini'" \
+      2>/dev/null | head -1)
+  [[ -n $ini_user ]] \
+    || die "$name: forgejoHooks.config '$ini' declares no RUN_USER, so the account" \
+       "its hooks run as cannot be determined"
+  # Constrained before it goes near a sh -c. It is read out of a file inside the
+  # instance and ends up inside a command string, so a value that is not shaped like
+  # a POSIX user name -- `git; rm -rf /`, say -- would otherwise be a shell word.
+  [[ $ini_user =~ ^[a-z_][a-z0-9_-]*\$?$ ]] \
+    || die "$name: forgejoHooks.config '$ini' declares RUN_USER='$ini_user', which is" \
+       "not a usable account name"
+  incus_run exec "$name" -- sh -c \
+      "export PATH=/run/current-system/sw/bin:\$PATH; runuser -u $ini_user -- head -c 1 '$ini'" \
+      >/dev/null 2>&1 \
+    || die "$name: the hooks in '$ini' run as '$ini_user', which cannot read it." \
+       "Every push would be rejected at pre-receive with an InitCfgProvider error."
   incus_run exec "$name" -- test -d "$repo_root" \
     || die "$name: forgejoHooks.repositoryRoot is '$repo_root', which is not a directory in the guest"
 
