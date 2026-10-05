@@ -121,8 +121,61 @@ registered", and every push fails as a bare publickey denial with nothing logged
 
 | file | for | mode |
 | --- | --- | --- |
-| `custom/conf/app.ini` | the web process | `0440 forgejo:forgejo` |
+| `custom/conf/app.ini` | the web process | `0444 forgejo:forgejo` |
 | `custom/conf/app-git.ini` | `serv`, running as `git` | `0600 git:git` |
+
+### Both transports share one hook, so the hook chooses
+
+The account that runs the hooks is not a choice; it follows from how the push
+arrived. Measured in the guest:
+
+| push | runs as | why |
+| --- | --- | --- |
+| `ssh://` | `git` | sshd's forced command, `forgejo serv key-<id>` |
+| `https://` | `forgejo` | the **repository owner**; Forgejo authenticates the HTTP request |
+
+So the hooks `sync_forgejo_hooks` writes select their config by account:
+
+```bash
+cfg=/var/lib/forgejo/custom/conf/app-git.ini
+[ "$(id -un)" = forgejo ] && cfg=/var/lib/forgejo/custom/conf/app.ini
+HOME=/var/lib/forgejo .../bin/forgejo hook --config "$cfg" post-receive
+```
+
+`id -un`, not `id -u 1000`: the hook carries no uid that has to be kept in step
+with the guest's passwd file. Any account other than `forgejo` gets
+`app-git.ini`, which is the safe default — the other way round would hand a
+`RUN_USER=forgejo` config to a transport that cannot satisfy it.
+
+**A hook that names one config is wrong for whichever transport does not own
+it.** That was the HTTPS bug, and it is worth remembering why the symptom was so
+misleading:
+
+```
+remote rejected  ... (pre-receive hook declined)
+...permission denied on "/var/lib/forgejo/custom/conf/app-git.ini"
+```
+
+The message names a config path, not the account that could not read it, so it
+reads as a permissions problem on the *git* config rather than "this transport
+runs as somebody else". `forgejo` cannot open `app-git.ini` (it is `0600
+git:git`), and every HTTPS push was declined at `pre-receive`.
+
+The tempting fix — `chmod 0440 git:git` — is wrong. `forgejo` **is** in group
+`git`, so it would then be able to read it, and `mustCurrentRunUserMatch()`
+would immediately fatal on a `RUN_USER=git` config read by uid `forgejo`. One
+failure traded for another, and the second is louder.
+
+**What this preserves, and what it never protected.** A push over SSH runs as
+`git` and reads only `INTERNAL_TOKEN`. HTTPS was never inside that boundary and
+cannot be: Forgejo serves HTTPS as itself, so an HTTPS push is a privileged
+operation by the service account, exactly like an API write. It is treated as
+one.
+
+Note that `app.ini` is `0444`, so `git` *can* read it — but it names four
+`file:` URIs whose targets are `0440 root:forgejo`, so `serv` would die in
+`loadSecret` on the first one. That is why `app-git.ini` exists rather than the
+hooks simply pointing at `app.ini` everywhere.
 
 `app-git.ini` is **generated at runtime** by `forgejo-git-config` from
 `app.ini`, with two changes: `RUN_USER` becomes `git`, and every `*_URI` except
@@ -205,20 +258,27 @@ running `update-server-info` as `git` with and without read access.
 **k3s is still deployed** and still serving git on `:30022`. Nothing should depend
 on it now that `:22` works, but it has not been retired.
 
-**`incus-reconcile.service` fails every 15 minutes** on caddy:
-
-```
-caddy ERROR: this build is already in the pool under no alias and carries no
-user.build-source, so it cannot be identified
-```
-
-`--all` dies before it reaches forgejo, which is why two broken deploys looked
-healthy for a while: the safety net that was supposed to catch them was the thing
-that was broken.
-
 **`internal_token` reaches `/api/internal`**, which is on the same listener as
 the web UI and is reachable from the host at `10.0.0.101:3000`. `PROTOCOL=http`
 with `HTTP_ADDR=0.0.0.0`. Moving that surface off TCP — `PROTOCOL=http+unix`,
 or a loopback-only bind with Caddy reaching it another way — would remove the
 one real cost in the boundary above. Not done: it changes how Caddy dials Forgejo,
 and that needs deciding first.
+
+### Fixed since these notes were written
+
+`incus-reconcile.service` used to fail every 15 minutes on caddy:
+
+```
+caddy ERROR: this build is already in the pool under no alias and carries no
+user.build-source, so it cannot be identified
+```
+
+`--all` died before it reached forgejo, so the safety net was the thing that was
+broken. `per_instance_metadata` in `incus/apply.sh` now repacks the metadata
+tarball per instance, which is what stops two images sharing a fingerprint.
+
+A second defect in the same function, found later: it wrote the repacked tarball
+**into the directory it was tarring**, so the archive sometimes listed itself and
+the resulting fingerprint was not reproducible. That is the likely source of the
+duplicated images the weekly `incus-image-gc` cleans up.

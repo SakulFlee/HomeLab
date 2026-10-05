@@ -208,6 +208,41 @@ in
     # same config with RUN_USER=git and only INTERNAL_TOKEN_URI, derived at runtime
     # by forgejo-git-config -- so apply.sh must run AFTER that unit, not before.
     config = "/var/lib/forgejo/custom/conf/app-git.ini";
+
+    # The config for a push that arrives over HTTP instead of SSH, which runs as a
+    # different account entirely.
+    #
+    # Both transports execute the SAME hook file, and which account runs it is not
+    # a choice -- it follows from how the push arrived:
+    #
+    #   ssh://    sshd's forced command runs as the guest's `git`, and the hook runs
+    #             as `git` too, so it needs app-git.ini (RUN_USER=git).
+    #
+    #   https://  Forgejo authenticates the HTTP request and runs the hook as the
+    #             REPOSITORY OWNER, measured as forgejo:git. That account cannot
+    #             open app-git.ini, so every HTTPS push died at pre-receive:
+    #
+    #               remote rejected  ... (pre-receive hook declined)
+    #               ...permission denied on ".../app-git.ini"
+    #
+    #             and the message named a config path rather than the account that
+    #             could not read it, so it read as a permissions problem on the git
+    #             config instead of "this transport runs as somebody else".
+    #
+    # Deliberately not a mode change. 0440 git:git WOULD be readable by forgejo,
+    # which is in group git -- and then mustCurrentRunUserMatch() fatals on a
+    # RUN_USER=git config read by uid forgejo. One failure traded for another, and
+    # the second is louder.
+    #
+    # So the hook picks its config by the account running it. This is the `forgejo`
+    # side: the web process's own app.ini, already 0440 forgejo:forgejo. An HTTPS
+    # push is a privileged operation by the service account, exactly like an API
+    # write, and it is treated as one.
+    #
+    # What this preserves is the boundary that was always intended -- a push over
+    # SSH runs as `git` and reads only INTERNAL_TOKEN. HTTPS was never inside it and
+    # cannot be, because Forgejo serves HTTPS as itself.
+    webConfig = "/var/lib/forgejo/custom/conf/app.ini";
   };
 
   # Guest units that operate on files the HOST reconciler writes, and so have to be

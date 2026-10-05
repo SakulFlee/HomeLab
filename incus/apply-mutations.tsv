@@ -1,6 +1,6 @@
 label	suite	match	replacement	skip_next	nth
 dispatcher guard removed	hooks	&& ! grep -q 'hooks/	&& true # a direct hook is now rewritten whatever it is	0	0
-HOME= dropped from hook body	hooks	HOME=$home $binary hook --config $ini $args"	$binary hook --config $ini $args"	0	0
+HOME= dropped from hook body	hooks	HOME=$home $binary hook --config \"\$cfg\" $args	$binary hook --config \"\$cfg\" $args	0	0
 direct-hook compare removed	hooks	if [ "$(cat "$direct")" != "$want" ]; then	if true; then	0	0
 .d compare removed	hooks	if [ ! -f "$d" ] || [ "$(cat "$d")" != "$want" ]; then	if true; then	0	0
 ExecStart unreadable tolerated	hooks	"way to know which binary its hooks must name. Refusing to guess."	|| true	1	0
@@ -40,7 +40,7 @@ git-config leaves .gitconfig unreadable	forgejo	        ${pkgs.coreutils}/bin/ch
 git-config leaves the hooks unexecutable	forgejo	        ${pkgs.coreutils}/bin/chmod -R g+rX ${dataPath}/home/hooks	        ${pkgs.coreutils}/bin/chmod -R g-w ${dataPath}/home/hooks	0	0
 active hooks tree never rewritten	hooks	rewrite "$active"	true # mutation: never rewrite the tree git runs	0	0
 activeHooksPath not read from the spec	hooks	  active=$(jq -r '.forgejoHooks.activeHooksPath // empty' <<<"$spec")	  active=	0	0
-active hooks path not passed to the guest	hooks	              "$repo_root" "$binary" "$ini" "$guest_dir" "$dry" "$active" <<'GUEST' 2>&1	              "$repo_root" "$binary" "$ini" "$guest_dir" "$dry" <<'GUEST' 2>&1	0	0
+active hooks path not passed to the guest	hooks	"$repo_root" "$binary" "$ini" "$guest_dir" "$dry" "$active" \	"$repo_root" "$binary" "$ini" "$guest_dir" "$dry" \	0	0
 spec no longer declares activeHooksPath	spec	    activeHooksPath = "/var/lib/forgejo/data/home/hooks";	    activeHooksPath = "";	0	0
 import uses the stock metadata again	applytest	    instance_metadata=$(per_instance_metadata "$metadata_tarball" "$alias")	    instance_metadata=$metadata_tarball	0	0
 description is hardcoded, so instances collide again	applytest	\"description\":\"$instance $version\"	\"description\":\"caddy\"	0	0
@@ -63,3 +63,9 @@ gc treats an unreadable project as a skip, and exits 0	gc	    unreadable_project
 gc cannot list projects, and reports success	gc	  if [[ -z $project_json ]] || ! jq -e . >/dev/null 2>&1 <<<"$project_json"; then	  if false; then	0	1
 metadata tarball is written inside the directory it archives	applytest	      --mtime=@1 -cJf "$out/metadata.tar.xz" -C "$work" . \	      --mtime=@1 -cJf "$work/metadata.tar.xz" -C "$work" . \	0	1
 metadata repack writes the tar and the scratch tree to one place	applytest	  out=$(mktemp -d)	  out=$(mktemp -d); work=$out	0	1
+hook names one config, so HTTPS pushes cannot open it	hooks	HOME=$home $binary hook --config \"\$cfg\" $args	HOME=$home $binary hook --config $ini $args	0	1
+hook defaults to the web config, so SSH pushes cannot open it	hooks	cfg=$ini	cfg=$web_ini	0	1
+hook selects on a uid instead of the account name	hooks	[ \"\$(id -un)\" = $web_user ]	[ \"\$(id -u)\" = 998 ]	0	1
+a spec with no webConfig is accepted, so HTTPS has no config	hooks	[[ -n $web_ini ]] || die	[[ 1 ]] || die	0	1
+both configs naming one account is accepted	hooks	[[ $web_user != "$ini_user" ]] \	[[ 1 ]] \	0	1
+the web config is never checked for readability by its own account	hooks	runuser -u $web_user -- head -c 1 '$web_ini'	head -c 1 '$web_ini'	0	1

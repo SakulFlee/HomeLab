@@ -1634,6 +1634,40 @@ sync_forgejo_hooks() {
   ini=$(jq -r '.forgejoHooks.config // empty' <<<"$spec")
   [[ -n $ini ]] || die "$name declares forgejoHooks but names no config file"
 
+  # The other config, for the other transport. Same hooks, different account.
+  #
+  # Both transports execute the same hook file, and which account runs it is not a
+  # choice -- it follows from how the push arrived. Measured in the guest:
+  #
+  #   ssh://    sshd's forced command runs as the guest's `git`, so the hook runs as
+  #             `git` and needs app-git.ini (RUN_USER=git, only INTERNAL_TOKEN_URI).
+  #
+  #   https://  Forgejo authenticates the HTTP request and runs the hook as the
+  #             REPOSITORY OWNER. Measured:
+  #
+  #               $ stat -c '%U:%G' .../sakulflee/homelab.git
+  #               forgejo:git
+  #
+  #             so the hook ran as `forgejo` and could not open a 0600 git:git file:
+  #
+  #               remote rejected  ... (pre-receive hook declined)
+  #               ...permission denied on ".../app-git.ini"
+  #
+  # Not fixed by a mode change: 0440 git:git is readable by forgejo (it is in group
+  # git) and then mustCurrentRunUserMatch() fatals on RUN_USER=git read by uid
+  # forgejo. One failure for another.
+  web_ini=$(jq -r '.forgejoHooks.webConfig // empty' <<<"$spec")
+  [[ -n $web_ini ]] || die "$name declares forgejoHooks but names no webConfig, so a" \
+       "push over HTTPS has no config its own account can read. Every HTTPS push" \
+       "would be declined at pre-receive."
+  # Must actually differ. A webConfig identical to config means the selector below
+  # has one branch, and a typo in either path degrades to the old single-config
+  # behaviour -- where HTTPS was broken -- while still looking configured.
+  [[ $web_ini != "$ini" ]] \
+    || die "$name: forgejoHooks.webConfig and .config are both '$ini'. They name the" \
+       "same file, so the hook cannot choose between two transports and one of them" \
+       "will fail."
+
   # The tree git actually executes. Separate from repositoryRoot on purpose: that
   # is where repositories live, and Forgejo's own `hook` subcommand writes into
   # their per-repository hooks directories -- but `core.hooksPath` in the global
@@ -1694,6 +1728,33 @@ sync_forgejo_hooks() {
       >/dev/null 2>&1 \
     || die "$name: the hooks in '$ini' run as '$ini_user', which cannot read it." \
        "Every push would be rejected at pre-receive with an InitCfgProvider error."
+
+  # The same check for the HTTPS side, and it is the one that catches this class of
+  # bug before it reaches a push rather than after. The account is read out of the
+  # file rather than assumed, for the same reason as above: webConfig is
+  # RUN_USER=forgejo and ini is RUN_USER=git, and hardcoding either would be a
+  # claim about a file's contents that nothing verifies.
+  local web_user
+  web_user=$(incus_run exec "$name" -- sh -c \
+      "export PATH=/run/current-system/sw/bin:\$PATH; sed -n 's/^RUN_USER=//p' '$web_ini'" \
+      2>/dev/null | head -1)
+  [[ -n $web_user ]] \
+    || die "$name: forgejoHooks.webConfig '$web_ini' declares no RUN_USER, so the" \
+       "account an HTTPS push runs as cannot be determined"
+  [[ $web_user =~ ^[a-z_][a-z0-9_-]*\$?$ ]] \
+    || die "$name: forgejoHooks.webConfig declares RUN_USER='$web_user', which is" \
+       "not a usable account name"
+  incus_run exec "$name" -- sh -c \
+      "export PATH=/run/current-system/sw/bin:\$PATH; runuser -u $web_user -- head -c 1 '$web_ini'" \
+      >/dev/null 2>&1 \
+    || die "$name: an HTTPS push runs as '$web_user' (from '$web_ini'), which cannot" \
+       "read it. Every HTTPS push would be declined at pre-receive."
+  # And the two accounts must differ, or the selector is a no-op. Same account for
+  # both configs would mean one of them has the wrong RUN_USER, and the symptom
+  # would be a fatal on whichever transport happened to go second.
+  [[ $web_user != "$ini_user" ]] \
+    || die "$name: both configs declare RUN_USER=$ini_user ('$ini' and '$web_ini')." \
+       "Two transports running as one account means one config is wrong."
   incus_run exec "$name" -- test -d "$repo_root" \
     || die "$name: forgejoHooks.repositoryRoot is '$repo_root', which is not a directory in the guest"
 
@@ -1730,8 +1791,9 @@ sync_forgejo_hooks() {
   # at all.
   local changed
   changed=$(incus_run_stdin exec "$name" -- bash -s -- \
-              "$repo_root" "$binary" "$ini" "$guest_dir" "$dry" "$active" <<'GUEST' 2>&1
-root=$1; binary=$2; ini=$3; home=$4; dry=$5; active=$6
+              "$repo_root" "$binary" "$ini" "$guest_dir" "$dry" "$active" \
+              "$web_ini" "$web_user" <<'GUEST' 2>&1
+root=$1; binary=$2; ini=$3; home=$4; dry=$5; active=$6; web_ini=$7; web_user=$8
 n=0
 
 # ONE writer, called once per hooks directory. It was two call sites before, which
@@ -1747,9 +1809,29 @@ rewrite() {
   for hook in pre-receive update post-receive proc-receive; do
     args=$hook
     [ "$hook" = update ] && args='update $1 $2 $3'
+    # The config is chosen by the account RUNNING the hook, not named outright.
+    #
+    # One hook file serves both transports, and the account is decided by how the
+    # push arrived -- sshd's forced command arrives as `git`, an authenticated HTTP
+    # request arrives as the repository owner `forgejo`. Naming one config meant one
+    # of the two transports could not open it:
+    #
+    #   InitCfgProvider() [F] Unable to init config provider from
+    #   "/var/lib/forgejo/custom/conf/app-git.ini": permission denied
+    #
+    # on every HTTPS push, at pre-receive, with the refs already moved by the time
+    # anyone read the message.
+    #
+    # `id -un` rather than a numeric comparison, so the hook does not carry a uid
+    # that has to be kept in step with the guest's passwd file. `set -u` and a
+    # default of $ini, so an id that somehow has no name cannot make this an
+    # unbound-variable fatal under set -e -- an unknown account is not going to be
+    # either of the two, and failing loudly is better than naming nothing.
     want="#!/usr/bin/env bash
 # AUTO GENERATED BY GITEA, DO NOT MODIFY
-HOME=$home $binary hook --config $ini $args"
+cfg=$ini
+[ \"\$(id -un)\" = $web_user ] && cfg=$web_ini
+HOME=$home $binary hook --config \"\$cfg\" $args"
 
     # The direct form. proc-receive is this one; the other three are dispatchers
     # and writing this over them would replace a working indirection with a
