@@ -25,6 +25,16 @@ spec:
   driftDetection:
     mode: enabled
   values:
+    # 0 replicas. The runner now runs in an Incus VM (hosts/forgejo-runner),
+    # with the Docker executor replacing this chart's k8s plugin.
+    #
+    # Worth noting WHY this was worth doing rather than just tidying: this runner
+    # was live and pointed at http://forgejo-http.forgejo.svc.cluster.local:3000,
+    # a Service with no endpoints since Forgejo left the cluster. So it was
+    # polling for jobs it could never run, and any job it did pick up would have
+    # failed in the k8s plugin -- the one failure mode that looks like a broken
+    # CI system rather than a retired one.
+    replicaCount: 0
     forgejo:
       url: "http://forgejo-http.forgejo.svc.cluster.local:3000"
       existingSecret: "forgejo-runner-secret"

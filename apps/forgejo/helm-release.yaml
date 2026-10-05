@@ -8,6 +8,24 @@ metadata:
 spec:
   interval: 15m
   timeout: 5m
+  # Parked. Forgejo now runs in an Incus container, not in this cluster.
+  #
+  # Caddy serves forgejo.sakul-flee.de straight at it -- its own site block
+  # reverse_proxying http://10.0.0.101:3000, not the still-traefik snippet --
+  # so nothing external reaches this Deployment and the Ingress below has no
+  # endpoints behind it.
+  #
+  # `suspend`, NOT `values.replicaCount: 0`. The chart declares replicaCount
+  # as an integer with minimum 1 in its values.schema.json -- read from
+  # code.forgejo.org/forgejo-helm/forgejo:17.2.0, which ^17.0.0 resolves to --
+  # so helm rejects 0 at validation time, before rendering, and the release
+  # never applies. The chart offers no other off-switch: no `enabled` and no
+  # `suspend` anywhere in its values.yaml. apps/forgejo-runner DOES accept
+  # replicaCount: 0, because that chart ships no values.schema.json at all.
+  #
+  # Suspending stops reconciliation without deleting anything, so the chart
+  # version, the secret wiring and the restore path stay in the repository.
+  suspend: true
   chartRef:
     kind: OCIRepository
     name: forgejo
