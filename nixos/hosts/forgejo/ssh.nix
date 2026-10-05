@@ -163,15 +163,42 @@
     done <<<"$keys"
   '';
 
-  # The installed location, which is NOT the store path keySource resolves to.
-  # See the AuthorizedKeysCommand note below for why that distinction is the whole
-  # difference between a working git transport and a silent one.
-  keyPath = "/etc/ssh/forgejo-ssh-keys";
+  # Where sshd looks, and where the install unit puts the script. Under /run and
+  # a real file: see the AuthorizedKeysCommand note for why both halves matter and
+  # why /etc does not work despite looking correct.
+  keyDir = "/run/forgejo-ssh-keys";
+  keyPath = "${keyDir}/keys";
 in {
-  # NixOS symlinks this into /etc/ssh, root-owned and unwritable along with every
-  # parent, which is what OpenSSH's auth_secure_path() requires. It is the same
-  # mechanism that puts sshd_config there.
-  environment.etc."ssh/forgejo-ssh-keys".source = keySource;
+  # Copies the script out of the store on every boot.
+  #
+  # Wanted by sshd.service rather than multi-user.target so the ordering does not
+  # depend on anything else happening to pull it in: if sshd starts before this
+  # runs, AuthorizedKeysCommand names a file that does not exist, every key lookup
+  # fails, and the symptom is the same bare `Permission denied (publickey)` as the
+  # two earlier causes -- so it has to be impossible rather than unlikely.
+  systemd.services.forgejo-ssh-keys-install = {
+    description = "Install Forgejo's AuthorizedKeysCommand script outside the Nix store";
+    wantedBy = [ "sshd.service" ];
+    before = [ "sshd.service" ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      # Creates /run/forgejo-ssh-keys as 0755 root:root. RuntimeDirectory rather
+      # than mkdir in ExecStart so systemd removes it on stop and recreates it on
+      # every boot -- /run is tmpfs, and a stale copy from a previous boot with a
+      # different store path would be worse than none.
+      RuntimeDirectory = "forgejo-ssh-keys";
+      RuntimeDirectoryMode = "0755";
+      ExecStart = lib.getExe' pkgs.coreutils "install" +
+        " -m 0555 -o root -g root ${keySource} ${keyPath}";
+    };
+  };
+
+  # Restart sshd if the script's content ever changes shape, so a change to
+  # keySource is not silently shadowed by a stale copy in /run. NixOS restarts the
+  # unit on a changed ExecStart, and sshd is Restart=always on failure, so a
+  # restart here is the cheap correct thing.
+  systemd.services.sshd.restartTriggers = [ "forgejo-ssh-keys-install.service" ];
 
   # sshd exists only for git transport. It has no password login, no root
   # login, no forwarding and no terminal; it is reachable only on the network
@@ -201,38 +228,42 @@ in {
       "# user. `forgejo` is right: peer authentication over the local unix socket"
       "# needs no password and grants nothing that root does not already have."
       #
-      # /etc/ssh/forgejo-ssh-keys, NOT the store path it is built from. OpenSSH
-      # refuses an AuthorizedKeysCommand whose path passes through a group- or
-      # other-writable directory, and /nix/store is:
+      # /run/forgejo-ssh-keys/keys -- a REAL file, installed by
+      # forgejo-ssh-keys-install below. Not the store path, and not anything under
+      # /etc. OpenSSH refuses an AuthorizedKeysCommand whose RESOLVED path passes
+      # through a group- or other-writable directory, and:
       #
       #   drwxrwxr-t root:nixbld /nix/store
       #
-      # The group write is what makes it unsafe. So every key lookup fails before
-      # a single key is offered:
+      # The group write is the whole problem, so the lookup fails before a single
+      # key is offered:
       #
-      #   error: Unsafe AuthorizedKeysCommand ".../forgejo-ssh-keys":
+      #   error: Unsafe AuthorizedKeysCommand "...":
       #          bad ownership or modes for directory /nix/store
       #
-      # and the symptom is a bare `Permission denied (publickey)` with no other
-      # explanation. Nothing else is logged at LogLevel INFO, and `sshd -T`
-      # reports the setting as perfectly valid.
+      # and the symptom is a bare `Permission denied (publickey)` with nothing
+      # else logged at LogLevel INFO.
       #
-      # This reached the deployed instance and was invisible to testing, because
-      # the end-to-end test ran the script from /run/e2e -- whose chain is
-      # drwxr-xr-x root:root throughout and therefore fine. The test exercised a
-      # stand-in path and never the path sshd actually reads, and the earlier
-      # conclusion that "/run/... and /nix/store are fine" was wrong on the second
-      # half. incus/apply-sshd-test.sh now walks the real chain from the built
-      # configuration, so a store path fails there rather than on the host.
+      # Two wrong fixes got here first, and both were caught on the host rather
+      # than in testing:
       #
-      # /etc/ssh works because its whole chain is root-owned and unwritable:
+      #   1. The store path directly. /nix/store is 1775.
+      #   2. /etc/ssh/forgejo-ssh-keys via environment.etc. That LOOKS safe --
+      #      /etc, /etc/ssh are drwxr-xr-x root:root -- and the deployed guest
+      #      showed exactly that chain. It still failed, because NixOS installs
+      #      environment.etc entries as symlinks:
       #
-      #   /  /etc  /etc/ssh      drwxr-xr-x root:root
+      #        /etc/ssh/forgejo-ssh-keys -> /etc/static/ssh/forgejo-ssh-keys
+      #                                    -> /nix/store/...-forgejo-ssh-keys
       #
-      # The installed file is a symlink into the store, which is fine:
-      # auth_secure_path stat()s the target and then walks up the *lexical* path,
-      # so what it actually checks is /etc/ssh, /etc and /.
-      "AuthorizedKeysCommand /etc/ssh/forgejo-ssh-keys %u"
+      #      and auth_secure_path resolves the link before walking up, so it
+      #      reaches /nix/store anyway. Reasoning that it walked the LEXICAL path
+      #      is what made fix 2 look safe; it does not.
+      #
+      # So no NixOS-managed file can serve here, and the script is copied into
+      # /run at boot instead. /run is tmpfs and drwxr-xr-x root:root, and the
+      # directory is created 0755 root:root, which is the chain sshd accepts.
+      "AuthorizedKeysCommand ${keyPath} %u"
       "AuthorizedKeysCommandUser root"
       ""
       "# Only the key list. This is what turns the old behaviour -- a password"

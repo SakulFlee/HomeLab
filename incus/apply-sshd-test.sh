@@ -1,25 +1,40 @@
 #!/usr/bin/env bash
 # Tests for the guest's git transport, in incus/apply-sshd-test.sh.
 #
-# Different from the other suites in kind: those test apply.sh against stubs. This
-# one builds the guest configuration and inspects the artefacts, because the bug
-# it exists to catch was never a logic error. It was a path:
+# Different in kind from the other suites: those test apply.sh against stubs. This
+# builds the guest and inspects the artefacts, because the bugs here were never
+# logic errors. They were PATHS, and each one looked correct until the host said
+# otherwise:
 #
-#   error: Unsafe AuthorizedKeysCommand ".../forgejo-ssh-keys":
-#          bad ownership or modes for directory /nix/store
+#   1. The store path.
+#        error: Unsafe AuthorizedKeysCommand ".../forgejo-ssh-keys":
+#               bad ownership or modes for directory /nix/store
+#      /nix/store is drwxrwxr-t root:nixbld. The group write is the problem.
 #
-# sshd refuses an AuthorizedKeysCommand whose path passes through a group- or
-# other-writable directory, and /nix/store is drwxrwxr-t root:nixbld. The group
-# write is the whole problem. Every key lookup failed before a key was offered,
-# and the symptom was a bare `Permission denied (publickey)` on a push that had
-# worked minutes earlier.
+#   2. /etc/ssh/forgejo-ssh-keys via environment.etc. This one is the instructive
+#      failure, because it PASSES a lexical check:
 #
-# It survived because the end-to-end test ran the script from /run/e2e, whose
-# chain is root-owned and unwritable. The test exercised a stand-in path and never
-# the one sshd reads, and I recorded "/run/... and /nix/store are fine" -- wrong on
-# the second half, and deployed on.
+#        /etc            drwxr-xr-x root:root
+#        /etc/ssh        drwxr-xr-x root:root
 #
-# So: assert the property, against the built configuration, with no live sshd.
+#      and the deployed guest showed exactly that chain -- and still failed.
+#      NixOS installs environment.etc entries as symlinks:
+#
+#        /etc/ssh/forgejo-ssh-keys -> /etc/static/ssh/forgejo-ssh-keys
+#                                    -> /nix/store/...-forgejo-ssh-keys
+#
+#      and auth_secure_path resolves the link before walking up, so it reaches
+#      /nix/store anyway. I reasoned that it walked the LEXICAL path, wrote that
+#      into a comment as though it were verified, and deployed on it.
+#
+# So this suite resolves the path the way sshd does -- realpath, then every
+# ancestor -- and asserts on THAT. A lexical check is not a weaker version of the
+# right check; it is the wrong check, and it is what let fix 2 through.
+#
+# The install target is /run and a real file, so there is no symlink to resolve at
+# runtime. In a build tree /run does not exist, so the runtime half is asserted
+# structurally: the unit exists, it is ordered before sshd, and its ExecStart is a
+# copy rather than a symlink.
 set -uo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
@@ -32,6 +47,8 @@ check() {
   if [[ $want == "$got" ]]; then printf '  ok   %s\n' "$what"
   else printf '  FAIL %s\n       want: %s\n       got:  %s\n' "$what" "$want" "$got"; fails=$((fails + 1)); fi
 }
+ok()   { printf '  ok   %s\n' "$1"; }
+bad()  { printf '  FAIL %s\n' "$1"; fails=$((fails + 1)); }
 
 nixq() {
   if [[ -n ${NIX_SUDO:-} ]]; then
@@ -40,6 +57,22 @@ nixq() {
   else
     nix --extra-experimental-features 'nix-command flakes' "$@"
   fi
+}
+
+# Every ancestor of a path must be root-owned and not group- or other-writable.
+# This is auth_secure_path's rule, applied to a realpath.
+chain_is_safe() { # path-under-root
+  local p=$1 dir unsafe=""
+  while [[ -n $p && $p != / ]]; do
+    [[ -d $p ]] || { unsafe="$unsafe $p(absent)"; break; }
+    local m o
+    m=$(stat -c '%a' "$p" 2>/dev/null) || { unsafe="$unsafe $p(unreadable)"; break; }
+    o=$(stat -c '%U' "$p" 2>/dev/null)
+    (( 8#$m & 0022 )) && unsafe="$unsafe $p($m)"
+    [[ $o == root ]] || unsafe="$unsafe $p(owner=$o)"
+    p=$(dirname "$p")
+  done
+  printf '%s' "$unsafe"
 }
 
 echo "== 1. the built guest configuration =="
@@ -51,91 +84,125 @@ if [[ -z $GUEST || ! -d $GUEST ]]; then
   exit 99
 fi
 echo "  guest: $GUEST"
-
 SSHD_CONFIG="$GUEST/etc/ssh/sshd_config"
 [[ -f $SSHD_CONFIG ]] || { echo "FATAL: no sshd_config in the built guest"; exit 99; }
 
 echo
-echo "== 2. what AuthorizedKeysCommand actually names =="
+echo "== 2. what AuthorizedKeysCommand names =="
 cmdline=$(grep -E '^AuthorizedKeysCommand[[:space:]]' "$SSHD_CONFIG" | head -1)
 echo "  $cmdline"
 cmd=$(printf '%s' "$cmdline" | awk '{print $2}')
-
 case $cmd in
   /nix/store/*)
-    printf '  FAIL AuthorizedKeysCommand points into /nix/store, which is\n'
-    printf '       drwxrwxr-t root:nixbld. sshd refuses it unconditionally:\n'
-    printf '         error: Unsafe AuthorizedKeysCommand "%s": bad ownership or modes for directory /nix/store\n' "$cmd"
-    printf '       and every push fails as a bare "Permission denied (publickey)".\n'
-    fails=$((fails + 1)) ;;
-  /etc/ssh/*)
-    printf '  ok   not a store path\n' ;;
+    bad "names /nix/store, which is drwxrwxr-t root:nixbld -- sshd refuses it outright"
+    ;;
+  /etc/*)
+    bad "names a path under /etc. NixOS installs those as symlinks into"
+    echo "       /etc/static and on into /nix/store, so auth_secure_path resolves"
+    echo "       straight back to the store. This LOOKS safe on a lexical check and"
+    echo "       failed on the host for exactly that reason."
+    ;;
+  /run/*)
+    ok "under /run -- not the store, and not a symlink into it" ;;
   *)
-    printf '  FAIL unexpected AuthorizedKeysCommand location: %s\n' "$cmd"
-    fails=$((fails + 1)) ;;
+    bad "unexpected location: $cmd" ;;
 esac
 
 echo
-echo "== 3. the script is actually installed there =="
-# $GUEST$cmd, not $cmd. The command is an absolute path *inside the guest*, so
-# looking for it at that path on this machine tests the wrong filesystem -- which
-# is how this check reported a missing file for one that is present.
-if [[ -e $GUEST$cmd || -L $GUEST$cmd ]]; then
-  printf '  ok   %s exists in the built guest\n' "$cmd"
-  printf '       -> %s\n' "$(readlink -f "$GUEST$cmd")"
-  [[ -x $GUEST$cmd ]] && printf '  ok   executable\n' \
-                      || { printf '  FAIL not executable\n'; fails=$((fails + 1)); }
-else
-  printf '  FAIL %s does not exist in the built guest\n' "$cmd"
-  fails=$((fails + 1))
-fi
-
-echo
-echo "== 4. the whole ancestor chain is root-owned and unwritable =="
-# The property auth_secure_path() actually enforces, asserted directly rather than
-# reasoned about: no directory from / down to the command may be writable by group
-# or other, and all must belong to root.
+echo "== 3. the resolved path's ancestor chain =="
+# Only meaningful if the path exists here. It does not: it lives in the guest's
+# /run, which is tmpfs and created at boot by the unit in check 6.
 #
-# Checked on a real filesystem for the paths that exist in the build tree, and
-# against the modes a fresh NixOS root has for the rest -- /nix and /nix/store are
-# not part of a system closure, so their modes come from the guest's own rootfs
-# rather than anything reachable from here.
-unsafe=""
-for d in / /etc /etc/ssh; do
-  m=$(stat -c '%a %U' "$d" 2>/dev/null) || { unsafe="$unsafe $d(unreadable)"; continue; }
-  perm=${m%% *}; owner=${m##* }
-  printf '  %-12s %s %s\n' "$d" "$perm" "$owner"
-  # any write bit for group or other
-  if (( 8#$perm & 0022 )); then unsafe="$unsafe $d"; fi
-  [[ $owner == root ]] || unsafe="$unsafe $d(owner=$owner)"
-done
-if [[ -n $unsafe ]]; then
-  printf '  FAIL group/other-writable or non-root in the chain:%s\n' "$unsafe"
-  fails=$((fails + 1))
-else
-  printf '  ok   every directory in the chain is root-owned and unwritable by group/other\n'
-fi
-
-echo
-echo "== 5. and /nix/store would NOT have passed, which is the point =="
-# A negative control, so check 4 cannot pass vacuously. If this ever reports the
-# store as safe, then check 4 is not testing what it claims to.
-store=${NIX_STORE_DIR:-/nix/store}
-if [[ -d $store ]]; then
-  perm=$(stat -c '%a' "$store")
-  printf '  %s is %s\n' "$store" "$perm"
-  if (( 8#$perm & 0022 )); then
-    printf '  ok   group-writable, as sshd sees it -- check 4 is a real test\n'
+# Checking THIS machine's /run instead would be worse than useless -- it is
+# drwxrwxrwt (1777, world-writable with a sticky bit), which is not what the
+# guest's /run is, and the guest's was verified as drwxr-xr-x root:root. A test
+# that passed here would be asserting something unrelated.
+if [[ -e $cmd || -L $cmd ]]; then
+  resolved=$(readlink -f "$cmd")
+  printf '  %s -> %s\n' "$cmd" "$resolved"
+  unsafe=$(chain_is_safe "$resolved")
+  if [[ -n $unsafe ]]; then
+    bad "group/other-writable or non-root in the resolved chain:$unsafe"
   else
-    printf '  FAIL not group-writable here, so check 4 proves nothing about the guest\n'
-    fails=$((fails + 1))
+    ok "every ancestor is root-owned and unwritable by group/other"
   fi
 else
-  printf '  skip (%s absent)\n' "$store"
+  printf '  skip  %s is created at boot, so its chain cannot be checked\n' "$cmd"
+  printf '        from a build tree. Covered structurally in check 6, and the\n'
+  printf '        guest side (/run drwxr-xr-x root:root) has been verified on the\n'
+  printf '        host -- twice, each time after a wrong fix had already shipped.\n'
 fi
 
 echo
-echo "== 6. the rest of the transport, unchanged =="
+echo "== 4. negative control: /etc entries really do resolve into the store =="
+# This is the whole reason /run is used, so the control must run against something
+# that exists. /etc/ssh/sshd_config is installed by the same mechanism
+# environment.etc uses, so it demonstrates the property without depending on the
+# entry that was removed.
+#
+# Uses sshd_config rather than the old forgejo-ssh-keys symlink, which no longer
+# exists precisely because it was the wrong fix.
+probe="$GUEST/etc/ssh/sshd_config"
+if [[ -L $probe ]]; then
+  target=$(readlink -f "$probe")
+  printf '  /etc/ssh/sshd_config -> %s\n' "$target"
+  case $target in
+    /nix/store/*)
+      ok "an /etc entry resolves into /nix/store, so /etc can never be safe here" ;;
+    *)
+      bad "expected /etc/ssh/sshd_config to resolve into the store, but it does not."
+      echo "       If NixOS changed how it installs /etc, re-derive the /run choice." ;;
+  esac
+else
+  bad "/etc/ssh/sshd_config is not a symlink in the built guest, so the control"
+  echo "       cannot run and nothing here is being proved."
+fi
+
+echo
+echo "== 5. /nix/store really is group-writable here =="
+store=${NIX_STORE_DIR:-/nix/store}
+perm=$(stat -c '%a' "$store" 2>/dev/null)
+printf '  %s is %s\n' "$store" "$perm"
+if [[ -n $perm ]] && (( 8#$perm & 0022 )); then
+  ok "group-writable, as sshd sees it -- the checks above are real"
+else
+  bad "not group-writable here; the checks above would prove nothing"
+fi
+
+echo
+echo "== 6. the install unit exists and is ordered before sshd =="
+UNIT="$GUEST/etc/systemd/system/forgejo-ssh-keys-install.service"
+if [[ -f $UNIT ]]; then
+  ok "forgejo-ssh-keys-install.service is in the built guest"
+  grep -q 'Before=sshd' "$UNIT" \
+    && ok "ordered Before=sshd.service" \
+    || { bad "no Before=sshd.service -- sshd could start before the script exists"; }
+  grep -qE 'WantedBy=.*sshd' "$UNIT" \
+    && ok "wanted by sshd.service, so it does not depend on anything else pulling it in" \
+    || bad "not WantedBy=sshd.service"
+  grep -q 'RuntimeDirectory=forgejo-ssh-keys' "$UNIT" \
+    && ok "creates its own directory under /run, 0755" \
+    || bad "no RuntimeDirectory -- the directory would have to be made by hand"
+  # A COPY, not a symlink. `ln -s` here would resolve to the store and reintroduce
+  # exactly the bug this file exists to prevent.
+  if grep -qE 'ExecStart=.*\binstall\b.* -m ' "$UNIT"; then
+    ok "ExecStart copies the script (install -m), it does not symlink it"
+  elif grep -qE 'ExecStart=.*\bln\b' "$UNIT"; then
+    bad "ExecStart creates a SYMLINK -- that resolves back into /nix/store"
+  else
+    bad "ExecStart does not look like a copy"
+  fi
+  # And the destination must be the path sshd actually reads.
+  grep -q "$cmd" "$UNIT" \
+    && ok "writes to the path sshd_config names" \
+    || { bad "ExecStart does not write to $cmd"; }
+else
+  bad "forgejo-ssh-keys-install.service is missing -- sshd would name a file"
+  echo "       that only exists if something creates it by hand."
+fi
+
+echo
+echo "== 7. the rest of the transport, unchanged =="
 for want in \
   'Port 22' \
   'AuthorizedKeysCommandUser root' \
@@ -145,58 +212,35 @@ for want in \
   'PermitTTY no' \
   'AllowTcpForwarding no'
 do
-  if grep -qxF "$want" "$SSHD_CONFIG"; then printf '  ok   %s\n' "$want"
-  else printf '  FAIL missing: %s\n' "$want"; fails=$((fails + 1)); fi
+  if grep -qxF "$want" "$SSHD_CONFIG"; then ok "$want"
+  else bad "missing: $want"; fi
 done
-# Exactly one Port, and it is 22 -- the duplicate-Port bug from the host config
-# belongs in this file too if it ever reappears here.
-nport=$(grep -cE '^Port ' "$SSHD_CONFIG")
-check "exactly one Port directive" "1" "$nport"
+check "exactly one Port directive" "1" "$(grep -cE '^Port ' "$SSHD_CONFIG")"
 
 echo
-echo "== 7. the key script itself =="
-script=$(readlink -f "$GUEST$cmd" 2>/dev/null || echo "$GUEST$cmd")
-if [[ -f $script ]]; then
-  bash -n "$script" && printf '  ok   parses\n' || { printf '  FAIL does not parse\n'; fails=$((fails + 1)); }
-  # The peer-authentication fix. Reverted, this returns an empty key list and every
-  # push fails with nothing logged; it was found by running the generated script as
-  # root, which is what sshd does, and it is invisible to reading it.
-  if grep -q 'runuser -u forgejo' "$script"; then
-    printf '  ok   drops to forgejo before querying (peer auth needs the OS user)\n'
-  else
-    printf '  FAIL queries the database without dropping privileges\n'
-    fails=$((fails + 1))
-  fi
-  # Match the printf FORMAT, not the string `serv key-`. The generated script
-  # explains the prefix in a comment, so the loose pattern matched the comment and
-  # a mutation that dropped the prefix from the format string still passed. Found
-  # by the mutation suite.
-  if grep -q 'command="%s serv key-%s --config %s"' "$script"; then
-    printf '  ok   emits the key- prefix serv requires\n'
-  else
-    printf '  FAIL the forced command does not carry the key- prefix\n'
-    printf '       (matching on the printf format, not on any mention of it)\n'
-    fails=$((fails + 1))
-  fi
+echo "== 8. the key script itself =="
+# Take it from the install unit's ExecStart, i.e. what actually gets copied.
+script=$(grep -oE '/nix/store/[^ ]*-forgejo-ssh-keys' "$UNIT" 2>/dev/null | head -1)
+if [[ -n $script && -f $script ]]; then
+  bash -n "$script" && ok "parses" || bad "does not parse"
+  grep -q 'runuser -u forgejo' "$script" \
+    && ok "drops to forgejo before querying (peer auth matches the OS user)" \
+    || bad "queries the database without dropping privileges"
+  grep -qF 'command="%s serv key-%s --config %s"' "$script" \
+    && ok "emits the key- prefix serv requires" \
+    || bad "the forced command does not carry the key- prefix"
 else
-  printf '  FAIL no script at %s\n' "$script"
-  fails=$((fails + 1))
+  bad "could not find the script the install unit copies"
 fi
 
 echo
-echo "== 8. the sshd config is valid to sshd itself =="
+echo "== 9. sshd -t accepts the config =="
 SSHD=$(grep -oE '/nix/store/[^ ]*/bin/sshd' "$SSHD_CONFIG" | head -1)
 if [[ -x $SSHD ]]; then
-  # -T needs the host keys to exist, which they do not in a build tree. -t only
-  # checks the file's syntax and directives, which is what is being asked.
-  if out=$("$SSHD" -t -f "$SSHD_CONFIG" 2>&1); then
-    printf '  ok   sshd -t accepts it\n'
-  else
-    printf '  FAIL sshd -t:\n'; printf '%s\n' "$out" | sed 's/^/       /'
-    fails=$((fails + 1))
-  fi
+  if out=$("$SSHD" -t -f "$SSHD_CONFIG" 2>&1); then ok "sshd -t accepts it"
+  else bad "sshd -t:"; printf '%s\n' "$out" | sed 's/^/       /'; fi
 else
-  printf '  skip (sshd not in the closure at a findable path)\n'
+  printf '  skip (sshd not at a findable path in the closure)\n'
 fi
 
 echo
