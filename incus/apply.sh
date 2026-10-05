@@ -504,6 +504,106 @@ image_with_build_source() {
     | head -1
 }
 
+# Remove an alias of this name from every project EXCEPT the one this run
+# reconciles into.
+#
+# WHY THIS EXISTS. `point_alias_at` only ever creates an alias; nothing in this
+# script ever removed one. That is invisible until an instance MOVES between
+# projects, at which point the alias it left behind has no owner and can never be
+# cleaned up by anything. Measured on the live pool after forgejo moved into its
+# own project:
+#
+#   project default   homelab/forgejo -> 082a11388142   rev ee3c0279   (orphan)
+#   project forgejo   homelab/forgejo -> 7a35c719a409   rev 14eb1122   (live)
+#
+# Aliases are project-scoped, so the name exists twice, in two projects, pointing
+# at different images. Two consequences, both bad:
+#
+#   * The orphan is uncollectable. incus-image-gc keeps an image that holds an
+#     alias, and this one held it in the wrong project -- so 20 duplicates and one
+#     324 MB stale image survived a GC that was otherwise flawless.
+#   * It is a trap for anyone scripting. Incus does not resolve image aliases on
+#     most verbs, so `incus image delete homelab/forgejo` resolves to the DEFAULT
+#     project's copy -- the wrong one -- and the real image survives.
+#
+# So this runs on every reconcile: for each project other than ours, if it holds
+# an alias with this name, delete it. Only ever the OTHER projects', and only ever
+# this exact alias, so it cannot touch an instance that legitimately lives there.
+# Drop this alias from every project other than the one we reconcile into.
+#
+# WHY THIS EXISTS. `point_alias_at` only ever creates an alias; nothing in this
+# script ever removed one. That is invisible until an instance MOVES between
+# projects, at which point the alias it left behind has no owner and can never be
+# cleaned up by anything. Measured on the live pool after forgejo moved into its
+# own project:
+#
+#   project default   homelab/forgejo -> 082a11388142   rev ee3c0279   (orphan)
+#   project forgejo   homelab/forgejo -> 7a35c719a409   rev 14eb1122   (live)
+#
+# Aliases are project-scoped, so the name exists twice, in two projects, pointing
+# at different images. Two consequences, both bad:
+#
+#   * The orphan is uncollectable. incus-image-gc keeps an image that holds an
+#     alias, and this one held it in the WRONG project -- so a 324 MB stale image
+#     survived a GC that was otherwise flawless, and needed deleting by hand.
+#   * It is a trap for anyone scripting. Incus does not resolve image aliases on
+#     most verbs, so `incus image delete homelab/forgejo` resolves to the default
+#     project's copy -- the wrong one -- and the live image survives untouched.
+#
+# So this runs on every reconcile: for each project other than ours, if it holds an
+# alias of this name, delete it. Only ever the other projects', and only ever this
+# one alias, so it cannot touch an instance that legitimately lives in one of them.
+#
+# Never removes an IMAGE, only an alias. The image behind it becomes unaliased and
+# is then collected by incus-image-gc on its own schedule, which is the component
+# that owns image lifetime.
+# Every project Incus actually has, one per line.
+#
+# From Incus rather than from the flake's `incusProjects` map, and that is the
+# whole point: the orphan this exists to find is by definition in a place the
+# registry no longer describes. Reading the projects the flake knows about would
+# miss it -- and the flake is also cached in $PROJECTS_JSON for the whole run,
+# so it cannot see a project created since. `incus project list --format json`
+# is asked for directly because `incus query` does not resolve aliases and
+# `incus project list --format csv` is not CSV (it is the table format, whose
+# first line is the header and whose current project is decorated "(current)").
+incus_project_names() {
+  incus_run project list --format json 2>/dev/null | jq -r '.[].name'
+}
+
+drop_foreign_aliases() {
+  local alias=$1 project=$2 other
+  [[ -n $project ]] || return 0
+  local -a strays=()
+  while read -r other; do
+    [[ -n $other && $other != "$project" ]] || continue
+    # `any` over the alias list, so an image with no aliases at all -- which is
+    # what an empty project returns -- is a clean "no" rather than an error.
+    if [[ $(incus_run image list --project "$other" --format json 2>/dev/null \
+              | jq -r --arg a "$alias" \
+                  'any(.[]; any(.aliases[]?; .name == $a))') == true ]]; then
+      strays+=("$other")
+    fi
+  done < <(incus_project_names 2>/dev/null)
+  [[ ${#strays[@]} -gt 0 ]] || return 0
+  if [[ $CHECK_ONLY == 1 ]]; then
+    for other in "${strays[@]}"; do
+      warn "$alias also exists in project '$other', which no instance owns;" \
+           "it would be removed"
+    done
+    return 0
+  fi
+  for other in "${strays[@]}"; do
+    if incus_run image alias delete "$alias" --project "$other" >/dev/null 2>&1; then
+      step "removed the orphaned $alias from project '$other'"
+    else
+      warn "$alias is still present in project '$other' and could not be removed."
+      warn "  It keeps that image alive and incus-image-gc will not collect it."
+      warn "  Remove it by hand:  incus image alias delete $alias --project $other"
+    fi
+  done
+}
+
 # Make the alias name an image. Import attaches it for new content, but not when
 # it short-circuits, so this is needed on the recovery path.
 point_alias_at() {
@@ -2375,6 +2475,16 @@ apply_instance() {
   # validated and written. This is the only global Incus state apply.sh touches --
   # everything else is per-instance -- so it is kept to a single, additive entry.
   sync_incus_trust "$name" "$spec"
+
+  # And the reverse of that: remove this instance's alias from every project it
+  # does NOT live in. Runs here because this is the first point at which the
+  # instance is known healthy, and because an alias left in the WRONG project is
+  # invisible from inside the right one -- the reconcile of `forgejo` only ever
+  # looks in `forgejo`, which is exactly why a stale one survived every run.
+  #
+  # See drop_foreign_aliases for the measurement: a 324 MB image the weekly GC
+  # could not collect, held by an alias that nothing owned.
+  drop_foreign_aliases "$IMAGE_PREFIX/$name" "$PROJECT"
 
   # The hooks, once the service is up, because the binary path is read out of its
   # own ExecStart -- which means this needs a RUNNING instance.
