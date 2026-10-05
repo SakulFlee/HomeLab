@@ -117,9 +117,44 @@ if [[ -n "${INCUS_IMAGE_GC_PROJECTS:-}" ]]; then
   # shellcheck disable=SC2206  # deliberate word splitting: this is a list
   projects=(${INCUS_IMAGE_GC_PROJECTS})
 else
+  # JSON, not CSV, and the reason is specific rather than aesthetic.
+  #
+  # `incus project list --format csv` does not emit CSV with a header row. It
+  # emits the TABLE format through a csv serialiser, so the first line IS the
+  # header and the current project comes back decorated:
+  #
+  #   default (current),YES,YES,YES,YES,YES,YES,Default Incus project,32
+  #   forgejo,YES,NO,YES,YES,NO,NO,"HomeLab Forgejo (...)
+  #
+  # Measured on the host. Two separate mistakes follow from that. `cut -d, -f1`
+  # yields "default (current)" -- a project that does not exist -- and the
+  # header is indistinguishable from data, so there is no header to skip. The
+  # result was a GC that reported success having considered a project named
+  # "default (current)", never considered `default` at all, and so collected 13
+  # of the 33 unreferenced images it was supposed to.
+  #
+  # JSON has neither problem: there is no header row to mistake for data, and
+  # `.name` is the name. `--format yaml` works too, but jq is already in this
+  # unit's path and the rest of the script is jq; a YAML parser would be a new
+  # dependency to read one field.
+  #
+  # Verified on the live host before changing this, not assumed:
+  #   csv:  <default (current)
+  #   json: <default
+  #
+  # jq, and not `incus project list --format csv | grep -v ,`, because a
+  # legitimate project name could contain a comma and be filtered by accident.
+  # (The forgejo description already contains one, in a quoted CSV field.)
+  project_json=$(incus project list --format json 2>/dev/null)
+  if [[ -z $project_json ]] || ! jq -e . >/dev/null 2>&1 <<<"$project_json"; then
+    log "gc  FATAL: could not list projects. Refusing to run."
+    log "gc  An empty project list is indistinguishable from 'nothing to collect',"
+    log "gc  and this script would then report success while collecting nothing."
+    exit 1
+  fi
   while read -r p; do
     [[ -n $p ]] && projects+=("$p")
-  done < <(incus project list --format csv 2>/dev/null | cut -d, -f1)
+  done < <(jq -r '.[].name' <<<"$project_json")
 fi
 
 if [[ ${#projects[@]} -eq 0 ]]; then
@@ -151,19 +186,36 @@ total_unref=0
 total_cand=0
 total_deleted=0
 total_skipped=0
-list_failures=0
+# Names, not just a count. A GC that cannot see a project should say which, and
+# "1 unreadable project" sends the reader looking rather than telling them.
+unreadable_projects=()
 
 for project in "${projects[@]}"; do
   state="$STATE_DIR/image-gc-$project"
 
+  # An unreadable project is fatal for the whole run, not a skip.
+  #
+  # This was "log and continue", and the reason that is wrong is arithmetic: the
+  # dry run on the host reported
+  #
+  #   gc  default (current): FATAL: cannot list images; skipping this project
+  #   gc  forgejo: 13 unreferenced of ours, 0 seen twice, 0 deleted
+  #   gc  dry run: 13 unreferenced, 0 seen twice, 0 would be deleted
+  #   exit: 0
+  #
+  # `default` holds 20 of the 33 unreferenced images, so the run collected 13 and
+  # exited 0 -- a clean pass over a pool it had not actually looked at. A
+  # garbage collector that cannot see the project holding most of its targets must
+  # not report success, so this counts as a failure and every project is still
+  # attempted: one unreadable project should not hide the ones that are readable.
   if ! images_json=$(incus image list --project "$project" --format json 2>/dev/null); then
-    log "gc  $project: FATAL: cannot list images; skipping this project"
-    list_failures=$((list_failures + 1))
+    log "gc  $project: FATAL: cannot list images"
+    unreadable_projects+=("$project")
     continue
   fi
   if [[ -z $images_json ]] || ! jq -e . >/dev/null 2>&1 <<<"$images_json"; then
-    log "gc  $project: FATAL: image list did not return JSON; skipping"
-    list_failures=$((list_failures + 1))
+    log "gc  $project: FATAL: image list did not return JSON"
+    unreadable_projects+=("$project")
     continue
   fi
 
@@ -236,7 +288,12 @@ else
   log "gc  done: $total_unref unreferenced, $total_cand seen twice, $total_deleted deleted, $total_skipped skipped"
 fi
 
-# Non-zero only when a project's images could not be read at all. A delete that
-# Incus refused is not an error here, and neither is finding nothing to do.
-[[ $list_failures -eq 0 ]] || exit 1
+# Non-zero when any project's images could not be read at all. A delete that Incus
+# refused is not an error here, and neither is finding nothing to do.
+if [[ ${#unreadable_projects[@]} -gt 0 ]]; then
+  log "gc  FAILED: ${#unreadable_projects[@]} project(s) could not be read: ${unreadable_projects[*]}"
+  log "gc  The counts above are what was visible, not the whole pool. Treating this"
+  log "gc  as success is how 33 unreferenced images were reported as 13."
+  exit 1
+fi
 exit 0

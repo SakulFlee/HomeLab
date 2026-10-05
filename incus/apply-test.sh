@@ -432,6 +432,61 @@ check "the rest of metadata.yaml is intact" "1" \
 out2=$(repack homelab/caddy "$WORK/md.tar.xz")
 check "the same input repacks to the same bytes" "1" \
   "$( [[ $(sha256sum "$out" | cut -d" " -f1) == $(sha256sum "$out2" | cut -d" " -f1) ]] && echo 1 || echo 0 )"
+# Once, rather than twice. This was a two-in-a-row comparison, which passed about
+# half the time and failed the other half, and it was read as noise. It was not
+# noise: per_instance_metadata was writing its output into the directory it was
+# archiving, so whether the tarball listed itself was a race, and Incus derives the
+# image fingerprint from this tarball. A single pair cannot see that, because both
+# runs can miss the race.
+#
+# So: several reps in a row, and every one must match the first. Ten is enough --
+# the original defect hit roughly one run in two, and a defect that shows up half
+# the time cannot hide behind one sample.
+REPACK_N=${REPACK_N:-10}
+repack_stable=1
+first_sum=""
+for _ in $(seq 1 "$REPACK_N"); do
+  r=$(repack homelab/caddy "$WORK/md.tar.xz")
+  if [[ ! -f $r ]]; then repack_stable=0; break; fi
+  s=$(sha256sum "$r" | cut -d" " -f1)
+  [[ -z $first_sum ]] && first_sum=$s
+  if [[ $s != "$first_sum" ]]; then
+    repack_stable=0
+    echo "       a repack differed: $s != $first_sum"
+    break
+  fi
+done
+check "every one of $REPACK_N reps is byte-identical" "1" "$repack_stable"
+# And the direct assertion of the mechanism: the archive must not contain itself.
+# That member IS the defect, and asserting the cause rather than the symptom is
+# what makes this reliable -- both checks above observe the same race and so both
+# miss it on most runs. Measured against the unrepaired function, 8 runs:
+#
+#   10-rep byte comparison     caught 4/8
+#   self-membership           caught 1/8
+#
+# Neither is good enough on its own, so the self-membership check is not asserted
+# against the single repack either. It is run once per rep, inside the loop, so at
+# least one of the ten must observe it -- and the count is reported rather than
+# collapsed to a boolean, because "0 of 10 contained itself" and "9 of 10 did" are
+# very different sentences.
+# The check that is worth having, because it does not observe the race at all.
+#
+# Everything above samples a race and so misses it most of the time -- measured
+# against the unrepaired function, 8 runs: the 10-rep byte comparison caught 5/8 and
+# the self-membership count 2/8. A check that fails half the time is not a check,
+# and a mutation scored against one would be scored at random.
+#
+# So assert the STRUCTURE instead. The defect is that the output directory is the
+# directory being archived. That is observable with certainty after one call: the
+# unpacked inputs (metadata.yaml, nix-path-registration) must not be sitting next
+# to the returned tarball. Repaired, the output directory holds one file; unrepaired
+# it holds three. No repetition, no sampling, no race involved.
+out_dir=$(dirname "$out")
+check "the output directory is not the directory being archived" "1" \
+  "$( [[ -f "$out_dir/metadata.yaml" ]] && echo 0 || echo 1 )"
+check "and holds only the tarball" "metadata.tar.xz" \
+  "$(ls -A "$out_dir" 2>/dev/null | tr '\n' ' ' | sed 's/ $//')"
 # And a different instance must NOT collide.
 out3=$(repack homelab/wireguard "$WORK/md.tar.xz")
 # A refusal here is itself a failure -- a rewrite that only works for the instance

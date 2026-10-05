@@ -44,7 +44,7 @@ active hooks path not passed to the guest	hooks	              "$repo_root" "$bin
 spec no longer declares activeHooksPath	spec	    activeHooksPath = "/var/lib/forgejo/data/home/hooks";	    activeHooksPath = "";	0	0
 import uses the stock metadata again	applytest	    instance_metadata=$(per_instance_metadata "$metadata_tarball" "$alias")	    instance_metadata=$metadata_tarball	0	0
 description is hardcoded, so instances collide again	applytest	\"description\":\"$instance $version\"	\"description\":\"caddy\"	0	0
-tarball repacked with a live mtime	applytest	      --mtime=@1 -cJf "$work/metadata.tar.xz" -C "$work" .	      -cJf "$work/metadata.tar.xz" -C "$work" .	0	0
+tarball repacked with a live mtime	applytest	      --mtime=@1 -cJf "$out/metadata.tar.xz" -C "$work" . \	      -cJf "$out/metadata.tar.xz" -C "$work" . \	0	0
 absent build reported as an alias problem	applytest	            "  No image in the pool carries:"$'\n'\	            "  (nothing useful):"$'\n'\	0	0
 incus/apply.sh has no +x, so the reconciler cannot exec it	mode	incus/apply.sh	-	0	0
 gc deletes on first sight, not on the second	gc	  if [[ -n $now && -n $prev ]]; then	  if [[ -n $now ]]; then	0	0
@@ -56,5 +56,10 @@ gc forgets a refused image, so it is never retried	gc	      printf '%s\n' "$now"
 gc --dry-run deletes for real	gc	        log "gc  $project: would delete ${fp:0:12}	        incus image delete --project "$project" "$fp" >/dev/null 2>&1	0	0
 gc --dry-run writes state, priming the next real run	gc	  if [[ $DRY_RUN -eq 0 ]]; then	  if true; then	0	0
 gc collects with no state at all, so nothing is ever eligible	gc	  if ! mkdir -p "$STATE_DIR" 2>/dev/null; then	  if false; then	0	0
-gc reports an unreadable project as an empty one	gc	    list_failures=$((list_failures + 1))	    :	0	0
+gc reports an unreadable project as an empty one	gc	    log "gc  $project: FATAL: cannot list images"	    log "gc  $project: no images"	0	0
 gc ignores the project when listing images	gc	  if ! images_json=$(incus image list --project "$project" --format json 2>/dev/null); then	  if ! images_json=$(incus image list --format json 2>/dev/null); then	0	0
+gc parses projects as CSV, inventing 'default (current)'	gc	  project_json=$(incus project list --format json 2>/dev/null)	  project_json=$(incus project list --format csv 2>/dev/null | cut -d, -f1)	0	0
+gc treats an unreadable project as a skip, and exits 0	gc	    unreadable_projects+=("$project")	    :	0	1
+gc cannot list projects, and reports success	gc	  if [[ -z $project_json ]] || ! jq -e . >/dev/null 2>&1 <<<"$project_json"; then	  if false; then	0	1
+metadata tarball is written inside the directory it archives	applytest	      --mtime=@1 -cJf "$out/metadata.tar.xz" -C "$work" . \	      --mtime=@1 -cJf "$work/metadata.tar.xz" -C "$work" . \	0	1
+metadata repack writes the tar and the scratch tree to one place	applytest	  out=$(mktemp -d)	  out=$(mktemp -d); work=$out	0	1

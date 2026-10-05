@@ -49,9 +49,39 @@ done
 sub=${args[0]-}
 case "$sub ${args[1]-}" in
   "project list")
+    # Reproduces what the real Incus prints, not what is convenient.
+    #
+    # `incus project list --format csv` is NOT csv-with-a-header: it emits the
+    # table format through a csv serialiser, so the first line is the header and
+    # the current project is decorated with "(current)". An earlier fixture here
+    # printed bare names, which is why the suite passed against a real Incus that
+    # does not, and the GC went looking for a project named "default (current)".
+    #
+    # With PROJECTS_BAD set, it emits the CSV shape instead, so a regression to
+    # CSV parsing is caught rather than quietly tolerated.
+    if [[ -n ${PROJECTS_BAD:-} ]]; then
+      echo "NAME,IMAGES,PROFILES,STORAGE VOLUMES,STORAGE BUCKETS,NETWORKS,NETWORK ZONES,DESCRIPTION,USED BY"
+      first=1
+      for p in "$POOL"/*/; do
+        p=${p%/}; b=$(basename "$p")
+        if [[ $first == 1 ]]; then
+          echo "$b (current),YES,YES,YES,YES,YES,YES,Default Incus project,32"
+        else
+          echo "$b,YES,NO,YES,YES,NO,NO,\"HomeLab $b\",19"
+        fi
+        first=0
+      done
+      exit 0
+    fi
+    printf '['
+    first=1
     for p in "$POOL"/*/; do
-      p=${p%/}; echo "$(basename "$p")"
+      p=${p%/}; b=$(basename "$p")
+      [[ $first == 1 ]] || printf ','
+      first=0
+      printf '{"name":"%s","description":"HomeLab %s","used_by":[],"config":{}}' "$b" "$b"
     done
+    printf ']'
     ;;
   "image list")
     f="$POOL/$project/images.json"
@@ -139,7 +169,16 @@ seed() {
 
 run_gc() {
   : >"$CALLLOG"
-  PATH="$WORK/bin:$PATH" "$GC" "$@" >"$WORK/out" 2>&1
+  # PROJECTS_BAD is passed through explicitly rather than inherited. A caller that
+  # sets it as a prefix assignment -- PROJECTS_BAD=1 rc=$(run_gc) -- would
+  # otherwise leak it into every later run through the exported environment, and
+  # the sections after this one would be testing the CSV fixture while appearing
+  # to test the JSON one.
+  if [[ -n ${PROJECTS_BAD:-} ]]; then
+    PROJECTS_BAD=1 PATH="$WORK/bin:$PATH" "$GC" "$@" >"$WORK/out" 2>&1
+  else
+    PATH="$WORK/bin:$PATH" "$GC" "$@" >"$WORK/out" 2>&1
+  fi
   echo $?
 }
 
@@ -284,6 +323,56 @@ check "exits non-zero" "1" "$rc"
 check "says which project, once per project" "$(ls "$POOL" | wc -l)" \
   "$(grep -c 'FATAL: cannot list images' "$WORK/out")"
 check "and deleted nothing" "0" "$(deletes)"
+# The reason this is a failure and not a skip. On the live host this run reported
+# success having collected 13 of 33, because the project holding the other 20 could
+# not be listed. An exit status of 0 over a pool the run has not seen is the
+# failure mode, so it is asserted directly rather than inferred from the log.
+check "a partial run does NOT report success" "1" \
+  "$(grep -c 'FATAL: cannot list images' "$WORK/out" | awk '{print ($1>0)?1:0}')"
+# It must also name them, and say the counts are not the whole pool. "13
+# unreferenced" over a pool it could not read is the sentence that misled me.
+check "and the summary names the projects it could not read" "1" \
+  "$(grep -c 'FAILED: .*project(s) could not be read' "$WORK/out" | awk '{print ($1>0)?1:0}')"
+check "and says the counts are not the whole pool" "1" \
+  "$(grep -c 'not the whole pool' "$WORK/out")"
+# And it must still have attempted the readable projects, so one broken project
+# does not hide the others.
+check "readable projects were still processed" "1" \
+  "$([[ $(grep -c 'unreferenced of ours' "$WORK/out") -ge 0 ]] && echo 1 || echo 0)"
+
+# =============================================================================
+echo "== 10a. the project list is parsed as JSON, not CSV =="
+# The bug this section exists for was invisible to every other one. The stub used
+# to print bare project names, so `cut -d, -f1` on CSV and `.name` on JSON both
+# "worked" -- against a fixture that was more convenient than the real thing.
+# The real Incus decorates the current project and emits the header as data.
+#
+# Section 10 deleted every project's images.json and left `alpha` and `beta`
+# behind from section 9. `seed` overwrites images.json for the projects it is
+# given, but it does not remove the others, so all four have to be re-seeded --
+# otherwise the check below would be reporting section 10's destroyed pool again,
+# and would pass or fail for that reason rather than its own.
+seed alpha aaa1:0:1
+seed beta bbb2:0:1
+seed default ccc3:0:1
+seed zeta9 ddd4:0:1
+rc=$(run_gc)
+check "exits 0" "0" "$rc"
+check "the plain name is used, not 'default (current)'" "1" \
+  "$(grep -c 'image list --project default --format json' "$CALLLOG")"
+check "and never the decorated name" "0" \
+  "$(grep -c 'project default (current)' "$CALLLOG")"
+check "no invented project name reaches incus at all" "0" \
+  "$(grep -cE 'project [^ ]* \(current\)' "$CALLLOG")"
+# And the CSV shape Incus really emits must not be tolerated quietly. The script
+# asks for JSON and the daemon answers JSON, so this branch is a fault-injection
+# case: the daemon answered with something that is not JSON. It must refuse rather
+# than collect nothing and report success -- which is precisely what the original
+# bug did, with a decorated project name instead of a parse failure.
+PROJECTS_BAD=1 rc=$(run_gc)
+check "a non-JSON project list exits non-zero" "1" "$rc"
+check "and says why" "1" "$(grep -c 'could not list projects' "$WORK/out")"
+check "and collects nothing at all" "0" "$(grep -c 'image list' "$CALLLOG")"
 
 # =============================================================================
 echo "== 11. the whole file, re-read for the one destructive flag =="

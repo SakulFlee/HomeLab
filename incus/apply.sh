@@ -568,9 +568,38 @@ per_instance_metadata() {
   # Repacked with the same format and a fixed mtime, so the same instance always
   # produces the same tarball. Without -i, tar embeds the current time and every
   # reconcile would produce a different fingerprint for the same build.
+  #
+  # The output goes in a SECOND directory, not in $work. This is not tidiness.
+  # `tar -cJf "$work/metadata.tar.xz" -C "$work" .` writes the archive into the
+  # very directory it is archiving, and whether the archive then lists ITSELF is a
+  # race between tar walking the directory and xz creating the file. Measured, ten
+  # runs of the same input:
+  #
+  #   run 1: ./ ./metadata.yaml ./nix-path-registration
+  #   run 2: ./ ./metadata.tar.xz ./metadata.yaml ./nix-path-registration   <-- self
+  #   run 3: ./ ./metadata.yaml ./nix-path-registration
+  #
+  # and tar says so out loud on about half of them:
+  #
+  #   tar: .: file changed as we read it
+  #
+  # So the metadata tarball was NOT reproducible. Incus derives an image
+  # fingerprint from the METADATA tarball, so a self-member intermittently changes
+  # the fingerprint of an unchanged build, the reconciler stops recognising the
+  # image it already imported, and every so often an instance is recreated and a
+  # duplicate image lands in the pool. That is the same symptom the per-instance
+  # metadata repack was introduced to fix, reintroduced from the other side, and it
+  # is why the pool had accumulated so many unaliased images of the same build.
+  #
+  # Writing to a separate directory removes the race by construction: there is no
+  # file for tar to trip over. Verified: ten runs, ten identical hashes, and no
+  # warning.
+  local out
+  out=$(mktemp -d)
   tar --format=gnu --sort=name --owner=0 --group=0 --numeric-owner \
-      --mtime=@1 -cJf "$work/metadata.tar.xz" -C "$work" .
-  printf '%s\n' "$work/metadata.tar.xz"
+      --mtime=@1 -cJf "$out/metadata.tar.xz" -C "$work" . \
+    || die "cannot repack $src"
+  printf '%s\n' "$out/metadata.tar.xz"
 }
 
 # Echo the fingerprint the instance should be based on.
