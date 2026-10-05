@@ -24,8 +24,15 @@ FORGEJO_FILE=nixos/hosts/forgejo/default.nix
 # paths. Plain data, imported by the flake rather than built as a module, so it sat
 # outside the mutation set entirely and a change to it had nothing testing it.
 FORGEJO_SPEC=nixos/hosts/forgejo/incus.nix
+# A script with a suite of its own. Kept separate from apply.sh because the two
+# are deployed by different units and run at completely different times: one is
+# the reconciler, the other is a weekly garbage collector whose whole job is to
+# delete things. Conflating them would also mean one mutation could be blamed on
+# the wrong suite.
+GC_FILE=incus/incus-image-gc.sh
 SPECS=incus/apply-mutations.tsv
 [[ -f $APPLY_FILE ]] || { echo "FATAL: $APPLY_FILE not found"; exit 99; }
+[[ -f $GC_FILE ]] || { echo "FATAL: $GC_FILE not found"; exit 99; }
 [[ -f $SPECS ]] || { echo "FATAL: $SPECS not found"; exit 99; }
 
 WORK=$(mktemp -d)
@@ -34,6 +41,7 @@ cp "$APPLY_FILE" "$WORK/good.sh"
 cp "$SSHD_FILE" "$WORK/good-sshd.nix"
 cp "$FORGEJO_FILE" "$WORK/good-forgejo.nix"
 cp "$FORGEJO_SPEC" "$WORK/good-forgejo-spec.nix"
+cp "$GC_FILE" "$WORK/good-gc.sh"
 
 suite_for() {
   case $1 in
@@ -53,6 +61,7 @@ suite_for() {
     # The git executable bit on a script. apply-test.sh asserts it against the
     # index, so the mutation has to change the index -- see the branch below.
     mode)      echo apply-test.sh ;;
+    gc)       echo incus-image-gc-test.sh ;;
     *)       echo "apply-$1-test.sh" ;;
   esac
 }
@@ -73,6 +82,7 @@ file_for() {
     spec)    echo "$WORK/good-forgejo-spec.nix" ;;
     applysh) echo "$WORK/good.sh" ;;
     applytest) echo "$WORK/good.sh" ;;
+    gc)       echo "$WORK/good-gc.sh" ;;
     *)       echo "$WORK/good.sh" ;;
   esac
 }
@@ -180,6 +190,10 @@ while IFS=$'\t' read -r label kind match replace skip_next nth; do
     rc=$?
     cp "$WORK/good-sshd.nix" "$SSHD_FILE"
     cp "$WORK/good-forgejo.nix" "$FORGEJO_FILE"
+  elif [[ $kind == gc ]]; then
+    # The GC suite reads it through $GC, same arrangement as $APPLY above.
+    GC="$WORK/mut" timeout 600 "./incus/$suite" >"$out" 2>&1
+    rc=$?
   elif [[ $kind == spec ]]; then
     # A .nix file, so no bash -n -- but it is not a module either: it is data the
     # flake imports. Put it back where it is read, and restore it afterwards.

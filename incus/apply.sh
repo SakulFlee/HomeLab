@@ -60,7 +60,13 @@
 # looping. See the comment in apply_instance for why this replaced an earlier
 # "preserve prior run state" rule.
 #
-# Never deletes an image. Old ones are left for Incus's own GC.
+# Never deletes an image. That is the right rule inside a reconcile -- a half
+# applied deploy that also dropped a rollback target would be two problems at once
+# -- but it used to end "...left for Incus's own GC", and there is no Incus GC.
+# Measured: 20 unaliased images of ours sat in the `default` project and 14 in
+# `forgejo`, 16 of them from a nixpkgs pin weeks old, all with
+# `used_by: null`, and nothing had ever been pruned. incus/incus-image-gc.sh is
+# the other half of this contract and runs it weekly.
 
 set -Eeuo pipefail
 
