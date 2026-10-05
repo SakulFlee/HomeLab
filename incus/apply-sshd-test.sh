@@ -41,7 +41,7 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 NIXDIR="$ROOT/nixos"
 FLAKE=${FLAKE:-$NIXDIR}
 # The reconciler, for the whole-file invariants in check 11. Overridable so the
-# mutation harness can point it at a mutated copy.
+# suite can be pointed at a copy of it instead of the working tree.
 APPLY=${APPLY:-$ROOT/incus/apply.sh}
 [[ -f $APPLY ]] || { echo "FATAL: no apply.sh at $APPLY"; exit 99; }
 

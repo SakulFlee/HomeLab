@@ -280,7 +280,7 @@ check "no incus/*.sh lost its executable bit" "" "$offenders"
 # Now the guards on the guard, because "the loop found nothing wrong" and "the
 # loop looked at nothing" produce byte-identical output and only one of them is a
 # pass. The filter has to select exactly the tracked scripts: widened, it would
-# sweep in README.md and the mutation table; narrowed, it would select nothing and
+# sweep in README.md; narrowed, it would select nothing and
 # every assertion above would be vacuously true.
 tracked_sh=$(git -C "$REPO_ROOT" ls-files -s -- 'incus/*.sh' | wc -l)
 tracked_incus=$(git -C "$REPO_ROOT" ls-files -s -- incus | wc -l)
@@ -525,9 +525,10 @@ check "a metadata tarball with no metadata.yaml is refused" "1" "$rc"
 
 
 echo "== 5d. the errors name what is actually wrong =="
-# `check` and not the FATAL block above, deliberately: the mutation harness scores a
-# FATAL as "exits non-zero for the wrong reason", so an invariant that is meant to
-# CATCH a mutation has to fail as an ordinary failing check.
+# `check` and not the FATAL block above, deliberately: a FATAL aborts the suite,
+# so a reader sees "the suite died" rather than "this invariant is violated", and
+# no later check runs at all. An invariant that exists to catch a wrong value
+# has to fail as an ordinary failing check.
 if grep -q 'is NOT this build' "$APPLY"; then
   check "the missing-build error says the build is missing" "1" "1"
 else
