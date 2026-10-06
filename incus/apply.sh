@@ -2159,12 +2159,64 @@ wait_ready() {
   warn "$name had no address on eth0 after 60s (status: $status)"
 }
 
-# The inet addresses on eth0 only. Not every interface: .state.network also
-# carries lo, whose inet address is 127.0.0.1 and would otherwise be reported.
+# The inet addresses of the interface behind the eth0 device.
+#
+# NOT `.state.network.eth0`. That map is keyed by the interface name the GUEST's
+# kernel uses, and a VM's kernel renames eth0. Measured on this host:
+#
+#   caddy          (container)  eth0, lo
+#   wireguard      (vm)         enp5s0, enp6s0, lo, wg0
+#   forgejo-runner (vm)         docker0, enp5s0, lo
+#
+# so the literal key matched for containers and for no VM at all. Every lookup
+# for a VM returned empty, which meant three things, none of them visible from
+# the exit status:
+#
+#   * wait_ready spun its entire 60-iteration budget and then warned
+#     "forgejo-runner had no address on eth0 after 60s (status: Running)" on
+#     every single VM start, for an instance that had its address about 15s in.
+#   * the closing summary printed "ok -- Running" with no address in it, which
+#     is how a container reads and how a VM read.
+#   * wait_ready never actually confirmed that a VM had an address. A VM that
+#     booted unrouted -- exactly what the pinned hwaddr in incus.nix exists to
+#     rule out -- passed apply with nothing but that warning, and a warning
+#     printed on every start is a warning nobody reads.
+#
+# So resolve the interface rather than assuming the two names agree, and join on
+# the device's MAC, which every VM pins (it has to: an Incus-assigned MAC
+# changes on a re-create). A container with no pinned MAC has no `hwaddr` on the
+# device at all -- not under `devices`, not under `expanded_devices`, because
+# Incus only surfaces the MAC it generated in `state.network` -- so those fall
+# back to matching by NAME, which is right for a container because its veth
+# really is called eth0: a container shares the host kernel and does not rename
+# anything.
+#
+# The fallback has to stay a name comparison. Comparing an absent MAC against ""
+# matches `lo`, whose hwaddr is also empty, and reports 127.0.0.1 as the
+# instance's address.
+#
+# For wireguard this returns 192.168.178.210, the macvlan address: its eth0 is a
+# macvlan on eno1 and the incusbr0 address (10.0.0.110) is on eth1. That is the
+# right answer for both callers, which want to know the instance came up on the
+# network, not which network that was.
 instance_address() {
+  # One call, one jq. The address list is joined INSIDE the filter: piping this
+  # jq's raw text output into a second `jq -s` makes it try to parse
+  # `10.0.0.102` as a JSON number, and every lookup fails with
+  # "Invalid numeric literal".
   incus_run list "$1" --format json \
-    | jq -r '.[0].state.network.eth0.addresses[]? | select(.family == "inet") | .address' \
-    | paste -sd, -
+    | jq -r '
+        [ .[0] as $inst
+          | (($inst.expanded_devices.eth0.hwaddr) // "") as $mac
+          | (($inst.state.network) // {})
+          | to_entries[]
+          | select(if $mac == "" then .key == "eth0"
+                   else (.value.hwaddr // "") == $mac end)
+          | (.value.addresses // [])[]?
+          | select(.family == "inet")
+          | .address ]
+        | join(",")
+      '
 }
 
 # "vrvf2p9...-nixos-lxc-image-x86_64-linux" from a store path. The hash is the
