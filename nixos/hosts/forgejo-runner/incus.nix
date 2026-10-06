@@ -69,9 +69,10 @@ in
   # 1 cpu and 4 GiB per job pod, so its worst case was four
   # concurrent builds plus the runner itself. 4 cpu and 8 GiB is
   # that ceiling plus room for dockerd and the image layers a
-  # build pulls in; it is a cap, not a reservation, and the host
-  # (6 cores, 26 GiB) has headroom for the other instances beside
-  # it. Adjustable live with `incus config set`.
+  # build pulls in; it is a cap, not a reservation. The host has
+  # 16 cores and 30 GiB, so there is room to raise this if the
+  # queue backs up -- the reason to keep it here is parity with
+  # what k3s did. Adjustable live with `incus config set`.
   limits = {
     memory = "8GiB";
     cpu = "4";
