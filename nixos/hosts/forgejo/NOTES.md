@@ -259,7 +259,7 @@ Both data volumes carry a snapshot policy in `incus.nix`:
 
 | volume | pool | schedule | expiry |
 | --- | --- | --- | --- |
-| `forgejo-data` | `backup` | `@daily` | `7d` |
+| `forgejo-data` | `persistent` | `@daily` | `7d` |
 | `forgejo-postgres` | `persistent` | `@daily` | `7d` |
 
 It lives on the volume's own entry rather than in a list with the other backup

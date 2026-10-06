@@ -20,7 +20,7 @@ let
 
     data = {
       type = "disk";
-      pool = "backup";
+      pool = "persistent";
       source = "forgejo-data";
       path = "/var/lib/forgejo/data";
     };
@@ -70,16 +70,16 @@ in
       # layout the k3s PV had. The restore is `cp -a` of that PV's contents into
       # this volume, minus the directories Forgejo regenerates.
       #
-      # On `backup` rather than `persistent`: that pool name is a convention, not
-      # a mechanism (see hosts/homelab/services/incus.nix), and if it is ever
-      # backed up at all this is the volume that matters.
+      # On `persistent` with everything else. There used to be a second pool
+      # named `backup`; that name was a convention, not a mechanism (see
+      # hosts/homelab/services/incus.nix), and it was merged away.
       #
       # The snapshot below is what that convention now actually means. `backup`
       # only ever named an intent; nothing acted on it until the schedule was
       # written here, where the volume's own entry declares how it is rolled
       # back. See nixos/incus-instances.nix for why it lives here rather than in
       # a list.
-      pool = "backup";
+      pool = "persistent";
       name = "forgejo-data";
       description = "Everything Forgejo stores: repos, LFS, attachments, packages, avatars";
 

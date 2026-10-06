@@ -21,7 +21,7 @@ let
 
     caddy-data = {
       type = "disk";
-      pool = "backup";
+      pool = "persistent";
       source = "caddy-data";
       path = "/var/lib/caddy";
     };
@@ -62,9 +62,12 @@ in
     cpu = "2";
   };
 
-  # ACME certificates and the on-disk config Caddy writes at runtime. On the
-  # restic'd 'backup' pool because losing these means re-issuing certificates
-  # from Let's Encrypt, and running into the rate limit is a genuine outage.
+  # ACME certificates and the on-disk config Caddy writes at runtime, on the
+  # single `persistent` pool. There used to be a second pool named `backup`;
+  # it was the same btrfs driver on the same filesystem with no quota and
+  # nothing enforcing a difference, so it was merged away and this entry moved
+  # with it. Losing these still means re-issuing certificates from Let's
+  # Encrypt, and running into the rate limit is a genuine outage.
   # The Caddyfile itself is in the flake and is not stored here.
   volumes = [
     {
@@ -77,7 +80,7 @@ in
       # Worth snapshotting for its own sake too -- these are ACME certificates,
       # and losing them means every client sees a certificate error until they
       # re-issue.
-      pool = "backup";
+      pool = "persistent";
       name = "caddy-data";
       description = "Caddy ACME certificates and runtime state";
 

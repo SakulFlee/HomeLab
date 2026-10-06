@@ -64,8 +64,8 @@
   # The mountpoint is /var/lib/incus/storage-pools specifically, NOT an arbitrary
   # directory under /var/lib/incus. Incus rejects any pool source that sits
   # under its state dir but outside that path:
-  #   Failed to create storage pool "backup": Only allowed source path under
-  #   "/var/lib/incus" is "/var/lib/incus/storage-pools/backup"
+  #   Failed to create storage pool "persistent": Only allowed source path under
+  #   "/var/lib/incus" is "/var/lib/incus/storage-pools/persistent"
   # It is also the same convention the dir driver defaults to.
   #
   # No compression at the mount level: it would also apply to VM disk images

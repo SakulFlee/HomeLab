@@ -189,22 +189,24 @@ in
     paths = lib.mkOption {
       type = lib.types.listOf lib.types.str;
       default = [
-        "/var/lib/incus/storage-pools/backup"
         "/var/lib/incus/storage-pools/persistent"
       ];
       description = ''
-        What to back up. Both pools, because "persistent" is a name and not a
-        mechanism: it is the same btrfs driver on the same filesystem as
-        "backup", with no quota and nothing enforcing a difference.
+        What to back up. The single remaining pool: `backup` was merged into
+        `persistent` (same btrfs driver, same filesystem, no quota, nothing
+        ever enforced a difference), so there is one path and it is this one.
+        Removed from the list at the same commit that dropped the pool from
+        the preseed, because restic fails on a path that no longer exists --
+        and the pool itself is deleted by hand afterwards, which is the one
+        ordering preseed's never-removes rule forces.
 
-        Both are included deliberately, and the reasoning is worth stating
-        because an earlier version of the pool comment argued the opposite.
         Keeping a copy of PGDATA does no harm. What is not permitted is
         RESTORING from one: a pg_dump is the authoritative artefact and a
         file-level copy of a live data directory is not a substitute for one.
-        Those are two separate claims, and the old text used the first to argue
-        for the second. Having the copy means a forensic artefact survives an
-        incident; it does not mean anyone should trust it as a database.
+        Those are two separate claims, and an old version of the pool comment
+        used the first to argue for the second. Having the copy means a
+        forensic artefact survives an incident; it does not mean anyone should
+        trust it as a database.
       '';
     };
 

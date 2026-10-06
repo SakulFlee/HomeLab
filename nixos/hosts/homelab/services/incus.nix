@@ -64,43 +64,45 @@ in
       # is served from and nothing more.
       config."core.https_allowed_websocket_origin" = "https://incus.sakul-flee.de";
 
-      # Two pools, and the split between them is a COMMENT, not a mechanism.
+      # One pool. There used to be two, `backup` and `persistent`, and the
+      # split between them was a COMMENT, not a mechanism.
       #
-      # Verified on the running host: both are `driver: btrfs` with
-      # `source: /var/lib/incus/storage-pools/<name>`, on the same filesystem,
-      # with no quota and no size limit. Nothing enforces a difference. What
-      # separates them is this paragraph.
+      # Verified on the running host before the merge: both were
+      # `driver: btrfs` with `source: /var/lib/incus/storage-pools/<name>`,
+      # on the same filesystem, with no quota and no size limit. Nothing
+      # enforced a difference. What separated them was a paragraph.
       #
-      # The earlier version of this claimed `backup` was restic'd and
-      # `persistent` was not. Both halves were wrong:
+      # The earlier version of the pool comment claimed `backup` was restic'd
+      # and `persistent` was not. Both halves were wrong, and by the time the
+      # pools were merged the second half was wrong twice over: Phase 0 had put
+      # a restic binary, service and timer on this host backing up BOTH pool
+      # paths (nixos/hosts/homelab/services/backup.nix). The DaemonSet claim in
+      # the old text -- that homelab-restic was the only restic anywhere -- was
+      # already stale when it was written.
       #
-      #   * The only restic in this homelab is the homelab-restic DaemonSet
-      #     (apps/storage-class/restic-daemonset.yaml), and it backs up exactly
-      #     one path: BACKUP_TIER="/var/lib/rancher/k3s/storage/backup", the k3s
-      #     PVC tier. It does not know Incus exists.
-      #   * There is no restic binary, service or timer on this host at all.
+      # So the split bought nothing and cost a decision for every new volume.
+      # The three volumes in `backup` (caddy-data, forgejo-data, and the empty
+      # orphan forgejo-repositories) were moved into `persistent` with
+      # `incus storage volume move`, which on btrfs within one filesystem is a
+      # subvolume snapshot: near-instant, no extra space, description and
+      # config carried over. Then `incus storage pool delete backup`.
       #
-      # So neither pool had ever been backed up, and caddy-data had been sitting
-      # on a pool whose name promised otherwise. That DaemonSet's header still
-      # points at "the NixOS unit's --password-file path" and at
-      # nixos/hosts/homelab/common/backup.nix, which does not exist -- a host
-      # unit was planned for this and never written.
+      # Removing a pool from this list does NOT delete it: NixOS's own
+      # `virtualisation.incus.preseed` documentation states preseed never
+      # removes entities. The pool has to be deleted by hand *after* a rebuild
+      # with this list already updated -- otherwise the next switch re-creates
+      # it empty. The reverse order (delete, then rebuild) is the trap.
       #
-      # `persistent` therefore no longer claims to be excluded from backups. The
-      # pools already exist and are in use, and naming a volume after its intended
-      # retention is still useful documentation even when nothing enforces it.
-      # What must not be repeated is the converse mistake: a PGDATA copy is not a
-      # backup, and a pg_dump is. Those are separate claims, and the old text
-      # used the first to argue for the second.
+      # `persistent` therefore no longer claims anything about backups. Naming
+      # a volume after its intended retention is still useful documentation
+      # even when nothing enforces it. What must not be repeated is the
+      # converse mistake: a PGDATA copy is not a backup, and a pg_dump is.
+      # Those are separate claims, and the old text used the first to argue
+      # for the second.
       #
       # No VM pool yet. Incus docs warn against VMs on btrfs and the mitigation
       # is a dir pool, added in the phase that actually provisions VMs.
       storage_pools = [
-        {
-          name = "backup";
-          driver = "btrfs";
-          config.source = "${poolsPath}/backup";
-        }
         {
           name = "persistent";
           driver = "btrfs";
@@ -125,7 +127,7 @@ in
 
       # Preseed does not populate the default profile's devices by itself, and
       # without a root disk every `incus launch` fails. Root disks live on
-      # 'persistent' (reproducible), custom data volumes on 'backup'.
+      # 'persistent', which is now the only pool.
       profiles = [
         {
           name = "default";
