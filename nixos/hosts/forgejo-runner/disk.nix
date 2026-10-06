@@ -16,8 +16,8 @@
 #      live data. Hence: only format when the label is absent, and refuse
 #      to guess when the candidate is ambiguous.
 #   2. If the disk is absent or fails to mount, nothing may run against
-#      the root disk instead. The generator unit's requiresMountsFor is
-#      what prevents that; see default.nix.
+#      the root disk instead. The generator unit's unitConfig
+#      .RequiresMountsFor is what prevents that; see default.nix.
 { config, lib, pkgs, ... }:
 
 let
@@ -25,10 +25,35 @@ let
   # what the format unit looks for and what the mount unit names, so
   # the two cannot drift apart; the mount point is the directory the
   # runner's state, secrets and generated config all live under.
-  label = "forgejo-runner-data";
+  #
+  # NOT the volume's name. Incus calls that `forgejo-runner-data`
+  # (incus.nix) and may call it whatever it likes; an ext4 label is
+  # capped at 16 bytes, and mkfs.ext4 truncates anything longer with
+  # only a warning:
+  #
+  #   Warning: label too long; will be truncated to 'forgejo-runner-d'
+  #
+  # That is how the first deploy of this VM ended with the runner down
+  # and nothing wrong in any log: the mount's `what` named a label mkfs
+  # had silently shortened, so systemd never created the mount unit at
+  # all, the generator unit's RequiresMountsFor correctly refused to
+  # run, and the daemon died on `result 'dependency'`. The label and
+  # the volume name being the same 19-character string is what made
+  # that look structural rather than a one-character fix.
+  label = "forgejo-runner";
   dataDir = "/var/lib/forgejo-runner";
 in
 {
+  # ext4 caps a volume label at 16 bytes. Asserted here rather than left
+  # for mkfs.ext4 to decide silently: a build-time failure is the only
+  # place this costs nothing. Truncation instead produces a VM that
+  # boots, mounts nothing, and reports success.
+  assertions = [
+    {
+      assertion = lib.stringLength label <= 16;
+      message = "ext4 volume labels are capped at 16 bytes; '${label}' is ${toString (lib.stringLength label)} and mkfs.ext4 will truncate it";
+    }
+  ];
   # After the first boot this is a no-op that checks for the label and
   # exits.
   #
@@ -91,6 +116,34 @@ in
         exit 0
       fi
 
+      # mkfs.ext4 truncates an over-long label with a warning and exits 0,
+      # so a successful run is not evidence that the label took. Check it,
+      # because "formatted, and the mount's `what` will therefore never
+      # resolve" is otherwise indistinguishable from success in every log
+      # on the box.
+      #
+      # The wait is `udevadm settle` (absolute path, for the reason above)
+      # AND a sleep, because the settle alone is not a retry: when nothing
+      # is queued it returns immediately, so ten back-to-back settles finish
+      # in microseconds and give up long before udev has created the symlink.
+      # `sleep` is coreutils, which this unit's PATH does have.
+      verify_label() {
+        local what=$1
+        udadm_settle=${pkgs.systemd}/bin/udevadm
+        for _ in 1 2 3 4 5 6 7 8 9 10; do
+          [ -e "$by_label" ] && return 0
+          "$udadm_settle" --timeout=2 2>/dev/null || true
+          sleep 1
+        done
+        "$logger" -t forgejo-runner-data-format -p user.err \
+          "''${what}, but /dev/disk/by-label/${label} does not exist afterwards"
+        "$logger" -t forgejo-runner-data-format -p user.err \
+          "  the filesystem label is probably not the string asked for -- check with: lsblk -o NAME,LABEL"
+        "$logger" -t forgejo-runner-data-format -p user.err \
+          "  leaving ${dataDir} unmounted so the runner stays down"
+        exit 1
+      }
+
       # Identify the root disk and never touch it. Without this the
       # loop below could pick /dev/vda and format the filesystem this
       # script is running on.
@@ -134,6 +187,7 @@ in
         1)
           "$logger" -t forgejo-runner-data-format "formatting $1 as ext4 with label ${label}"
           "$mkfs_ext4" -q -L "${label}" "$1"
+          verify_label "formatted $1"
           ;;
         *)
           "$logger" -t forgejo-runner-data-format -p user.err \

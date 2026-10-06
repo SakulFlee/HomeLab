@@ -327,9 +327,21 @@ Deploy and verify:
    so a missing dockerd shows up as a runner that never declares
    rather than as a broken container. Check it before anything else:
    `incus exec forgejo-runner -- systemctl is-active docker`.
-4. In the Forgejo UI (Site Admin → Runners), confirm the runner is
+4. `/var/lib/forgejo-runner` is a **mountpoint**:
+   `incus exec forgejo-runner -- findmnt /var/lib/forgejo-runner`.
+   This is the step that was actually missing on the first deploy. The
+   data disk was formatted with the label `forgejo-runner-data`,
+   which is 19 characters; ext4 caps labels at 16, so `mkfs.ext4`
+   truncated it to `forgejo-runner-d` with a warning and exited 0.
+   The mount's `what` then named a label that did not exist, so
+   systemd never created the mount unit at all — not inactive,
+   *not-found* — and the daemon died on `result 'dependency'`.
+   `apply.sh` had reported success throughout, because it reconciles
+   the instance and the instance was fine; it has no view of the
+   guest's systemd.
+5. In the Forgejo UI (Site Admin → Runners), confirm the runner is
    online, named `forgejo-runner-k8s`, with the three labels.
-5. Submit a workflow that runs on `ubuntu-latest` and watch it execute
+6. Submit a workflow that runs on `ubuntu-latest` and watch it execute
    here: `incus exec forgejo-runner -- journalctl -u forgejo-runner -f`
    shows the job being fetched, the image pulled and the container
    created.
