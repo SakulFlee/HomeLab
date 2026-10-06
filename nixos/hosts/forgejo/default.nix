@@ -282,9 +282,9 @@ in
     # are silent if you take the default:
     #
     #   1. The hourly dump that is going to be restored into this database is
-    #      made by `pg_dump` from postgres:18-alpine (apps/forgejo/
-    #      dump-cronjob.yaml). pg_restore refuses an archive written by a newer
-    #      pg_dump than itself, so a 17.11 server would reject the restore with
+    #      made by `pg_dump` from postgres:18-alpine. pg_restore refuses an
+    #      archive written by a newer pg_dump than itself, so a 17.11 server
+    #      would reject the restore with
     #      "unsupported version ... in the dump file" -- at restore time, with a
     #      database already created and nothing to roll back to.
     #   2. The k3s deployment's CNPG cluster defaulted to PostgreSQL 18, so the
@@ -886,8 +886,8 @@ in
 
     # 16.0.5, explicitly. The module's default is `pkgs.forgejo-lts`, which in
     # this nixpkgs is 15.0.9 -- and a Forgejo older than the data cannot be used,
-    # because its schema migrations only run forwards. The k3s deployment is on
-    # 16.x (apps/forgejo/helm-release.yaml pins image tag 16) and the dump being
+    # because its schema migrations only run forwards. The k3s deployment this
+    # data came from was on 16.x (it pinned image tag 16) and the dump being
     # restored came out of it. Taking the default here would produce an instance
     # that builds, boots, and then cannot read its own database.
     package = pkgs.forgejo; # 16.0.5
@@ -1091,7 +1091,7 @@ in
   #
   # That key is passphrase-protected (`scaESCA`), and the passphrase is not in
   # sops -- `nixos/secrets.yaml`'s `gpg_private_key` is the *locked* key, not the
-  # passphrase to open it, and apps/forgejo/secrets/gpg.yaml has only a
+  # passphrase to open it, and the k3s secret had only a
   # privateKey field. So it cannot sign unattended: every attempt ends at
   #     gpg: signing failed: No pinentry
   # which is why signingKeyId below is a different key. The original is kept at
