@@ -102,7 +102,23 @@ let
       # stops restic grouping ours together with anything else sharing this host
       # and paths, which would let a policy meant for one schedule delete the
       # other's snapshots.
+      #
+      # --retry-lock here too, not just on the backup above. The DaemonSet runs
+      # its own forget/prune against this repository hourly, and without it a
+      # collision is an immediate failure rather than a wait -- which is how a
+      # routine overlap turns into a red unit every time the two schedules drift
+      # into the same minute.
+      #
+      # Neither side may prune while the other holds the lock. That is the whole
+      # reason the DaemonSet stopped passing `unlock --remove-all`: it deleted
+      # the lock this wait depends on, let two prunes overlap, and left the
+      # repository with an index referencing 16 pack files that no longer existed
+      # ("Fatal: packs from index missing in repo"), after which every run here
+      # failed at prune. Repaired with `restic repair index`. The other half of
+      # that story is in apps/storage-class/restic-daemonset.yaml, which is also
+      # where the fix has to be kept in step if either side changes.
       restic forget \
+        --retry-lock=10m \
         --password-file "$pw" \
         -r "$repo" \
         --tag "$tag" \

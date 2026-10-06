@@ -40,8 +40,30 @@ spec:
 
               while true; do
                 if [ -d "$BACKUP_TIER" ]; then
-                  # Clear stale locks from dead pods
-                  restic unlock -r "$REPO" --password-file /etc/restic/pw --remove-all || true
+                  # NOT --remove-all. This repository has a second writer: the
+                  # host's restic-backup.service (backup.nix) backs up the Incus
+                  # pools into the same repo, and that file goes to some length to
+                  # serialise itself -- flock, plus --retry-lock on its backup.
+                  # `--remove-all` deletes every lock in the repository including
+                  # ones held by a process that is running RIGHT NOW, so it
+                  # cancelled that mutual exclusion once an hour. The comment
+                  # here used to claim it cleared "stale locks from dead pods",
+                  # which is what plain `unlock` does and what --remove-all
+                  # emphatically does not.
+                  #
+                  # The failure that produced: `restic prune` is not safe to run
+                  # twice at once, and with the lock removed the two schedules
+                  # could overlap. Once they had, this repository's index began
+                  # referencing pack files that were no longer there --
+                  #
+                  #   The index references 16 needed pack files which are missing
+                  #   Fatal: packs from index missing in repo
+                  #
+                  # and every host-side run since has failed at forget/prune.
+                  # Plain unlock still clears our own dead pod's lock; restic
+                  # ignores a lock older than 30 minutes on its own, so nothing
+                  # here needs to reach across and delete someone else's.
+                  restic unlock -r "$REPO" --password-file /etc/restic/pw || true
 
                   restic backup \
                     -r "$REPO" \
@@ -50,9 +72,19 @@ spec:
                     --tag k8s \
                     --exclude-caches || echo "backup failed, will retry next hour"
 
+                  # --tag k8s --group-by tags, to mirror backup.nix exactly.
+                  # Untagged, this policy applies to every snapshot group in a
+                  # repository the host also writes to, and backup.nix's own
+                  # comment says the scoping exists precisely so the two
+                  # schedules cannot delete each other's history. It only
+                  # happens to be harmless today because restic's default
+                  # grouping is host,paths and this pod's hostname and paths
+                  # differ from the host's -- an accident, not a guarantee.
                   restic forget \
                     -r "$REPO" \
                     --password-file /etc/restic/pw \
+                    --tag k8s \
+                    --group-by tags \
                     --keep-hourly 24 \
                     --keep-daily 7 \
                     --keep-monthly 3 \
