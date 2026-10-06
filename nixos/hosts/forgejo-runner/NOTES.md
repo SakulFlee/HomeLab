@@ -68,29 +68,39 @@ its registration state lives in the guest's StateDirectory (the root
 disk, which a re-create replaces), and re-registering after a re-create
 would fail with the consumed token.
 
-**The identity is the k3s runner's.** The values in
-`nixos/secrets.yaml` (`forgejo_runner_uuid`, `forgejo_runner_token`)
-were copied from the k3s deployment's `runner.yaml` — the runner
-Forgejo knows as `forgejo-runner-k8s`. The Incus Forgejo instance was
-restored from the k3s database, so the registration travelled with it.
-Verified against the live instance on 2026-10-05: a daemon started
-with these credentials answered the `Declare` RPC with the runner's
-name and version, and launched its poller.
+**The identity is this VM's own.** The runner was created
+fresh in the Forgejo UI for the Incus VM, and `nixos/secrets.yaml`
+holds its uuid and token. Verified on the first real job: the daemon
+answered `Declare` and launched its poller.
 
-`apps/forgejo-runner/` is now removed from the repository, so
-`runner.yaml` only exists in history — `git show
-<commit>:apps/forgejo-runner/secrets/runner.yaml`. The credentials
-themselves are in `nixos/secrets.yaml` encrypted and are unaffected;
-the deleted file was only ever their source, and it is worth keeping in
-mind that it is the one artefact here whose loss cannot be undone by
-`git revert`.
+It was originally the *k3s* runner's identity, carried over on the
+argument that reusing it was free — nothing re-registers, so a
+re-create loses nothing. That was true and it was the wrong call.
+The k3s runner's registered name describes a platform this runner no
+longer uses, so every job log line read as though Kubernetes were
+still involved, and one runner entity ended up with a history
+spanning two execution models: the k3s plugin's pods, and now Docker
+containers. Those are different things, and a runner's history is
+exactly the record you would want to be able to distinguish when
+debugging which one ran a job.
 
-If the Incus instance is ever stood up **fresh** instead of restored,
-the credentials stop working (Forgejo returns an authentication error
-and the daemon's poller logs it). The fix is to create a runner in
-the Forgejo UI, put the new uuid and token into `nixos/secrets.yaml`
-(`sops -d` / edit / `sops -i -e`), and run `incus/apply.sh
-forgejo-runner`.
+The *shape* of the credentials did not change and is the part worth
+keeping: a persistent uuid and token, presented on every poll, never
+consumed, nothing to re-register. See "Registration" above for why
+that matters on an immutable image.
+
+The name is whatever was chosen when the runner was created, because
+the config sends only `uuid` and `token` — nothing in this repository
+carries it. Read it from the daemon's log if you need it:
+
+```
+incus exec forgejo-runner -- journalctl -u forgejo-runner -o cat | grep -m1 'runner:'
+```
+
+The old k3s runner is still registered in Forgejo, still carrying
+these same three labels. Its credentials are no longer in this
+repository, so it cannot start — but it is offline and harmless, and
+deleting it in the UI would lose the k3s-era job history.
 
 ### The Declare RPC updates the runner's labels
 
@@ -327,9 +337,18 @@ Deploy and verify:
    so a missing dockerd shows up as a runner that never declares
    rather than as a broken container. Check it before anything else:
    `incus exec forgejo-runner -- systemctl is-active docker`.
-4. `/var/lib/forgejo-runner` is a **mountpoint**:
+4. The daemon's own account can write its own home. This is the
+   check that would have caught the first job failing, and nothing
+   above it notices: the units all report success while the runner is
+   silently unable to create a directory.
+   ```
+   incus exec forgejo-runner -- runuser -u forgejo-runner -- \
+     mkdir -p /var/lib/forgejo-runner/home/.cache/probe && rmdir /var/lib/forgejo-runner/home/.cache/probe
+   ```
+   A bare `systemctl is-active forgejo-runner` proves the daemon
+   started, not that it can work.
+5. `/var/lib/forgejo-runner` is a **mountpoint**:
    `incus exec forgejo-runner -- findmnt /var/lib/forgejo-runner`.
-   This is the step that was actually missing on the first deploy. The
    data disk was formatted with the label `forgejo-runner-data`,
    which is 19 characters; ext4 caps labels at 16, so `mkfs.ext4`
    truncated it to `forgejo-runner-d` with a warning and exited 0.
@@ -339,9 +358,10 @@ Deploy and verify:
    `apply.sh` had reported success throughout, because it reconciles
    the instance and the instance was fine; it has no view of the
    guest's systemd.
-5. In the Forgejo UI (Site Admin → Runners), confirm the runner is
-   online, named `forgejo-runner-k8s`, with the three labels.
-6. Submit a workflow that runs on `ubuntu-latest` and watch it execute
+6. In the Forgejo UI (Site Admin → Actions → Runners), confirm the
+   runner is online with the three labels. Its name is whatever was
+   chosen at creation — nothing in this repository records it.
+7. Submit a workflow that runs on `ubuntu-latest` and watch it execute
    here: `incus exec forgejo-runner -- journalctl -u forgejo-runner -f`
    shows the job being fetched, the image pulled and the container
    created.
@@ -364,17 +384,22 @@ incus exec forgejo-runner -- docker ps  # job containers, while a job runs
 
 The runner declares itself at every start, so the fastest check that
 the credentials still work is the daemon's own log: a line reading
-`runner: forgejo-runner-k8s, with version: v13.2.0, with labels:
+`runner: <name>, with version: v13.2.0, with labels:
 [default ubuntu-latest ubuntu-24.04], ephemeral: false, declared
 successfully` followed by `[poller] launched`.
 
 ## Known rough edges
 
-* **The runner's name in Forgejo is still `forgejo-runner-k8s`.** It
-  is the registered name, carried over by the restored database. It is
-  cosmetic (the name is what the UI shows), but if it bothers you it
-  changes with a re-registration: delete the runner in the Forgejo UI,
-  create a new one, and update the two sops values.
+* **The first job to run failed, and the reason was not visible in
+  any unit's status.** `$HOME` was the volume's mount point, which is
+  `root:root 0755` because that is what a filesystem root should be.
+  The generator created `cache/` and `workspace/` as the runner, so
+  those worked; act creates `$HOME/.cache/act/ff/<sha>` itself and
+  could not. The lesson is the shape of it: the generator only creates
+  the directories it knows about, so any write the daemon makes
+  *implicitly* under `$HOME` is invisible to it. Fixed by moving the
+  runner's home to a subdirectory the generator owns — see
+  `default.nix`, "The runner's account".
 * **A re-create re-pulls every job image.** The image store is on the
   root disk by design (see "What lives where"), so the first job after
   a re-create pays one pull per label. The cache on the volume makes

@@ -76,15 +76,27 @@
   # token -- presenting them is what the daemon does on every
   # poll, nothing is consumed, and nothing re-registers.
   #
-  # The values are the k3s deployment's runner (its name in
-  # Forgejo is forgejo-runner-k8s). The Incus Forgejo instance
-  # was restored from the k3s database, so the registration
-  # travelled with it and the same identity keeps working --
-  # verified against the live instance on 2026-10-05. If the
-  # instance is ever stood up fresh instead of restored,
-  # create a runner in the Forgejo UI (Site Admin -> Runners)
-  # and put the new uuid and token here; see
-  # hosts/forgejo-runner/NOTES.md.
+    # A runner created fresh for the Incus VM, NOT the k3s
+    # deployment's runner. Reusing that identity was the first design
+    # here and it was wrong: the name it carries (`forgejo-runner-k8s`)
+    # describes a platform this runner no longer uses, so every job log
+    # line read as though Kubernetes were still involved, and one runner
+    # entity accumulated a history spanning two execution models -- the
+    # k3s plugin's pods and, now, Docker containers. Those are different
+    # things, and a single runner's history is exactly the record you
+    # would want to be able to distinguish when debugging.
+    #
+    # Nothing about the credentials changed shape, though: still the
+    # persistent uuid and token, not a registration token, so nothing is
+    # consumed on use and nothing has to re-register. Only which runner
+    # they belong to.
+    #
+    # The k3s runner is still registered in Forgejo and still carries
+    # these labels, but its credentials are no longer in this repository.
+    # Reinstating it means recovering the old pair from history
+    # (`git show <commit>:nixos/secrets.yaml`), so if the ability to fall
+    # back to it matters, keep a second pair of keys rather than replacing
+    # these in place.
   #
   # Declared on the host for the same reason as the caddy
   # token above: the instance gets rendered bytes and no

@@ -143,11 +143,33 @@ in
     group = "forgejo-runner";
     description = "Forgejo Actions runner";
 
-    # Home is the data volume's mount point. createHome = false because
-    # the mount unit owns that directory -- NixOS's activation would
-    # create it on the root disk, and the mount would hide it again on
-    # the next boot.
-    home = "/var/lib/forgejo-runner";
+    # Home is a directory INSIDE the data volume, not the volume's mount point.
+    #
+    # The mount point is root:root 0755, which is correct for a filesystem
+    # root -- and it is also the runner's home if set here directly, which
+    # means the daemon cannot create anything in it. That is not hypothetical:
+    # the first job to run died with
+    #
+    #   unable to init git repo at /var/lib/forgejo-runner/.cache/act/ff/<sha>:
+    #   fatal: cannot mkdir ...: Permission denied
+    #
+    # The generator creates `cache/` and `workspace/` as the runner, so those
+    # worked; act creates `$HOME/.cache/act` itself, as the runner, and could
+    # not. The generator only creates the directories it knows about, so any
+    # implicit write under $HOME is invisible to it -- which is the whole bug
+    # class, and the reason the home is a subdirectory the generator owns
+    # rather than a parent it happens to have write access to.
+    #
+    # A subdirectory rather than chowning the mount point, because the mount
+    # point is the parent of `secrets/` -- root:root 0711, holding the 0400
+    # files only the generator reads. Letting the daemon's own uid own that
+    # parent would let it rename or replace the secrets directory. Not a leak,
+    # but a way for the runner to break its own configuration.
+    #
+    # createHome = false because the directory lives on the volume, and the
+    # generator unit creates it after the mount; NixOS's activation would
+    # otherwise create it on the root disk where the mount would hide it.
+    home = "/var/lib/forgejo-runner/home";
     createHome = false;
 
     extraGroups = [ "docker" ];
@@ -205,13 +227,19 @@ in
       uuid=$(cat "$secrets/runner-uuid")
       token=$(cat "$secrets/runner-token")
 
-      # The directories the daemon writes to, created as root so the
-      # daemon never has to: a job's workspace and the actions cache
-      # are the two things that must be writable by forgejo-runner, and
-      # on a fresh volume nothing is.
+      # Everything the daemon writes, created as root so the daemon never
+      # has to. `home` comes first and is what the other two live under: it is
+      # $HOME, so act writes $HOME/.cache/act/... into it, which is a path
+      # nothing here enumerates and which cost the first job until it was
+      # created. One `install -d` for the parent is enough -- the other two
+      # are then inside a directory the runner owns -- but they are named
+      # explicitly anyway so a fresh volume has them with the right mode
+      # rather than whatever the daemon's umask leaves.
       install -d -o forgejo-runner -g forgejo-runner -m 0750 \
-        /var/lib/forgejo-runner/cache \
-        /var/lib/forgejo-runner/workspace
+        /var/lib/forgejo-runner/home
+      install -d -o forgejo-runner -g forgejo-runner -m 0750 \
+        /var/lib/forgejo-runner/home/cache \
+        /var/lib/forgejo-runner/home/workspace
 
       # The two values interpolated inside the heredoc below
       # are expanded by the shell at runtime, not by Nix at
@@ -243,7 +271,7 @@ runner:
     - "ubuntu-24.04:docker://${jobImage}"
 cache:
   enabled: true
-  dir: /var/lib/forgejo-runner/cache
+  dir: /var/lib/forgejo-runner/home/cache
 container:
   # The runner creates its own bridge network per job; job containers
   # reach each other, the VM and the internet through it, and nothing
@@ -257,7 +285,7 @@ container:
   # Job workspaces, on the data volume rather than the root disk: a
   # checkout plus its build artefacts can be large, and the volume is
   # where anything that should outlive a re-create lives.
-  workdir_parent: /var/lib/forgejo-runner/workspace
+  workdir_parent: /var/lib/forgejo-runner/home/workspace
   # The security boundary for what a job container may mount: nothing.
   # A workflow that declares volumes fails rather than reading host
   # paths -- the same posture the k3s podspec had (no volumes, no
@@ -312,7 +340,7 @@ EOF
     serviceConfig = {
       User = "forgejo-runner";
       Group = "forgejo-runner";
-      WorkingDirectory = "/var/lib/forgejo-runner";
+      WorkingDirectory = "/var/lib/forgejo-runner/home";
 
       # The store path, not a bare name -- a NixOS service gets a PATH
       # from the unit's `path` or nothing, and the daemon is invoked
