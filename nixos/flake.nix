@@ -183,6 +183,10 @@
         caddy = mkInstance { path = ./hosts/caddy; };
         forgejo = mkInstance { path = ./hosts/forgejo; };
         wireguard = mkInstance { path = ./hosts/wireguard; kind = "vm"; };
+        # A VM: it runs the Forgejo Actions runner with a Docker
+        # daemon inside the guest (see hosts/forgejo-runner/default.nix
+        # for why that needs a kernel of its own).
+        forgejo-runner = mkInstance { path = ./hosts/forgejo-runner; kind = "vm"; };
       };
 
       # Convenience: buildable images, so `nix build .#image-<name>` works.
@@ -192,6 +196,7 @@
 
         # A VM is one qcow2 disk rather than a rootfs plus a metadata tarball.
         image-wireguard = self.nixosConfigurations.wireguard.config.system.build.qemuImage;
+        image-forgejo-runner = self.nixosConfigurations.forgejo-runner.config.system.build.qemuImage;
       };
 
       # The Incus-level half of each instance: limits, volumes, devices. Plain

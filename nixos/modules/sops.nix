@@ -70,6 +70,30 @@
   sops.secrets.forgejo_lfs_secret = {};
   sops.secrets.forgejo_smtp_password = {};
 
+  # The Forgejo runner's identity: the uuid and token Forgejo
+  # issued when the runner was registered. These are the
+  # runner's *persistent* credentials, not a registration
+  # token -- presenting them is what the daemon does on every
+  # poll, nothing is consumed, and nothing re-registers.
+  #
+  # The values are the k3s deployment's runner (its name in
+  # Forgejo is forgejo-runner-k8s). The Incus Forgejo instance
+  # was restored from the k3s database, so the registration
+  # travelled with it and the same identity keeps working --
+  # verified against the live instance on 2026-10-05. If the
+  # instance is ever stood up fresh instead of restored,
+  # create a runner in the Forgejo UI (Site Admin -> Runners)
+  # and put the new uuid and token here; see
+  # hosts/forgejo-runner/NOTES.md.
+  #
+  # Declared on the host for the same reason as the caddy
+  # token above: the instance gets rendered bytes and no
+  # decryption capability, so a root process in the runner VM
+  # cannot read the restic password, the Forgejo secrets or
+  # the Cloudflare token out of this file.
+  sops.secrets.forgejo_runner_uuid = {};
+  sops.secrets.forgejo_runner_token = {};
+
   # No sops.secrets for the wireguard VM's web UI, and that is a decision rather
   # than an omission.
   #

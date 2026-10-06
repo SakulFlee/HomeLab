@@ -25,5 +25,8 @@
   # A VM. Its incus.nix sets `type = "vm"`, which is what switches the image
   # build (qcow2 rather than squashfs+metadata), the create call (`-t vm`), the
   # volume type (block, not filesystem) and the disk devices (no `path`).
+  # The forgejo-runner is a VM for the same reason wireguard is: it runs
+  # Docker inside the guest, which an LXC could only do privileged.
   wireguard = import ./hosts/wireguard/incus.nix;
+  forgejo-runner = import ./hosts/forgejo-runner/incus.nix;
 }
