@@ -13,7 +13,7 @@
 #
 # See incus.nix for the Incus half and ../../../incus/README.md for the
 # instance model (immutable image, disposable root disk, volumes).
-{ config, lib, pkgs, ... }:
+{ config, lib, pkgs, inputs, ... }:
 
 let
   # The VM's address on incusbr0. Set in the guest, not through Incus:
@@ -67,6 +67,57 @@ let
   ];
 in
 {
+  # ---------------------------------------------------------------------
+  # The disk image
+  # ---------------------------------------------------------------------
+  # The root disk has to hold three things at once: the NixOS closure
+  # (/nix/store is NOT a separate filesystem here -- it is the same
+  # partition as /), the Docker image store, and a running job's
+  # writable layer. Measured on the first real job, with one
+  # 5.06 GB CI image pulled:
+  #
+  #   at rest    7.3 G used   1.9 G free   80%
+  #   in a job   8.8 G used   360 M free   97%
+  #
+  # which is not enough headroom to be useful. The label image itself
+  # (ghcr.io/catthehacker/ubuntu:act-24.04) unpacks to roughly 2.2 GB,
+  # so a workflow that does NOT pin its own image would fail to pull
+  # with ENOSPC the moment a large CI image is also present.
+  #
+  # 40G: the closure, several 5 GB CI images, and concurrent job
+  # layers, with room to spare. It is a cap on the qcow2's virtual size
+  # and costs nothing on the host while unused -- the file stays sparse.
+  #
+  # WHY AN OVERRIDE AND NOT `virtualisation.diskSize`, which looks like
+  # exactly the right knob and is not:
+  #
+  #   nixos/modules/virtualisation/disk-size-option.nix declares it as
+  #   `either (enum ["auto"]) ints.positive` -- an integer is valid --
+  #   but qemu-vm.nix only uses it for the disk of the VM it starts to
+  #   RUN a build in (DISK_SIZE_MB at line 140). The image itself comes
+  #   from incus-virtual-machine.nix, which calls make-disk-image.nix
+  #   directly and passes neither `diskSize` nor `additionalSpace`.
+  #
+  # So the image inherits make-disk-image's defaults: diskSize "auto"
+  # (computed as requiredFilesystemSpace + additionalSpace) and
+  # `additionalSpace ? "512M"`. That 512 MB -- plus the closure -- is
+  # where the 10 GiB came from, and setting virtualisation.diskSize
+  # would change nothing at all while looking like it should.
+  #
+  # mkForce, because incus-virtual-machine.nix already defines this
+  # attribute; two definitions of the same option is a conflict error.
+  # The call below is that module's verbatim, plus `additionalSpace`.
+  # If nixpkgs changes the arguments make-disk-image.nix takes, this
+  # breaks loudly at evaluation rather than quietly producing a
+  # differently-shaped image.
+  system.build.qemuImage = lib.mkForce (import "${inputs.nixpkgs}/nixos/lib/make-disk-image.nix" {
+    inherit pkgs lib config;
+    partitionTableType = "efi";
+    format = "qcow2-compressed";
+    copyChannel = config.system.installer.channel.enable;
+    additionalSpace = "40G";
+  });
+
   imports = [ ./disk.nix ];
 
   networking.hostName = "forgejo-runner";
@@ -399,10 +450,19 @@ EOF
   };
 
   systemd.timers.forgejo-runner-prune = {
-    description = "Weekly prune of unused Docker images";
+    description = "Daily prune of unused Docker images";
     wantedBy = [ "timers.target" ];
     timerConfig = {
-      OnCalendar = "weekly";
+      # Daily, not weekly. A prune exists to stop unused images filling
+      # the disk, and being wrong about the interval is asymmetric: too
+      # long and a job cannot pull the image it needs, too short and a job
+      # re-pulls an image it used yesterday. Weekly was sized for a disk
+      # with room to spare; measured on the first real job, with one
+      # 5.06 GB CI image pulled, the root disk was at 97% and 360 MB free.
+      # `docker image prune --all` skips images a container is using, so a
+      # daily prune costs a re-pull only for an image unused for a day --
+      # which is precisely the case where reclaiming the space is the point.
+      OnCalendar = "daily";
       Persistent = true;
       RandomizedDelaySec = "30m";
     };

@@ -130,7 +130,7 @@ against anything stored at registration time. Two consequences:
 Docker's image store is deliberately on the root disk. Images are
 re-pullable by definition, so losing them to a re-create costs one
 re-pull per label, and keeping them off the volume keeps the volume's
-contents to the things that are actually state. The weekly
+contents to the things that are actually state. The daily
 `forgejo-runner-prune.timer` (`docker image prune --all --force`)
 bounds the root disk's growth for the same reason the host runs a
 weekly `crictl` prune for k3s.
@@ -388,6 +388,45 @@ the credentials still work is the daemon's own log: a line reading
 [default ubuntu-latest ubuntu-24.04], ephemeral: false, declared
 successfully` followed by `[poller] launched`.
 
+## Disk sizing
+
+The root disk is **40 GiB**, set in `default.nix` by overriding
+`system.build.qemuImage` and passing `additionalSpace = "40G"` to
+`make-disk-image.nix`.
+
+It is not `virtualisation.diskSize`, which looks like exactly the
+right knob and does nothing here. That option is declared as
+`either (enum ["auto"]) ints.positive` in
+`virtualisation/disk-size-option.nix`, so an integer is valid — but
+`qemu-vm.nix` only uses it for the disk of the VM it starts to *run
+a build* in. The image itself comes from `incus-virtual-machine.nix`,
+which calls `make-disk-image.nix` directly and passes neither
+`diskSize` nor `additionalSpace`. So the image took that function's
+defaults: `diskSize = "auto"` (computed as
+`requiredFilesystemSpace + additionalSpace`) and
+`additionalSpace ? "512M"`. That 512 MB, plus the closure, is where
+the original 10 GiB came from.
+
+10 GiB was not enough, and the arithmetic is worth keeping: `/` and
+`/nix/store` are the same partition here, so the disk carries the
+NixOS closure (~2.5 G) *and* the Docker image store. Measured on the
+first real job, with one 5.06 GB CI image pulled:
+
+| | used | free | |
+|---|---|---|---|
+| at rest | 7.3 G | 1.9 G | 80% |
+| in a job | 8.8 G | **360 M** | **97%** |
+
+The label image (`ghcr.io/catthehacker/ubuntu:act-24.04`) unpacks to
+roughly 2.2 GB, so a workflow that does *not* pin its own image would
+have failed to pull with ENOSPC as soon as a large CI image was also
+present.
+
+Incus cannot widen it afterwards: `incus config set <vm>
+limits.disk.size` is rejected as an unknown key, so the size has to
+be baked into the image. The qcow2 stays sparse, so 40 GiB costs
+nothing on the host while unused.
+
 ## Known rough edges
 
 * **The first job to run failed, and the reason was not visible in
@@ -404,7 +443,9 @@ successfully` followed by `[poller] launched`.
   root disk by design (see "What lives where"), so the first job after
   a re-create pays one pull per label. The cache on the volume makes
   that the only cold-start cost.
-* **`docker image prune --all` removes unused images weekly**, so a
-  label that has not run for a week re-pulls on its next job. That is
-  the trade for a bounded root disk; tighten the timer if it ever
-  matters.
+* **`docker image prune --all` removes unused images daily**, so a
+  label that has not run for a day re-pulls on its next job. That is
+  the trade for a bounded root disk. It was weekly until the first
+  real job: with one 5.06 GB CI image the root disk sat at 97% and
+  360 MB free, which is not enough to pull the 2.2 GB label image
+  alongside it.
