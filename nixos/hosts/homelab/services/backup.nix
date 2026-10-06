@@ -89,13 +89,44 @@ let
       # --exclude-caches, as the DaemonSet does: Incus writes cache metadata into
       # its pool directories that changes on unrelated operations and would churn
       # every snapshot for no benefit.
+      #
+      # Its exit status is captured rather than left to abort the script, because
+      # of what restic means by the three that matter:
+      #
+      #   0  everything read
+      #   1  a real error -- the snapshot may be missing, or the repo unusable
+      #   3  the snapshot WAS saved, but some source files could not be read
+      #
+      # 3 is the one that bites, and it bit for 17 hours. On 2026-10-06 the
+      # repository index had just been rebuilt, so restic had to re-upload a
+      # dozen repo-archive files it could not find in the index. It stored them,
+      # saved the snapshot, printed "Warning: at least one source file could not
+      # be read" and exited 3 -- and because this script runs under
+      # writeShellApplication's `set -o errexit`, that exit killed it before
+      # `restic forget` below. The unit went red and retention did not run: the
+      # same outage as the one before it (prune failing on "packs from index
+      # missing in repo") wearing a different error, and one that would recur
+      # indefinitely over any file restic cannot read.
+      #
+      # So a backup that saved its snapshot is good enough to prune against. Only
+      # a hard error skips the prune, because pruning on top of a genuinely
+      # broken backup is the one case where not proceeding is the safer choice.
+      backup_status=0
       restic backup \
         --retry-lock=10m \
         --password-file "$pw" \
         -r "$repo" \
         --tag "$tag" \
         --exclude-caches \
-        ${lib.escapeShellArgs cfg.paths}
+        ${lib.escapeShellArgs cfg.paths} || backup_status=$?
+
+      if [[ $backup_status -ne 0 && $backup_status -ne 3 ]]; then
+        echo "FATAL: restic backup exited $backup_status -- not pruning against a backup that may not have saved" >&2
+        exit "$backup_status"
+      fi
+      if [[ $backup_status -eq 3 ]]; then
+        echo "restic backup saved its snapshot but could not read some source files (exit 3); pruning anyway" >&2
+      fi
 
       # Pruning is scoped twice over, and both parts matter. --tag limits it to
       # our own snapshots so the k3s tier's history is untouched; --group-by tags
@@ -127,6 +158,15 @@ let
         --keep-daily ${toString cfg.keepDaily} \
         --keep-monthly ${toString cfg.keepMonthly} \
         --prune
+
+      # Retention has now run, which was the whole point of the branch above.
+      # Still report the incomplete backup rather than exiting 0: an unreadable
+      # source file is a real problem someone has to look at, and swallowing it
+      # to turn the unit green is how you get a green-but-not-backing-up unit --
+      # the exact failure this script's preflight exists to prevent.
+      if [[ $backup_status -ne 0 ]]; then
+        exit "$backup_status"
+      fi
     '';
   };
 in
