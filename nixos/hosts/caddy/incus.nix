@@ -68,15 +68,31 @@ in
   # The Caddyfile itself is in the flake and is not stored here.
   volumes = [
     {
+      # Snapshotted, and the reason is testing rather than data: caddy-data is
+      # 360K, so a real `incus storage volume snapshot restore` against it costs
+      # seconds and destroys nothing. It is where incus/apply-snapshots-test.sh's
+      # companion check proves a snapshot can actually be rolled back, rather
+      # than proving only that a schedule string was written somewhere.
+      #
+      # Worth snapshotting for its own sake too -- these are ACME certificates,
+      # and losing them means every client sees a certificate error until they
+      # re-issue.
       pool = "backup";
       name = "caddy-data";
       description = "Caddy ACME certificates and runtime state";
+
+      snapshots = {
+        schedule = "@daily";
+        expiry = "7d";
+      };
     }
     {
-      # Environment files the host renders in from its own sops secrets. Not
-      # restic'd: a backed-up copy of a live API token is a liability, and
-      # nothing here is irreplaceable -- apply.sh rewrites it from the host's
-      # decrypted secret on every run.
+      # Environment files the host renders in from its own sops secrets. No
+      # `snapshots` block, and the omission is the point: a copy of a live API
+      # token is a liability, and nothing here is irreplaceable -- apply.sh
+      # rewrites it from the host's decrypted secret on every run. Deliberately
+      # left unscheduled rather than excluded by a list somewhere, so the reason
+      # lives with the volume it applies to.
       pool = "persistent";
       name = "caddy-secrets";
       description = "Host-rendered EnvironmentFiles; the only secret this instance ever sees";

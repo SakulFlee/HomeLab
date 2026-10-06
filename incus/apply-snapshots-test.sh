@@ -1,0 +1,382 @@
+#!/usr/bin/env bash
+# Tests for the snapshot policy in ensure_volumes (incus/apply.sh).
+# Run it: ./incus/apply-snapshots-test.sh
+#
+# Pure bash against a stubbed `incus`, so it needs no Incus, no Nix and no root,
+# and cannot touch a real volume.
+#
+# What is under test is the declarative half of the rollback layer. The schedule
+# lives in the volume's own entry in nixos/incus-instances.nix rather than in a
+# list somewhere, so that when Minecraft finishes moving out of k3s its volume
+# entry carries its own snapshot policy and there is nothing global to remember
+# to update.
+#
+# Two things this suite exists to prevent, both of which are silent:
+#
+#   * A reconciler that writes on every pass. incus-reconcile.timer runs --all
+#     every fifteen minutes, so "write the value whether or not it is right"
+#     turns one setting into 96 API writes a day, forever, on a timer whose whole
+#     purpose is that a quiet run means nothing changed. Section 4 is the test
+#     for that, and it is the one most likely to be traded away later.
+#
+#   * A reconciler that only ever writes what the spec says and never removes
+#     what it stops saying. Dropping `snapshots` from a volume entry has to
+#     mean "stop snapshotting this volume", or a schedule set by hand outlives
+#     the declaration that justified it and the operator has no way back to
+#     "unscheduled" except by editing Incus directly. Section 5.
+#
+# The stub models Incus's config merge rather than replacing the config object:
+# a PATCH carrying one key must leave every other key alone. A stub that
+# overwrote .config wholesale would pass section 6 while the real API -- which
+# merges -- was doing something the test never exercised.
+set -uo pipefail
+
+APPLY=${APPLY:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/apply.sh}
+[[ -f $APPLY ]] || { echo "FATAL: $APPLY not found"; exit 99; }
+
+WORK=$(mktemp -d)
+trap 'rm -rf "$WORK"' EXIT
+mkdir -p "$WORK/bin"
+
+fails=0
+check() {
+  local what=$1 want=$2 got=$3
+  if [[ $want == "$got" ]]; then
+    printf '  ok   %s\n' "$what"
+  else
+    printf '  FAIL %s\n       want: %s\n       got:  %s\n' "$what" "$want" "$got"
+    fails=$((fails + 1))
+  fi
+}
+
+# --- extract just the function -----------------------------------------------
+START=$(grep -n '^ensure_volumes()' "$APPLY" | cut -d: -f1)
+# The comment that introduces apply_limits, which is the next thing after the
+# function. Anchoring on the function name alone would work until someone adds
+# a helper above it, and then the extraction would silently include whatever
+# came in between -- a failure that reads as the reconciler being broken.
+END=$(grep -n '^# Incus sets limits.instances itself' "$APPLY" | cut -d: -f1)
+[[ -n $START && -n $END && $START -lt $END ]] \
+  || { echo "FATAL: could not locate the ensure_volumes block in apply.sh"; exit 99; }
+sed -n "${START},$((END - 1))p" "$APPLY" >"$WORK/block.sh"
+grep -q '^ensure_volumes()' "$WORK/block.sh" \
+  || { echo "FATAL: ensure_volumes not in the extracted block"; exit 99; }
+
+# --- the incus stub ----------------------------------------------------------
+# A volume is one JSON file under $STATE, named <pool>__<volume>. That makes the
+# fixture the volume, so "did it set the right key" is answered by reading the
+# volume rather than by parsing a log.
+cat >"$WORK/bin/incus" <<'STUB'
+#!/usr/bin/env bash
+set -uo pipefail
+printf 'incus %s\n' "$*" >>"$CALLLOG"
+
+state_file() { printf '%s/%s__%s.json' "$STATE" "$1" "$2"; }
+
+# /1.0/storage-pools/<pool>/volumes/custom/<name>[?project=<p>]  ->  pool name
+parse_url() {
+  local url=$1 rest
+  rest=${url#/1.0/storage-pools/}
+  rest=${rest%%\?*}
+  printf '%s %s\n' "${rest%%/*}" "${rest##*/volumes/custom/}"
+}
+
+args=()
+if [[ ${1-} == storage ]]; then
+  # incus_run passes --project first when PROJECT is set; the test leaves it
+  # empty, so both forms still have to be tolerated.
+  shift
+  prev=""
+  for a in "$@"; do
+    [[ $prev == --project ]] && { prev=""; continue; }
+    prev=""
+    [[ $a == --project ]] && { prev=--project; continue; }
+    args+=("$a")
+  done
+  case "${args[*]:0:2}" in
+    "volume show")
+      f=$(state_file "${args[2]}" "${args[3]}")
+      [[ -f $f ]] || { printf 'Error: Volume not found\n' >&2; exit 1; }
+      printf '{"name":"%s","type":"custom"}\n' "${args[3]}"
+      ;;
+    "volume create")
+      f=$(state_file "${args[2]}" "${args[3]}")
+      printf '{"description":"","config":{}}\n' >"$f"
+      ;;
+  esac
+  exit 0
+fi
+
+if [[ ${1-} == query ]]; then
+  shift
+  method=GET; data=""; url=""
+  while [[ $# -gt 0 ]]; do
+    case $1 in
+      -X) method=$2; shift 2 ;;
+      -d) data=$2;  shift 2 ;;
+      *)  url=$1;   shift ;;
+    esac
+  done
+  read -r pool vol < <(parse_url "$url")
+  f=$(state_file "$pool" "$vol")
+  [[ -f $f ]] || { printf 'Error: not found\n' >&2; exit 1; }
+  if [[ $method == PATCH ]]; then
+    # Incus merges config keys; a PATCH carrying one key must not drop the
+    # others. Modelling this as a wholesale replace would make section 6 pass
+    # for a reason the real API does not share.
+    jq -s --argjson body "$data" '
+      .[0] as $cur
+      | {description: ($body.description // $cur.description // ""),
+         config: (($cur.config // {}) * ($body.config // {}))}
+    ' "$f" >"$f.tmp" && mv "$f.tmp" "$f"
+    # Silent. The real client echoes the updated object back, which would drop
+    # a JSON blob into the middle of every run and bury the check lines. Nothing
+    # here captures a PATCH response, so nothing is lost by not printing one.
+    exit 0
+  fi
+  cat "$f"
+  exit 0
+fi
+exit 0
+STUB
+chmod +x "$WORK/bin/incus"
+
+export CALLLOG=$WORK/calls
+export STATE=$WORK/volumes
+# The stub has to win PATH resolution. Without this the REAL incus is called and
+# the suite answers every check while having exercised nothing -- which looks
+# exactly like the function working.
+export PATH="$WORK/bin:$PATH"
+
+# --- helpers the extracted block expects but does not define -----------------
+incus_run() { incus "$@"; }
+incus_api() { log "incus query $*"; incus query "$@"; }
+log()  { printf '%-9s %s\n' "${TAG:-test}" "$*" >&2; }
+step() { printf '%-9s == %s\n' "${TAG:-test}" "$*" >&2; }
+warn() { printf '%-9s WARN: %s\n' "${TAG:-test}" "$*" >&2; }
+die()  { printf '%-9s ERROR: %s\n' "${TAG:-test}" "$*" >&2; exit 1; }
+project_qs() { [[ -n $PROJECT ]] && printf '?project=%s' "$PROJECT" || printf ''; }
+
+# The globals apply.sh sets before anything is called. Under `set -u` an unset
+# one is an unbound-variable abort the moment the function reaches it, which
+# reads as the function being broken rather than as a missing fixture.
+PROJECT=""
+
+# CHECK_ONLY is deliberately NOT set. apply.sh only ever calls ensure_volumes
+# after its `--check` early return, so the function cannot be reached with it
+# set, and declaring it here would assert a guarantee about the caller that this
+# suite does not test. `ensure_volumes` having no --check path is therefore not
+# something these checks cover -- if it ever grew one, nothing here would notice.
+# shellcheck disable=SC2034
+CHECK_ONLY=0
+
+# shellcheck disable=SC1090
+source "$WORK/block.sh"
+
+reset() {
+  rm -rf "$STATE"; mkdir -p "$STATE"
+  : >"$CALLLOG"
+}
+
+# put <pool> <volume> <description> <config-json>
+put() {
+  jq -n --arg d "$3" --argjson c "$4" \
+    '{description: $d, config: $c}' >"$STATE/$1__$2.json"
+}
+
+got() { jq -r --arg k "$2" '.config[$k] // ""' "$STATE/$1__$3.json"; }
+got_desc() { jq -r '.description // ""' "$STATE/$1__$2.json"; }
+
+SPEC_F='{"volumes":[{"pool":"backup","name":"forgejo-data","description":"Everything Forgejo stores","snapshots":{"schedule":"@daily","expiry":"7d"}}]}'
+
+# =============================================================================
+echo "== 1. a declared schedule is set on the volume =="
+# THE failing check. Before ensure_volumes read `snapshots`, this volume existed
+# with a schedule in the spec and nothing on it, and every check in this suite
+# below would have had nothing to run against.
+reset
+put backup forgejo-data "" '{}'
+ensure_volumes forgejo "$SPEC_F" container
+check "snapshots.schedule is set" "@daily" "$(got backup snapshots.schedule forgejo-data)"
+check "snapshots.expiry is set" "7d" "$(got backup snapshots.expiry forgejo-data)"
+check "and it was reached by API PATCH, not the CLI" "1" \
+  "$(grep -c '^incus query -X PATCH -d .*snapshots.schedule' "$CALLLOG")"
+
+# =============================================================================
+echo "== 2. a schedule someone changed by hand is put back =="
+# The two-way bite. Checking only that the reconciler can SET the value passes
+# against a function that sets it once and never looks again -- which is what
+# breaks the day someone runs `incus storage volume set` by hand, or the value
+# is reset by a rebuild.
+reset
+put backup forgejo-data "" '{"snapshots.schedule":"@monthly","snapshots.expiry":"30d"}'
+ensure_volumes forgejo "$SPEC_F" container
+check "the clobbered schedule is restored" "@daily" "$(got backup snapshots.schedule forgejo-data)"
+check "and so is the expiry" "7d" "$(got backup snapshots.expiry forgejo-data)"
+
+# =============================================================================
+echo "== 3. a volume with no policy declared is never written to =="
+# Opt-in. forgejo-runner-data holds a runner token and a cache: a snapshot of it
+# is worthless, and the reason it is not scheduled is that its entry in
+# incus-instances.nix says nothing. An implementation that defaulted to
+# @daily would schedule it anyway, and would do so silently.
+reset
+put default forgejo-runner-data "" '{}'
+ensure_volumes forgejo \
+  '{"volumes":[{"pool":"default","name":"forgejo-runner-data","description":"token"}]}' container
+check "no schedule was invented" "" "$(got default snapshots.schedule forgejo-runner-data)"
+check "and no snapshot config was written at all" "0" \
+  "$(grep -c 'snapshots' "$CALLLOG")"
+check "the description still reconciled" "1" \
+  "$(grep -c '^incus query -X PATCH -d {"description":"token"}' "$CALLLOG")"
+
+# =============================================================================
+echo "== 4. an already-correct volume is not written to =="
+# incus-reconcile.timer runs --all every fifteen minutes. A reconciler that
+# PATCHes unconditionally turns one setting into 96 writes a day, and the
+# fifteen-minute silence that means "nothing changed" stops meaning anything.
+reset
+put backup forgejo-data "Everything Forgejo stores" \
+  '{"snapshots.schedule":"@daily","snapshots.expiry":"7d"}'
+ensure_volumes forgejo "$SPEC_F" container
+check "no PATCH at all" "0" "$(grep -c '^incus query -X PATCH' "$CALLLOG")"
+check "it still asked what the volume says" "1" \
+  "$(grep -c '^incus query /1.0/storage-pools/backup/volumes/custom/forgejo-data$' "$CALLLOG")"
+
+# =============================================================================
+echo "== 5. dropping the policy from the spec clears it =="
+# Removing `snapshots` from the entry has to mean "stop snapshotting". Without
+# this, the only way back to unscheduled is editing Incus by hand, and a
+# schedule set once by mistake is permanent.
+reset
+put backup forgejo-data "" '{"snapshots.schedule":"@daily","snapshots.expiry":"7d"}'
+# Output captured rather than read from CALLLOG: `step` is apply.sh's logging
+# helper and writes to stderr, so grepping the call log finds nothing and the
+# check would fail for want of plumbing rather than for want of a message.
+out=$(ensure_volumes forgejo \
+  '{"volumes":[{"pool":"backup","name":"forgejo-data","description":""}]}' container 2>&1); rc=$?
+check "the function still returns 0" "0" "$rc"
+check "the schedule is gone" "" "$(got backup snapshots.schedule forgejo-data)"
+check "and the expiry with it" "" "$(got backup snapshots.expiry forgejo-data)"
+# Counted as "at least one", not "exactly one": `step` announces the change and
+# incus_api's log line carries the same key, so two matching lines is the
+# correct result. Pinning the count to 1 would make this check fail the day the
+# log line format changes, which is not the failure being guarded against.
+check "the removal is reported, not silent" "yes" \
+  "$([[ $(grep -ci 'snapshots.schedule' <<<"$out") -ge 1 ]] && echo yes || echo no)"
+check "and it says which way it went" "1" "$(grep -ci '@daily -> unset' <<<"$out")"
+
+# =============================================================================
+echo "== 6. only the two keys we own are touched =="
+# snapshots.expiry.manual is Incus's separate knob for operator-taken
+# snapshots. It is not declared here, so it must survive a reconcile untouched --
+# which also proves the stub's config merge behaves like the real API's.
+reset
+put backup forgejo-data "" \
+  '{"snapshots.expiry.manual":"30d","volatile.uuid":"abc-123","user.foo":"keep me"}'
+ensure_volumes forgejo "$SPEC_F" container
+check "expiry.manual survives" "30d" "$(got backup snapshots.expiry.manual forgejo-data)"
+check "an unrelated config key survives" "keep me" "$(got backup user.foo forgejo-data)"
+check "and the declared pair is set anyway" "@daily" "$(got backup snapshots.schedule forgejo-data)"
+
+# =============================================================================
+echo "== 7. a volume created in this same pass gets its policy =="
+# New volumes are created by this function, so if the policy were only applied
+# to volumes that already existed, every newly migrated service would start out
+# unscheduled and stay that way until something noticed.
+reset
+ensure_volumes forgejo "$SPEC_F" container
+check "the volume was created" "1" \
+  "$(grep -c '^incus storage volume create backup forgejo-data' "$CALLLOG")"
+check "and the schedule applied in the same pass" "@daily" \
+  "$(got backup snapshots.schedule forgejo-data)"
+
+# =============================================================================
+echo "== 8. the policy is written in the volume's own project =="
+# Volumes are project-scoped and `incus query` does NOT translate --project
+# onto the URL. Omitting it 404s for forgejo-data, `current` comes back empty,
+# and every pass re-PATCHes a value that is already right -- the exact
+# fifteen-minute write storm section 4 is about, arriving for a different
+# reason.
+reset
+PROJECT=forgejo
+put backup forgejo-data "" '{}'
+ensure_volumes forgejo "$SPEC_F" container
+# Both keys change here, so this counts PATCHes rather than expecting one.
+# Asserted as "every PATCH carries it" rather than "a PATCH carries it",
+# because the failure is a write against the wrong project's volume -- and a
+# PATCH that omits the project does not error, it silently lands in default.
+total=$(grep -c '^incus query -X PATCH' "$CALLLOG")
+scoped=$(grep -c '^incus query -X PATCH -d .*forgejo-data?project=forgejo$' "$CALLLOG")
+check "every PATCH carried the project" "$total" "$scoped"
+check "and there was something to check" "1" "$([[ $total -gt 0 ]] && echo 1 || echo 0)"
+PROJECT=""
+
+# =============================================================================
+echo "== 9. the description still reconciles, and is not regressed by any of it =="
+reset
+put backup forgejo-data "stale description" '{}'
+ensure_volumes forgejo "$SPEC_F" container
+check "the description is corrected" "Everything Forgejo stores" \
+  "$(got_desc backup forgejo-data)"
+check "and the snapshot policy with it" "7d" "$(got backup snapshots.expiry forgejo-data)"
+
+# =============================================================================
+echo "== 10. a malformed expiry is refused, not written =="
+# Incus documents snapshots.expiry as an expression like `1M 2H 3d 4w 5m 6y`
+# and states plainly: "Each unit may only be specified once." So `7d 30d` is not
+# a duration, it is the same unit twice.
+#
+# Why refuse it here rather than let the API do it: expiry is the one setting
+# that decides how long a rollback stays available, and its failure mode is
+# space, not alarm. A value nobody can parse is a value whose retention nobody
+# can predict, and the plan is meant to keep seven days.
+SPEC_BAD='{"volumes":[{"pool":"backup","name":"forgejo-data","description":"","snapshots":{"schedule":"@daily","expiry":"7d 30d"}}]}'
+reset
+put backup forgejo-data "" '{}'
+out=$(ensure_volumes forgejo "$SPEC_BAD" container 2>&1); rc=$?
+# rc read on the same line as the call. Reading $? on the line AFTER an
+# assignment reports whatever ran in between, so the function's own exit status
+# would never be observed at all.
+check "it fails rather than guessing" "1" "$rc"
+check "and says which volume" "1" "$(grep -c 'forgejo-data' <<<"$out")"
+check "the offending value is quoted back" "1" "$(grep -c '7d 30d' <<<"$out")"
+check "nothing was written" "" "$(got backup snapshots.expiry forgejo-data)"
+
+# =============================================================================
+echo "== 11. a multi-unit, spaced expiry is accepted =="
+# The counter-test, and the more important half of section 10. Incus's own
+# documented form is `1M 2H 3d 4w 5m 6y` -- several units, separated by
+# spaces. A validator that rejects whitespace to catch a repeated unit is
+# rejecting valid Incus syntax, and would stop anyone from ever writing the
+# expression the documentation shows them.
+reset
+put backup forgejo-data "" '{}'
+ensure_volumes forgejo \
+  '{"volumes":[{"pool":"backup","name":"forgejo-data","description":"","snapshots":{"schedule":"@daily","expiry":"1M 2H 3d"}}]}' \
+  container
+check "the documented form is stored verbatim" "1M 2H 3d" \
+  "$(got backup snapshots.expiry forgejo-data)"
+
+# =============================================================================
+echo "== 12. a cron schedule and an alias list both pass through =="
+# Deliberately NOT validated. Incus parses the cron expression itself and knows
+# its own alias set, so a validator here would be a second, frozen copy of those
+# rules -- and the way it would fail is by rejecting a value Incus accepts, once
+# Incus grows an alias. The only thing checked is that a cron expression comes
+# through byte for byte.
+reset
+put backup forgejo-data "" '{}'
+ensure_volumes forgejo \
+  '{"volumes":[{"pool":"backup","name":"forgejo-data","description":"","snapshots":{"schedule":"0 6 * * *","expiry":"7d"}}]}' \
+  container
+check "the cron expression is stored verbatim" "0 6 * * *" \
+  "$(got backup snapshots.schedule forgejo-data)"
+
+echo
+if [[ $fails -eq 0 ]]; then
+  echo "all checks passed"
+else
+  echo "$fails check(s) FAILED"
+fi
+exit $((fails > 0))

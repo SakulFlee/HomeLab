@@ -73,21 +73,56 @@ in
       # On `backup` rather than `persistent`: that pool name is a convention, not
       # a mechanism (see hosts/homelab/services/incus.nix), and if it is ever
       # backed up at all this is the volume that matters.
+      #
+      # The snapshot below is what that convention now actually means. `backup`
+      # only ever named an intent; nothing acted on it until the schedule was
+      # written here, where the volume's own entry declares how it is rolled
+      # back. See nixos/incus-instances.nix for why it lives here rather than in
+      # a list.
       pool = "backup";
       name = "forgejo-data";
       description = "Everything Forgejo stores: repos, LFS, attachments, packages, avatars";
+
+      # @daily, 7d.
+      #
+      # Not hourly: git objects are immutable once written, so the hourly
+      # snapshots restic used to take of this volume were near-identical
+      # snapshots of a directory that only changed when someone pushed. Daily
+      # matches how this data actually changes and costs an eighth as much.
+      #
+      # Not 30d: the rollback target for a bad push is the state a few hours
+      # ago, and Forgejo's repositories are also replicated by Syncthing -- so
+      # the long tail here is duplicating a copy that exists elsewhere rather
+      # than protecting something unique. Raise it if that stops being true.
+      snapshots = {
+        schedule = "@daily";
+        expiry = "7d";
+      };
     }
     {
       # Separate from the above because it is a mount for a running database, not
       # a data directory, and because it has a different lifecycle: this one is
-      # worthless if torn, and a pg_dump is the authoritative artefact.
+      # worthless if torn.
       #
-      # Deliberately NOT restic'd. A live PGDATA copied mid-write is a corrupt
-      # PGDATA directory, which is worse than none -- so the argument against
-      # backing it up was never that a copy does harm, only that a copy must
-      # never be the thing you restore from. Worth being precise about, because
-      # the earlier version of this comment conflated the two and used the first
-      # claim to justify the second.
+      # The earlier comment here said "Deliberately NOT restic'd... restore from
+      # pg_dump, never from a file copy", and argued that a live PGDATA copied
+      # mid-write is a corrupt PGDATA directory. The conclusion was right and the
+      # premise was wrong, because Incus snapshots are not a file copy: the
+      # snapshot is a btrfs subvolume sharing every extents with the live volume
+      # and differing only in the blocks written since. Nothing is walked,
+      # nothing is read while the database is running, and the WAL is captured in
+      # the same instant as the data pages it describes -- so the snapshot is
+      # crash-consistent, which is the guarantee a PGDATA copy taken while
+      # postgres is up can never give. Crash-consistent is not the same as clean,
+      # and the restored database will run recovery on start, but it is a real
+      # PGDATA directory rather than a torn one.
+      #
+      # There is still no pg_dump here. That is a separate decision about what a
+      # *logical* backup is for, and it is not this file's to make: a dump cannot
+      # restore the instance if the host is gone, and a snapshot cannot be
+      # restored onto a different PostgreSQL major version or inspected without
+      # booting it. The snapshot is the rollback layer; if a dump is ever wanted
+      # it belongs beside it, not instead of it.
       #
       # This path and services.postgresql.dataDir are the same string on purpose.
       # The module's default dataDir is /var/lib/postgresql/<major>, so a volume
@@ -96,7 +131,19 @@ in
       # disk. Changing one without the other puts it back.
       pool = "persistent";
       name = "forgejo-postgres";
-      description = "PostgreSQL PGDATA -- restore from pg_dump, never from a file copy";
+      description = "PostgreSQL PGDATA -- live mount for the database, snapshot for rollback";
+
+      # Snapshots, declared on the volume rather than in a list with the rest of
+      # the backup settings, so that a service carries its own rollback policy
+      # into Incus when it moves out of k3s. See nixos/incus-instances.nix.
+      #
+      # 7d, not 30d: this is rollback for a mistake made an hour ago, and a
+      # PGDATA volume that cannot be rolled back to last week is not obviously
+      # more valuable than one that costs a seventh of the space.
+      snapshots = {
+        schedule = "@daily";
+        expiry = "7d";
+      };
     }
   ];
 

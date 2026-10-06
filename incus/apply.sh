@@ -914,6 +914,8 @@ instance_json() {
 ensure_volumes() {
   local name=$1 spec=$2 kind=$3 volume pool volume_name description current
   local vtype
+  local schedule expiry compact units distinct
+  local volume_url volume_json current_schedule current_expiry
   local -a volumes
 
   # mapfile then for, never `while read ... done < <(jq)`. The while-read form
@@ -973,6 +975,80 @@ ensure_volumes() {
       incus_run storage volume create "$pool" "$volume_name" --type "$vtype"
     fi
 
+    # Snapshot policy, declared per volume in the volume's OWN entry rather than
+    # in a list somewhere with the rest of the backup settings. That placement
+    # is the reason this is worth reconciling at all: when Minecraft finishes
+    # moving out of k3s, its volume entry carries its own policy and there is no
+    # global list anyone has to remember to update.
+    #
+    # Omitting the key means never scheduled, which is what keeps
+    # forgejo-runner-data -- a runner token and a cache -- out of it without a
+    # special case anywhere.
+    #
+    #   snapshots.schedule  a cron expression, a comma-separated list of Incus
+    #                       aliases (@hourly @daily @midnight @weekly @monthly
+    #                       ...), or empty to disable automatic snapshots
+    #   snapshots.expiry    one duration expression, stamped onto each snapshot
+    #                       as it is taken
+    #
+    # Neither is retroactive: expiry is added to the time of the NEXT snapshot,
+    # so snapshots that already exist keep the date they were given.
+    schedule=$(jq -r '.snapshots.schedule // empty' <<<"$volume")
+    expiry=$(jq -r '.snapshots.expiry // empty' <<<"$volume")
+
+    # expiry is validated here and nowhere else, because Incus documents its
+    # grammar completely: an expression like `1M 2H 3d 4w 5m 6y`, with the note
+    # "Each unit may only be specified once." That makes it a closed set --
+    # S seconds, M minutes, H hours, d days, w weeks, m months, y years.
+    #
+    # Worth catching because expiry is the one setting that decides how long a
+    # rollback stays available, and a value nobody can parse is a value whose
+    # retention nobody can predict. Checked BEFORE anything is written, so a bad
+    # value cannot leave a volume half-applied.
+    #
+    # `infinite` is passed through rather than refused. Whether Incus honours it
+    # is not established here, and a validator that rejects a value the API
+    # would have accepted fails in the direction that blocks an operator for no
+    # gain; an unrecognised value is Incus's to reject, loudly, on the spot.
+    #
+    # schedule is deliberately NOT validated. Incus parses the cron expression
+    # itself and owns the alias list, so any copy of those rules here is a
+    # second, frozen one -- and it would break by refusing a value Incus
+    # accepts, the day Incus grows an alias.
+    if [[ -n $expiry && $expiry != infinite ]]; then
+      compact=${expiry//[[:space:]]/}
+      units=${compact//[0-9]/}
+      [[ $compact =~ ^([0-9]+[SMHdwmy])+$ ]] \
+        || die "$name's volume $volume_name has snapshots.expiry '$expiry', which is not a duration expression (want something like 7d, or 1M 2H 3d)"
+      distinct=$(printf '%s' "$units" | fold -w1 | sort -u | wc -l)
+      [[ $distinct -eq ${#units} ]] \
+        || die "$name's volume $volume_name repeats a unit in snapshots.expiry '$expiry'; each of S M H d w m y may be given at most once"
+    fi
+
+    # One API read for all three fields. Read via the API, not `incus storage
+    # volume show`: that prints YAML, and piping it to jq dies with
+    #   jq: parse error: Invalid numeric literal at line 1, column 7
+    # `custom` for every volume here, whatever its content type. See the note
+    # above: `block` is a content type and `/volumes/block/` is not a route.
+    #
+    # $(project_qs), because `incus query` does not translate --project onto
+    # the URL. Without it this 404s for a project-scoped volume and `current`
+    # comes back empty, so every field below is re-PATCHed on every single run
+    # -- a write on every sweep of the fifteen-minute timer, for values that are
+    # already correct.
+    volume_url="/1.0/storage-pools/$pool/volumes/custom/$volume_name$(project_qs)"
+    #
+    # Unconditional. An earlier version of this skipped the read whenever the
+    # spec declared nothing to set, on the reasoning that there was then nothing
+    # to compare -- which is exactly backwards: a spec that says nothing is the
+    # case where the volume may carry a schedule that has to be CLEARED. It read
+    # as "current is unset, desired is unset, they agree", and the volume could
+    # never be un-snapshotted by editing the repository, which is the only way
+    # an operator has to remove one. Found by section 5 of
+    # incus/apply-snapshots-test.sh, which exists for the clearing case and
+    # nothing else.
+    volume_json=$(incus query "$volume_url")
+
     # Description is reconciled, not just set on creation. Two reasons: a
     # volume predating this code keeps whatever it had, and `incus storage
     # volume list` is where someone reads "never file-back-up, pg_dump only"
@@ -983,25 +1059,34 @@ ensure_volumes() {
     # rejects it with
     #   Error: Invalid option for volume "..." option "description"
     # The API path needs the volume type segment; the bare form 404s.
-    if [[ -n $description ]]; then
-      # Read via the API, not `incus storage volume show`: that prints YAML,
-      # and piping it to jq dies with
-      #   jq: parse error: Invalid numeric literal at line 1, column 7
-      # `custom` for every volume here, whatever its content type. See the note
-      # above: `block` is a content type and `/volumes/block/` is not a route.
-      #
-      # $(project_qs), because `incus query` does not translate --project onto
-      # the URL. Without it this 404s for a project-scoped volume and
-      # `current` comes back empty, so the description is re-PATCHed on every
-      # single run -- a write on every sweep of the fifteen-minute timer, for
-      # a value that is already correct.
-      current=$(incus query "/1.0/storage-pools/$pool/volumes/custom/$volume_name$(project_qs)" \
-        | jq -r '.description // ""')
-      if [[ $current != "$description" ]]; then
-        incus_api -X PATCH \
-          -d "$(jq -cn --arg d "$description" '{description: $d}')" \
-          "/1.0/storage-pools/$pool/volumes/custom/$volume_name$(project_qs)"
-      fi
+    current=$(jq -r '.description // ""' <<<"$volume_json")
+    if [[ -n $description && $current != "$description" ]]; then
+      incus_api -X PATCH \
+        -d "$(jq -cn --arg d "$description" '{description: $d}')" \
+        "$volume_url"
+    fi
+
+    # Reconciled in both directions, including to empty. Dropping `snapshots`
+    # from a volume entry is how a volume stops being snapshotted, and a value
+    # set once by hand would otherwise outlive the declaration that justified
+    # it, with no route back to "unscheduled" except editing Incus directly.
+    # apply_limits already clears a key the spec omits; this is the same
+    # contract. It is announced rather than silent because this is the one
+    # cleared field where the cost is disk rather than memory.
+    current_schedule=$(jq -r '.config["snapshots.schedule"] // ""' <<<"$volume_json")
+    if [[ $schedule != "$current_schedule" ]]; then
+      step "$volume_name: snapshots.schedule ${current_schedule:-unset} -> ${schedule:-unset}"
+      incus_api -X PATCH \
+        -d "$(jq -cn --arg s "$schedule" '{config: {"snapshots.schedule": $s}}')" \
+        "$volume_url"
+    fi
+
+    current_expiry=$(jq -r '.config["snapshots.expiry"] // ""' <<<"$volume_json")
+    if [[ $expiry != "$current_expiry" ]]; then
+      step "$volume_name: snapshots.expiry ${current_expiry:-unset} -> ${expiry:-unset}"
+      incus_api -X PATCH \
+        -d "$(jq -cn --arg e "$expiry" '{config: {"snapshots.expiry": $e}}')" \
+        "$volume_url"
     fi
   done
 }

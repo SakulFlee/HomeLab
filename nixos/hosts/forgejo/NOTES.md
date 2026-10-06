@@ -253,7 +253,82 @@ running `update-server-info` as `git` with and without read access.
 
 ---
 
+## Rollback, and what it is not
+
+Both data volumes carry a snapshot policy in `incus.nix`:
+
+| volume | pool | schedule | expiry |
+| --- | --- | --- | --- |
+| `forgejo-data` | `backup` | `@daily` | `7d` |
+| `forgejo-postgres` | `persistent` | `@daily` | `7d` |
+
+It lives on the volume's own entry rather than in a list with the other backup
+settings, because that is what makes it travel: when Minecraft finishes moving
+out of k3s, its volume entry declares its own policy and there is no global list
+to remember to update. Omit `snapshots` and the volume is simply never scheduled.
+
+`incus/apply.sh`'s `ensure_volumes` reconciles both keys in **both**
+directions — including clearing them, so removing `snapshots` from the entry is
+how a volume stops being snapshotted. That direction was the one that had a bug
+in it: the API read was originally skipped when the spec declared nothing to
+set, which is exactly backwards, because a spec that says nothing is the case
+where the volume may carry a schedule that has to be cleared. `forgejo-secrets`
+and `forgejo-runner-data` have no `snapshots` block and must stay unscheduled —
+a snapshot of a live API token or a runner cache is a liability, and both are
+rewritten from the host's own secrets on every reconcile anyway.
+
+### What a snapshot actually is
+
+An Incus snapshot on a btrfs pool is a subvolume that shares every extent with
+the live volume and differs only in the blocks written since. Nothing is walked,
+nothing is read while Forgejo is running, and the copy is instantaneous.
+
+That is what makes `forgejo-postgres` snapshottable at all, and it corrects an
+earlier comment in `incus.nix` that said the opposite. The old argument was that
+a live PGDATA copied mid-write is a corrupt PGDATA directory — true of a file
+copy, irrelevant to a snapshot. So the old conclusion was right for the wrong
+reason: **this is a rollback layer, not a substitute for `pg_dump`.**
+
+Crash-consistent is not clean. A restored `forgejo-postgres` runs WAL recovery
+on first start, which is what you want and is not free of risk. There is still
+no `pg_dump` in this repository, and that is a separate decision rather than an
+oversight: a dump cannot restore the instance if the host is lost, and a snapshot
+cannot be restored onto a different PostgreSQL major or read without booting it.
+If a dump is wanted it belongs *beside* the snapshot.
+
+### Verifying it, and the limit of that verification
+
+`./incus/apply-snapshots-test.sh` covers the reconciler against a stubbed `incus`
+— that the schedule is written, that a hand-edited value is put back, that an
+already-correct volume produces no write at all (the fifteen-minute timer makes
+that worth testing), that omitting the spec clears, and that `expiry` is
+validated.
+
+It cannot prove a snapshot is restorable, because a stub has no snapshots. Two
+things are needed for that, and only one is automatable:
+
+1. **A real restore, against `caddy-data`.** It is 360K, so
+   `incus storage volume snapshot restore` on it costs seconds and destroys
+   nothing. Do this once after deploying.
+2. **Presence and size on `forgejo-data`.** Its snapshot cannot be restored over
+   the running instance, so the check is a file count and total bytes against the
+   source subvolume. That is weaker than a restore, and it is the same weakness
+   that let 57 broken restic snapshots report as intact — `restic ls` walks trees
+   and cannot see a missing blob.
+
+One `7d` window, on one disk. The pool is on `/dev/sda1` and these snapshots
+share it, so an SSD failure takes the rollback points with the data. Replication
+is the answer and it does not exist yet; until it does, `forgejo-data` has a
+rollback point and no off-box copy.
+
 ## What still needs your attention
+
+**The snapshot policy has not been exercised on a live Incus.** The reconciler is
+tested against a stub and the Nix evaluates, but no snapshot has been taken on
+this host under the new schedule. `incus storage volume list` will show the
+schedule set and nothing more.
+
+**`forgejo-data` has no off-box copy.** See above.
 
 **k3s is still deployed** and still serving git on `:30022`. Nothing should depend
 on it now that `:22` works, but it has not been retired.
