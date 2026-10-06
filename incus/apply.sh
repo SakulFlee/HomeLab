@@ -1031,6 +1031,81 @@ apply_limits() {
   done
 }
 
+# The root disk of a VM, sized through the `root` disk device's own `size`
+# key -- `size` on `root` is what the Incus documentation points at for
+# resizing a `virtual-machine/*` volume.
+#
+# NOT `limits.disk.size`. That is a different key, it is rejected on a VM,
+# and its rejection is what makes this function look necessary at all.
+#
+# `root` arrives from a profile (the `default` one), and Incus refuses to
+# modify a profile device on a single instance:
+#
+#   Error: Device from profile(s) cannot be modified for individual instance.
+#   Override device or modify profile instead
+#
+# and the profile cannot carry the size, because `default` is shared with
+# every other instance on the host -- caddy, forgejo, wireguard would all
+# inherit a runner-sized disk. So the size goes on an instance-local OVERRIDE
+# of `root`, which copies the profile's device and adds our key to the copy.
+# Two commands, because the second only works once the first has run:
+#
+#   override  ->  Error: The device already exists   (if root is already local)
+#   set       ->  Error: ...cannot be modified...    (if root is still inherited)
+#
+# Neither is reconciled by sync_devices, which is correct: that diffs devices
+# and applies a change by remove-then-add, because a device's type cannot be
+# changed in place -- and doing that to `root` would destroy the instance's
+# root disk. Hence a field of its own in the spec and an in-place write here.
+# root is otherwise never touched by this script, and that invariant is
+# load-bearing (see the removal loop in sync_devices).
+#
+# A container's rootfs is a filesystem, not a disk, so `size` on its root
+# device means a storage quota rather than a bigger disk -- and a container
+# has no instance-local `root` to override. Nothing to do for one.
+#
+# Never cleared. Incus does not shrink a VM's root disk, so unsetting the key
+# would not hand any space back -- it would only make every subsequent run
+# report drift that no apply can resolve. Warn instead.
+apply_root_disk_size() {
+  local name=$1 spec=$2 kind=$3 want have has_root devices
+
+  [[ $kind == vm ]] || return 0
+
+  want=$(jq -r '.rootDiskSize // empty' <<<"$spec")
+
+  # One query for both facts. They have to agree with each other, and asking
+  # twice invites a torn read against an instance apply.sh may be recreating.
+  devices=$(instance_json "$name" | jq -c '.devices // {}')
+  have=$(jq -r '.root.size // empty' <<<"$devices")
+  has_root=$(jq -r '.root != null' <<<"$devices")
+
+  if [[ -z $want ]]; then
+    if [[ -n $have ]]; then
+      warn "rootDiskSize is unset but root.size is '$have'; Incus cannot shrink a VM root disk, leaving it"
+    fi
+    return 0
+  fi
+
+  if [[ $want == "$have" ]]; then
+    return 0
+  fi
+
+  step "setting root disk size = $want"
+  if [[ $has_root == true ]]; then
+    incus_run config device set "$name" root "size=$want"
+  else
+    # First time: root is still only in the profile, so it has to be
+    # overridden onto the instance before a key can be set on it.
+    incus_run config device override "$name" root "size=$want"
+  fi
+  # The guest grows its partition and filesystem at boot (autoResize,
+  # boot.growPartition), so the space is not visible to `df` until it
+  # restarts. Worth saying out loud: apply.sh reporting success here is
+  # not the same as the guest already having the room.
+  log "  guest claims the new size at next boot; no reboot from here"
+}
+
 # Render the host's secrets into the instance as EnvironmentFiles.
 #
 # This is the whole of an instance's access to a secret, and it is deliberately
@@ -2158,6 +2233,15 @@ report_existing_drift() {
     fi
   done
 
+  # Reported next to limits because it is the same kind of thing -- a number
+  # the instance is given rather than a cap it must stay under -- and it is
+  # the one that cannot be walked back once applied.
+  want_root=$(jq -r '.rootDiskSize // empty' <<<"$spec")
+  have_root=$(instance_field "$name" '.devices.root.size // empty')
+  if [[ -n $want_root && $want_root != "$have_root" ]]; then
+    log "  root disk size: have '${have_root:-Incus default}' want '$want_root' (grow only; the guest needs a restart to claim it)"
+  fi
+
   cur_dev=$(instance_json "$name" | jq -c '.devices // {}')
   want_dev=$(jq -c '.devices // {}' <<<"$spec")
   # mapfile then for, for the same reason as sync_devices.
@@ -2402,6 +2486,7 @@ apply_instance() {
 
   set_description "$name" "$spec"
   apply_limits "$name" "$spec"
+  apply_root_disk_size "$name" "$spec" "$kind"
   sync_devices "$name" "$spec" "$kind"
 
   if [[ $want_running == 1 ]]; then

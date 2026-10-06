@@ -13,7 +13,7 @@
 #
 # See incus.nix for the Incus half and ../../../incus/README.md for the
 # instance model (immutable image, disposable root disk, volumes).
-{ config, lib, pkgs, inputs, ... }:
+{ config, lib, pkgs, ... }:
 
 let
   # The VM's address on incusbr0. Set in the guest, not through Incus:
@@ -68,7 +68,7 @@ let
 in
 {
   # ---------------------------------------------------------------------
-  # The disk image
+  # The disk image: deliberately NOT enlarged here
   # ---------------------------------------------------------------------
   # The root disk has to hold three things at once: the NixOS closure
   # (/nix/store is NOT a separate filesystem here -- it is the same
@@ -84,39 +84,51 @@ in
   # so a workflow that does NOT pin its own image would fail to pull
   # with ENOSPC the moment a large CI image is also present.
   #
-  # 40G: the closure, several 5 GB CI images, and concurrent job
-  # layers, with room to spare. It is a cap on the qcow2's virtual size
-  # and costs nothing on the host while unused -- the file stays sparse.
+  # The answer is 40 GiB of root disk, and Incus is what applies it --
+  # see `rootDiskSize` in incus.nix, which incus/apply.sh turns into a
+  # `size` on the instance's `root` disk device. Not this file, for two
+  # measured reasons.
   #
-  # WHY AN OVERRIDE AND NOT `virtualisation.diskSize`, which looks like
-  # exactly the right knob and is not:
+  #   1. A bigger image does not survive its own build. The obvious knob
+  #      is make-disk-image.nix's `additionalSpace`, and it does build a
+  #      40 GiB image -- into a build that cannot finish. That function
+  #      assembles the image inside a VM from `pkgs.vmTools.runInLinuxVM`,
+  #      and the `vm-run` script it generates passes qemu no `-m` at all
+  #      (only `-smp`), so the VM gets qemu's built-in 128 MB default and
+  #      the guest sees 100 MB. make-disk-image.nix's own
+  #      `memSize ? 1024` is handed on as `inherit memSize` and then never
+  #      read by anything, so it is inert -- setting it changes nothing.
+  #      With `additionalSpace = "40G"` the guest dies with
   #
-  #   nixos/modules/virtualisation/disk-size-option.nix declares it as
-  #   `either (enum ["auto"]) ints.positive` -- an integer is valid --
-  #   but qemu-vm.nix only uses it for the disk of the VM it starts to
-  #   RUN a build in (DISK_SIZE_MB at line 140). The image itself comes
-  #   from incus-virtual-machine.nix, which calls make-disk-image.nix
-  #   directly and passes neither `diskSize` nor `additionalSpace`.
+  #        Out of memory and no killable processes...
+  #        Kernel panic - not syncing: System is deadlocked on memory
   #
-  # So the image inherits make-disk-image's defaults: diskSize "auto"
-  # (computed as requiredFilesystemSpace + additionalSpace) and
-  # `additionalSpace ? "512M"`. That 512 MB -- plus the closure -- is
-  # where the 10 GiB came from, and setting virtualisation.diskSize
-  # would change nothing at all while looking like it should.
+  #      which takes `cptofs` down with it, after which
+  #      make-disk-image.nix prints "ERROR: cptofs failed. diskSize might
+  #      be too small for closure." That string is emitted on *any*
+  #      cptofs failure (line 632); it is a guess, not a diagnosis, and
+  #      the disk was never too small. The same derivation at
+  #      make-disk-image's default `additionalSpace` ("512M", a 4.86 GiB
+  #      image) builds fine in that same 128 MB VM -- the closure fits
+  #      and a 45 GiB ext4's metadata does not.
   #
-  # mkForce, because incus-virtual-machine.nix already defines this
-  # attribute; two definitions of the same option is a conflict error.
-  # The call below is that module's verbatim, plus `additionalSpace`.
-  # If nixpkgs changes the arguments make-disk-image.nix takes, this
-  # breaks loudly at evaluation rather than quietly producing a
-  # differently-shaped image.
-  system.build.qemuImage = lib.mkForce (import "${inputs.nixpkgs}/nixos/lib/make-disk-image.nix" {
-    inherit pkgs lib config;
-    partitionTableType = "efi";
-    format = "qcow2-compressed";
-    copyChannel = config.system.installer.channel.enable;
-    additionalSpace = "40G";
-  });
+  #   2. A bigger image is redundant. incus-virtual-machine.nix already
+  #      sets `fileSystems."/".autoResize = true` and `boot.growPartition
+  #      = true`, so the guest grows its partition and filesystem to
+  #      fill whatever disk Incus hands it. The live instance is the
+  #      proof: a 4.86 GiB image, a 10 GiB disk from Incus, and a 9.7 GiB
+  #      `nixos` partition. A large ext4 baked into the image buys
+  #      nothing.
+  #
+  # `virtualisation.diskSize` is the knob that looks right and is not:
+  # disk-size-option.nix declares it as `either (enum ["auto"])
+  # ints.positive` -- an integer is valid -- but qemu-vm.nix uses it only
+  # for the disk of the VM it starts to RUN a build in (DISK_SIZE_MB),
+  # never for the image.
+  #
+  # So there is no override of `system.build.qemuImage` here at all.
+  # incus-virtual-machine.nix's own call stands; capacity is Incus's to
+  # grant, and the guest's job to claim.
 
   imports = [ ./disk.nix ];
 

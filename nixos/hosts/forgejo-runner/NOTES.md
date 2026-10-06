@@ -135,6 +135,16 @@ contents to the things that are actually state. The daily
 bounds the root disk's growth for the same reason the host runs a
 weekly `crictl` prune for k3s.
 
+The root disk is 40 GiB, and Incus is what grants it — see
+`rootDiskSize` in `incus.nix`. It is deliberately not baked into the
+image, because the image is assembled inside a 128 MB VM (qemu's
+default; `make-disk-image.nix` passes no `-m`) and a 45 GiB ext4's
+metadata does not fit in that, so the guest kernel panics before the
+build finishes. The guest grows its filesystem into whatever disk
+Incus gives it at boot, so a small image and a large disk are not in
+tension. Growing the disk renumbers the guest's virtio devices, which
+is why `disk.nix` identifies its volume by label.
+
 The volume is on `persistent`, which is **not** restic'd, for the
 same reason the caddy secrets volume is: `config.yaml` holds the
 runner token, and a backed-up copy of a live credential is a

@@ -78,6 +78,77 @@ in
     cpu = "4";
   };
 
+  # The root disk, sized. `limits.memory` and `limits.cpu` cap what the
+  # instance may use; this is how much it is *given*.
+  #
+  # 40 GiB, because the root disk has to hold the NixOS closure, the
+  # Docker image store and a running job's writable layer at once. On the
+  # first real job, with one 5.06 GB CI image pulled:
+  #
+  #   at rest    7.3 G used   1.9 G free   80%
+  #   in a job   8.8 G used   360 M free   97%
+  #
+  # 40 GiB is the closure, several 5 GB CI images, and concurrent job
+  # layers, with room to spare.
+  #
+  # WHY A FIELD HERE AND NOT A BIGGER IMAGE. The image could be built
+  # bigger -- make-disk-image.nix's `additionalSpace` does exactly that --
+  # but that build cannot finish: the image is assembled in a VM from
+  # `pkgs.vmTools.runInLinuxVM` whose `vm-run` script passes qemu no `-m`,
+  # so it gets qemu's 128 MB default and the guest sees 100 MB. A 45 GiB
+  # ext4's metadata does not fit in that, and the guest kernel panics
+  # ("deadlocked on memory") before cptofs finishes. full.nix explains
+  # this at length; the short version is that the image must stay small
+  # and the capacity has to come from here.
+  #
+  # It also would not be needed. incus-virtual-machine.nix sets
+  # `autoResize = true` and `boot.growPartition = true`, so the guest
+  # grows its partition and filesystem to fill whatever disk Incus gives
+  # it. The live instance shows it: a 4.86 GiB image, a 10 GiB disk, and
+  # a 9.7 GiB `nixos` partition. Incus decides the size; the guest claims
+  # it.
+  #
+  # `incus config set <vm> limits.disk.size` is NOT the way, and its
+  # rejection is what makes this field look necessary. Incus sizes a VM's
+  # root disk through the `root` disk device's own `size` key, which is what
+  # apply.sh sets; `limits.disk.*` is a different thing and the CLI rejects
+  # it on a VM.
+  #
+  # It is not in `devices`, and apply.sh does not reconcile it there on
+  # purpose: sync_devices reconciles by remove-then-add, because a device's
+  # type cannot be changed in place, and doing that to `root` would destroy
+  # the instance's root disk. It applies this with an in-place write instead.
+  #
+  # That write is an `override`, not a `set`, and the reason is worth keeping
+  # in mind: `root` is inherited from the `default` profile, and Incus refuses
+  # to modify a profile device on a single instance ("Override device or
+  # modify profile instead"). The profile cannot carry the size -- `default`
+  # is shared with caddy, forgejo and wireguard, which would all inherit a
+  # runner-sized disk. So apply.sh overrides `root` onto this instance alone.
+  # The consequence: from here this instance's root disk no longer follows
+  # the profile. If `default`'s root ever changes pool, this one will not.
+  #
+  # Verified on this host, both directions: the override is accepted while
+  # `root` is still inherited, a plain `set` is accepted afterwards, and
+  # repeating the override is refused ("The device already exists").
+  #
+  # Two consequences worth knowing before changing the number:
+  #
+  #   * Growing a VM's disk is one-way. Incus will not shrink a VM root
+  #     disk, so this only ever goes up. Lowering it here will not give
+  #     the space back.
+  #   * The guest needs a restart to claim a larger disk, because
+  #     `autoResize`/`growPartition` run at boot. Growing a running VM
+  #     therefore leaves the extra space invisible to `df` until the
+  #     next reboot.
+  #
+  # One more, observed rather than predicted: growing the disk renumbered
+  # the guest's virtio disks, so the root filesystem moved from `sda2` to
+  # `sdb2` and the data volume took over `sda`. disk.nix finds its disk by
+  # LABEL rather than by name precisely so that this is a non-event, and it
+  # was -- but it is why nothing in this guest may assume `sda`.
+  rootDiskSize = "40GiB";
+
   # The runner's writable state, on `persistent` and
   # deliberately NOT restic'd, for two reasons that are the same
   # reason stated twice:

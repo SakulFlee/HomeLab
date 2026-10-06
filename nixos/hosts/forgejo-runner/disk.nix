@@ -40,6 +40,12 @@ let
   # run, and the daemon died on `result 'dependency'`. The label and
   # the volume name being the same 19-character string is what made
   # that look structural rather than a one-character fix.
+  #
+  # Nor is a device NAME usable here. Growing the root disk (see
+  # `rootDiskSize` in incus.nix) renumbered the guest's virtio disks:
+  # the root filesystem went from sda2 to sdb2 and this volume took
+  # over sda, with no other change to the instance. A label survives
+  # that; `sdb` would not have.
   label = "forgejo-runner";
   dataDir = "/var/lib/forgejo-runner";
 in
