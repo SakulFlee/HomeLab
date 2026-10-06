@@ -1049,6 +1049,30 @@ ensure_volumes() {
     # nothing else.
     volume_json=$(incus query "$volume_url")
 
+    # Three fields, one read, one PATCH.
+    #
+    # One PATCH and not three is the fix, and the reason is an asymmetry in
+    # Incus's own handler (storage_volumes.go, storagePoolVolumePatch):
+    #
+    #   for k, v := range dbVolume.Config {
+    #     if _, ok := req.Config[k]; !ok { req.Config[k] = v }
+    #   }
+    #   err = pool.UpdateCustomVolume(..., req.Description, req.Config, op)
+    #
+    # Config is merged key by key -- the loop is right there. Description is not
+    # merged: it is assigned from the request body, and a body that omits the
+    # field decodes to Go's zero value, so whatever was there is overwritten
+    # with nothing.
+    #
+    # This block used to PATCH the description, then PATCH the schedule, then
+    # PATCH the expiry, in that order. Every one of those calls succeeded, and
+    # every pass ended with a blank description, which the following pass
+    # repaired from a path nobody was reading. That is why it shipped green:
+    # six volumes in a row, every volume declaring `snapshots` lost its
+    # description and every volume declaring none kept its own, and the suite
+    # modelled the handler as merging description when the handler assigns it.
+    # Section 13 of incus/apply-snapshots-test.sh is the test.
+    #
     # Description is reconciled, not just set on creation. Two reasons: a
     # volume predating this code keeps whatever it had, and `incus storage
     # volume list` is where someone reads "never file-back-up, pg_dump only"
@@ -1060,11 +1084,6 @@ ensure_volumes() {
     #   Error: Invalid option for volume "..." option "description"
     # The API path needs the volume type segment; the bare form 404s.
     current=$(jq -r '.description // ""' <<<"$volume_json")
-    if [[ -n $description && $current != "$description" ]]; then
-      incus_api -X PATCH \
-        -d "$(jq -cn --arg d "$description" '{description: $d}')" \
-        "$volume_url"
-    fi
 
     # Reconciled in both directions, including to empty. Dropping `snapshots`
     # from a volume entry is how a volume stops being snapshotted, and a value
@@ -1074,18 +1093,57 @@ ensure_volumes() {
     # contract. It is announced rather than silent because this is the one
     # cleared field where the cost is disk rather than memory.
     current_schedule=$(jq -r '.config["snapshots.schedule"] // ""' <<<"$volume_json")
-    if [[ $schedule != "$current_schedule" ]]; then
-      step "$volume_name: snapshots.schedule ${current_schedule:-unset} -> ${schedule:-unset}"
-      incus_api -X PATCH \
-        -d "$(jq -cn --arg s "$schedule" '{config: {"snapshots.schedule": $s}}')" \
-        "$volume_url"
+    current_expiry=$(jq -r '.config["snapshots.expiry"] // ""' <<<"$volume_json")
+
+    # The spec's description when the spec has one, the volume's own when it
+    # does not. That second half is what keeps this from becoming the
+    # mirror-image bug: an empty description in the spec means "no spec entry
+    # manages this", and "no spec entry manages this" must not be spelled
+    # "empty" in the body. caddy-secrets and wireguard-data each carry a
+    # description no entry in the flake mentions.
+    desired=$current
+    if [[ -n $description ]]; then
+      desired=$description
     fi
 
-    current_expiry=$(jq -r '.config["snapshots.expiry"] // ""' <<<"$volume_json")
+    # Announced before written, as the snapshot fields always were. The
+    # description was the silent one, and the silence is most of why this took
+    # a day to find.
+    desc_change=0
+    if [[ $desired != "$current" ]]; then
+      desc_change=1
+      step "$volume_name: description ${current:-unset} -> ${desired:-unset}"
+    fi
+    schedule_change=0
+    if [[ $schedule != "$current_schedule" ]]; then
+      schedule_change=1
+      step "$volume_name: snapshots.schedule ${current_schedule:-unset} -> ${schedule:-unset}"
+    fi
+    expiry_change=0
     if [[ $expiry != "$current_expiry" ]]; then
+      expiry_change=1
       step "$volume_name: snapshots.expiry ${current_expiry:-unset} -> ${expiry:-unset}"
+    fi
+
+    # Nothing changed, so nothing is written. incus-reconcile.timer runs this
+    # every fifteen minutes and a quiet sweep has to still mean something.
+    if (( desc_change || schedule_change || expiry_change )); then
+      # description is unconditional. The config keys appear only when they
+      # differ, which is what stops a volume with no policy declared from
+      # having an empty snapshots.expiry written onto it as an explicit clear
+      # -- and "unset" and "cleared" look identical in `incus storage volume
+      # list`, so that would be a write nobody could see and nobody asked for.
+      #
+      # `*` and not `+`: jq's `+` on two objects is a shallow merge, so the
+      # second {config: ...} would replace the first and quietly drop
+      # snapshots.schedule from the body. `*` is the recursive one.
       incus_api -X PATCH \
-        -d "$(jq -cn --arg e "$expiry" '{config: {"snapshots.expiry": $e}}')" \
+        -d "$(jq -cn \
+                --arg d "$desired" --arg s "$schedule" --arg e "$expiry" \
+                --arg sc "$schedule_change" --arg ec "$expiry_change" \
+              '{description: $d}
+               * (if $sc == "1" then {config: {"snapshots.schedule": $s}} else {} end)
+               * (if $ec == "1" then {config: {"snapshots.expiry": $e}} else {} end)')" \
         "$volume_url"
     fi
   done
