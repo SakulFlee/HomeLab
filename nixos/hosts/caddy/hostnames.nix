@@ -17,7 +17,6 @@
 [
   "sakul-flee.de"
   "www.sakul-flee.de"
-  "fluxer.sakul-flee.de"
   "grafana.sakul-flee.de"
   "hermes.sakul-flee.de"
   "hermes-dashboard.sakul-flee.de"

@@ -66,10 +66,6 @@ in
       tmp=$(mktemp ${fluxerDir}/.env.XXXXXX)
       cat > "$tmp" << 'EOF'
 FLUXER_DOMAIN=fluxer.sakul-flee.de
-# Pre-cutover testing serves browsers on fluxer-next while DOMAIN stays the
-# production name. Upstream: PUBLIC_ORIGIN wins over DOMAIN for every endpoint.
-# At cutover, point this at https://fluxer.sakul-flee.de instead.
-FLUXER_PUBLIC_ORIGIN=https://fluxer-next.sakul-flee.de
 FLUXER_PUBLIC_SCHEME=https
 FLUXER_PUBLIC_PORT=443
 FLUXER_CADDY_SITE_ADDRESS=fluxer.sakul-flee.de

@@ -305,14 +305,12 @@ in
         }
 
         # -------------------------------------------------------------------
-        # fluxer-next.sakul-flee.de -- pre-cutover test route to the Incus VM
-        #
-        # Points at the Fluxer Docker Compose stack's edge on 10.0.0.103:8080
-        # (proxy overlay, plain HTTP; TLS terminates here). fluxer.sakul-flee.de
-        # stays on still-traefik (k3s) until the cutover; rolling back is
-        # deleting this block. header_up Host is required: Fluxer compares Host
-        # against its configured domain exactly like Forgejo does.
-        fluxer-next.sakul-flee.de {
+        # fluxer.sakul-flee.de -- CUTOVER: now served by the Incus VM
+        # Same shape the fluxer-next test block had; fluxer-next is gone.
+        # Rolling back is putting the name back in hostnames.nix (still-traefik)
+        # and scaling the k3s deployment back up -- but VM-side writes after
+        # this point are lost on rollback.
+        fluxer.sakul-flee.de {
           reverse_proxy http://10.0.0.103:8080 {
             header_up Host {http.request.host}
           }
