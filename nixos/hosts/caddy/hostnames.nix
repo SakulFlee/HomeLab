@@ -45,6 +45,9 @@
 #                           Included in the split-horizon CoreDNS templates so a
 #                           VPN client resolves it to the host rather than to a
 #                           Cloudflare edge IP.
+#   ttyd.sakul-flee.de      Same shape: own site block in default.nix with the
+#                           VPN-only gate, proxying to ttyd on the host at
+#                           10.0.0.1:7681. Needs the same split-horizon entry.
 #   matrix.sakul-flee.de    Matrix needs the federation listener on :8448 and a
 #   matrix-well-known...    /.well-known on :443. Neither is routed through
 #                           Traefik's web entrypoint today, so there was

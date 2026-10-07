@@ -5,5 +5,6 @@
     ./k3s.nix
     ./incus.nix
     ./incus-instances.nix
+    ./ttyd.nix
   ];
 }

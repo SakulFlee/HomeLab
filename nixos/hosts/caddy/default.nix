@@ -275,6 +275,35 @@ in
             }
         }
 
+        # -------------------------------------------------------------------
+        # ttyd.sakul-flee.de -- host-side terminal, VPN only
+        # -------------------------------------------------------------------
+        # Same gate shape as incus.sakul-flee.de above: `remote_ip`, not
+        # `client_ip`, because the forward is DNAT and the source is
+        # unforgeable while X-Forwarded-For is not. Same /10 range, matching
+        # the WireGuard tunnel subnet and the Traefik vpn-only middleware.
+        #
+        # Plain http:// upstream: TLS terminates here and ttyd speaks plain
+        # HTTP on the host. 10.0.0.1 is the host on incusbr0, so this never
+        # matches the 192.168.178.200 forward and is loop-free by the same
+        # asymmetry as still-traefik. ttyd's own basic auth (host sops secret)
+        # is the second gate behind this one.
+        #
+        # A separate site block, NOT an entry in hostnames.nix: those all
+        # import still-traefik.
+        ttyd.sakul-flee.de {
+            tls {
+                dns cloudflare {env.CF_API_TOKEN}
+            }
+
+            @notvpn not remote_ip 100.64.0.0/10
+            respond @notvpn "The terminal is reachable over the VPN only.\n" 403
+
+            reverse_proxy http://10.0.0.1:7681 {
+                header_up Host {http.request.host}
+            }
+        }
+
         ${hostBlocks}
       ''} $out
       # cp from the store preserves mode 0444, which `caddy fmt --overwrite`
