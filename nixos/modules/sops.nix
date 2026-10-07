@@ -106,12 +106,6 @@
   sops.secrets.forgejo_runner_uuid = {};
   sops.secrets.forgejo_runner_token = {};
 
-  # ttyd basic-auth password for the host-side terminal (hosts/homelab/
-  # services/ttyd.nix). Host-only: the unit reads it via LoadCredential at
-  # every start, so unlike the wireguard-ui password this stays authoritative
-  # after rotation. Never rendered into a container.
-  sops.secrets.ttyd_password = {};
-
   # No sops.secrets for the wireguard VM's web UI, and that is a decision rather
   # than an omission.
   #

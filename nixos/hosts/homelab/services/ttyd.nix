@@ -9,12 +9,12 @@
 # plain HTTP on the bridge so the container can dial it at 10.0.0.1 without
 # touching the 192.168.178.200 DNAT.
 #
-# Basic auth stays on even behind the VPN gate: the gate checks the network,
-# this checks the caller. The password lives in sops (host-only, never rendered
-# into a container) and is read by the unit at every start via LoadCredential,
-# so rotating it is `sops set` + rebuild -- no drift like the wireguard-ui
-# password, which only seeds the DB on first boot.
-{ config, ... }:
+# Basic auth is deliberately OFF. The VPN gate in Caddy checks the network
+# and the login binary checks the caller -- the same two gates SSH over VPN
+# has, with no HTTP password in between. A third credential would add a
+# secret to manage without adding a layer an attacker does not already face.
+# The module requires username and passwordFile as a pair or neither; neither
+# it is.
 {
   services.ttyd = {
     enable = true;
@@ -24,12 +24,9 @@
     # this is explicit rather than a default anyone has to guess at.
     writeable = true;
 
-    # Root + login: the login binary prompts for the account, so this is a full
-    # shell behind two gates (VPN + basic auth). Same threat model as the Incus
-    # UI vhost: anything past both gates is already a host administrator.
+    # Root + login: the login binary prompts for the account, so this is a
+    # full shell behind the VPN gate plus the system login. Same threat model
+    # as SSH over VPN.
     user = "root";
-
-    username = "admin";
-    passwordFile = config.sops.secrets.ttyd_password.path;
   };
 }
