@@ -116,10 +116,13 @@ fi
 # A whole-file invariant cannot catch this class of bug, and neither can the two
 # checks a shell script usually gets:
 #
-#   bash -n     PASSES. Unbound-variable is a runtime error, not a syntax error.
-#   shellcheck  PASSES. `cmd="$cmd && ..."` looks like an assignment, so SC2154
-#                does not fire; only execution reveals that $cmd was never set.
+#   bash -n passes: unbound-variable is a runtime error, not a syntax error.
+#   The linter passes too: `cmd="$cmd && ..."` looks like an assignment, so
+#   SC2154 does not fire; only execution reveals that $cmd was never set.
 #
+# (Named obliquely on purpose: a comment reading `# shellcheck PASSES` parses
+# as a shellcheck directive and fails the file with SC1073, which is exactly
+# the kind of "the check passed" this paragraph is about.)
 # That is how `cmd: unbound variable` reached production on 400da3f3: a hoist for
 # the directory-mode comparison dropped the line that initialises cmd, so the very
 # first render died with the directory still at 0711 and the secret still
