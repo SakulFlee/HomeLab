@@ -75,6 +75,7 @@ in
     { format = "raw"; mode = "0400"; file = "aws_secret_access_key"; dir = "/var/lib/incus-secrets"; source = "/run/secrets/aws_secret_access_key"; }
     { format = "raw"; mode = "0400"; file = "fluxer_sudo_mode_secret"; dir = "/var/lib/incus-secrets"; source = "/run/secrets/fluxer_sudo_mode_secret"; }
     { format = "raw"; mode = "0400"; file = "fluxer_connection_initiation_secret"; dir = "/var/lib/incus-secrets"; source = "/run/secrets/fluxer_connection_initiation_secret"; }
+    { format = "raw"; mode = "0400"; file = "fluxer_profile_pseudonym_secret"; dir = "/var/lib/incus-secrets"; source = "/run/secrets/fluxer_profile_pseudonym_secret"; }
     { format = "raw"; mode = "0400"; file = "fluxer_gateway_rpc_auth_token"; dir = "/var/lib/incus-secrets"; source = "/run/secrets/fluxer_gateway_rpc_auth_token"; }
     { format = "raw"; mode = "0400"; file = "fluxer_media_proxy_secret_key"; dir = "/var/lib/incus-secrets"; source = "/run/secrets/fluxer_media_proxy_secret_key"; }
     { format = "raw"; mode = "0400"; file = "fluxer_media_proxy_upload_relay_secret_base64"; dir = "/var/lib/incus-secrets"; source = "/run/secrets/fluxer_media_proxy_upload_relay_secret_base64"; }

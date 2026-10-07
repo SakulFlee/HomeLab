@@ -304,6 +304,21 @@ in
             }
         }
 
+        # -------------------------------------------------------------------
+        # fluxer-next.sakul-flee.de -- pre-cutover test route to the Incus VM
+        #
+        # Points at the Fluxer Docker Compose stack's edge on 10.0.0.102:8080
+        # (proxy overlay, plain HTTP; TLS terminates here). fluxer.sakul-flee.de
+        # stays on still-traefik (k3s) until the cutover; rolling back is
+        # deleting this block. header_up Host is required: Fluxer compares Host
+        # against its configured domain exactly like Forgejo does.
+        fluxer-next.sakul-flee.de {
+          reverse_proxy http://10.0.0.102:8080 {
+            header_up Host {http.request.host}
+          }
+        }
+        # -------------------------------------------------------------------
+
         ${hostBlocks}
       ''} $out
       # cp from the store preserves mode 0444, which `caddy fmt --overwrite`

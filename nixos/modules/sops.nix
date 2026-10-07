@@ -113,6 +113,7 @@
   sops.secrets.aws_secret_access_key = {};
   sops.secrets.fluxer_sudo_mode_secret = {};
   sops.secrets.fluxer_connection_initiation_secret = {};
+  sops.secrets.fluxer_profile_pseudonym_secret = {};
   sops.secrets.fluxer_gateway_rpc_auth_token = {};
   sops.secrets.fluxer_media_proxy_secret_key = {};
   sops.secrets.fluxer_media_proxy_upload_relay_secret_base64 = {};
