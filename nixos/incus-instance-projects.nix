@@ -31,4 +31,5 @@
 # names the Incus 4 documentation suggests.
 {
   forgejo = "forgejo";
+  # fluxer stays in default project unless otherwise specified
 }

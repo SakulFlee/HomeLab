@@ -106,6 +106,23 @@
   sops.secrets.forgejo_runner_uuid = {};
   sops.secrets.forgejo_runner_token = {};
 
+  # Fluxer secrets (from upstream .env + k8s secret mapping)
+  sops.secrets.fluxer_postgres_password = {};
+  sops.secrets.fluxer_search_api_key = {};
+  sops.secrets.fluxer_s3_secret_access_key = {};
+  sops.secrets.aws_secret_access_key = {};
+  sops.secrets.fluxer_sudo_mode_secret = {};
+  sops.secrets.fluxer_connection_initiation_secret = {};
+  sops.secrets.fluxer_gateway_rpc_auth_token = {};
+  sops.secrets.fluxer_media_proxy_secret_key = {};
+  sops.secrets.fluxer_media_proxy_upload_relay_secret_base64 = {};
+  sops.secrets.fluxer_admin_secret_key_base = {};
+  sops.secrets.fluxer_admin_oauth_client_secret = {};
+  sops.secrets.fluxer_vapid_public_key = {};
+  sops.secrets.fluxer_vapid_private_key = {};
+  sops.secrets.livekit_api_secret = {};
+  sops.secrets.fluxer_erlang_cookie = {};
+
   # No sops.secrets for the wireguard VM's web UI, and that is a decision rather
   # than an omission.
   #

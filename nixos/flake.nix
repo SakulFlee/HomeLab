@@ -188,6 +188,8 @@
         # daemon inside the guest (see hosts/forgejo-runner/default.nix
         # for why that needs a kernel of its own).
         forgejo-runner = mkInstance { path = ./hosts/forgejo-runner; kind = "vm"; };
+        # Fluxer runs Docker Compose inside the guest (official upstream method).
+        fluxer = mkInstance { path = ./hosts/fluxer; kind = "vm"; };
       };
 
       # Convenience: buildable images, so `nix build .#image-<name>` works.
@@ -199,6 +201,7 @@
         # A VM is one qcow2 disk rather than a rootfs plus a metadata tarball.
         image-wireguard = self.nixosConfigurations.wireguard.config.system.build.qemuImage;
         image-forgejo-runner = self.nixosConfigurations.forgejo-runner.config.system.build.qemuImage;
+        image-fluxer = self.nixosConfigurations.fluxer.config.system.build.qemuImage;
       };
 
       # The Incus-level half of each instance: limits, volumes, devices. Plain

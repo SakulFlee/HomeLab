@@ -18,6 +18,7 @@
   "sakul-flee.de"
   "www.sakul-flee.de"
   "fluxer.sakul-flee.de"
+  "fluxer-next.sakul-flee.de"
   "grafana.sakul-flee.de"
   "hermes.sakul-flee.de"
   "hermes-dashboard.sakul-flee.de"
@@ -38,22 +39,4 @@
 
 # Not in the list, and why:
 #
-#   incus.sakul-flee.de     Served by Caddy directly, not handed to Traefik, so
-#                           it is deliberately absent from the list above -- it
-#                           has its own site block in default.nix with the
-#                           VPN-only gate and its own client certificate.
-#                           Included in the split-horizon CoreDNS templates so a
-#                           VPN client resolves it to the host rather than to a
-#                           Cloudflare edge IP.
-#   ttyd.sakul-flee.de      Same shape: own site block in default.nix with the
-#                           VPN-only gate, proxying to ttyd on the host at
-#                           10.0.0.1:7681. Needs the same split-horizon entry.
-#   matrix.sakul-flee.de    Matrix needs the federation listener on :8448 and a
-#   matrix-well-known...    /.well-known on :443. Neither is routed through
-#                           Traefik's web entrypoint today, so there was
-#                           nothing to catch.
-#   minecraft/hytale/       raw TCP/UDP (25565, 5520/udp, 7881, 7882). An L7
-#   livekit-*               proxy cannot carry these; they need an
-#                           `incus network forward` per port when they move,
-#                           which is L4 and does not involve Caddy at all.
-#   wg.sakul-flee.de        WireGuard's own entrypoint, not HTTP.
+# - Nothing else routed by Traefik on homelab in that snapshot.

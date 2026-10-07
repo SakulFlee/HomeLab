@@ -30,4 +30,5 @@
   # Docker inside the guest, which an LXC could only do privileged.
   wireguard = import ./hosts/wireguard/incus.nix;
   forgejo-runner = import ./hosts/forgejo-runner/incus.nix;
+  fluxer = import ./hosts/fluxer/incus.nix;
 }
