@@ -46,6 +46,10 @@ FLUXER_PUBLIC_PORT=443
 FLUXER_CADDY_SITE_ADDRESS=fluxer.sakul-flee.de
 FLUXER_APP_ORIGIN_ALIASES=https://fluxer-next.sakul-flee.de
 LIVEKIT_API_KEY=fluxer
+# The proxy (host Caddy) is on another machine, so bind all interfaces and
+# firewall it to the bridge (see firewall rules in default.nix). Upstream
+# defaults to 127.0.0.1:8080, which the host proxy cannot reach.
+FLUXER_EDGE_BIND=0.0.0.0:8080
 EOF
 
       # Append secrets from rendered files if they exist
@@ -123,10 +127,11 @@ EOF
     wantedBy = [ "multi-user.target" ];
 
     serviceConfig = {
-      Type = "simple";
+      # oneshot, not simple: `up -d` starts containers in the background and
+      # exits 0 immediately, so under Type=simple the unit always reads dead.
+      Type = "oneshot";
+      RemainAfterExit = true;
       WorkingDirectory = fluxerDir;
-      Restart = "on-failure";
-      RestartSec = "10s";
       TimeoutStartSec = "5min";
     };
 
