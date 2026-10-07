@@ -44,14 +44,16 @@ EOF
 
       # Append secrets from sops files if they exist
       if [ -r /run/secrets/fluxer_postgres_password ]; then
-        echo "FLUXER_POSTGRES_PASSWORD=$(cat /run/secrets/fluxer_postgres_password)" >> ${fluxerDir}/.env
+        echo "POSTGRES_PASSWORD=$(cat /run/secrets/fluxer_postgres_password)" >> ${fluxerDir}/.env
       fi
       if [ -r /run/secrets/fluxer_search_api_key ]; then
-        echo "FLUXER_SEARCH_API_KEY=$(cat /run/secrets/fluxer_search_api_key)" >> ${fluxerDir}/.env
+        echo "MEILI_MASTER_KEY=$(cat /run/secrets/fluxer_search_api_key)" >> ${fluxerDir}/.env
       fi
       if [ -r /run/secrets/fluxer_s3_secret_access_key ]; then
-        echo "FLUXER_S3_SECRET_ACCESS_KEY=$(cat /run/secrets/fluxer_s3_secret_access_key)" >> ${fluxerDir}/.env
+        echo "FLUXER_S3_SECRET_KEY=$(cat /run/secrets/fluxer_s3_secret_access_key)" >> ${fluxerDir}/.env
+        echo "FLUXER_S3_ACCESS_KEY=fluxer" >> ${fluxerDir}/.env
         echo "AWS_SECRET_ACCESS_KEY=$(cat /run/secrets/aws_secret_access_key 2>/dev/null || cat /run/secrets/fluxer_s3_secret_access_key)" >> ${fluxerDir}/.env
+        echo "AWS_ACCESS_KEY_ID=fluxer" >> ${fluxerDir}/.env
       fi
       if [ -r /run/secrets/fluxer_sudo_mode_secret ]; then
         echo "FLUXER_SUDO_MODE_SECRET=$(cat /run/secrets/fluxer_sudo_mode_secret)" >> ${fluxerDir}/.env
