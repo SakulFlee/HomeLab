@@ -17,7 +17,7 @@ in
   systemd.network.networks."10-incus" = {
     matchConfig.Name = "eth0";
     networkConfig = {
-      Address = [ "10.0.0.102/24" ];
+      Address = [ "10.0.0.103/24" ];
       Gateway = "10.0.0.1";
       DNS = [ "10.0.0.1" "1.1.1.1" "9.9.9.9" ];
     };

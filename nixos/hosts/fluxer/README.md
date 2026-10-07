@@ -5,13 +5,13 @@ This hosts runs Fluxer using the official upstream self-hosting method (Docker C
 ## Architecture
 
 - **Type**: Incus VM (type=vm) - required because it runs Docker inside the guest.
-- **IP**: 10.0.0.102/24 (on incusbr0)
+- **IP**: 10.0.0.103/24 (on incusbr0)
 - **Volumes**:
   - `fluxer-data` (block, ext4): mounted at `/var/lib/docker` inside the VM. Contains all Docker data (Postgres, SeaweedFS state, etc.). Snapshots enabled daily with 7d retention via Incus.
 - **Network forwards** (public IP 192.168.178.200):
-  - TCP 7881 -> 10.0.0.102:7881 (LiveKit)
-  - UDP 7882 -> 10.0.0.102:7882 (LiveKit)
-- **Edge**: Uses upstream `docker-compose.proxy.yml` overlay. Fluxer binds to `127.0.0.1:8080` in the compose (via `FLUXER_EDGE_BIND`), exposed on the VM as port 8080. Caddy on the host reverse-proxies to `http://10.0.0.102:8080`.
+  - TCP 7881 -> 10.0.0.103:7881 (LiveKit)
+  - UDP 7882 -> 10.0.0.103:7882 (LiveKit)
+- **Edge**: Uses upstream `docker-compose.proxy.yml` overlay with `FLUXER_EDGE_BIND=0.0.0.0:8080` (the proxy lives on another machine; upstream defaults to 127.0.0.1). Caddy on the host reverse-proxies to `http://10.0.0.103:8080`.
 
 ## Upstream files
 
@@ -61,7 +61,7 @@ Restore from snapshots via `incus storage volume snapshot restore` as needed.
 ```nix
 "fluxer.sakul-flee.de" = {
   extraConfig = ''
-    reverse_proxy http://10.0.0.102:8080
+    reverse_proxy http://10.0.0.103:8080
   '';
 };
 ```

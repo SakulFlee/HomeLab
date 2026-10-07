@@ -9,7 +9,7 @@ let
       type = "nic";
       name = "eth0";
       network = "incusbr0";
-      "ipv4.address" = "10.0.0.102";
+      "ipv4.address" = "10.0.0.103";
     };
 
     # Data volume for Docker data (images, containers, volumes).
@@ -55,7 +55,7 @@ in
       listenAddress = "192.168.178.200";
       protocol = "tcp";
       listenPort = 7881;
-      targetAddress = "10.0.0.102";
+      targetAddress = "10.0.0.103";
       targetPort = 7881;
     }
     {
@@ -63,7 +63,7 @@ in
       listenAddress = "192.168.178.200";
       protocol = "udp";
       listenPort = 7882;
-      targetAddress = "10.0.0.102";
+      targetAddress = "10.0.0.103";
       targetPort = 7882;
     }
   ];
