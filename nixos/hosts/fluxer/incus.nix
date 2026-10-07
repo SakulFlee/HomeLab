@@ -67,7 +67,7 @@ in
       targetPort = 7882;
     }
   ];
-}
+
   renderedSecrets = [
     { format = "raw"; mode = "0400"; file = "fluxer_postgres_password"; dir = "/var/lib/incus-secrets"; source = "/run/secrets/fluxer_postgres_password"; }
     { format = "raw"; mode = "0400"; file = "fluxer_search_api_key"; dir = "/var/lib/incus-secrets"; source = "/run/secrets/fluxer_search_api_key"; }
