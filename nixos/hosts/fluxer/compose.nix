@@ -33,18 +33,46 @@ in
       RemainAfterExit = true;
     };
 
+    path = with pkgs; [ bash coreutils ];
+
     script = ''
       set -e
       # Secrets land in /var/lib/incus-secrets via renderedSecrets in incus.nix
       # (apply.sh copies them from the host's /run/secrets). There is no sops
       # decryption inside this VM and no /run/secrets here.
       SECDIR=/var/lib/incus-secrets
-      cat > ${fluxerDir}/.env << 'EOF'
+      # apply.sh renders the secrets after first boot, so they may not exist
+      # yet when this runs. Wait for the full set rather than writing a short
+      # .env that fails compose interpolation obscurely. Fail loudly on timeout
+      # so fluxer-compose (which requires this unit) never starts half-fed.
+      present=0
+      for i in $(seq 1 30); do
+        present=0
+        for f in fluxer_postgres_password fluxer_search_api_key fluxer_s3_secret_access_key aws_secret_access_key fluxer_sudo_mode_secret fluxer_connection_initiation_secret fluxer_profile_pseudonym_secret fluxer_gateway_rpc_auth_token fluxer_media_proxy_secret_key fluxer_media_proxy_upload_relay_secret_base64 fluxer_admin_secret_key_base fluxer_admin_oauth_client_secret fluxer_vapid_public_key fluxer_vapid_private_key livekit_api_secret fluxer_erlang_cookie; do
+          if [ -r "$SECDIR/$f" ]; then
+            present=$((present + 1))
+          fi
+        done
+        if [ "$present" -ge 16 ]; then
+          break
+        fi
+        sleep 10
+      done
+      if [ "$present" -lt 16 ]; then
+        echo "fluxer-env: only $present/16 secrets in $SECDIR after 5min, refusing partial .env" >&2
+        exit 1
+      fi
+      # Render atomically: compose must never read a half-written file.
+      tmp=$(mktemp ${fluxerDir}/.env.XXXXXX)
+      cat > "$tmp" << 'EOF'
 FLUXER_DOMAIN=fluxer.sakul-flee.de
+# Pre-cutover testing serves browsers on fluxer-next while DOMAIN stays the
+# production name. Upstream: PUBLIC_ORIGIN wins over DOMAIN for every endpoint.
+# At cutover, point this at https://fluxer.sakul-flee.de instead.
+FLUXER_PUBLIC_ORIGIN=https://fluxer-next.sakul-flee.de
 FLUXER_PUBLIC_SCHEME=https
 FLUXER_PUBLIC_PORT=443
 FLUXER_CADDY_SITE_ADDRESS=fluxer.sakul-flee.de
-FLUXER_APP_ORIGIN_ALIASES=https://fluxer-next.sakul-flee.de
 LIVEKIT_API_KEY=fluxer
 # The proxy (host Caddy) is on another machine, so bind all interfaces and
 # firewall it to the bridge (see firewall rules in default.nix). Upstream
@@ -54,53 +82,55 @@ EOF
 
       # Append secrets from rendered files if they exist
       if [ -r $SECDIR/fluxer_postgres_password ]; then
-        echo "POSTGRES_PASSWORD=$(cat $SECDIR/fluxer_postgres_password)" >> ${fluxerDir}/.env
+        echo "POSTGRES_PASSWORD=$(cat $SECDIR/fluxer_postgres_password)" >> "$tmp"
       fi
       if [ -r $SECDIR/fluxer_search_api_key ]; then
-        echo "MEILI_MASTER_KEY=$(cat $SECDIR/fluxer_search_api_key)" >> ${fluxerDir}/.env
+        echo "MEILI_MASTER_KEY=$(cat $SECDIR/fluxer_search_api_key)" >> "$tmp"
       fi
       if [ -r $SECDIR/fluxer_s3_secret_access_key ]; then
-        echo "FLUXER_S3_SECRET_KEY=$(cat $SECDIR/fluxer_s3_secret_access_key)" >> ${fluxerDir}/.env
-        echo "FLUXER_S3_ACCESS_KEY=fluxer" >> ${fluxerDir}/.env
-        echo "AWS_SECRET_ACCESS_KEY=$(cat $SECDIR/aws_secret_access_key 2>/dev/null || cat $SECDIR/fluxer_s3_secret_access_key)" >> ${fluxerDir}/.env
-        echo "AWS_ACCESS_KEY_ID=fluxer" >> ${fluxerDir}/.env
+        echo "FLUXER_S3_SECRET_KEY=$(cat $SECDIR/fluxer_s3_secret_access_key)" >> "$tmp"
+        echo "FLUXER_S3_ACCESS_KEY=fluxer" >> "$tmp"
+        echo "AWS_SECRET_ACCESS_KEY=$(cat $SECDIR/aws_secret_access_key 2>/dev/null || cat $SECDIR/fluxer_s3_secret_access_key)" >> "$tmp"
+        echo "AWS_ACCESS_KEY_ID=fluxer" >> "$tmp"
       fi
       if [ -r $SECDIR/fluxer_sudo_mode_secret ]; then
-        echo "FLUXER_SUDO_MODE_SECRET=$(cat $SECDIR/fluxer_sudo_mode_secret)" >> ${fluxerDir}/.env
+        echo "FLUXER_SUDO_MODE_SECRET=$(cat $SECDIR/fluxer_sudo_mode_secret)" >> "$tmp"
       fi
       if [ -r $SECDIR/fluxer_connection_initiation_secret ]; then
-        echo "FLUXER_CONNECTION_INITIATION_SECRET=$(cat $SECDIR/fluxer_connection_initiation_secret)" >> ${fluxerDir}/.env
+        echo "FLUXER_CONNECTION_INITIATION_SECRET=$(cat $SECDIR/fluxer_connection_initiation_secret)" >> "$tmp"
       fi
       if [ -r $SECDIR/fluxer_profile_pseudonym_secret ]; then
-        echo "FLUXER_PROFILE_PSEUDONYM_SECRET=$(cat $SECDIR/fluxer_profile_pseudonym_secret)" >> ${fluxerDir}/.env
+        echo "FLUXER_PROFILE_PSEUDONYM_SECRET=$(cat $SECDIR/fluxer_profile_pseudonym_secret)" >> "$tmp"
       fi
       if [ -r $SECDIR/fluxer_gateway_rpc_auth_token ]; then
-        echo "FLUXER_GATEWAY_RPC_AUTH_TOKEN=$(cat $SECDIR/fluxer_gateway_rpc_auth_token)" >> ${fluxerDir}/.env
+        echo "FLUXER_GATEWAY_RPC_AUTH_TOKEN=$(cat $SECDIR/fluxer_gateway_rpc_auth_token)" >> "$tmp"
       fi
       if [ -r $SECDIR/fluxer_media_proxy_secret_key ]; then
-        echo "FLUXER_MEDIA_PROXY_SECRET_KEY=$(cat $SECDIR/fluxer_media_proxy_secret_key)" >> ${fluxerDir}/.env
+        echo "FLUXER_MEDIA_PROXY_SECRET_KEY=$(cat $SECDIR/fluxer_media_proxy_secret_key)" >> "$tmp"
       fi
       if [ -r $SECDIR/fluxer_media_proxy_upload_relay_secret_base64 ]; then
-        echo "FLUXER_MEDIA_PROXY_UPLOAD_RELAY_SECRET_BASE64=$(cat $SECDIR/fluxer_media_proxy_upload_relay_secret_base64)" >> ${fluxerDir}/.env
+        echo "FLUXER_MEDIA_PROXY_UPLOAD_RELAY_SECRET_BASE64=$(cat $SECDIR/fluxer_media_proxy_upload_relay_secret_base64)" >> "$tmp"
       fi
       if [ -r $SECDIR/fluxer_admin_secret_key_base ]; then
-        echo "FLUXER_ADMIN_SECRET_KEY_BASE=$(cat $SECDIR/fluxer_admin_secret_key_base)" >> ${fluxerDir}/.env
+        echo "FLUXER_ADMIN_SECRET_KEY_BASE=$(cat $SECDIR/fluxer_admin_secret_key_base)" >> "$tmp"
       fi
       if [ -r $SECDIR/fluxer_admin_oauth_client_secret ]; then
-        echo "FLUXER_ADMIN_OAUTH_CLIENT_SECRET=$(cat $SECDIR/fluxer_admin_oauth_client_secret)" >> ${fluxerDir}/.env
+        echo "FLUXER_ADMIN_OAUTH_CLIENT_SECRET=$(cat $SECDIR/fluxer_admin_oauth_client_secret)" >> "$tmp"
       fi
       if [ -r $SECDIR/fluxer_vapid_public_key ]; then
-        echo "FLUXER_VAPID_PUBLIC_KEY=$(cat $SECDIR/fluxer_vapid_public_key)" >> ${fluxerDir}/.env
+        echo "FLUXER_VAPID_PUBLIC_KEY=$(cat $SECDIR/fluxer_vapid_public_key)" >> "$tmp"
       fi
       if [ -r $SECDIR/fluxer_vapid_private_key ]; then
-        echo "FLUXER_VAPID_PRIVATE_KEY=$(cat $SECDIR/fluxer_vapid_private_key)" >> ${fluxerDir}/.env
+        echo "FLUXER_VAPID_PRIVATE_KEY=$(cat $SECDIR/fluxer_vapid_private_key)" >> "$tmp"
       fi
       if [ -r $SECDIR/livekit_api_secret ]; then
-        echo "LIVEKIT_API_SECRET=$(cat $SECDIR/livekit_api_secret)" >> ${fluxerDir}/.env
+        echo "LIVEKIT_API_SECRET=$(cat $SECDIR/livekit_api_secret)" >> "$tmp"
       fi
       if [ -r $SECDIR/fluxer_erlang_cookie ]; then
-        echo "FLUXER_ERLANG_COOKIE=$(cat $SECDIR/fluxer_erlang_cookie)" >> ${fluxerDir}/.env
+        echo "FLUXER_ERLANG_COOKIE=$(cat $SECDIR/fluxer_erlang_cookie)" >> "$tmp"
       fi
+      chmod 0600 "$tmp"
+      mv -f "$tmp" ${fluxerDir}/.env
       chmod 0600 ${fluxerDir}/.env
     '';
   };
@@ -123,6 +153,7 @@ EOF
     requires = [
       "docker.service"
       "var-lib-docker.mount"
+      "fluxer-env.service"
     ];
     wantedBy = [ "multi-user.target" ];
 
