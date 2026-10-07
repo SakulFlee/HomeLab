@@ -21,6 +21,7 @@
 # nixos/hosts/<name>/default.nix.
 {
   caddy = import ./hosts/caddy/incus.nix;
+  dns = import ./hosts/dns/incus.nix;
   forgejo = import ./hosts/forgejo/incus.nix;
   # A VM. Its incus.nix sets `type = "vm"`, which is what switches the image
   # build (qcow2 rather than squashfs+metadata), the create call (`-t vm`), the

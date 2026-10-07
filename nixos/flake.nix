@@ -181,6 +181,7 @@
         # Incus instances. Build with:
         #   nix build .#nixosConfigurations.<name>.config.system.build.squashfs
         caddy = mkInstance { path = ./hosts/caddy; };
+        dns = mkInstance { path = ./hosts/dns; };
         forgejo = mkInstance { path = ./hosts/forgejo; };
         wireguard = mkInstance { path = ./hosts/wireguard; kind = "vm"; };
         # A VM: it runs the Forgejo Actions runner with a Docker
@@ -192,6 +193,7 @@
       # Convenience: buildable images, so `nix build .#image-<name>` works.
       packages.${system} = {
         image-caddy = self.nixosConfigurations.caddy.config.system.build.squashfs;
+        image-dns = self.nixosConfigurations.dns.config.system.build.squashfs;
         image-forgejo = self.nixosConfigurations.forgejo.config.system.build.squashfs;
 
         # A VM is one qcow2 disk rather than a rootfs plus a metadata tarball.
