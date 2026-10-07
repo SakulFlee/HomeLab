@@ -68,3 +68,21 @@ in
     }
   ];
 }
+  renderedSecrets = [
+    { format = "raw"; mode = "0400"; file = "fluxer_postgres_password"; dir = "/var/lib/incus-secrets"; source = "/run/secrets/fluxer_postgres_password"; }
+    { format = "raw"; mode = "0400"; file = "fluxer_search_api_key"; dir = "/var/lib/incus-secrets"; source = "/run/secrets/fluxer_search_api_key"; }
+    { format = "raw"; mode = "0400"; file = "fluxer_s3_secret_access_key"; dir = "/var/lib/incus-secrets"; source = "/run/secrets/fluxer_s3_secret_access_key"; }
+    { format = "raw"; mode = "0400"; file = "aws_secret_access_key"; dir = "/var/lib/incus-secrets"; source = "/run/secrets/aws_secret_access_key"; }
+    { format = "raw"; mode = "0400"; file = "fluxer_sudo_mode_secret"; dir = "/var/lib/incus-secrets"; source = "/run/secrets/fluxer_sudo_mode_secret"; }
+    { format = "raw"; mode = "0400"; file = "fluxer_connection_initiation_secret"; dir = "/var/lib/incus-secrets"; source = "/run/secrets/fluxer_connection_initiation_secret"; }
+    { format = "raw"; mode = "0400"; file = "fluxer_gateway_rpc_auth_token"; dir = "/var/lib/incus-secrets"; source = "/run/secrets/fluxer_gateway_rpc_auth_token"; }
+    { format = "raw"; mode = "0400"; file = "fluxer_media_proxy_secret_key"; dir = "/var/lib/incus-secrets"; source = "/run/secrets/fluxer_media_proxy_secret_key"; }
+    { format = "raw"; mode = "0400"; file = "fluxer_media_proxy_upload_relay_secret_base64"; dir = "/var/lib/incus-secrets"; source = "/run/secrets/fluxer_media_proxy_upload_relay_secret_base64"; }
+    { format = "raw"; mode = "0400"; file = "fluxer_admin_secret_key_base"; dir = "/var/lib/incus-secrets"; source = "/run/secrets/fluxer_admin_secret_key_base"; }
+    { format = "raw"; mode = "0400"; file = "fluxer_admin_oauth_client_secret"; dir = "/var/lib/incus-secrets"; source = "/run/secrets/fluxer_admin_oauth_client_secret"; }
+    { format = "raw"; mode = "0400"; file = "fluxer_vapid_public_key"; dir = "/var/lib/incus-secrets"; source = "/run/secrets/fluxer_vapid_public_key"; }
+    { format = "raw"; mode = "0400"; file = "fluxer_vapid_private_key"; dir = "/var/lib/incus-secrets"; source = "/run/secrets/fluxer_vapid_private_key"; }
+    { format = "raw"; mode = "0400"; file = "livekit_api_secret"; dir = "/var/lib/incus-secrets"; source = "/run/secrets/livekit_api_secret"; }
+    { format = "raw"; mode = "0400"; file = "fluxer_erlang_cookie"; dir = "/var/lib/incus-secrets"; source = "/run/secrets/fluxer_erlang_cookie"; }
+  ];
+}
