@@ -70,7 +70,10 @@ spec:
         - containerPort: 8080
         env:
         - name: FLUXER_WEBHOOK_URL
-          value: "http://api.fluxer.svc.cluster.local:8080/webhooks/1543671959890427906/SJZMRRNQSn77qJASzxFAgO5kYvMaJGf27JzayYDSO0QQuUyNDbNJ1wlWzjlE9Hvj"
+          # Formerly the in-cluster k3s API (api.fluxer.svc...). Fluxer now
+          # lives in the Incus VM; k3s pods reach the bridge directly.
+          # Host header stays fluxer.sakul-flee.de (set in code below).
+          value: "http://10.0.0.103:8080/webhooks/1543671959890427906/SJZMRRNQSn77qJASzxFAgO5kYvMaJGf27JzayYDSO0QQuUyNDbNJ1wlWzjlE9Hvj"
         resources:
           requests: { cpu: 10m, memory: 32Mi }
           limits:   { cpu: 100m, memory: 64Mi }
