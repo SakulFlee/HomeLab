@@ -383,6 +383,17 @@ in
   # Five full reconciles in four seconds, each one restarting Caddy. The
   # reconcile timer below covers the same ground without depending on
   # edge-versus-level semantics I got wrong once already.
+  #
+  # What these watch is the live checkout, so `git pull` IS a deploy trigger:
+  # pulling a spec change fires that instance's apply within seconds, with no
+  # timer and no rebuild involved. Measured at 02:43 during the pool merge --
+  # the pull touched hosts/caddy/incus.nix and hosts/forgejo/incus.nix, both
+  # path units fired, and apply.sh created empty volumes under the new pool
+  # name, repointed both devices at them, and started both instances, all
+  # while the reconcile timer sat stopped. Stopping the timer is therefore not
+  # sufficient around a data move: stop the four incus-apply-*.path units too,
+  # and only pull once every trigger is off. The reverse order -- pull, then
+  # stop things -- is the trap, because the pull itself is what fires them.
   # ---------------------------------------------------------------------
   systemd.paths = lib.mapAttrs'
     (name: _spec: {
