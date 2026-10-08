@@ -85,7 +85,7 @@ sudo nixos-rebuild switch --flake .#<your-chosen-hostname>
 
 > [!INFO]
 > You may want to enroll your new SSH keys (`ssh-keygen`) to Forgejo and switch to SSH+GIT instead of HTTPS:  
-> `git remote set-url origin git@forgejo.sakul-flee.de/SakulFlee/NixOS-Config.git`
+> `git remote set-url origin forgejo@forgejo.sakul-flee.de/SakulFlee/NixOS-Config.git`
 
 > [!WARNING]
 > You will also need to run a FULL Rclone sync:

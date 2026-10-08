@@ -2,8 +2,8 @@
   # The host's own administrative SSH, moved to 2222 so that port 22 can be
   # DNAT'd to the Forgejo instance for git.
   #
-  # Why the move rather than the alternative: git wants
-  # ssh://git@forgejo.sakul-flee.de/SakulFlee/HomeLab.git, and the DNAT that
+  # Why the move rather than the alternative: pushes want
+  # ssh://forgejo@forgejo.sakul-flee.de/SakulFlee/HomeLab.git, and the DNAT that
   # carries port 22 to that instance is per-port and unconditional. There is no
   # way to say "22 goes to Forgejo except for connections coming from the
   # administrator" -- Incus implements a forward as an nftables DNAT rule, and
