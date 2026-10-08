@@ -305,6 +305,40 @@ in
         }
 
         # -------------------------------------------------------------------
+        # syncthing.sakul-flee.de -- CUTOVER: now served by the Incus instance
+        # -------------------------------------------------------------------
+        # Same gate shape as ttyd above: `remote_ip`, not `client_ip` (the forward
+        # is DNAT and the source is unforgeable, while X-Forwarded-For is not), and
+        # the same /10 tunnel range.
+        #
+        # Plain http:// upstream: TLS terminates here and Syncthing speaks plain
+        # HTTP inside the container.
+        #
+        # header_up Host {http.request.host} sends the name the browser asked
+        # for. Syncthing rejects a Host it does not recognise unless its own host
+        # check is disabled -- which it is, in the instance's default.nix, so this
+        # is belt and braces rather than the fix.
+        #
+        # 8384 is NOT forwarded at the host level; this vhost is the only route
+        # to the GUI, and there is no GUI password behind it. See the instance's
+        # NOTES.md.
+        #
+        # A separate site block, NOT an entry in hostnames.nix: those all import
+        # still-traefik.
+        syncthing.sakul-flee.de {
+            tls {
+                dns cloudflare {env.CF_API_TOKEN}
+            }
+
+            @notvpn not remote_ip 100.64.0.0/10
+            respond @notvpn "Syncthing is reachable over the VPN only.\n" 403
+
+            reverse_proxy http://10.0.0.104:8384 {
+                header_up Host {http.request.host}
+            }
+        }
+
+        # -------------------------------------------------------------------
         # fluxer.sakul-flee.de -- CUTOVER: now served by the Incus VM
         # Same shape the fluxer-next test block had; fluxer-next is gone.
         # Rolling back is putting the name back in hostnames.nix (still-traefik)

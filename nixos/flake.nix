@@ -190,6 +190,9 @@
         forgejo-runner = mkInstance { path = ./hosts/forgejo-runner; kind = "vm"; };
         # Fluxer runs Docker Compose inside the guest (official upstream method).
         fluxer = mkInstance { path = ./hosts/fluxer; kind = "vm"; };
+        # The Syncthing replication hub. A container: one static Go binary, no
+        # kernel of its own required.
+        syncthing = mkInstance { path = ./hosts/syncthing; };
       };
 
       # Convenience: buildable images, so `nix build .#image-<name>` works.
@@ -197,6 +200,7 @@
         image-caddy = self.nixosConfigurations.caddy.config.system.build.squashfs;
         image-dns = self.nixosConfigurations.dns.config.system.build.squashfs;
         image-forgejo = self.nixosConfigurations.forgejo.config.system.build.squashfs;
+        image-syncthing = self.nixosConfigurations.syncthing.config.system.build.squashfs;
 
         # A VM is one qcow2 disk rather than a rootfs plus a metadata tarball.
         image-wireguard = self.nixosConfigurations.wireguard.config.system.build.qemuImage;

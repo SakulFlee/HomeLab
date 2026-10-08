@@ -179,10 +179,14 @@ in
       default = "/var/lib/backups/repo";
       description = ''
         The restic repository. The SAME one the homelab-restic DaemonSet writes,
-        not a second repository: one repo means one password, one retention
-        policy to reason about, and Syncthing already replicates this directory
-        off the box, so off-box replication comes along for free rather than
-        needing a second target configured.
+        not a second repository: one repo means one password and one retention
+        policy to reason about.
+
+        It used to be replicated off the box by the k3s Syncthing, which mounted
+        /var/lib/backups. That Syncthing has been retired and the Incus one in
+        hosts/syncthing does NOT mount this directory, so nothing copies the
+        repository off-box any more. That is a deliberate decision recorded here
+        rather than left as a comment that reads as if it were still true.
       '';
     };
 

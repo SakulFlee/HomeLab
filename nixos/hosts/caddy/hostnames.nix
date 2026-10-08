@@ -31,7 +31,6 @@
   "qui.sakul-flee.de"
   "radarr.sakul-flee.de"
   "sonarr.sakul-flee.de"
-  "syncthing.sakul-flee.de"
   "vpn.sakul-flee.de"
 ]
 

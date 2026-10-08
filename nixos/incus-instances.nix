@@ -31,4 +31,8 @@
   wireguard = import ./hosts/wireguard/incus.nix;
   forgejo-runner = import ./hosts/forgejo-runner/incus.nix;
   fluxer = import ./hosts/fluxer/incus.nix;
+  # An LXC, not a VM: Syncthing is a single static Go binary and needs no kernel
+  # of its own. It is the replication hub other instances' volumes are attached
+  # to read-only; see hosts/syncthing/NOTES.md for that standard.
+  syncthing = import ./hosts/syncthing/incus.nix;
 }
