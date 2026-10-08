@@ -14,7 +14,7 @@ let
   # of that peer's own certificate. Read it from the peer's WebUI (Actions ->
   # Show ID) or `syncthing --device-id` and paste it here; a wrong ID does not
   # error, it just never connects.
-  peerName = "peer";
+  peerName = "Dendra";
   peerId = "KO655P2-Z2MGQ2G-TVJ7EZD-YHUSBBK-VEPPD7F-55ZYVQR-WYFAIKX-XNENIQQ";
 
   # The one shared folder, under the syncthing-data volume. Deliberately a
