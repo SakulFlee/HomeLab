@@ -40,7 +40,7 @@ let
     Phone = {
       id = "XEHPA3V-IRL2YWY-NWZLQBD-BGQPA6M-6YMLMJ6-TWTLL4S-DQ4SWEH-LOCV2QU";
       folders = [ folderName ];
-    };   
+    };
     Tablet = {
       id = "SNYIG75-W45Q76Z-WG75WFD-CYHWXW4-ZYAHQVX-2XY63I4-BIMXXRX-O2BI3Q4";
       folders = [ folderName ];
