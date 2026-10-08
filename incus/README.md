@@ -91,9 +91,8 @@ renderedSecrets = [
 
 and `apply.sh` reads `source` — which the *host* decrypts, with the host's own
 SSH identity key — and writes `ENV_NAME=<value>` into `file` inside the
-instance, on a `persistent` (not restic'd) volume. The value is piped on stdin,
-never a command-line argument, and the write is diffed so a settled redeploy
-touches nothing.
+instance. The value is piped on stdin, never a command-line argument, and the
+write is diffed so a settled redeploy touches nothing.
 
 `format = "raw"` writes the secret's bytes through unchanged instead of
 prefixing `ENV_NAME=`, for anything that is not a `KEY=value` line. The
@@ -138,9 +137,9 @@ process in the container the ability to decrypt **every** value in the host's
 credentials — and the only thing limiting that was remembering not to.
 
 This way the instance has no decryption capability at all. It holds one token
-and cannot reach anything else even if it wants to. The price is that the token
-is at rest in the instance's volume, which is why that volume is on the
-not-restic'd pool.
+and cannot reach anything else even if it wants to. Secrets at rest are
+excluded from snapshots by omission: no `snapshots` block declares them, so
+none are ever taken — which is the point, for a live API token.
 
 One consequence worth knowing: `/run/secrets/*` does not exist until the host
 has been rebuilt, so a new instance with `renderedSecrets` cannot come up before
@@ -172,9 +171,10 @@ nixos/hosts/<name>/default.nix
 ```
 
 Recreating replaces the root disk and nothing else. **Anything that must survive
-a recreate lives on a storage volume**, declared in `incus.nix`. This is why
-Caddy's ACME certificates are on the restic'd `backup` pool and Forgejo's
-PGDATA is on the not-restic'd `persistent` one.
+a recreate lives on a storage volume**, declared in `incus.nix` — Caddy's ACME
+certificates, Forgejo's repositories and PGDATA alike. How long each survives
+is a per-volume snapshot policy in that same file, not a property of where it
+sits: there is one pool, and retention is declared, not inherited.
 
 Recreate is not free — the instance is briefly unavailable while its root disk
 is replaced. It only happens when the image actually changes, which is the
@@ -446,15 +446,17 @@ Two things about the Incus side are not guessable:
 
 ## Storage pools
 
-Three pools, split by backup policy rather than convenience:
+One pool, `persistent` (btrfs), holding everything: instance root disks,
+custom data volumes, and images. There used to be two more -- a `backup`
+pool split by an intended retention nobody enforced, and an `ephemeral` dir
+pool planned for VMs that was never created. Both ideas are recorded here so
+nobody reintroduces them: retention is a per-volume `snapshots` policy in
+each `incus.nix`, not a pool assignment, and VM storage gets decided when a
+VM actually arrives.
 
-| pool         | driver | restic'd | what goes here                              |
-| ------------ | ------ | -------- | ------------------------------------------- |
-| `backup`     | btrfs  | yes      | anything whose loss you would actually miss  |
-| `persistent` | btrfs  | **no**   | live Postgres PGDATA, and instance root disks |
-| `ephemeral`  | dir    | no       | VMs — added in the phase that provisions them |
-
-`persistent` exists so that "never file-back-up a live Postgres data
-directory" is structural rather than a convention anyone has to remember. A
-torn PGDATA copy is worse than no copy. The authoritative artefact is always a
-`pg_dump` landing in `backup`.
+`persistent` exists as one pool rather than none because Incus requires
+volumes to live somewhere, not because the name enforces anything. What
+must not be repeated is the converse mistake the old split invited: a
+PGDATA copy is not a backup, and a pg_dump is. A torn PGDATA copy is worse
+than no copy -- the authoritative artefact is always a `pg_dump`, and no
+pool layout changes that.
