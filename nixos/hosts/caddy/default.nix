@@ -199,7 +199,7 @@ in
         #   curl --resolve forgejo.sakul-flee.de:443:127.0.0.1 \
         #        https://forgejo.sakul-flee.de/api/v1/version
         #     ->  {"version":"16.0.5+gitea-1.22.0"}   k3s, for contrast
-        forgejo.sakul-flee.de {
+        forgejo.sakul-flee.de, code.sakul-flee.de, ci.sakul-flee.de, git.sakul-flee.de, issues.sakul-flee.de, pr.sakul-flee.de {
           reverse_proxy http://10.0.0.101:3000 {
             header_up Host {http.request.host}
           }
