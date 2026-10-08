@@ -31,12 +31,31 @@ originate -- see the rule below.
 
 ### Adding a peer
 
+Peers live in one table, `peers`, at the top of `nixos/hosts/syncthing/default.nix`;
+each entry also states its folder membership there. `settings.devices` and every
+folder's `devices` list are derived from that table, so a peer is added in
+exactly one place and membership cannot drift.
+
 1. On the peer: Actions -> Show ID (or `syncthing --device-id`).
-2. Add it under `settings.devices.<name>` with that `id`.
-3. Add `<name>` to the relevant folder's `devices` list.
-4. `incus/apply.sh syncthing`; on the peer, accept the folder.
+2. Add an entry to the `peers` table with that `id` and the `folders` it is part
+   of.
+3. `incus/apply.sh syncthing`; on the peer, accept the folder.
 
 A wrong or malformed ID does not error -- it simply never connects.
+
+### Introducers
+
+A peer declared with `introducer = true` is trusted to introduce other devices
+and folders to this server, which are then accepted without a manual WebUI
+accept. That is power, so it is set on the admin's own device (Dendra) and on
+nobody else unless deliberately promoted in the `peers` table -- the generated
+device settings spell that flag out for every peer, defaulting to `false`, so an
+introducer is never accidental.
+
+Introductions do not bypass the declarative set: a device Dendra introduces but
+that is not in the `peers` table works until the next boot, when the
+`overrideDevices` pass removes it. Introductions are the convenience path; the
+table is the truth.
 
 ### Folders the server originates vs. receives
 

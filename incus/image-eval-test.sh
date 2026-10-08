@@ -75,7 +75,7 @@ err_tail() { tail -4 "$ERRFILE" | tr '\n' ' '; }
 
 # =============================================================================
 echo "== 1. every declared image evaluates to a store path =="
-for pair in "image-forgejo:container" "image-wireguard:vm" "image-forgejo-runner:vm"; do
+for pair in "image-forgejo:container" "image-syncthing:container" "image-wireguard:vm" "image-forgejo-runner:vm"; do
   attr=${pair%%:*}
   kind=${pair##*:}
   printf '  %-22s ' "$attr"

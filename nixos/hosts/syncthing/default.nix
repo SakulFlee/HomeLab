@@ -9,25 +9,48 @@
 # follow to expose data here.
 { lib, pkgs, ... }:
 let
-  # The one peer, declared like everything else. Its device ID is the only value
-  # in this repository that cannot be derived from anything: it is the SHA-256
-  # of that peer's own certificate. Read it from the peer's WebUI (Actions ->
-  # Show ID) or `syncthing --device-id` and paste it here; a wrong ID does not
-  # error, it just never connects.
-  peerName = "Dendra";
-  peerId = "KO655P2-Z2MGQ2G-TVJ7EZD-YHUSBBK-VEPPD7F-55ZYVQR-WYFAIKX-XNENIQQ";
-
-  # The one shared folder, under the syncthing-data volume. Deliberately a
-  # subdirectory and not /data itself: Syncthing does not support nesting one
-  # shared folder inside another, and the "select independent folders" the plan
-  # leaves room for are siblings under /data rather than children of this one.
-  #
-  # sendreceive, not sendonly. The trashcan versioning below only means
-  # something on a folder that receives -- a sendonly folder never applies a
-  # peer's deletion or replacement, so nothing is ever versioned. If the server
-  # is ever meant to be the sole source of this folder instead, this becomes
-  # sendonly and the versioning block is dead weight.
+  # The folders this hub originates. A folder here is the server's own; a folder
+  # a peer (re)introduces is received, not declared -- see NOTES.md for that
+  # rule.
   folderName = "personal";
+
+  # This hub's peers, declared like everything else. A peer's device ID is the
+  # only value in this repository that cannot be derived from anything: it is
+  # the SHA-256 of that peer's own certificate. Read it from the peer's WebUI
+  # (Actions -> Show ID) or `syncthing --device-id` and paste it here; a wrong
+  # ID does not error, it just never connects.
+  #
+  # `folders` is the peer's membership. The `devices` list of every folder below
+  # is derived from it, so a new peer is added in exactly one place and the two
+  # cannot drift.
+  #
+  # `addresses` is left unset on every peer: the default is ["dynamic"], which
+  # is right for how WE reach them. Peers are behind their own NAT; they dial
+  # the host's forwarded 192.168.178.200:22000, not the other way round.
+  peers = {
+    Dendra = {
+      id = "KO655P2-Z2MGQ2G-TVJ7EZD-YHUSBBK-VEPPD7F-55ZYVQR-WYFAIKX-XNENIQQ";
+      # An introducer is trusted to introduce other devices and folders to this
+      # server, accepted without a manual WebUI accept. That is power, so it
+      # belongs to the admin's own device only; a peer gets it by deliberate
+      # promotion here, never by default.
+      introducer = true;
+      folders = [ folderName ];
+    };
+  };
+
+  # The name of each peer that is part of `folder`, derived from the table above
+  # rather than repeated next to each folder's definition.
+  peersOf = folder:
+    lib.filter (peer: lib.elem folder peers.${peer}.folders) (lib.attrNames peers);
+
+  # The Syncthing device declarations, derived from the same table so a peer is
+  # described in exactly one place.
+  deviceSettings = lib.mapAttrs (name: peer: {
+    inherit name;
+    id = peer.id;
+    introducer = peer.introducer or false;
+  }) peers;
 in
 {
   networking.hostName = "syncthing";
@@ -88,34 +111,41 @@ in
     settings = {
       gui.insecureSkipHostcheck = true;
 
-      devices.${peerName} = {
-        name = peerName;
-        id = peerId;
-        # addresses omitted on purpose: the default is ["dynamic"], which is
-        # right for how WE reach IT. The peer is behind its own NAT; it is the
-        # one that dials the host's forwarded 192.168.178.200:22000.
-      };
+      # Derived from `peers` above; adding a peer is one entry in that table.
+      devices = deviceSettings;
 
-      folders.${folderName} = {
-        id = folderName;
-        label = "Personal";
-        path = "/data/${folderName}";
-        type = "sendreceive";
-        devices = [ peerName ];
+      folders = {
+        # Deliberately a subdirectory of the syncthing-data volume, and not
+        # /data itself: Syncthing does not support nesting one shared folder
+        # inside another, and the "select independent folders" the plan leaves
+        # room for are siblings under /data rather than children of this one.
+        ${folderName} = {
+          id = folderName;
+          label = "Personal";
+          path = "/data/${folderName}";
+          # sendreceive, not sendonly. The trashcan versioning below only means
+          # something on a folder that receives -- a sendonly folder never
+          # applies a peer's deletion or replacement, so nothing is ever
+          # versioned. If the server is ever meant to be the sole source of this
+          # folder instead, this becomes sendonly and the versioning block is
+          # dead weight.
+          type = "sendreceive";
+          devices = peersOf folderName;
 
-        # inotify watching rather than periodic rescans: changes are noticed as
-        # they are written. The host's fs.inotify.max_user_watches is raised in
-        # hosts/homelab/kernel.nix, because containers share the host kernel and
-        # the default per-UID budget is easily exceeded by a large tree -- and
-        # the failure is a log line and a silent fallback, not a startup error.
-        fsWatcherEnabled = true;
+          # inotify watching rather than periodic rescans: changes are noticed as
+          # they are written. The host's fs.inotify.max_user_watches is raised in
+          # hosts/homelab/kernel.nix, because containers share the host kernel and
+          # the default per-UID budget is easily exceeded by a large tree -- and
+          # the failure is a log line and a silent fallback, not a startup error.
+          fsWatcherEnabled = true;
 
-        # Deleted or replaced files are moved into .stversions inside the folder
-        # and kept 14 days, which is the recovery window for a mistake that
-        # Syncthing propagates before anyone notices.
-        versioning = {
-          type = "trashcan";
-          params.cleanoutDays = "14";
+          # Deleted or replaced files are moved into .stversions inside the folder
+          # and kept 14 days, which is the recovery window for a mistake that
+          # Syncthing propagates before anyone notices.
+          versioning = {
+            type = "trashcan";
+            params.cleanoutDays = "14";
+          };
         };
       };
     };
