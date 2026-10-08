@@ -10,46 +10,46 @@ proxy in front of this.
 
 ---
 
-## The two accounts, and why there are two
+## One account
 
-The guest has `forgejo` and `git`. They are not interchangeable and conflating
-them is the mistake this instance was rebuilt to avoid.
+The guest has `forgejo`, and only `forgejo`. There used to be a second account,
+`git`, that pushes arrived as, with its own config and a permission boundary to
+match — that design is in git history. What follows describes the current
+single-user setup; the history is referenced where a present-tense statement
+would otherwise look arbitrary.
 
-| | `forgejo` (uid 998) | `git` (uid 1000) |
-| --- | --- | --- |
-| runs | the web process, `serv`, the hooks | `serv`, the hooks — that is all |
-| reads `SECRET_KEY` | yes | **no** |
-| reads the database | yes, as role `forgejo` | **never** |
-| reads `INTERNAL_TOKEN` | yes | yes — the one grant |
-| is in group `git` | yes | — |
-| home | `/var/lib/forgejo` | `/var/lib/forgejo` |
+| | `forgejo` |
+| --- | --- |
+| runs | the web process, `serv`, the hooks — everything |
+| reads `SECRET_KEY` | yes |
+| reads the database | yes, as role `forgejo` |
+| reads `INTERNAL_TOKEN` | yes |
+| home | `/var/lib/forgejo` |
 
-`git` is **not** in group `forgejo`. That membership used to be how it traversed
-`/var/lib/forgejo`, and it was also the only thing keeping the rendered secrets
-from it, since those are `0440` with group `forgejo`. Removing it is what makes
-the boundary real; traversal is now granted a path at a time with `o+x` instead.
+The consequence, stated plainly rather than discovered later: every push runs
+with an identity that reads all five secrets. Custom git hooks are disabled by
+default (verified against the pinned Forgejo source), so a push cannot install
+code that reads them; the remaining exposure is a serv-layer vulnerability
+reached with a stolen key. That trade was accepted explicitly when the accounts
+were collapsed — the alternative was the dual-user machinery back, in full.
 
-`forgejo` **is** in group `git`, which is load-bearing twice: it can read
-`internal_token` at `root:git`, and it can write repositories that are
-`git`-owned.
+What stays true: no *other* account on this box reads these files, and the
+0440 root:forgejo on all five secrets is load-bearing, not decorative.
 
 ### What a push is allowed to reach
 
-A push runs as `git`. It gets:
+A push runs as `forgejo` and can read everything `forgejo` can, which is
+everything on this box that matters: the five secrets, the database role, the
+repositories. It never touches postgres *as a transport* — there is no `git`
+database role and never was one; adding one would hand the push identity SELECT
+on `user`, which holds passwd, salt and the two-factor rows. That reasoning
+survives the collapse unchanged: the transport needs no database access because
+the web process does all authorising over `/api/internal`.
 
-* its own config, `custom/conf/app-git.ini`
-* `internal_token`, and nothing else
-* `data/home/.gitconfig` and `data/home/hooks`, both group `git`
-* every repository, via group write
-
-It cannot read `SECRET_KEY`, `oauth2_jwt_secret`, `lfs_jwt_secret` or
-`smtp_password`. It never touches postgres — there is no `git` database role, and
-adding one would be a *larger* exposure than this one, because that role would be
-able to read `user.passwd`, `user.salt` and the two-factor rows.
-
-Every one of those modes is asserted by `forgejo-git-config` at the end of every
-run, and again by `incus/apply-sshd-test.sh` against the built guest. If one of
-them drifts, a unit fails rather than a push.
+The modes below are what they are because there is only one reader left to
+reason about. If one of them drifts, nothing fails loudly anymore — there is no
+unit asserting them, by design: with a single identity the failure they used to
+catch (one transport locked out) cannot occur.
 
 ---
 
@@ -65,7 +65,7 @@ transport that cannot move is the one thing that had to keep the port.
 you  ->  192.168.178.200:22            (Incus DNAT, no socket listens on 22)
      ->  10.0.0.101:22   sshd         (in here; PasswordAuthentication=no)
      ->  AuthorizedKeysCommand         /run/forgejo-ssh-keys/keys, as root
-     ->  forced command                forgejo serv key-<id> --config app-git.ini
+     ->  forced command                forgejo serv key-<id> --config app.ini
      ->  the web process               /api/internal/serv/command/...
      ->  git-receive-pack
      ->  post-receive -> the web process again, to record the push
@@ -74,9 +74,9 @@ you  ->  192.168.178.200:22            (Incus DNAT, no socket listens on 22)
 Two things about that are worth stating outright.
 
 **sshd has to live in here.** `forgejo serv` refuses to run as anything except
-`RUN_USER`, and `RUN_USER` is `git`, a guest account. The host's sshd has no such
-account to authenticate. The check is in `LoadSettings`, so it fires for every
-subcommand, and there is no override.
+`RUN_USER`, and the check is in `LoadSettings`, so it fires for every
+subcommand, and there is no override. The host has no `forgejo` account to
+authenticate against, so the session must originate in this container.
 
 **The web process does the authorising.** `serv` does not talk to the database.
 It asks the web process over `/api/internal`, which is mounted on the main
@@ -117,100 +117,42 @@ registered", and every push fails as a bare publickey denial with nothing logged
 
 ---
 
-## Two configs, and the one that matters
+## One config
 
 | file | for | mode |
 | --- | --- | --- |
-| `custom/conf/app.ini` | the web process | `0444 forgejo:forgejo` |
-| `custom/conf/app-git.ini` | `serv`, running as `git` | `0600 git:git` |
+| `custom/conf/app.ini` | the web process and `serv` | `0440 forgejo:forgejo` |
 
-### Both transports share one hook, so the hook chooses
+One `RUN_USER`, one account executing, one config. There used to be a second
+file, `app-git.ini` -- the same settings with `RUN_USER=git` and every
+`*_URI` except `INTERNAL_TOKEN_URI` dropped, derived at runtime by a unit that
+no longer exists. It existed because pushes arrived as a different account
+than the web process, and a single config cannot satisfy two `RUN_USER`
+values. With one account the problem it solved does not occur.
 
-The account that runs the hooks is not a choice; it follows from how the push
-arrived. Measured in the guest:
-
-| push | runs as | why |
-| --- | --- | --- |
-| `ssh://` | `git` | sshd's forced command, `forgejo serv key-<id>` |
-| `https://` | `forgejo` | the **repository owner**; Forgejo authenticates the HTTP request |
-
-So the hooks `sync_forgejo_hooks` writes select their config by account:
-
-```bash
-cfg=/var/lib/forgejo/custom/conf/app-git.ini
-[ "$(id -un)" = forgejo ] && cfg=/var/lib/forgejo/custom/conf/app.ini
-HOME=/var/lib/forgejo .../bin/forgejo hook --config "$cfg" post-receive
-```
-
-`id -un`, not `id -u 1000`: the hook carries no uid that has to be kept in step
-with the guest's passwd file. Any account other than `forgejo` gets
-`app-git.ini`, which is the safe default — the other way round would hand a
-`RUN_USER=forgejo` config to a transport that cannot satisfy it.
-
-**A hook that names one config is wrong for whichever transport does not own
-it.** That was the HTTPS bug, and it is worth remembering why the symptom was so
-misleading:
+The HTTPS failure below is kept because the symptom is otherwise
+unrecognisable -- but note it cannot happen anymore. There is no second
+transport identity for a message to misname:
 
 ```
 remote rejected  ... (pre-receive hook declined)
 ...permission denied on "/var/lib/forgejo/custom/conf/app-git.ini"
 ```
 
-The message names a config path, not the account that could not read it, so it
-reads as a permissions problem on the *git* config rather than "this transport
-runs as somebody else". `forgejo` cannot open `app-git.ini` (it is `0600
-git:git`), and every HTTPS push was declined at `pre-receive`.
-
-The tempting fix — `chmod 0440 git:git` — is wrong. `forgejo` **is** in group
-`git`, so it would then be able to read it, and `mustCurrentRunUserMatch()`
-would immediately fatal on a `RUN_USER=git` config read by uid `forgejo`. One
-failure traded for another, and the second is louder.
-
-**What this preserves, and what it never protected.** A push over SSH runs as
-`git` and reads only `INTERNAL_TOKEN`. HTTPS was never inside that boundary and
-cannot be: Forgejo serves HTTPS as itself, so an HTTPS push is a privileged
-operation by the service account, exactly like an API write. It is treated as
-one.
-
-Note that `app.ini` is `0444`, so `git` *can* read it — but it names four
-`file:` URIs whose targets are `0440 root:forgejo`, so `serv` would die in
-`loadSecret` on the first one. That is why `app-git.ini` exists rather than the
-hooks simply pointing at `app.ini` everywhere.
-
-`app-git.ini` is **generated at runtime** by `forgejo-git-config` from
-`app.ini`, with two changes: `RUN_USER` becomes `git`, and every `*_URI` except
-`INTERNAL_TOKEN_URI` is dropped.
-
-It is derived rather than hand-written because the settings live in
-`services.forgejo.settings`; a second copy of them is a second thing to rot.
-
-Three details, each of which was a live failure first:
-
-* **The filter is a filter**, not four deletions by name. The keys are
-  `SECRET_KEY_URI`, `JWT_SECRET_URI`, `LFS_JWT_SECRET_URI` and `PASSWD_URI` — a
-  list written from the four *secret names* deletes three of four, and `serv`
-  still dies in `loadSecret`. Anything matching `*_URI` that is not
-  `INTERNAL_TOKEN_URI` is dropped, so a secret added to `app.ini` later is
-  withheld by default rather than leaked by omission. The unit then asserts which
-  keys survived.
-* **`git` owns it, `0600`.** `serv` *writes* this file — it saves its own oauth2
-  JWT signing key into it on first use — so a read-only config is a fatal
-  `loadOAuth2From`. This bit me during development: the config was `0444` root
-  and the push died with `permission denied` on save.
-* **`app.ini` is `0440`, not `0444`.** The older comment here claimed `0444` so
-  `git` could read it. That is no longer needed and was not actually held — a
-  Forgejo restart rewrites the file at `0440`, which is how the discrepancy
-  surfaced.
+That was a push over HTTPS running as `forgejo` against hooks naming a
+`0600 git:git` config only `git` could open. Same file, same account now: a
+permissions failure here would name a file this account genuinely cannot
+read, which means the mode above drifted and not that the wrong account
+arrived.
 
 ### The `*_URI` settings are all `file:` URIs
 
-Verified on the live instance, and asserted by `apply-sshd-test.sh`: every
-`*_URI` is a `file:` path, none is an inline value, and there is no
-`file:relative` form. That is what makes it safe for `app-git.ini` to exist at
-all — the transport identity learns *paths*, and knowing a path is not being able
-to open it. If someone later inlines `SECRET_KEY` into `app.ini`, that test fails
-rather than handing the value to every account that can read a config.
-
+Verified on the live instance: every `*_URI` is a `file:` path, none is an
+inline value, and there is no `file:relative` form. No suite asserts this
+anymore -- the check lived in the git-config unit's assertions, which went
+away with it -- so it is stated here instead of tested: if someone later
+inlines `SECRET_KEY` into `app.ini`, nothing fails loudly, and the value sits
+in a file every process in this container is allowed to read.
 ---
 
 ## The hooks, and the push that "succeeded" but recorded nothing
@@ -218,21 +160,27 @@ rather than handing the value to every account that can read a config.
 `core.hooksPath` in `data/home/.gitconfig` points git at **`data/home/hooks`**,
 not at each repository's own `hooks/`. Both sets exist; only the former runs.
 
-That directory was `0750 forgejo:forgejo`, so as `git` every hook was skipped:
+That directory was once `0750 forgejo:forgejo` while pushes arrived as a
+different account, so every hook was skipped:
 
 ```
 hint: The '<data>/home/hooks/post-receive' hook was ignored because
       it's not set as executable.
 ```
 
-The push **reported success and the refs moved**. Nothing reached the database —
+The push **reported success and the refs moved**. Nothing reached the database --
 measured: the branch appeared in the `action` table **zero** times after a push
 that git reported as fine. `post-receive` is what writes the activity feed, the
-pull-request link and the size update. This is the same failure the reconciler's
-`sync_forgejo_hooks` exists to prevent, one level up: a hook that silently does
-nothing is worse than a hook that is missing.
+pull-request link and the size update. A hook that silently does nothing is
+worse than a hook that is missing, and nothing in that output says so.
 
-It is now `group git` with `g+rX`, and the unit re-asserts it every run.
+With one account the mode problem is gone -- Forgejo writes these files as
+itself and runs them as itself. What remains is the binary path: the hooks
+name `/nix/store/.../bin/forgejo` absolutely, so a nixpkgs bump breaks all of
+them until something rewrites the paths. That something is stock: the module
+runs `admin regenerate hooks` in `preStart`, on every service start. There
+used to be a reconciler sweep doing the same job for a two-config dispatch
+that no longer exists; stock covers the single-config case on its own.
 
 ### `HOME` is not what the passwd entry says
 
@@ -246,10 +194,10 @@ Getting this wrong looks like a git bug and is not:
 fatal: detected dubious ownership in repository at '.../homelab.git'
 ```
 
-That is git's ownership check, because it never saw `safe.directory = *` — which
-is in `data/home/.gitconfig`, in a directory it could not read. Repositories are
-`forgejo:git`, so the push needs that exception to touch them at all. Verified by
-running `update-server-info` as `git` with and without read access.
+That is git's ownership check, because it never saw `safe.directory = *` -- which
+is in `data/home/.gitconfig`, in a directory it could not read. Repositories
+are `forgejo:forgejo`, so the exception is about the directory being reachable
+at all rather than about whose files these are.
 
 ---
 
@@ -337,7 +285,9 @@ on it now that `:22` works, but it has not been retired.
 the web UI and is reachable from the host at `10.0.0.101:3000`. `PROTOCOL=http`
 with `HTTP_ADDR=0.0.0.0`. Moving that surface off TCP — `PROTOCOL=http+unix`,
 or a loopback-only bind with Caddy reaching it another way — would remove the
-one real cost in the boundary above. Not done: it changes how Caddy dials Forgejo,
+last network-reachable use of a bearer token on this box. (The old text
+said "the one real cost in the boundary above" -- that boundary, the
+dual-user split, is gone; the surface is not.) Not done: it changes how Caddy dials Forgejo,
 and that needs deciding first.
 
 ### Fixed since these notes were written

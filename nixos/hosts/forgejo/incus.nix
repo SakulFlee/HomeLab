@@ -154,8 +154,8 @@ in
   # This is the whole reason the host's own SSH moved to 2222 -- see
   # ../../modules/ssh.nix. Incus implements a network forward as an nftables DNAT
   # rule, which is per-port and unconditional: there is no way to send port 22 to
-  # Forgejo only for `git@` and keep it for the administrator. Exactly one of the
-  # two could keep 22, and git transport is the one that cannot move, because
+  # Forgejo only for SSH push traffic and keep it for the administrator. Exactly one
+  # of the two could keep 22, and git transport is the one that cannot move, because
   # SSH_PORT=22 is what Forgejo advertises in every clone URL.
   #
   # `incus network forward` accepts several ports on one listen address (Caddy
@@ -182,143 +182,6 @@ in
       }
     ];
   };
-
-  # The git hooks, which name the forgejo binary and its config by absolute path.
-  # Read by incus/apply.sh's sync_forgejo_hooks, which rewrites them on every
-  # reconcile.
-  #
-  # This exists because the hooks inherited from the k3s Docker image name paths
-  # that do not exist here -- /usr/local/bin/gitea and /data/gitea/conf/app.ini --
-  # and a set of hooks pointing at a missing binary does NOT stop a push. git
-  # reports success, the branch lands, and Forgejo's own side effects (the
-  # pull-request link, webhooks, mirror sync, the activity feed) silently never
-  # happen. Proven rather than assumed: every push completed with exit 0 while
-  # every hook was broken.
-  #
-  # The binary is asserted here and verified against forgejo.service's own
-  # ExecStart at apply time, so a nixpkgs bump that changes the store path fails
-  # loudly instead of quietly re-breaking all 265 hook files. Nothing writes the
-  # path down twice.
-  #
-  # `config` is the module's own customDir/conf/app.ini, which is where
-  # render_secrets puts it and where the module's *_URI settings read it from.
-  # No `binary` here, deliberately. It is a /nix/store path, and writing it in two
-  # places is exactly the fragility being removed: this file is a plain `import`
-  # of a literal with no module arguments at all, so it cannot read
-  # config.services.forgejo.package, and a hardcoded store path in a config file
-  # is a value that silently rots on the next nixpkgs bump. apply.sh reads the
-  # path out of forgejo.service's own ExecStart inside the guest instead -- one
-  # source of truth, and the one that is actually running.
-  #
-  # The two paths that ARE stable go here, because they are configuration rather
-  # than build output: the module's stateDir and customDir, neither of which
-  # changes when nixpkgs moves.
-  forgejoHooks = {
-    repositoryRoot = "/var/lib/forgejo/data/git/gitea-repositories";
-
-    # The tree git ACTUALLY EXECUTES, which is not the per-repository one.
-    #
-    # `core.hooksPath` in the module's own global gitconfig points git at
-    # <data>/home/hooks, and that setting overrides the per-repository hooks
-    # directory entirely. Confirmed in the running guest:
-    #
-    #   $ git -C .../homelab.git config --show-origin --get core.hooksPath
-    #   file:/var/lib/forgejo/data/home/.gitconfig  /var/lib/forgejo/data/home/hooks
-    #
-    # So the 265 files under <repositories>/*/*.git/hooks/ are dead. They are
-    # rewritten, byte-for-byte, on every reconcile, and git never executes one of
-    # them. Meanwhile the four files that DO run are Forgejo's own, regenerated
-    # from its config on every start, so they were naming app.ini -- which `git`
-    # cannot read -- and post-receive never completed.
-    #
-    # Measured: a push reported success and the refs moved, and the branch appeared
-    # in the action table ZERO times. No activity feed, no pull-request link, no
-    # size update. Same failure sync_forgejo_hooks exists to prevent, one level
-    # further up than the tree it was pointed at.
-    #
-    # So repositoryRoot above is kept -- it is still the only honest statement of
-    # where repositories live, and the per-repo hooks are what Forgejo's own
-    # `hook` subcommand writes -- but the reconciler is pointed at the tree git
-    # reads.
-    activeHooksPath = "/var/lib/forgejo/data/home/hooks";
-
-    # app-git.ini, NOT app.ini.
-    #
-    # A push arrives as the guest's `git` account, and the hooks a push runs are
-    # also run by that account. app.ini is 0440 root:forgejo, so a hook naming it
-    # dies before it can do anything:
-    #
-    #   InitCfgProvider() [F] Unable to init config provider from ".../app.ini"
-    #
-    # and the push is rejected at pre-receive with a message that names the
-    # transport identity and not the account doing the reading. app-git.ini is the
-    # same config with RUN_USER=git and only INTERNAL_TOKEN_URI, derived at runtime
-    # by forgejo-git-config -- so apply.sh must run AFTER that unit, not before.
-    config = "/var/lib/forgejo/custom/conf/app-git.ini";
-
-    # The config for a push that arrives over HTTP instead of SSH, which runs as a
-    # different account entirely.
-    #
-    # Both transports execute the SAME hook file, and which account runs it is not
-    # a choice -- it follows from how the push arrived:
-    #
-    #   ssh://    sshd's forced command runs as the guest's `git`, and the hook runs
-    #             as `git` too, so it needs app-git.ini (RUN_USER=git).
-    #
-    #   https://  Forgejo authenticates the HTTP request and runs the hook as the
-    #             REPOSITORY OWNER, measured as forgejo:git. That account cannot
-    #             open app-git.ini, so every HTTPS push died at pre-receive:
-    #
-    #               remote rejected  ... (pre-receive hook declined)
-    #               ...permission denied on ".../app-git.ini"
-    #
-    #             and the message named a config path rather than the account that
-    #             could not read it, so it read as a permissions problem on the git
-    #             config instead of "this transport runs as somebody else".
-    #
-    # Deliberately not a mode change. 0440 git:git WOULD be readable by forgejo,
-    # which is in group git -- and then mustCurrentRunUserMatch() fatals on a
-    # RUN_USER=git config read by uid forgejo. One failure traded for another, and
-    # the second is louder.
-    #
-    # So the hook picks its config by the account running it. This is the `forgejo`
-    # side: the web process's own app.ini, already 0440 forgejo:forgejo. An HTTPS
-    # push is a privileged operation by the service account, exactly like an API
-    # write, and it is treated as one.
-    #
-    # What this preserves is the boundary that was always intended -- a push over
-    # SSH runs as `git` and reads only INTERNAL_TOKEN. HTTPS was never inside it and
-    # cannot be, because Forgejo serves HTTPS as itself.
-    webConfig = "/var/lib/forgejo/custom/conf/app.ini";
-  };
-
-  # Guest units that operate on files the HOST reconciler writes, and so have to be
-  # re-run once those files exist. incus/apply.sh reads this list and restarts each
-  # unit after render_secrets.
-  #
-  # forgejo-config-access is the case that made this necessary. Its ExecStart runs
-  # at BOOT, from WantedBy=multi-user.target, and app.ini is written by
-  # render_secrets afterwards -- measured eight seconds apart on the live instance:
-  #
-  #   03:05:01  chmod: cannot access '/var/lib/forgejo/custom/conf/app.ini'
-  #   03:05:09  app.ini mtime
-  #
-  # So the parent directories got their o+x, the two files inside conf/ did not,
-  # and the unit exited 0. `git` then could not read app.ini and every clone failed
-  # with `Could not chdir to home directory /var/lib/forgejo`, which names the home
-  # directory and not the missing chmod.
-  #
-  # A list rather than a single name, so the reconciler stays generic: nothing
-  # here knows what these units do, only that they need to run again.
-  #
-  # forgejo-git-config is second in the list and that order matters: it derives
-  # app-git.ini from app.ini, so on a first run it has nothing to derive from until
-  # render_secrets has written the source. apply.sh restarts these in the order
-  # given.
-  afterRenderSecrets = [
-    "forgejo-config-access.service"
-    "forgejo-git-config.service"
-  ];
 
   # Secrets the host decrypts and writes into this instance. incus/apply.sh reads
   # `source` on the host and writes the bytes to `dir/file` inside the instance.

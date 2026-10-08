@@ -25,39 +25,37 @@
 # changed -- and this is the substance of the file -- is which account it arrives
 # as.
 #
-# A push arrives as `git`, not as `forgejo`
-# ----------------------------------------
-# The earlier version of this file concluded that a push must run as `forgejo`,
-# and recorded that as an unavoidable cost. It was avoidable, and the reasoning
-# was wrong in a specific and interesting way: it read serv's refusal to start as
-# serv *needing* the secrets.
+# A push arrives as `forgejo`, and always has since the single-user collapse --
+# there is no second identity anymore. (An earlier version of this file
+# concluded pushes arrived as a separate `git` account, with a derived config
+# and a permission boundary to match. That design is in git history; what
+# remains here is the transport both designs share.)
 #
-# serv needs exactly one: INTERNAL_TOKEN, which it sends as a bearer token to the
-# web process's own /api/internal endpoint. Everything else -- key lookup,
-# repository lookup, the permission check that decides whether the key may write
-# at all -- happens inside the web process, as `forgejo`, over that socket.
-# Verified against v16.0.5's cmd/serv.go and routers/private/serv.go, and measured:
+# serv needs exactly one secret: INTERNAL_TOKEN, which it sends as a bearer
+# token to the web process's own /api/internal endpoint. Everything else --
+# key lookup, repository lookup, the permission check that decides whether the
+# key may write at all -- happens inside the web process, as `forgejo`, over
+# that socket. Verified against v16.0.5's cmd/serv.go and routers/private/serv.go,
+# and measured:
 #
 #   GET /api/internal/serv/none/13   no token -> 403  @ private/internal.go:23
 #   GET /api/internal/serv/none/13   token    -> 200  @ private/serv.go:51
 #
-# So `git` is given internal_token and a derived config (app-git.ini, built by
-# forgejo-git-config in ./default.nix) that names no other secret. It cannot read
-# SECRET_KEY, the oauth2 or LFS JWT secrets, or the mailer password, and it never
-# touches the database at all.
+# So the forced command names the web's own app.ini directly. There is no
+# second config anymore: a single RUN_USER means the config serv reads is the
+# config the web runs on, and mustCurrentRunUserMatch() is satisfied by
+# construction rather than by derivation.
 #
 # Why this matters rather than being tidiness: every registered SSH key executes
-# as whichever account this file logs in as. Running as `forgejo` means every push
-# runs with the identity that can read SECRET_KEY -- the key that signs session
-# cookies -- and there are nine accounts on this instance, several of them bots.
-# A scoped database role, the fix this replaces, would have been worse still: it
-# would have handed the push identity SELECT on `user`, which holds passwd, salt and
-# the two-factor rows.
-#
-# The cost that remains, stated plainly: `git` can reach /api/internal with a valid
-# bearer token, and that surface includes manager/shutdown. See the
-# forgejo-git-config comment for why that is the smaller of the two exposures on
-# offer.
+# as whichever account this file logs in as. That account reads SECRET_KEY --
+# the key that signs session cookies -- and there are nine accounts on this
+# instance, several of them bots. The previous design held that off by running
+# serv as a separate `git` identity that could not read it; that boundary was
+# removed explicitly when the accounts were collapsed (see the commit), trading
+# containment of a serv-layer compromise for the deletion of the whole
+# dual-user machinery. Custom git hooks -- the other route to code execution
+# as this account -- are disabled by default (verified against the pinned
+# Forgejo source), and the forced command below constrains sessions to serv.
 {
   config,
   lib,
@@ -68,18 +66,12 @@
 
   forgejo = "${pkgs.forgejo}/bin/forgejo";
 
-  # Where Forgejo keeps the WEB's app.ini -- the one the web process runs on, which
-  # names all five secrets. The forced command does NOT use it; see gitIni below.
-  #
-  # It is still referenced because it is the config forgejo-git-config derives
-  # gitIni from, and the tests assert against it.
+  # Where Forgejo keeps the WEB's app.ini -- which is now also the config the
+  # forced command uses. Single RUN_USER means one config serves both, so there
+  # is no derived second config and nothing to rot alongside the settings.
+  # (There used to be an app-git.ini here, generated at runtime; it went away
+  # with the `git` account. The tests assert against app.ini directly.)
   appIni = "${cfg.customDir}/conf/app.ini";
-
-  # The transport identity's config: app.ini with RUN_USER=git and every *_URI
-  # except INTERNAL_TOKEN_URI dropped. Generated at runtime by forgejo-git-config,
-  # not written here -- the settings live in services.forgejo.settings and a second
-  # hand-maintained copy of them is a second thing to rot.
-  gitIni = "${cfg.customDir}/conf/app-git.ini";
 
   # The key list, straight from Forgejo's own database.
   #
@@ -184,13 +176,11 @@
       # Verified by running the generated script's own output back through a
       # shell the way sshd does. The form matches what Forgejo itself writes into
       # a managed authorized_keys file.
-      # --config names app-git.ini, NOT app.ini. app.ini is 0440 root:forgejo and
-      # names four secrets; serv reads every *_URI in whatever config it is given
-      # and dies in loadSecret if one is unreadable. app-git.ini is the same config
-      # with RUN_USER=git and only INTERNAL_TOKEN_URI, and it is what makes this
-      # session able to run as `git` at all.
+      # --config names app.ini, the web's own config. One RUN_USER means the
+      # config serv reads is the config the web runs on: no derived copy, no
+      # *_URI filtering, nothing that can disagree with the settings block.
       printf 'command="%s serv key-%s --config %s",no-pty %s\n' \
-        ${forgejo} "$id" ${gitIni} "$rest"
+        ${forgejo} "$id" ${appIni} "$rest"
     done <<<"$keys"
   '';
 

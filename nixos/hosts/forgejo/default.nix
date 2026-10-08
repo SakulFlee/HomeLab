@@ -22,126 +22,6 @@ let
   # low and it writes into a directory that does not exist.
   dataPath = "${cfg.stateDir}/data";
 
-  # What the forgejo-config-access unit runs. Defined here, at the top, because
-  # the unit body needs it and a definition further down the same attribute set
-  # is not in scope for it -- `let` bindings are unordered, but a `let` block is
-  # not a recursive attribute set, so a binding introduced further down simply
-  # does not exist where it is used:
-  #
-  #   error: undefined variable 'configAccessScript'
-  #
-  # The script itself, and the reasoning behind every permission it sets, is
-  # next to the unit that runs it.
-  configAccessScript = pkgs.writeShellScript "forgejo-config-access" ''
-    # util-linux, by absolute path. NOT bare `su`.
-    #
-    # The unit's PATH is coreutils, findutils, grep, sed and systemd -- there is no
-    # su and no runuser in it. So the verification below ran as
-    #
-    #   line 35: su: command not found
-    #
-    # and the script exited 0 having achieved nothing useful: custom/conf stayed
-    # 0700, app.ini stayed 0440, and `git` could not read either. The check that
-    # existed precisely to catch that was itself the thing that was broken, which
-    # is the worst possible arrangement -- it reported success while proving
-    # nothing. Same reason forgejo-ssh-keys uses `runuser -u forgejo` from an
-    # explicit store path.
-    RUNUSER=${pkgs.util-linux}/bin/runuser
-    BASH=${pkgs.bash}/bin/bash
-
-    # Refuse to do anything at all if the config is not there yet.
-    #
-    # custom/conf is NOT created by this unit and is not among the module's own
-    # directories -- it is where the HOST's reconciler writes app.ini and the five
-    # secrets, and it does that AFTER this unit has already run at boot. Observed
-    # on the live instance, eight seconds apart:
-    #
-    #   03:05:01  forgejo-config-access: chmod: cannot access
-    #              '/var/lib/forgejo/custom/conf/app.ini': No such file or directory
-    #   03:05:09  app.ini mtime
-    #
-    # So the three parent directories got their o+x and the two files inside conf/
-    # did not, and the run exited 0. Failing here instead turns an eight-second
-    # race into a loud unit failure that apply.sh notices and re-runs.
-    if [ ! -f ${cfg.customDir}/conf/app.ini ]; then
-      echo "config-access: ${cfg.customDir}/conf/app.ini does not exist yet." >&2
-      echo "  It is written by the host reconciler, not at boot. This unit must be" >&2
-      echo "  re-run after render_secrets; apply.sh does that." >&2
-      exit 1
-    fi
-
-    # o+x on the three directories on the way: traverse, no list, no read.
-    # 0750 forgejo:forgejo -> 0751. custom/ is on the list because o+x does not
-    # inherit into a 0750 child, and conf/ is inside it.
-    chmod 0751 ${cfg.stateDir} ${dataPath} ${cfg.customDir} ${cfg.customDir}/conf
-
-    # The config itself, and only the config: o+r, so the transport identity can
-    # read it. This is the single file here opened to other.
-    #
-    # It holds no secret. The five that matter are named by path inside it by
-    # the *_URI settings, and knowing a path is not being able to open it --
-    # those stay 0440 root:forgejo in a directory this account can now walk
-    # through but not read.
-    #
-    # That premise is asserted, not assumed: incus/apply-sshd-test.sh reads the
-    # rendered app.ini and fails if any *_URI is not a file: path. If someone
-    # later inlines SECRET_KEY here, 0444 would hand it to every account on the
-    # host and that test is what notices.
-    #
-    # 0444 rather than 0644 because the module's forgejo-secrets unit writes the
-    # file as the forgejo user under UMask=0027, so it lands 0640 and this has to
-    # widen it after the reconciler has written it.
-    chmod 0444 ${cfg.customDir}/conf/app.ini
-
-    # Confirm the one thing that must be true, and fail the unit if it is not.
-    # Without this the script exits 0 having achieved nothing useful: the 0751s
-    # above land, custom/conf stays 0700, `git` still cannot read app.ini, and
-    # `forgejo serv` fails on every push with a message that points at the wrong
-    # place entirely.
-    #
-    # Observed exactly that on the first run against the live instance:
-    #
-    #   head: cannot open '/var/lib/forgejo/custom/conf/app.ini': Permission denied
-    #   exit: 0
-    $RUNUSER -u git -- $BASH -c \
-      "head -c 1 ${cfg.customDir}/conf/app.ini >/dev/null"
-
-    # And confirm the five are still out of reach, so a future change to these
-    # modes cannot quietly reopen them.
-    for f in secret_key internal_token oauth2_jwt_secret lfs_jwt_secret smtp_password; do
-      if $RUNUSER -u git -- $BASH -c \
-           "head -c 1 ${cfg.customDir}/conf/$f" >/dev/null 2>&1; then
-        echo "config-access: $f is readable by git -- refusing to continue" >&2
-        exit 1
-      fi
-    done
-  '';
-
-  # The transport identity's own config, DERIVED from app.ini at runtime.
-  #
-  # `forgejo serv` runs as `git` (see users.users.git), and LoadSettings reads
-  # every *_URI in whatever config it is given -- fatally, if one is unreadable:
-  #
-  #   setting.go:94:InitCfgProvider() [F] Unable to init config provider from
-  #     ".../app.ini": open .../app.ini: permission denied
-  #   security.go:88:loadSecret() [F] SECRET_KEY_URI: Failed to read
-  #     .../secret_key: permission denied
-  #
-  # So handing `git` the web's app.ini cannot work while that config names four
-  # secrets the account must not read. It does not need them: reading v16.0.5's
-  # cmd/serv.go, the only secret serv requires is INTERNAL_TOKEN, which it sends
-  # as a bearer token to the web process's own /api/internal endpoint. All the
-  # database work happens in the web process, which is why a scoped database role
-  # -- the obvious-looking fix -- is not needed and would grant access nothing
-  # uses.
-  #
-  # So this is the web's config with RUN_USER changed and every *_URI dropped but
-  # INTERNAL_TOKEN's. Generated by forgejo-git-config rather than written here, for
-  # the same reason app.ini is not written here: the settings live in
-  # services.forgejo.settings, and a second hand-maintained copy of them is a
-  # second thing to rot.
-  gitIni = "${cfg.customDir}/conf/app-git.ini";
-
   # The primary key Forgejo signs commits with. A constant in both this config
   # and the restored database; if they ever disagree the selftest below fails
   # loudly instead of silently producing unsigned commits. See the GPG section.
@@ -233,11 +113,10 @@ let
   # customDir, because that directory is the only one its secret-bootstrap unit
   # is allowed to write; see the Secrets section below.
 
-  # Forgejo's own user, which the module creates. Extended rather than replaced
-  # so the module keeps ownership of the account definition.
-  forgejoUser = {
-    extraGroups = [ "git" ];
-  };
+  # Forgejo's own user, which the module creates. No local extension: there used
+  # to be one carrying `extraGroups = [ "git" ]`, and it went away with the
+  # `git` account itself (see Accounts below). A single-user service has no
+  # cross-account grants to declare.
 in
 {
   networking.hostName = "forgejo";
@@ -332,59 +211,25 @@ in
   # --------------------------------------------------------------------------
   # Accounts
   # --------------------------------------------------------------------------
-  # Two accounts, deliberately. `forgejo` runs the service and owns the config;
-  # `git` is the identity a push arrives as and owns the repository volume. They
-  # share the repositories directory through group `git` -- see the ownership
-  # unit below.
-  users.groups.git = { };
-
-  users.users.git = {
-    isNormalUser = true;
-    description = "Git transport identity for Forgejo pushes";
-    # Not a login shell and not a home directory: this account exists to own
-    # files and to be the target of `incus exec --user git --`. A home under
-    # /var/lib/forgejo would put a dotfile tree inside the data volume.
-    home = "/var/lib/forgejo";
-    createHome = false;
-    group = "git";
-    shell = pkgs.bashInteractive;
-
-    # NOT in group `forgejo`. That membership used to be how this account
-    # traversed /var/lib/forgejo and /var/lib/forgejo/data, and it was also the
-    # only thing keeping the five rendered secrets from it: they are 0440 with
-    # group `forgejo`, so membership was the whole threat, held off by
-    # custom/conf sitting at 0700.
-    #
-    # That arrangement cannot serve git-over-SSH. `forgejo serv` runs as this
-    # account -- it has to, because serv is what authorises the push -- and serv
-    # will not start without reading app.ini:
-    #
-    #   InitCfgProvider() [F] Unable to init config provider from
-    #   "/var/lib/forgejo/custom/conf/app.ini"
-    #
-    # which at 0700 this account cannot do. Opening custom/conf to group
-    # `forgejo` would in the same stroke open the five secrets beside app.ini,
-    # since they share the directory and the group. So the boundary moves off the
-    # directory mode and onto group membership:
-    #
-    #   traverse   o+x on /var/lib/forgejo, /data and /custom  (forgejo-config-access)
-    #   read       o+r on custom/conf/app.ini, and nothing else
-    #   secrets    still 0440 root:forgejo, unreachable without group `forgejo`
-    #
-    # Strictly tighter than before: this account used to be in the group that
-    # owns the secrets and was held off by a single directory bit. Now it is not
-    # in the group at all, so loosening that bit would still not expose them.
-    #
-    # It is also what Gitea's own image does -- app.ini is readable by the git
-    # transport identity there too -- and it is the only arrangement that lets a
-    # push run as `git` rather than as `forgejo`. Running serv as `forgejo` would
-    # have been a far smaller diff and much the worse outcome: every registered
-    # SSH key would execute with the identity that can read SECRET_KEY,
-    # INTERNAL_TOKEN and the SMTP password, and there are nine accounts here,
-    # several of them bots.
-  };
-
-  users.users.forgejo = forgejoUser // {
+  # One account. There used to be two -- `forgejo` plus a `git` transport
+  # identity that pushes arrived as -- and the split is documented in git
+  # history rather than here because none of its reasons survived it:
+  #
+  #   * serv ran as `git` so SSH keys would not execute with SECRET_KEY-readable
+  #     identity. Every push now runs as `forgejo`, which reads all five
+  #     secrets. Custom git hooks are disabled by default (verified against the
+  #     pinned Forgejo source), so a push cannot install code that reads them;
+  #     the remaining exposure is a serv-layer vulnerability reached with a
+  #     stolen key, which this arrangement does not contain. Accepted
+  #     explicitly when the split was removed: see the commit.
+  #   * The stock hook/config machinery assumes a single RUN_USER and handles
+  #     everything -- binary paths, per-repo hooks -- on its own. The sweep,
+  #     the dispatch, both guest units and most of sshd-test existed only to
+  #     serve the second identity.
+  #
+  # What stays true: no other account on this box reads these files, and the
+  # 0440 root:forgejo on all five secrets is load-bearing, not decorative.
+  users.users.forgejo = {
     # NOT optional, and not cosmetic.
     #
     # NixOS gives a user with no `password` a shadow field of "!", and sshd
@@ -457,263 +302,15 @@ in
     };
   };
 
-  # custom/conf is where app.ini and all five rendered secrets live, and the
-  # module creates the directory as a StateDirectory at 0750 -- readable by group
-  # `forgejo`. Which is fine right up until `git` is put in group `forgejo` for
-  # the traversal below, at which point the transport identity can read them:
-  #
-  #   -r--r----- 1 forgejo forgejo /var/lib/forgejo/custom/conf/secret_key
-  #   su git -c 'cat .../custom/conf/secret_key'   -> succeeds
-  #
-  # That matters because `git` is who every SSH session on the host lands as, so
-  # anything it can read, anyone who can open a connection can read -- and
-  # SECRET_KEY is the key whose reuse is what keeps the admin's TOTP secrets
-  # decryptable. It also signs session cookies, so it is not a file to hand to a
-  # network-reachable login "harmlessly".
-  #
-  # 0700 puts the boundary back: `forgejo` owns the directory and is the only
-  # thing that ever reads those files, and the files' own 0440 becomes
-  # unreachable once the directory stops granting group traverse.
-  #
-  # Ordered after local-fs.target because that is when systemd applies the
-  # StateDirectory mode, which would otherwise put 0750 straight back.
-  systemd.services.forgejo-config-access = {
-      # Was forgejo-config-privacy, which held custom/conf at 0700. That is what
-      # stopped the `git` transport identity reading app.ini -- and therefore what
-      # stopped `forgejo serv` from starting, since a push arrives as `git`.
-      #
-      # Replaced rather than merely relaxed. `chmod 0750` on the directory would
-      # have been the one-word fix and it would have been wrong: the five secrets
-      # are 0440 root:forgejo in that same directory, and `git` has to be able to
-      # traverse -- so 0750 hands over the secrets along with app.ini. Instead
-      # `git` is no longer in group `forgejo` (see users.users.git) and is granted
-      # exactly what it needs through `other` bits instead, one path at a time.
-      #
-      # The net effect on the secrets is nil: still 0440 root:forgejo, and this
-      # account still not in group `forgejo`, so nothing here can reach them.
-      # Checked by reading all five as `git` after this unit runs, not assumed.
-      description = "Let the git transport identity read app.ini, and nothing else";
-      wantedBy = [ "multi-user.target" ];
-      after = [ "local-fs.target" ];
-      before = [ "forgejo.service" ];
-      serviceConfig = {
-        Type = "oneshot";
-        RemainAfterExit = true;
-        # Not fatal at boot. app.ini is written by the HOST's reconciler, which
-        # runs after this unit -- measured eight seconds apart on the live
-        # instance -- so on a fresh or recreated instance this unit is *expected*
-        # to find nothing there. Failing the boot outright would make every
-        # recreate look broken.
-        #
-        # The script exits 1 when app.ini is absent, which is correct: it must not
-        # report success having done nothing. So the failure is expected here and
-        # tolerated, and apply.sh re-runs the unit immediately after
-        # render_secrets, when the file genuinely exists. That second run is the
-        # one whose result matters, and it is not optional.
-        SuccessExitStatus = 1;
-        # "${script}/bin/name", NOT lib.getExe' script. getExe' on a
-        # writeShellScript result is a *function* awaiting a name, and coercing
-        # it fails with an error that names neither this nor the unit:
-        #
-        #   error: cannot coerce a function to a string
-        #     «lambda getExe' @ .../lib/meta.nix:573»
-        #
-        # which is the same class of bug the signing selftest comment above
-        # records, paid for once already.
-        # ${configAccessScript} IS the script.
-        #
-        # pkgs.writeShellScript returns a derivation whose single output is the
-        # executable file, so interpolating the derivation gives
-        # /nix/store/<hash>-forgejo-config-access -- a FILE. Appending
-        # /bin/<name> to it, as this did, names a path inside a regular file, and
-        # systemd reports the only symptom that matters:
-        #
-        #   Unable to locate executable '/nix/store/<hash>-forgejo-config-access/bin/forgejo-config-access':
-        #       Not a directory
-        #   Result=exit-code  status=203/EXEC
-        #
-        # So the unit that grants `git` traversal never ran, and the o+x modes on
-        # stateDir, data, custom and custom/conf were never applied. Nothing failed
-        # visibly for a long time because `git` was in group `forgejo`, and 0750
-        # hands the GROUP r-x -- the accidental grant covered for the missing one.
-        # Removing `git` from that group, which is the whole point of the secret
-        # boundary, exposed it: git could no longer traverse to its own HOME and
-        # every clone failed with
-        #
-        #   Could not chdir to home directory /var/lib/forgejo: Permission denied
-        #
-        # Two bugs, one masking the other. The same mistake was made once already
-        # for forgejo.service -- see 310e0e22, "ExecStart must be the script path,
-        # not getExe'" -- so it is worth a test that resolves every ExecStart in
-        # the built guest rather than trusting the string.
-        ExecStart = "${configAccessScript}";
-      };
-    };
-
-  # Derives the transport identity's config, and makes `git` able to read exactly
-  # one secret.
-  #
-  # Two separate grants, and the second is the reason the first is safe:
-  #
-  #   internal_token  root:git 0440  -- serv needs it; the four it must not have
-  #                                     stay 0440 root:forgejo
-  #   app-git.ini     git:git 0600   -- RUN_USER=git, only INTERNAL_TOKEN_URI
-  #
-  # INTERNAL_TOKEN is the weakest of the five by a wide margin, and it is the only
-  # one serv cannot start without. It authorises requests to /api/internal, which
-  # is mounted on the same listener as the web UI (routers/init.go) and gated by
-  # that one bearer token. Verified in the running instance:
-  #
-  #   GET /api/internal/serv/none/13   no token -> 403  @ private/internal.go:23
-  #   GET /api/internal/serv/none/13   token    -> 200  @ private/serv.go:51
-  #
-  # So this grant does hand `git` the internal API. That is a real cost and it is
-  # not free -- /api/internal also serves manager/shutdown -- but it is strictly
-  # smaller than what the alternative grants, and it is bounded by something the
-  # web config cannot grant at all. The four secrets it does NOT need are what
-  # matter: SECRET_KEY alone would let `git` forge a session cookie and be admin.
-  #
-  # The derivation is done by sed rather than by a second settings block, and the
-  # filter is on the whole set of *_URI keys with one exception rather than four
-  # deletions by name. The four-by-name version was wrong in a way that only showed
-  # up at runtime: the keys are SECRET_KEY_URI, JWT_SECRET_URI (not
-  # OAUTH2_JWT_SECRET_URI -- that is the value name, not the key), LFS_JWT_SECRET_URI
-  # and PASSWD_URI, so a list written from the value names deletes three of four
-  # and serv still dies in loadSecret. Anything matching *_URI that is not
-  # INTERNAL_TOKEN_URI is dropped, so a secret added to this config later is
-  # withheld from `git` by default rather than leaked by omission.
-  #
-  # Owned by `git` and 0600 because serv WRITES this file: it generates and saves
-  # its own oauth2 JWT signing key on first use, and a config it cannot write
-  # makes it fatal --
-  #
-  #   oauth2.go:135:loadOAuth2From() [F] save oauth2.JWT_SECRET failed:
-  #     failed to save ".../app-git.ini": permission denied
-  #
-  # Observed, and the fix is the ownership rather than a read-only mount.
-  systemd.services.forgejo-git-config = {
-    description = "Derive the git transport identity's own Forgejo config";
-    wantedBy = [ "multi-user.target" ];
-    # After config-access, which makes custom/conf traversable at all, and after
-    # local-fs so the volume is mounted. Before sshd, because a push that arrives
-    # before this has run gets the "InitCfgProvider" fatal with nothing to say why.
-    after = [
-      "local-fs.target"
-      "forgejo-config-access.service"
-    ];
-    before = [ "sshd.service" ];
-    # Not fatal at boot, same reason as forgejo-config-access: app.ini is written
-    # by the HOST's reconciler after this unit runs. apply.sh re-runs it once the
-    # file exists (afterRenderSecrets in ./incus.nix).
-    serviceConfig = {
-      Type = "oneshot";
-      RemainAfterExit = true;
-      SuccessExitStatus = 1;
-      # sed and install by absolute store path: this unit's PATH is systemd's, and
-      # a bare `sed` here is a `command not found` that produces an empty config.
-      ExecStart = pkgs.writeShellScript "forgejo-git-config" ''
-        set -eu
-
-        app=${cfg.customDir}/conf/app.ini
-        out=${gitIni}
-
-        if [ ! -f "$app" ]; then
-          echo "git-config: $app does not exist yet." >&2
-          echo "  It is written by the host reconciler, not at boot. This unit must" >&2
-          echo "  be re-run after render_secrets; apply.sh does that." >&2
-          exit 1
-        fi
-
-        # RUN_USER must become `git`, or mustCurrentRunUserMatch() rejects the
-        # session: it compares the config's RUN_USER against the current uid and
-        # fatals on a mismatch, for every subcommand, with no override.
-        #
-        # Any *_URI key that is not INTERNAL_TOKEN_URI is dropped. See the unit's
-        # comment for why this is a filter and not four deletions by name.
-        ${pkgs.gnused}/bin/sed \
-          -e "s|^RUN_USER=.*|RUN_USER=git|" \
-          -e "/_URI=/ { /INTERNAL_TOKEN_URI/!d }" \
-          "$app" > "$out"
-
-        # Assert the premise rather than trusting the sed. If this file ever comes
-        # to name a secret, `git` must not be able to read it -- and the only place
-        # that is guaranteed is here, before the mode is widened.
-        for f in $(grep -oE '^[A-Za-z0-9_]+_URI=' "$out" | tr -d '='); do
-          [ "$f" = INTERNAL_TOKEN_URI ] \
-            || { echo "git-config: $out names $f, which git must not see" >&2; exit 1; }
-        done
-        grep -q '^RUN_USER=git$' "$out" \
-          || { echo "git-config: $out does not say RUN_USER=git" >&2; exit 1; }
-
-        # git:git 0600. serv writes this file -- it saves its own oauth2 signing
-        # key into it -- so read-only ownership for this account is fatal.
-        ${pkgs.coreutils}/bin/chown git:git "$out"
-        ${pkgs.coreutils}/bin/chmod 0600 "$out"
-
-        # internal_token, and only internal_token, becomes readable by `git`.
-        # 0440 root:git: `forgejo` is in group `git` (users.users.forgejo), so the
-        # web process still reads it through the same group bit. The other four
-        # are untouched -- still 0440 root:forgejo in a directory this account can
-        # traverse but not read.
-        ${pkgs.coreutils}/bin/chown root:git ${cfg.customDir}/conf/internal_token
-        ${pkgs.coreutils}/bin/chmod 0440 ${cfg.customDir}/conf/internal_token
-
-        # Forgejo's own global git config, at data/home/.gitconfig, is what a push
-        # actually reads: commonBaseEnvs() in v16.0.5 sets HOME=<data>/home for the
-        # git subprocess, overriding the passwd entry. Without read access to it,
-        # `git` misses [safe] directory = * -- which the module writes, and which is
-        # the only thing that lets a push touch a repository `forgejo` owns:
-        #
-        #   fatal: detected dubious ownership in repository at '.../homelab.git'
-        #
-        # That aborts `git receive-pack`, so the push fails before any ref moves --
-        # and it names git's ownership check rather than the config that would have
-        # answered it. The directory needs o+x for the same reason: it is 0750
-        # forgejo:forgejo.
-        ${pkgs.coreutils}/bin/chmod 0751 ${dataPath}/home
-        ${pkgs.coreutils}/bin/chgrp git ${dataPath}/home/.gitconfig
-
-        # The hooks themselves. core.hooksPath points git at <data>/home/hooks, and
-        # that directory is 0750 forgejo:forgejo, so every hook is skipped:
-        #
-        #   hint: The '<data>/home/hooks/post-receive' hook was ignored because
-        #         it's not set as executable.
-        #
-        # A push then "succeeds" -- refs move -- and Forgejo records nothing: the
-        # action row, the pull-request link and the activity feed all silently do
-        # not happen, because post-receive is what writes them. Measured: the branch
-        # appeared in the database's action table 0 times after a successful-looking
-        # push. Group `git` plus g+rX on the tree, which is executable-and-readable
-        # for directories and readable for the files, without widening anything to
-        # `other`.
-        ${pkgs.coreutils}/bin/chgrp -R git ${dataPath}/home/hooks
-        ${pkgs.coreutils}/bin/chmod -R g+rX ${dataPath}/home/hooks
-        ${pkgs.coreutils}/bin/chmod g+s ${dataPath}/home/hooks
-
-        # And the four secrets this account must never read, asserted after every
-        # mode above has landed. Same check forgejo-config-access performs, minus
-        # internal_token -- which is now deliberately reachable, so leaving it in
-        # that list would make this unit exit 1 forever.
-        for f in secret_key oauth2_jwt_secret lfs_jwt_secret smtp_password; do
-          if ${pkgs.util-linux}/bin/runuser -u git -- ${pkgs.bash}/bin/bash -c \
-               "head -c 1 ${cfg.customDir}/conf/$f >/dev/null" 2>/dev/null; then
-            echo "git-config: $f is readable by git -- refusing to continue" >&2
-            exit 1
-          fi
-        done
-      '';
-    };
-  };
-
   # The repositories volume arrives owned by root, because Incus created the
-  # btrfs subvolume. Setgid so repositories Forgejo creates inherit group `git`,
-  # which is what lets a push from the `git` identity land in a repository the
-  # `forgejo` identity made.
+  # btrfs subvolume. Setgid so repositories Forgejo creates inherit group
+  # `forgejo`, keeping every repository uniformly owned no matter which
+  # process created it.
   #
   # Idempotent, and safe to re-run: `install -d` on an existing directory keeps
   # whatever is inside it.
   systemd.services.forgejo-repositories-owner = {
-    description = "Hand the repositories volume to the git group, setgid";
+    description = "Hand the repositories volume to forgejo, setgid";
     wantedBy = [ "multi-user.target" ];
     before = [
       "forgejo.service"
@@ -726,57 +323,7 @@ in
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
-      ExecStart = lib.getExe' pkgs.coreutils "install" + " -d -m 2775 -o git -g git " + cfg.repositoryRoot;
-    };
-  };
-
-  # Setgid alone is not enough, and this is the second half of the same problem.
-  #
-  # The ownership unit above makes the repositories directory 2775 git:git, so
-  # new repositories inherit group `git`. But Forgejo creates them 2755 -- setgid
-  # yes, group write no:
-  #
-  #   /var/lib/forgejo/data/git/probe-a  2755 forgejo:git
-  #   touch …/probe-a/HEAD: Permission denied
-  #
-  # So `git-receive-pack`, arriving as `git`, can read a repository Forgejo
-  # created and cannot write to it. Widening the mode is not an option: Forgejo
-  # chooses 2755 itself, on every repository, and would undo it.
-  #
-  # A default ACL is the mechanism that survives that, because it is inherited
-  # rather than applied:
-  #
-  #   setfacl -d -m g:git:rwx /var/lib/forgejo/data/git
-  #   /var/lib/forgejo/data/git/probe-b  2775 forgejo:git   group:git:rwx
-  #   touch …/probe-b/HEAD: ok
-  #   git init --bare …/probe-c; touch …/probe-c/objects/info/x: ok
-  #
-  # All three measured in the running instance before this was written down.
-  #
-  # The paths in that transcript are /data/git because repositoryRoot was one
-  # level too high when they were taken -- see the repositoryRoot note. The
-  # units now apply the same two operations to whatever repositoryRoot is, so
-  # the mechanism is unchanged; only the directory moved.
-  #
-  # system.posixACLs is deliberately NOT enabled. That option remounts / and
-  # /var with acl, and the default ACL lives on the `repositories` volume, which
-  # is a separate btrfs mount that already accepts ACLs -- verified by the setfacl
-  # above succeeding with the option off.
-  #
-  # Idempotent: setfacl replaces the entry rather than adding to it. Ordered
-  # after the ownership unit because that one creates the directory, and before
-  # forgejo.service because repositories created before it exists would not
-  # inherit the ACL.
-  systemd.services.forgejo-repositories-acl = {
-    description = "Make repositories Forgejo creates group-writable for the git transport identity";
-    wantedBy = [ "multi-user.target" ];
-    after = [ "forgejo-repositories-owner.service" ];
-    before = [ "forgejo.service" ];
-    path = [ pkgs.acl ];
-    serviceConfig = {
-      Type = "oneshot";
-      RemainAfterExit = true;
-      ExecStart = lib.getExe' pkgs.acl "setfacl" + " -d -m g:git:rwx " + cfg.repositoryRoot;
+      ExecStart = lib.getExe' pkgs.coreutils "install" + " -d -m 2775 -o forgejo -g forgejo " + cfg.repositoryRoot;
     };
   };
 
@@ -980,29 +527,24 @@ in
         # LoadCredential, which cannot work inside this container.
         LFS_JWT_SECRET_URI = "file:${cfg.customDir}/conf/lfs_jwt_secret";
 
-        # Git-over-SSH is advertised but NOT served by Forgejo. The host's sshd
-        # answers on port 22 and forwards every session into this container as
-        # the `git` user, so Forgejo never needs a listener of its own -- and
+        # Git-over-SSH is advertised but NOT served by Forgejo. Port 22 on the
+        # host is DNAT'd straight to this container's sshd (the host's own SSH
+        # lives on 2222), so Forgejo never needs a listener of its own -- and
         # running one would bind a second sshd on a port nothing forwards to.
         START_SSH_SERVER = false;
         DISABLE_SSH = false;
 
-        # Port 22 is the host's sshd, and it forwards to the `git` user here, so
-        # the clone URL Forgejo advertises must be the port-22 one and must name
-        # `git`. Setting SSH_PORT makes Forgejo omit the port from ssh:// URLs
-        # instead of printing the k3s NodePort that is being retired.
+        # The clone URL Forgejo advertises must be the port-22 one. Setting
+        # SSH_PORT makes Forgejo omit the port from ssh:// URLs instead of
+        # printing the k3s NodePort that is being retired.
         SSH_DOMAIN = "forgejo.sakul-flee.de";
         SSH_PORT = 22;
 
-        # SSH_USER, not BUILTIN_SSH_SERVER_USER. It defaults to
-        # %(BUILTIN_SSH_SERVER_USER)s, which is %(RUN_USER)s, i.e. `forgejo` --
-        # so without this the advertised clone URL would be
-        # ssh://forgejo@forgejo.sakul-flee.de/... while every push actually
-        # arrives as `git`. The upstream docs are explicit that SSH_USER is the
-        # knob for exactly this case: "in most cases, you want to leave this
-        # blank and modify BUILTIN_SSH_SERVER_USER" -- and we are the ones
-        # serving SSH, outside Forgejo.
-        SSH_USER = "git";
+        # No SSH_USER override: it defaults to %(BUILTIN_SSH_SERVER_USER)s,
+        # which is %(RUN_USER)s, i.e. `forgejo` -- and since the collapse every
+        # push genuinely arrives as `forgejo`, the default is finally correct.
+        # There used to be an override naming `git` here, from when the
+        # transport identity was a separate account; it went away with it.
 
         # Forgejo does not write authorized_keys for the transport identity --
         # the host asks the API via AuthorizedKeysCommand and rewrites the
