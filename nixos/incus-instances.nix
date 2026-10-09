@@ -37,6 +37,6 @@
   syncthing = import ./hosts/syncthing/incus.nix;
   # Paperless, on the `default` project so its media volume can be mounted by
   # the Syncthing hub (see hosts/syncthing/NOTES.md and replicated-volumes.nix).
-  # VPN-only: autostart = false until the migration's final commit.
+  # VPN-only, behind Caddy.
   paperless = import ./hosts/paperless/incus.nix;
 }

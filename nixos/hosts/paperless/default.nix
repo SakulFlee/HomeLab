@@ -91,17 +91,14 @@ in
   # Paperless-ngx
   # ---------------------------------------------------------------------------
   services.paperless = {
-    # Deliberately OFF in this commit. Migration, not a fresh install: the
-    # database is going to arrive as a pg_dump, and if paperless booted before
-    # the restore it would run its migrations against an empty database, create
-    # the schema the dump is about to overwrite, and generate a secret key that
-    # would then be discarded. The instance is created stopped (see incus.nix);
-    # the loader streams the volumes while it is stopped, the dump is restored
-    # onto the fresh PostgreSQL, and only then does the final migration commit
-    # flip this to true (and autostart in incus.nix). On that first real boot
-    # the scheduler's pre-start `migrate` finds the restored schema already
-    # current and no-ops.
-    enable = false;
+    # Enabled. Was false for the migration commits: booting before the restore
+    # would have migrated an empty database (creating the schema the dump was
+    # about to overwrite) and generated a secret key that would then have been
+    # discarded. The loader moved the volumes and pg_restore moved the data
+    # while this was off; on this boot the scheduler's pre-start `migrate`
+    # compares the restored schema against the package's and no-ops, then the
+    # web service generates a fresh secret key into the data volume.
+    enable = true;
 
     # 3.3.0, the exact version k3s ran -- see the header comment. The
     # tesseract-language override the module applies to this package still
@@ -149,6 +146,23 @@ in
       };
       PAPERLESS_CONSUMER_IGNORE_PATTERNS = [ ".DS_STORE/*" "desktop.ini" ];
       PAPERLESS_TASK_WORKERS = "2";
+
+      # The 26.05 module, without this, computes PAPERLESS_NLTK_DIR =
+      # cfg.package.nltkDataDir whenever PAPERLESS_ENABLE_NLTK is unset --
+      # but paperless dropped NLTK in 3.x: upstream v3.3.0's pyproject has no
+      # NLTK dependency (the llama-index/sentence-transformers stack replaced
+      # it), and the nixpkgs-paperless derivation therefore exposes no
+      # nltkDataDir passthru, so the module's default would be a hard eval
+      # error. False is also the truthful value: there is no NLTK in this
+      # runtime to enable.
+      PAPERLESS_ENABLE_NLTK = false;
+
+      # The migrated media volume carries thumbnails under documents/thumbnails
+      # (where the k3s deployment put them), not the stock THUMBNAIL_DIR at the
+      # media root. Stated here so the restored files are served as-is -- the
+      # same paths the k3s runtime served -- instead of being regenerated on
+      # first view.
+      PAPERLESS_THUMBNAIL_DIR = "/var/lib/paperless/media/documents/thumbnails";
     };
   };
 
@@ -171,9 +185,12 @@ in
   # The module auto-allocates the paperless uid/gid; pinning them is load-bearing
   # for a migration whose files arrive owned by a hardcoded number. The loader
   # chowns every extracted file to 987:987; if the module were free to allocate
-  # a different uid/gid on the final commit's first boot, every one of those
-  # files would suddenly be owned by nobody. The known owners are the only thing
-  # that is stable across the migration.
-  ids.uids.paperless = 987;
-  ids.gids.paperless = 987;
+  # a different uid/gid on the first real boot, every one of those files would
+  # suddenly be owned by nobody. The known owners are the only thing that is
+  # stable across the migration.
+  #
+  # mkForce beats the nixpkgs misc/ids.nix default (uid 315) that the module
+  # otherwise inherits. Plain definitions at the same priority are a conflict.
+  ids.uids.paperless = lib.mkForce 987;
+  ids.gids.paperless = lib.mkForce 987;
 }

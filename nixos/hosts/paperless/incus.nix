@@ -53,12 +53,10 @@ in
 {
   description = "Paperless-ngx document management";
 
-  # Created stopped, and deliberately. This is a migration, not a fresh
-  # install: the volumes arrive empty and the database arrives as a pg_dump
-  # that must be restored while the instance is down. default.nix keeps
-  # services.paperless disabled through the whole migration for the same
-  # reason. The final commit of the migration flips this to true.
-  autostart = false;
+  # Comes up on apply and on host boot, like every other service. This was
+  # false for the migration commits: the volumes were loaded and the dump
+  # restored while the instance was stopped and services.paperless disabled.
+  autostart = true;
 
   # Paperless runs PostgreSQL, redis, celery workers and ocrmypdf/tesseract in
   # here; OCR is per-document CPU-bound, so cores matter more than RAM. 4/4GiB,

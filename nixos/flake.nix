@@ -200,10 +200,8 @@
         # The Syncthing replication hub. A container: one static Go binary, no
         # kernel of its own required.
         syncthing = mkInstance { path = ./hosts/syncthing; };
-        # Paperless, VPN-only behind Caddy. Its incus.nix deliberately ships
-        # autostart = false: the migration loads the volumes and restores the
-        # dump while the instance is stopped, and the final commit flips both.
-        # No networkForward -- the vhost cutover stays a separate hand-off.
+        # Paperless, VPN-only behind Caddy. No networkForward -- the vhost
+        # cutover stays a separate hand-off.
         paperless = mkInstance { path = ./hosts/paperless; };
       };
 
