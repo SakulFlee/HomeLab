@@ -339,6 +339,37 @@ in
         }
 
         # -------------------------------------------------------------------
+        # paperless.sakul-flee.de -- CUTOVER: now served by the Incus instance
+        # Same gate shape as syncthing above: `remote_ip`, not `client_ip`
+        # (the forward is DNAT and the source is unforgeable, while
+        # X-Forwarded-For is not), and the same /10 tunnel range -- paperless is
+        # VPN-only, matching the `vpn-only` Traefik middleware it used to sit
+        # behind.
+        #
+        # Plain http:// upstream: TLS terminates here and paperless (granian)
+        # speaks plain HTTP on 0.0.0.0:28981 inside the container. Traefik in
+        # k3s still runs and still holds the data; this is a pure route change
+        # in front of it, rollback is putting the name back in hostnames.nix.
+        #
+        # header_up Host {http.request.host} is required, not cosmetic:
+        # paperless derives ALLOWED_HOSTS and the redirect target from the Host
+        # header (via PAPERLESS_URL / CSRF_TRUSTED_ORIGINS), so this must send
+        # the name the browser asked for. There is no TLS to verify -- the
+        # upstream speaks plain HTTP on a bridge address.
+        paperless.sakul-flee.de {
+            tls {
+                dns cloudflare {env.CF_API_TOKEN}
+            }
+
+            @notvpn not remote_ip 100.64.0.0/10
+            respond @notvpn "Paperless is reachable over the VPN only.\n" 403
+
+            reverse_proxy http://10.0.0.105:28981 {
+                header_up Host {http.request.host}
+            }
+        }
+
+        # -------------------------------------------------------------------
         # fluxer.sakul-flee.de -- CUTOVER: now served by the Incus VM
         # Same shape the fluxer-next test block had; fluxer-next is gone.
         # Rolling back is putting the name back in hostnames.nix (still-traefik)

@@ -24,7 +24,6 @@
   "nas.sakul-flee.de"
   "ollama.sakul-flee.de"
   "open-webui.sakul-flee.de"
-  "paperless.sakul-flee.de"
   "prowlarr.sakul-flee.de"
   "pvc-explorer.sakul-flee.de"
   "qbittorrent.sakul-flee.de"
