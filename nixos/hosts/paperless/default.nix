@@ -87,6 +87,53 @@ in
     };
   };
 
+  # The 26.05 module's secret-key handling has an ordering catch: the key file
+  # is generated inside the *web* service's script, but the web service
+  # `bindsTo` the scheduler, and the scheduler's pre-start `migrate` needs the
+  # key first -- so on a data volume without the key file, the scheduler dies
+  # before the web service can ever generate it. The module's own channel for
+  # reaching every service with the key is `services.paperless.environmentFile`,
+  # which lands in the `EnvironmentFile` of every paperless unit (see
+  # environmentFile option and defaultServiceConfig in the module). This oneshot
+  # provisions that file on the data volume (which survives every recreate)
+  # before the scheduler boots: the raw key file the module's web script would
+  # also create, and the `PAPERLESS_SECRET_KEY=` line the services actually
+  # source. Same generation the module uses (64 base62 chars, umask 0377).
+  systemd.services.paperless-secret-key = {
+    description = "Provision the paperless secret key on the data volume";
+    wantedBy = [ "multi-user.target" ];
+    before = [ "paperless-scheduler.service" ];
+    after = [ "local-fs.target" ];
+    path = [ pkgs.coreutils ];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+    };
+    script = ''
+      keyFile=/var/lib/paperless/nixos-paperless-secret-key
+      envFile=/var/lib/paperless/paperless-env
+
+      if [[ ! -f "$keyFile" ]]; then
+        umask 0377
+        tr -dc A-Za-z0-9 </dev/urandom | head -c64 > "$keyFile"
+      fi
+
+      printf 'PAPERLESS_SECRET_KEY=%s\n' "$(cat "$keyFile")" > "$envFile"
+      chown paperless:paperless "$keyFile" "$envFile"
+      chmod 0600 "$envFile"
+    '';
+  };
+
+  # The module's scheduler starts all four paperless services (its `wants`), and
+  # every one of them sources `environmentFile` via defaultServiceConfig --
+  # systemd fails the unit if that EnvironmentFile is absent (no `-` prefix), so
+  # the key provisioning must be a hard ordering dependency, not just a
+  # multi-user.target neighbour.
+  systemd.services.paperless-scheduler = {
+    wants = [ "paperless-secret-key.service" ];
+    after = [ "paperless-secret-key.service" ];
+  };
+
   # ---------------------------------------------------------------------------
   # Paperless-ngx
   # ---------------------------------------------------------------------------
@@ -96,9 +143,17 @@ in
     # about to overwrite) and generated a secret key that would then have been
     # discarded. The loader moved the volumes and pg_restore moved the data
     # while this was off; on this boot the scheduler's pre-start `migrate`
-    # compares the restored schema against the package's and no-ops, then the
-    # web service generates a fresh secret key into the data volume.
+    # compares the restored schema against the package's and no-ops.
     enable = true;
+
+    # The secret lives on the data volume -- never in the Nix store. The
+    # `paperless-secret-key` oneshot above writes both the raw key file (which
+    # the module's web script would also read) and this `PAPERLESS_SECRET_KEY=`
+    # file, and every paperless unit gets it via the module's environmentFile
+    # wiring. This exists because the module only hands the key to the web
+    # service's script, whose scheduler binding is the very thing that needs it
+    # first -- without this, a boot on a key-less volume deadlocks.
+    environmentFile = "/var/lib/paperless/paperless-env";
 
     # 3.3.0, the exact version k3s ran -- see the header comment. The
     # tesseract-language override the module applies to this package still
@@ -175,9 +230,9 @@ in
   # producer has to. The loader writes it during the data move, and this rule
   # replants it if it ever goes missing (say, when the media volume is replaced
   # or the marker is cleaned up with the loader's scratch container). Numeric
-  # ids: services.paperless is disabled in this commit, so the `paperless` user
-  # does not exist yet -- but ids.uids.paperless is pinned to 987 below, which
-  # both this rule and the module's own user (once enabled) agree on.
+  # ids, because the tmpfiles rules run before and independently of the module's
+  # user setup, and 987 is the pinned uid the whole migration depends on (see
+  # the ids.uids pin below).
   systemd.tmpfiles.rules = [
     "d /var/lib/paperless/media/.stfolder 0755 987 987 -"
   ];
