@@ -13,8 +13,6 @@
     ../../modules/fonts.nix
     ../../modules/gc.nix
     ../../modules/locale.nix
-    ../../modules/media-idmap.nix
-    ../../modules/mount-media.nix
     ../../modules/mount-nas.nix
     ../../modules/nixpkgs-unfree.nix
     ../../modules/sops.nix
