@@ -24,6 +24,13 @@
       url = "github:Mic92/sops-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+
+    # A pinned nixos-unstable rev, for paperless-ngx 3.3.0 alone. nixos-26.05
+    # ships 2.20.15, which is older than the data given to the paperless
+    # instance and schema migrations only run forwards -- the same trap Forgejo
+    # documented above, mirrored by hosts/paperless/default.nix. Everything else
+    # stays on the 26.05 pin; only services.paperless.package pulls from here.
+    nixpkgs-paperless.url = "github:NixOS/nixpkgs/e7439b6b14ad3cc35d05608ebca9bce01a25f5f8";
   };
 
   outputs = { self, nixpkgs, ... }@inputs:
@@ -193,6 +200,11 @@
         # The Syncthing replication hub. A container: one static Go binary, no
         # kernel of its own required.
         syncthing = mkInstance { path = ./hosts/syncthing; };
+        # Paperless, VPN-only behind Caddy. Its incus.nix deliberately ships
+        # autostart = false: the migration loads the volumes and restores the
+        # dump while the instance is stopped, and the final commit flips both.
+        # No networkForward -- the vhost cutover stays a separate hand-off.
+        paperless = mkInstance { path = ./hosts/paperless; };
       };
 
       # Convenience: buildable images, so `nix build .#image-<name>` works.
@@ -201,6 +213,7 @@
         image-dns = self.nixosConfigurations.dns.config.system.build.squashfs;
         image-forgejo = self.nixosConfigurations.forgejo.config.system.build.squashfs;
         image-syncthing = self.nixosConfigurations.syncthing.config.system.build.squashfs;
+        image-paperless = self.nixosConfigurations.paperless.config.system.build.squashfs;
 
         # A VM is one qcow2 disk rather than a rootfs plus a metadata tarball.
         image-wireguard = self.nixosConfigurations.wireguard.config.system.build.qemuImage;

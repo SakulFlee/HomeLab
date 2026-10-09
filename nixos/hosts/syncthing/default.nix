@@ -14,6 +14,17 @@ let
   # rule.
   folderName = "personal";
 
+  # The volumes this hub mirrors read-only for other instances. The list is the
+  # single source of truth in nixos/replicated-volumes.nix; incus.nix mounts
+  # each volume read-only and the folder declarations below are derived from the
+  # same list, so the two sides can never drift.
+  replicatedVolumes = import ../../replicated-volumes.nix;
+
+  # A folder id for a replicated volume. Ids are unique across the hub, and the
+  # producer's volume name is not a folder id -- prefixed so the id space of the
+  # hub's own folders is never collided with.
+  replicatedFolderId = name: "replicated-${name}";
+
   # This hub's peers, declared like everything else. A peer's device ID is the
   # only value in this repository that cannot be derived from anything: it is
   # the SHA-256 of that peer's own certificate. Read it from the peer's WebUI
@@ -35,7 +46,13 @@ let
       # belongs to the admin's own device only; a peer gets it by deliberate
       # promotion here, never by default.
       introducer = true;
-      folders = [ folderName ];
+      # Dendra also holds the off-box copy of every replicated volume: folder
+      # membership is what peersOf derives each folder's `devices` from, so
+      # listing a folder id here is exactly what makes the hub push it to this
+      # device. Phone and Tablet are deliberately absent from the replicated
+      # folders -- a multi-gigabyte document archive does not belong on a
+      # laptop-sized device; promoting them is a one-line addition here.
+      folders = [ folderName ] ++ (map replicatedFolderId replicatedVolumes);
     };
     Phone = {
       id = "XEHPA3V-IRL2YWY-NWZLQBD-BGQPA6M-6YMLMJ6-TWTLL4S-DQ4SWEH-LOCV2QU";
@@ -59,6 +76,25 @@ let
     id = peer.id;
     introducer = peer.introducer or false;
   }) peers;
+
+  # The folder declarations for the replicated volumes, derived from the
+  # replicatedVolumes list. By contract (NOTES.md) each is sendonly: a
+  # replicated folder is the read-only copy of a producer's data, this hub must
+  # never write to it, and a sendonly folder never applies a peer's deletion or
+  # replacement -- so it also carries no versioning, which would only ever be
+  # dead weight. Folder membership comes from the peers table like every other
+  # folder, via peersOf.
+  replicatedFolders = lib.listToAttrs (map (name: {
+    name = replicatedFolderId name;
+    value = {
+      id = replicatedFolderId name;
+      label = "Replicated: ${name}";
+      path = "/mnt/replicated/${name}";
+      type = "sendonly";
+      devices = peersOf (replicatedFolderId name);
+      fsWatcherEnabled = true;
+    };
+  }) replicatedVolumes);
 in
 {
   networking.hostName = "syncthing";
@@ -155,7 +191,7 @@ in
             params.cleanoutDays = "14";
           };
         };
-      };
+      } // replicatedFolders;
     };
   };
 

@@ -35,4 +35,8 @@
   # of its own. It is the replication hub other instances' volumes are attached
   # to read-only; see hosts/syncthing/NOTES.md for that standard.
   syncthing = import ./hosts/syncthing/incus.nix;
+  # Paperless, on the `default` project so its media volume can be mounted by
+  # the Syncthing hub (see hosts/syncthing/NOTES.md and replicated-volumes.nix).
+  # VPN-only: autostart = false until the migration's final commit.
+  paperless = import ./hosts/paperless/incus.nix;
 }

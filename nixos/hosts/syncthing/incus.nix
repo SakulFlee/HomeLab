@@ -38,6 +38,35 @@ let
       path = "/data";
     };
   };
+
+  # ---------------------------------------------------------------------
+  # Replicated producer volumes (see nixos/replicated-volumes.nix)
+  # ---------------------------------------------------------------------
+  replicatedVolumes = import ../../replicated-volumes.nix;
+
+  # One read-only mount per replicated volume, derived from the same list the
+  # folder declarations in default.nix read, so the device map and the folder
+  # set can never drift.
+  #
+  # raw.mount.options = "ro" makes the mounted filesystem itself read-only: the
+  # hub is a copy, never a writer, even against a bug in the syncthing binary.
+  #
+  # required = false so the hub keeps running when a producer's volume does not
+  # exist yet -- the volume is declared by the producer's own instance spec, and
+  # this hub may be reconciled before that instance is. The device then attaches
+  # on a later reconcile and the folder sits "stopped" in the WebUI until the
+  # producer also writes its .stfolder marker.
+  replicatedDevices = builtins.listToAttrs (builtins.map (name: {
+    name = name;
+    value = {
+      type = "disk";
+      pool = "persistent";
+      source = name;
+      path = "/mnt/replicated/${name}";
+      "raw.mount.options" = "ro";
+      required = false;
+    };
+  }) replicatedVolumes);
 in
 {
   description = "Syncthing replication hub";
@@ -88,7 +117,7 @@ in
     }
   ];
 
-  devices = devices;
+  devices = devices // replicatedDevices;
 
   # ---------------------------------------------------------------------
   # The sync port on the host's LAN address

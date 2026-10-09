@@ -71,6 +71,11 @@ let
     "flake.nix"
     "flake.lock"
     "incus-instances.nix"
+    # Not a NixOS config itself, but the single source of truth for the
+    # Syncthing hub's replicated volumes: hosts/syncthing/{incus,default}.nix
+    # both import it, so a volume added here must re-trigger the syncthing
+    # instance's apply unit just like a change to its host files would.
+    "replicated-volumes.nix"
   ];
 
   # Subtrees, relative to the flake root, that feed every image.
