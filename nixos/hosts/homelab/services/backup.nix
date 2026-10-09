@@ -26,6 +26,11 @@
 let
   cfg = config.services.restic-backup;
 
+  # Which media shares live on the local tree, and therefore have to be in the
+  # backup set. Plain data, shared with mount-nas.nix, mount-media.nix and each
+  # media instance's incus.nix.
+  media = import ../../../modules/media-shares.nix;
+
   # Not lib.getExe': that wants a derivation, and writeShellApplication is a
   # function. Building it in a let and interpolating the result is the ordinary
   # way to get a script's path, and keeps the script text out of the unit file
@@ -192,9 +197,22 @@ in
 
     paths = lib.mkOption {
       type = lib.types.listOf lib.types.str;
+      # Derived, not written out. The list is the pool plus whatever media
+      # shares resolve to the local tree in modules/media-shares.nix, minus
+      # qBittorrent -- and that is derived so it stays correct the moment a
+      # share is moved rather than needing this file to be remembered too.
+      #
+      # The exclusion is the one judgement call in it: downloads are
+      # re-downloadable and a 555G library of torrents is not worth an hourly
+      # restic scan, so qBittorrent is left out wherever it lives. Everything
+      # else in the library is recoverable from nowhere else, so it is included
+      # wherever it is.
+      #
+      # With all five shares resolving to /mnt/nas today, this is just the pool
+      # -- the same single path as before, since nothing is stored locally yet.
       default = [
         "/var/lib/incus/storage-pools/persistent"
-      ];
+      ] ++ map (share: "${media.localMount}/${share}") media.localLibraryShares;
       description = ''
         What to back up. The single remaining pool: `backup` was merged into
         `persistent` (same btrfs driver, same filesystem, no quota, nothing
@@ -203,6 +221,14 @@ in
         the preseed, because restic fails on a path that no longer exists --
         and the pool itself is deleted by hand afterwards, which is the one
         ordering preseed's never-removes rule forces.
+
+        Local media shares are appended automatically. The NAS shares are
+        deliberately NOT in this list: they are already the NAS's own data, and
+        copying 2.1T of it hourly into a restic repo on the same host would be
+        a second copy that lives in the same house as the first. Once a share
+        is moved onto /mnt/media it stops being the NAS's problem and starts
+        being this host's, which is exactly when it appears here -- without
+        anyone having to edit this file.
 
         Keeping a copy of PGDATA does no harm. What is not permitted is
         RESTORING from one: a pg_dump is the authoritative artefact and a
