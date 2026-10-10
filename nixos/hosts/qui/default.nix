@@ -103,7 +103,10 @@ in
   # relaxing one hardening flag. Revisit if the namespace hardening is wanted
   # back.
   systemd.services.qui = {
-    serviceConfig.PrivateUsers = false;
+    # mkForce, not a bare value: the module sets PrivateUsers = true at the same
+    # priority, so a plain `PrivateUsers = false` conflicts rather than
+    # overrides.
+    serviceConfig.PrivateUsers = lib.mkForce false;
   };
 
   # ---------------------------------------------------------------------------

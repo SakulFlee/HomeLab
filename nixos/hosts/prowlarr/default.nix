@@ -77,7 +77,17 @@
   # restarts.
   systemd.services.prowlarr = {
     serviceConfig = {
-      DynamicUser = false;
+      # mkForce, not a plain value. The module sets DynamicUser = true at the
+      # SAME priority, so a bare `DynamicUser = false` is a definition conflict
+      # rather than an override:
+      #
+      #   error: The option
+      #   `systemd.services.prowlarr.serviceConfig.DynamicUser' has conflicting
+      #   definition values
+      #
+      # User/Group need no mkForce -- the module sets neither, since it relies
+      # on DynamicUser to supply the identity.
+      DynamicUser = lib.mkForce false;
       User = "prowlarr";
       Group = "media";
     };
