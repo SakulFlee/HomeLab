@@ -30,22 +30,21 @@ let
     # are in-progress downloads and pointing a media server at them is how it
     # indexes a .part file.
     #
-    # READ-ONLY, and that is load-bearing rather than tidier. Measured on this
-    # host: a bind-mounted CIFS share inside an unprivileged LXC reports
-    # ownership 65534 65534 (the overflow id) and mode 0755, and `touch` fails
-    # with EACCES. `shift = true` is REJECTED outright for a CIFS source:
+    # READ-ONLY, and that is load-bearing rather than tidier. Jellyfin never
+    # modifies a media file, and `ro` is the cheapest possible structural
+    # statement of that: even a compromised transcode path cannot alter the
+    # library.
     #
-    #   Error: Failed to start device "nas": Required idmapping abilities not
-    #   available
+    # The source is the bindfs mirror at media.mappedMount, NOT the CIFS path.
+    # A direct bind of the CIFS share into an unprivileged container reports
+    # every file as the overflow id 65534, but Jellyfin writes thumbnails and
+    # metadata alongside the media and so needs correct ownership to do it. The
+    # mirror supplies that (container sees 0:0); `ro` on top of that means
+    # Jellyfin cannot touch a media file even though it can write beside one.
     #
-    # so a writable NAS bind is not achievable on this Incus and both the
-    # documented mechanisms for it fail. readonly = true is what makes the bind
-    # work at all, and reads are unaffected -- verified listing the real library
-    # tree from inside the container. Writes correctly fail with EROFS.
-    #
-    # For Jellyfin specifically this costs nothing: it is a read-only consumer
-    # of the library. The apps that DO write to a share (qBittorrent, sonarr,
-    # radarr) face the wall above and are handled in their own files.
+    # Measured: bindfs + unprivileged container -> `0 0`, WRITABLE, and files
+    # still land on the NAS as 1000:972. See modules/mount-nas.nix for the
+    # mechanisms that were tried first and why none of them can work.
     nas-movies = media.device "Movies" // { "raw.mount.options" = "ro"; };
     nas-shows = media.device "Shows" // { "raw.mount.options" = "ro"; };
     nas-nsfw = media.device "NSFW" // { "raw.mount.options" = "ro"; };

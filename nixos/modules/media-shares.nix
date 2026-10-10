@@ -33,6 +33,38 @@ let
   nasMount = "/mnt/nas";
   localMount = "/mnt/media";
 
+  # ---------------------------------------------------------------------------
+  # Where instances bind from: the bindfs mirror of nasMount
+  # ---------------------------------------------------------------------------
+  #
+  # NOT the CIFS path. An unprivileged instance's uid space is shifted (container
+  # root is host 1000000) and the CIFS mount forces uid=1000 gid=972, so a direct
+  # bind lands every file on the overflow id 65534 -- whose "other" bits are r-x
+  # under dir_mode=0775. Reads work, writes fail. Measured, not assumed.
+  #
+  # modules/mount-nas.nix overlays this tree with bindfs, which reports the owner
+  # as 1000000 -- inside the container's uid map -- so the container sees 0:0
+  # and its own root can write. bindfs performs the I/O as root on the host, so
+  # files still LAND on the NAS as 1000:972: the ownership contract is preserved
+  # rather than rewritten. FUSE needs no privileges in an unprivileged container,
+  # which is what makes this work where Incus's own idmapping cannot (Incus 7.0.1
+  # rejects raw.idmap.* outright, and shift=true fails on CIFS sources because
+  # the kernel does not advertise idmapped-mount support for that filesystem --
+  # it works on btrfs and tmpfs, which is how CIFS was isolated as the blocker).
+  #
+  # `roots` below is unchanged and still decides which tree the DATA lives on.
+  # This is only how an instance reaches it, so moving a share to the local tree
+  # still works: mount-nas.nix overlays both and `device` does not care which
+  # tree is underneath.
+  mappedMount = "/mnt/nas-mapped";
+
+  # The host uid that container root maps to. A property of Incus's instance
+  # idmap (Nsid 0 -> Hostid 1000000 on this host), read out of
+  # `incus config show <instance> --expanded` rather than assumed. bindfs reports
+  # files as this uid so they land inside the container's map instead of on the
+  # overflow id.
+  containerRootHostId = 1000000;
+
   nasServer = "//192.168.178.250";
 
   # Path INSIDE every instance.
@@ -103,7 +135,11 @@ let
     share:
     {
       type = "disk";
-      source = "${roots.${share}}/${share}";
+      # The bindfs mirror, NOT roots.<share>/<share>. See mappedMount above for
+      # why a direct bind of the CIFS path is read-only from an unprivileged
+      # container. `roots` still decides where the data lives; this only decides
+      # how the container reaches it.
+      source = "${mappedMount}/${share}";
       path = "${pathInInstance}/${share}";
     };
 
@@ -121,6 +157,8 @@ in
     mediaGroup
     nasMount
     localMount
+    mappedMount
+    containerRootHostId
     nasServer
     pathInInstance
     shares
