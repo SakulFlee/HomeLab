@@ -22,8 +22,25 @@
 
     dataDir = "/var/lib/prowlarr";
 
-    user = "prowlarr";
-    group = "media";
+    # NO `user`, NO `group`, NO `supplementaryGroups`. services.prowlarr has
+    # none of those options -- unlike services.sonarr and services.radarr,
+    # which both have user/group and default them to their own name. The
+    # prowlarr module hardcodes the unit's identity instead:
+    #
+    #   user = "root";
+    #   group = "root";
+    #
+    # So an earlier version of this file that set `group = "media"` and
+    # `supplementaryGroups = [ "media" ]` was rejected by name:
+    #
+    #   error: The option `services.prowlarr.group' does not exist.
+    #
+    # That is left as the module ships it rather than worked around. It is not
+    # a privilege concern for this instance: prowlarr mounts NO media shares
+    # (see mediaInstance.mountedShares above), so running as root inside gives
+    # it nothing to reach -- it manages indexer definitions and proxies release
+    # queries only. If that ever changes, the module's fixed identity is the
+    # thing to revisit.
 
     settings.server = {
       port = 9696;
