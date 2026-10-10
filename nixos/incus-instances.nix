@@ -58,4 +58,10 @@
   radarr = import ./hosts/radarr/incus.nix;
   prowlarr = import ./hosts/prowlarr/incus.nix;
   qui = import ./hosts/qui/incus.nix;
+
+  # qBittorrent, all traffic through PIA. The security-critical one: every
+  # packet it sends is confined by uid-based routing to the OpenVPN tunnel,
+  # with an `unreachable` rule as the kill-switch -- see the file header in
+  # hosts/qbittorrent/default.nix before changing anything there.
+  qbittorrent = import ./hosts/qbittorrent/incus.nix;
 }

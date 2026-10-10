@@ -242,8 +242,17 @@ in
   # itself does not need to resolve anything: the endpoint is a literal IP in
   # the .ovpn above, precisely so the tunnel can come up without DNS.
   networking.nameservers = piaDns;
+
+  # resolvconf off so the container's only resolver is the list above. There is
+  # no systemd-resolved here to disable -- `networking.systemd-resolved` is not
+  # an option in this nixpkgs:
+  #
+  #   error: The option `networking.systemd-resolved' does not exist.
+  #
+  # so that was removed rather than worked around. With resolvconf disabled and
+  # nameservers set to PIA's, /etc/resolv.conf contains only those, and there is
+  # no second resolver process that could fall back to the router.
   networking.resolvconf.enable = false;
-  networking.systemd-resolved.enable = false;
 
   # ---------------------------------------------------------------------------
   # The tunnel
@@ -287,7 +296,20 @@ in
     # (see ./incus.nix). OpenVPN reads it as root before dropping nothing --
     # it stays root, but with a one-capability bounding set.
     preStart = ''
+      # Assemble the two-line auth-user-pass file from the two rendered secrets.
+      # OpenVPN wants username-then-password, newline separated, and nothing
+      # else in the file. The secrets arrive as two separate raw files (see
+      # renderedSecrets in ./incus.nix) because render_secrets overwrites rather
+      # than appends, so two entries for one file would leave only the second.
+      #
+      # printf, not cat, so no stray content can survive into the file. Mode
+      # 0600 root-only: this is a password.
       install -d -m 0700 -o root -g root /run/openvpn
+      printf '%s\n%s\n' \
+        "$(tr -d '\n' < /var/lib/incus-secrets/pia-username)" \
+        "$(tr -d '\n' < /var/lib/incus-secrets/pia-password)" \
+        > /run/openvpn/pia-credentials.txt
+      chmod 0600 /run/openvpn/pia-credentials.txt
     '';
     postStart = ''
       # Wait for tun0 to actually exist before installing routes. Without this
@@ -310,11 +332,19 @@ in
       ip rule del from "${qbUid}" lookup "${vpnTable}" pref 100 2>/dev/null || true
       ip rule del from "${qbUid}" unreachable pref 101 2>/dev/null || true
 
+      # `lookup 51820` — the table NUMBER. `ip rule` expects a number here,
+      # unlike `ip route ... table <n>` which takes either. Both are the bare
+      # number; the earlier attempt quoted it and produced:
+      #
+      #   error: cannot coerce an integer to a string: 51820
       ip route replace default dev tun0 table "${vpnTable}"
       ip rule add from "${qbUid}" lookup "${vpnTable}" pref 100
       ip rule add from "${qbUid}" unreachable    pref 101
 
-      ip -brief rule show | grep -E "pref (100|101)" || true
+      # Echo the two rules back so `systemctl status` shows what is actually
+      # installed. If this prints nothing, the kill-switch is NOT in place and
+      # qBittorrent traffic would fall through to eth0.
+      ip -brief rule show | grep -E "pref (100|101)"
     '';
 
     postStop = ''

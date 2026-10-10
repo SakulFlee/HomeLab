@@ -490,6 +490,34 @@ in
                 header_up Host {http.request.host}
             }
         }
+
+        # qbittorrent.sakul-flee.de -- the qBittorrent WebUI.
+        #
+        # The last of the media vhosts, and the most sensitive: this is the
+        # control surface for the torrent client. Reaching it unauthenticated is
+        # as bad as reaching qBittorrent itself, so the gate is the same
+        # remote_ip VPN-only shape as every other block here -- never
+        # client_ip, because the incus forward is a DNAT and does not rewrite
+        # the source, so remote_ip is the real client address and cannot be
+        # forged while X-Forwarded-For can.
+        #
+        # No torrent peer port is forwarded. PIA port forwarding is not
+        # configured (see hosts/qbittorrent/default.nix), so there is no
+        # inbound port to expose, and forwarding 6881 on the LAN would only
+        # advertise the home IP to peers on the clearnet.
+        qbittorrent.sakul-flee.de {
+            tls {
+                dns cloudflare {env.CF_API_TOKEN}
+            }
+
+            @notvpn not remote_ip 100.64.0.0/10
+            respond @notvpn "qBittorrent is reachable over the VPN only.\n" 403
+
+            # 8080 is the WebUI, the same port the k3s deployment exposed.
+            reverse_proxy http://10.0.0.112:8080 {
+                header_up Host {http.request.host}
+            }
+        }
         # -------------------------------------------------------------------
 
         ${hostBlocks}

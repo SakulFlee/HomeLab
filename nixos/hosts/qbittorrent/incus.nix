@@ -80,20 +80,29 @@ in
 
   # The PIA credentials, rendered by the host.
   #
-  # source is /run/secrets/<name>, which exists ONLY because the host declares
-  # sops.secrets.<name> in modules/sops.nix and has decrypted it. Two separate
-  # env lines because PIA takes the same pair twice (once to authenticate the
-  # OpenVPN tunnel, once to fetch a forwarded port) -- gluetun in the k3s
-  # deployment did exactly this, and so does the WireGuard+PIA setup here.
+  # ONE entry, not two. render_secrets compares content and OVERWRITES on a
+  # content change -- it has no append path -- so two entries naming the same
+  # file would leave only the second one in place, and OpenVPN would
+  # authenticate with the password as the username.
+  #
+  # format = "raw" because OpenVPN's auth-user-pass wants a plain
+  # username-then-password file. The default "env" format writes
+  # PIA_USERNAME=<...>, which OpenVPN would read as the literal username
+  # "PIA_USERNAME".
+  #
+  # Only one secret can be rendered per entry, so the username is carried in
+  # its own file and default.nix's unit assembles the two-line auth-user-pass
+  # file from both. Neither credential is ever in the Nix store, on a command
+  # line, or in the journal.
   renderedSecrets = [
     {
-      file = "qb-vpn-env";
-      env = "PIA_USERNAME";
+      file = "pia-username";
+      format = "raw";
       source = "/run/secrets/vpn_pia_username";
     }
     {
-      file = "qb-vpn-env";
-      env = "PIA_PASSWORD";
+      file = "pia-password";
+      format = "raw";
       source = "/run/secrets/vpn_pia_password";
     }
   ];
