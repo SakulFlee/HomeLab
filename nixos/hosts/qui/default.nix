@@ -53,6 +53,30 @@ in
     wantedBy = [ "multi-user.target" ];
     before = [ "qui.service" ];
     after = [ "local-fs.target" ];
+
+    # QUI FAILS TO START WITHOUT THIS, and `before` alone was not enough:
+    #
+    #   qui: {"level":"fatal","error":"open
+    #   /run/credentials/qui.service/sessionSecret: permission denied",
+    #   "message":"Could not read QUI__SESSION_SECRET_FILE"}
+    #
+    # with /run/credentials/qui.service empty -- systemd delivered nothing.
+    #
+    # `before` only ORDERS two units; it does not pull one into the other's
+    # transaction. qui.service reaching LoadCredential depends on the secret
+    # file EXISTING at the moment the unit is started, and when qui.service is
+    # started directly -- which is what apply.sh does when it reconciles the
+    # instance, and what happens on every container boot -- the oneshot is not
+    # in the transaction and the file may not be there yet. systemd then fails
+    # the credential load and the unit never starts.
+    #
+    # requiredBy makes it a hard, transitively-required dependency: starting
+    # qui.service starts the oneshot first, and if the secret cannot be
+    # provisioned qui.service does not start at all rather than starting
+    # without its secret. That is the same reasoning the paperless module uses
+    # for its own secret-key oneshot.
+    requiredBy = [ "qui.service" ];
+
     path = [ pkgs.coreutils pkgs.openssl ];
     serviceConfig = {
       Type = "oneshot";
