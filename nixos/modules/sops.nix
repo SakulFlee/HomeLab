@@ -106,6 +106,21 @@
   sops.secrets.forgejo_runner_uuid = {};
   sops.secrets.forgejo_runner_token = {};
 
+  # PIA VPN credentials, for qBittorrent's gluetun sidecar.
+  #
+  # Both keys already exist in secrets.yaml as vpn_pia_username /
+  # vpn_pia_password; these declarations are what make sops-nix decrypt them to
+  # /run/secrets at all. Declared ahead of the qBittorrent work so the host half
+  # is in place -- a key present in secrets.yaml but NOT declared here is never
+  # written to /run/secrets, and apply.sh names that exact failure mode when a
+  # renderedSecrets source does not exist.
+  #
+  # Same reasoning as the caddy token: qBittorrent's instance receives the two
+  # rendered values and no decryption capability, so a root process in there
+  # cannot read the restic password or any Forgejo secret out of this file.
+  sops.secrets.vpn_pia_username = {};
+  sops.secrets.vpn_pia_password = {};
+
   # Fluxer secrets (from upstream .env + k8s secret mapping)
   sops.secrets.fluxer_postgres_password = {};
   sops.secrets.fluxer_search_api_key = {};

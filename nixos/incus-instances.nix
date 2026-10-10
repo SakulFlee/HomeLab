@@ -39,4 +39,10 @@
   # the Syncthing hub (see hosts/syncthing/NOTES.md and replicated-volumes.nix).
   # VPN-only, behind Caddy.
   paperless = import ./hosts/paperless/incus.nix;
+
+  # First of the media stack. Read-only consumer of the library: four NAS
+  # shares bind-mounted ro (Incus 7.0.1 cannot make a CIFS bind writable from
+  # an unprivileged LXC -- measured, see hosts/jellyfin/incus.nix) and the iGPU
+  # passed through for VAAPI. Config and cache are pool volumes.
+  jellyfin = import ./hosts/jellyfin/incus.nix;
 }
