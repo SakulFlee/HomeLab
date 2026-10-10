@@ -72,18 +72,30 @@
   # later, where compression and Incus' CoW-off optimisation are mutually
   # exclusive. Per-volume compression is set in Incus itself instead.
   #
-  # This mount has no nofail. It gets away with that only because incus.service
-  # has requires/after on this .mount unit and therefore fails visibly rather
-  # than silently creating pool directories on the NVMe root filesystem -- but
-  # incus.service is Wanted by multi-user.target, so if it ever failed early
-  # enough this could still drag local-fs.target down with it. The /mnt/media
-  # entry below does carry nofail; see the reasoning there. Do not read
-  # neededForBoot = false as boot protection for either of these -- it only
-  # keeps a filesystem out of the initrd.
+  # nofail here for the same reason as on /mnt/media below, and the same outage:
+  # without it this entry is a hard member of local-fs.target, which carries
+  # OnFailure= to emergency.target, so a missing 'incus-pools' subvolume reaches
+  # Emergency Mode and, headless, that is no network and no way back in. Every
+  # running instance's disk lives under this mount, so the blast radius of it
+  # failing is larger than any other mount on this host.
+  #
+  # Dropping the implicit Before=local-fs.target ordering that nofail also
+  # removes is safe here because every consumer of this mount orders itself
+  # explicitly: incus.service and the nested
+  # var-lib-incus-storage-pools-persistent.mount both carry After= and Requires=
+  # on this unit. Checked before adding it, since this is the one thing nofail
+  # quietly trades away. fstrim.service does not depend on this mount and simply
+  # skips an absent filesystem, and the incus-apply-*.path units watch
+  # /etc/nixos/nixos, which is on the NVMe root (subvolid 5) and not on this
+  # subvolume, so losing their implicit sysinit.target chain costs nothing.
+  #
+  # If this mount does fail, incus.service refuses to start rather than silently
+  # creating pool directories on the NVMe root filesystem -- running instances
+  # keep running, and management is what is lost until the subvolume is back.
   fileSystems."/var/lib/incus/storage-pools" =
     { device = "/dev/disk/by-uuid/a8ab0668-28ae-437c-96dc-bed48481b2c0";
       fsType = "btrfs";
-      options = [ "subvol=incus-pools" ];
+      options = [ "subvol=incus-pools" "nofail" ];
       neededForBoot = false;
     };
 
