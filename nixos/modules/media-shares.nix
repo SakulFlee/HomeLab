@@ -143,6 +143,27 @@ let
       path = "${pathInInstance}/${share}";
     };
 
+  # `device`, for a share mounted somewhere OTHER than the standard in-instance
+  # path.
+  #
+  # The one case: qui mounts the qBittorrent share at /data/downloads/torrents,
+  # because that is the path baked into its own config and rewriting it would be
+  # rewriting application config -- which the whole port is designed to avoid.
+  #
+  # It exists so that path stays the ONLY difference for qui. An earlier version
+  # of hosts/qui/incus.nix hand-wrote the device with
+  # `source = "${roots.qBittorrent}/qBittorrent"`, which silently pointed at the
+  # raw CIFS path -- the one that is unwritable from an unprivileged container
+  # -- and would have failed only once the instance started. Calling deviceAt
+  # instead means the bindfs mirror is applied by construction rather than
+  # remembered per file.
+  deviceAt =
+    share: inInstancePath: {
+      type = "disk";
+      source = "${mappedMount}/${share}";
+      path = inInstancePath;
+    };
+
   # Library shares that live on the local tree and are worth backing up.
   #
   # qBittorrent is excluded on purpose: it is re-downloadable, so an hourly
@@ -164,6 +185,7 @@ in
     shares
     roots
     device
+    deviceAt
     localLibraryShares
     ;
 }

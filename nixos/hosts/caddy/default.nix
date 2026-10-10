@@ -382,6 +382,116 @@ in
         }
         # -------------------------------------------------------------------
 
+        # -------------------------------------------------------------------
+        # The media stack -- jellyfin.sakul-flee.de first, then the *ARR family
+        # and QUI. All VPN-gated, all cut over from Traefik to the Incus
+        # instances.
+        # -------------------------------------------------------------------
+        #
+        # Every block below is the same shape, and it is the shape every earlier
+        # cutover in this file uses (forgejo, syncthing, paperless, ttyd):
+        #
+        #   * a separate site block, NOT an entry in hostnames.nix. Those all
+        #     import still-traefik and would hand the request back to k3s, which
+        #     is exactly what these five are leaving behind.
+        #   * @notvpn not remote_ip 100.64.0.0/10 + respond 403. `remote_ip`,
+        #     never `client_ip`: the incus forward is a DNAT and does not rewrite
+        #     the source, so remote_ip is the real client address and is
+        #     unforgeable, while X-Forwarded-For is settable by anyone and with
+        #     no trusted_proxies a client_ip gate is a one-header bypass. The
+        #     range is the WireGuard tunnel subnet, the same one the Traefik
+        #     vpn-only middleware used on these same names in k3s, so the set of
+        #     clients that could reach them does not change at the cutover.
+        #   * plain http:// upstream. TLS terminates here; the instances speak
+        #     plain HTTP on their bridge address and their certificates were
+        #     never issued for names that resolve inside the container.
+        #   * header_up Host {http.request.host}. Required, not cosmetic.
+        #
+        # k3s keeps running throughout: this is a pure change of the route in
+        # front of it. Rollback for any one name is deleting its block and
+        # putting the name back in hostnames.nix.
+        #
+        # jellyfin
+        jellyfin.sakul-flee.de {
+            tls {
+                dns cloudflare {env.CF_API_TOKEN}
+            }
+
+            @notvpn not remote_ip 100.64.0.0/10
+            respond @notvpn "Jellyfin is reachable over the VPN only.\n" 403
+
+            # 8096 is jellyfin's plain-HTTP listener. It binds every interface
+            # (services.jellyfin has no address option and passes no listen flag
+            # to the binary), which is why there is no networkForward in its
+            # incus.nix: the LAN has no route to this port at all, and the only
+            # path in is Caddy on the bridge.
+            reverse_proxy http://10.0.0.106:8096 {
+                header_up Host {http.request.host}
+            }
+        }
+
+        # Sonarr (TV). 8989.
+        sonarr.sakul-flee.de {
+            tls {
+                dns cloudflare {env.CF_API_TOKEN}
+            }
+
+            @notvpn not remote_ip 100.64.0.0/10
+            respond @notvpn "Sonarr is reachable over the VPN only.\n" 403
+
+            reverse_proxy http://10.0.0.107:8989 {
+                header_up Host {http.request.host}
+            }
+        }
+
+        # Radarr (movies). 7878.
+        radarr.sakul-flee.de {
+            tls {
+                dns cloudflare {env.CF_API_TOKEN}
+            }
+
+            @notvpn not remote_ip 100.64.0.0/10
+            respond @notvpn "Radarr is reachable over the VPN only.\n" 403
+
+            reverse_proxy http://10.0.0.108:7878 {
+                header_up Host {http.request.host}
+            }
+        }
+
+        # Prowlarr (indexer proxy). 9696.
+        prowlarr.sakul-flee.de {
+            tls {
+                dns cloudflare {env.CF_API_TOKEN}
+            }
+
+            @notvpn not remote_ip 100.64.0.0/10
+            respond @notvpn "Prowlarr is reachable over the VPN only.\n" 403
+
+            reverse_proxy http://10.0.0.109:9696 {
+                header_up Host {http.request.host}
+            }
+        }
+
+        # QUI (the qBittorrent WebUI). 7476.
+        #
+        # The most sensitive name of the five: QUI drives qBittorrent, so
+        # reaching it unauthenticated is as bad as reaching qBittorrent. It is
+        # VPN-gated on the same terms as everything else here, and it gets no
+        # LAN forward either -- see hosts/qui/incus.nix.
+        qui.sakul-flee.de {
+            tls {
+                dns cloudflare {env.CF_API_TOKEN}
+            }
+
+            @notvpn not remote_ip 100.64.0.0/10
+            respond @notvpn "QUI is reachable over the VPN only.\n" 403
+
+            reverse_proxy http://10.0.0.111:7476 {
+                header_up Host {http.request.host}
+            }
+        }
+        # -------------------------------------------------------------------
+
         ${hostBlocks}
       ''} $out
       # cp from the store preserves mode 0444, which `caddy fmt --overwrite`

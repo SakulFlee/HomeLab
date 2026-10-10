@@ -25,14 +25,15 @@ let
     # /data/downloads/torrents -- the k3s manifest's mountPath -- NOT
     # /mnt/nas/qBittorrent, because QUI's own config (its root folders) refers
     # to that path and rewriting it would be rewriting baked-in application
-    # config, which the whole port is designed to avoid. So the device path is
-    # set explicitly here rather than using media.device, while the SOURCE is
-    # still resolved from `roots` the same way.
-    qb-downloads = {
-      type = "disk";
-      source = "${media.roots.qBittorrent}/qBittorrent";
-      path = "/data/downloads/torrents";
-    };
+    # config, which the whole port is designed to avoid.
+    #
+    # media.deviceAt rather than a hand-written device: the source is the bindfs
+    # mirror, so this stays writable from an unprivileged container. An earlier
+    # version wrote `source = "${media.roots.qBittorrent}/qBittorrent"` here,
+    # which pointed at the raw CIFS path -- the one that lands on the overflow id
+    # and cannot be written -- and the failure would only have appeared when the
+    # instance started.
+    qb-downloads = media.deviceAt "qBittorrent" "/data/downloads/torrents";
 
     # The library, read-only: QUI scans Movies/Shows/NSFW to resolve titles and
     # hardlink targets. ro -- it must never modify the library; a hardlink that

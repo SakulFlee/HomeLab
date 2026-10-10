@@ -45,4 +45,17 @@
   # an unprivileged LXC -- measured, see hosts/jellyfin/incus.nix) and the iGPU
   # passed through for VAAPI. Config and cache are pool volumes.
   jellyfin = import ./hosts/jellyfin/incus.nix;
+
+  # The *ARR family and QUI. Same shape as jellyfin: unprivileged, shares
+  # bind-mounted from the bindfs mirror at /mnt/nas-mapped (which is what makes
+  # them writable), config on a `persistent` pool volume.
+  #
+  # Read/write split, which is the one thing that differs between them and is
+  # worth stating here rather than per file: the library shares are mounted
+  # read-only and only the qBittorrent staging share is writable. These apps
+  # hand releases to qBittorrent; they do not edit media in place.
+  sonarr = import ./hosts/sonarr/incus.nix;
+  radarr = import ./hosts/radarr/incus.nix;
+  prowlarr = import ./hosts/prowlarr/incus.nix;
+  qui = import ./hosts/qui/incus.nix;
 }

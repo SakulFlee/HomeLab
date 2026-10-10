@@ -208,6 +208,12 @@
         # and the host kernel's i915 driver does the work (see
         # hosts/jellyfin/incus.nix for what was measured about that device).
         jellyfin = mkInstance { path = ./hosts/jellyfin; };
+        # The *ARR family and QUI. Containers, like jellyfin: no GPU, and the
+        # shares arrive through the bindfs mirror as ordinary devices.
+        sonarr = mkInstance { path = ./hosts/sonarr; };
+        radarr = mkInstance { path = ./hosts/radarr; };
+        prowlarr = mkInstance { path = ./hosts/prowlarr; };
+        qui = mkInstance { path = ./hosts/qui; };
       };
 
       # Convenience: buildable images, so `nix build .#image-<name>` works.
@@ -218,6 +224,10 @@
         image-syncthing = self.nixosConfigurations.syncthing.config.system.build.squashfs;
         image-paperless = self.nixosConfigurations.paperless.config.system.build.squashfs;
         image-jellyfin = self.nixosConfigurations.jellyfin.config.system.build.squashfs;
+        image-sonarr = self.nixosConfigurations.sonarr.config.system.build.squashfs;
+        image-radarr = self.nixosConfigurations.radarr.config.system.build.squashfs;
+        image-prowlarr = self.nixosConfigurations.prowlarr.config.system.build.squashfs;
+        image-qui = self.nixosConfigurations.qui.config.system.build.squashfs;
 
         # A VM is one qcow2 disk rather than a rootfs plus a metadata tarball.
         image-wireguard = self.nixosConfigurations.wireguard.config.system.build.qemuImage;
