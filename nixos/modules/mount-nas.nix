@@ -1,4 +1,4 @@
-{ config, lib, pkgs, inputs, ... }:
+{ config, lib, pkgs, inputs, utils, ... }:
 let
   # The share list, the NAS address and the ownership ids all come from
   # modules/media-shares.nix, which is also what each media instance's
@@ -19,8 +19,9 @@ let
   mappedMount = media.mappedMount;
 
   # The CIFS unit name for a share, which the bindfs unit has to follow: it
-  # cannot overlay a share that is not mounted yet.
-  cifsUnit = shareName: "${lib.escapeSystemdPath "${media.nasMount}/${shareName}"}.mount";
+  # cannot overlay a share that is not mounted yet. `utils.escapeSystemdPath`
+  # (not lib -- it is in NixOS's utils, which is why this module takes `utils`).
+  cifsUnit = shareName: "${utils.escapeSystemdPath "${media.nasMount}/${shareName}"}.mount";
 
   makeMount = shareName: {
     name = "${media.nasMount}/${shareName}";
@@ -110,8 +111,19 @@ let
     value = {
       description = "bindfs mirror of the ${shareName} share for unprivileged containers";
 
-      after = [ cifsUnit shareName ];
-      requires = [ cifsUnit shareName ];
+      # `cifsUnit shareName` CALLS the function -- it returns the escaped unit
+      # name for this share's CIFS mount. Passing the bare `cifsUnit` would put
+      # a function in the list, which the systemd module rejects:
+      #
+      #   error: ... systemd.services.nas-mapped-Shows.after."[definition ...]"
+      #   is not of type `string matching the pattern ...'
+      #
+      # Only the escaped .mount is listed. An unescaped share name is not a unit
+      # and systemd ignores non-unit dependency entries anyway, so including it
+      # would be a phantom dependency that reads as if something else were
+      # required.
+      after = [ (cifsUnit shareName) ];
+      requires = [ (cifsUnit shareName) ];
 
       wantedBy = [ "multi-user.target" ];
 
