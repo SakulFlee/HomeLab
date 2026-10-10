@@ -23,7 +23,7 @@
   networking.hostName = "jellyfin";
 
   # curl, for reaching the app at verification time and for the healthcheck.
-  # intel-media-driver and libva-utils are added in their own block below; they
+  # The VAAPI driver and vainfo are added in their own block below; they
   # are listed there with the reasoning, not here.
   #
   # The four library shares Jellyfin reads, mounted read-only. Matches the four
@@ -96,15 +96,19 @@
     # makes it work. See ./incus.nix for the measurement.
     #
     # hardware.opengl is deliberately NOT set here: Jellyfin needs a VAAPI
-    # driver in the container (intel-media-driver / libva), not the desktop GL
-    # stack, and enabling hardware.opengl would pull the wrong set and risk
-    # masking the VAAPI path. The driver is added below as intel-media-driver.
+    # driver in the container, not the desktop GL stack, and enabling
+    # hardware.opengl would pull an X/GL stack that is irrelevant to headless
+    # transcoding. The AMD VAAPI driver comes from mesa below.
     hardwareAcceleration = {
       enable = true;
+      # VAAPI is the right type on both vendors; only the driver behind it
+      # differs, and on this host that is mesa's radeonsi (see below for the
+      # measurement that establishes the vendor).
       type = "vaapi";
-      # The VAAPI render node the gpu device exposes. This is the standard
-      # render node name; verify with `ls /dev/dri/renderD*` inside the
-      # instance at apply time.
+
+      # The render node the gpu device exposes. Confirmed present in the
+      # container with world read/write permissions:
+      #   crw-rw-rw- 1 root root 226,128 /dev/dri/renderD128
       device = "/dev/dri/renderD128";
     };
   };
@@ -114,23 +118,35 @@
   # ---------------------------------------------------------------------------
   #
   # The GPU device hands the container /dev/dri (the kernel side). The userspace
-  # half -- libva and the Intel driver that talks to it -- has to be present in
-  # the Jellyfin container or hardwareAcceleration renders a black frame and
-  # Jellyfin falls back to software without saying why. jellyfin-ffmpeg (which
-  # services.jellyfin already pulls in) links against these, so they have to be
-  # on the library path for the service.
+  # half -- libva and the driver that talks to it -- has to be present in the
+  # Jellyfin container or hardwareAcceleration renders a black frame and
+  # Jellyfin falls back to software without saying why.
   #
-  # intel-media-driver is the Intel driver (Broadwell HD Graphics 5 and up).
-  # The host's iGPU generation decides whether this or i965-era intel-media-
-  # driver-open is right; both are packaged and either works on most Intel
-  # iGPUs -- see NOTES.md, where the verification step is Jellyfin's own
-  # playback log reporting the chosen VAAPI driver.
+  # THIS IS AN AMD GPU. Measured on the host, not assumed:
   #
-  # libva-utils gives `vainfo`, which is how VAAPI is verified to have actually
-  # initialised rather than merely being configured -- see NOTES.md.
+  #   $ cat /sys/class/drm/card0/device/vendor   ->  0x1002   (AMD, not 0x8086)
+  #   $ cat /sys/class/drm/card0/device/device   ->  0x1681   (Raphael, Ryzen 6000)
+  #   $ lsmod | grep amdgpu                      ->  amdgpu loaded
+  #
+  # So the driver is mesa's radeonsi/radv VAAPI stack, NOT intel-media-driver.
+  # An earlier version of this file installed intel-media-driver on the
+  # assumption that "iGPU" meant Intel, and the failure is exactly the silent
+  # one this file keeps warning about:
+  #
+  #   libva info: Trying to open .../radeonsi_drv_video.so
+  #   libva info: va_openDriver() returns -1
+  #   vaInitialize failed with error code -1
+  #
+  # jellyfin.service was active, the WebUI loaded, /dev/dri was present and
+  # correctly permissioned -- and VAAPI still did not initialise, because the
+  # only driver in the container was iHD_drv_video.so for a GPU that is not
+  # there. This is why `vainfo` is a gate and not a formality.
+  #
+  # `mesa` is the package that ships radeonsi_drv_video.so on NixOS. libva-utils
+  # gives `vainfo`, which is how VAAPI is verified to have actually initialised.
   environment.systemPackages = [
     pkgs.curl
-    pkgs.intel-media-driver
+    pkgs.mesa
     pkgs.libva-utils
   ];
 
