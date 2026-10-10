@@ -127,6 +127,36 @@ let
 
       wantedBy = [ "multi-user.target" ];
 
+      # -------------------------------------------------------------------------
+      # Boot ordering against incus.service -- THIS WAS MISSING
+      # -------------------------------------------------------------------------
+      #
+      # wantedBy alone was not enough, and the gap was a real reboot failure.
+      #
+      # incus.service is enabled and starts the instances (apply.sh reconciles
+      # each spec's autostart to Incus's boot.autostart). It is pulled into
+      # multi-user.target like these units are. So without an explicit ordering
+      # the two RACED at boot, and if Incus got an instance up before its bindfs
+      # mirror existed, the device source /mnt/nas-mapped/<share> was missing --
+      # and an instance whose device source is missing REFUSES TO START.
+      #
+      # That is the same failure mode as the media-tree service: not a degraded
+      # container, but one that does not come up at all, with the bindfs units
+      # looking perfectly healthy in systemctl status. Nothing about that failure
+      # points at the cause.
+      #
+      # So: ordered before incus.service, and required by it, which makes the
+      # mirror a hard precondition for starting instances. WantedBy is kept
+      # because the mirrors are also wanted on their own (a NAS share should be
+      # reachable from the host without incus running).
+      #
+      # Only the mirror units are ordered against incus; the CIFS mounts
+      # underneath keep their own noauto+automount behaviour, so a NAS that is
+      # still asleep at boot does not block multi-user.target -- the mirrors
+      # fail, the host boots, and incus starts what it can.
+      before = [ "incus.service" ];
+      requiredBy = [ "incus.service" ];
+
       path = [
         pkgs.bindfs
         pkgs.coreutils
