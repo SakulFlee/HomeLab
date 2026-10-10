@@ -62,22 +62,50 @@ let
   media = import ./media-shares.nix;
 in
 {
-  # Same posture as every other instance, for the same reason: the host and the
-  # Incus gate are the firewalls (Caddy's VPN gate on each vhost; no media app
-  # has a LAN network forward), so a second firewall in the guest would only
-  # re-filter what the host already let through. qBittorrent is the deliberate
-  # exception and re-enables it in its own default.nix.
-  networking.firewall.enable = false;
+  options.mediaInstance = {
+    mountedShares = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+      description = ''
+        Which media shares this instance mounts read-only. Declared per app so
+        the container's surface matches what the app actually reads, and so this
+        list stays reviewable in one place.
 
-  # Router DNS, like every other instance -- NOT the host's 192.168.178.200.
-  # qBittorrent overrides this with Quad9 through its tunnel.
-  networking.nameservers = [ "192.168.178.1" ];
+        It records surface, it does not create anything: the binds come from
+        each app's ./incus.nix via media.device. See the header for why nothing
+        is created for these paths -- they are read-only CIFS mounts and writing
+        to them would mean writing to the live NAS library.
+      '';
+    };
+  };
 
-  # Not exposed: Incus reaches each instance via exec, and no media app
-  # forwards 22.
-  services.openssh.enable = false;
+  # Everything that configures the system lives under `config`, not at the top
+  # level. A module that declares top-level config attributes alongside an
+  # `options` block is rejected outright by lib/modules.nix:
+  #
+  #   error: Module '.../media-instance.nix' has an unsupported attribute
+  #   `networking'. This is caused by introducing a top-level `config' or
+  #   `options' attribute.
+  #
+  # Caught by evaluating the config rather than by the build, which is why this
+  # file is evaluated before anything goes near the host.
+  config = {
+    # Same posture as every other instance, for the same reason: the host and
+    # the Incus gate are the firewalls (Caddy's VPN gate on each vhost; no media
+    # app has a LAN network forward), so a second firewall in the guest would
+    # only re-filter what the host already let through. qBittorrent is the
+    # deliberate exception and re-enables it in its own default.nix.
+    networking.firewall.enable = false;
 
-  # ---------------------------------------------------------------------------
+    # Router DNS, like every other instance -- NOT the host's 192.168.178.200.
+    # qBittorrent overrides this with Quad9 through its tunnel.
+    networking.nameservers = [ "192.168.178.1" ];
+
+    # Not exposed: Incus reaches each instance via exec, and no media app
+    # forwards 22.
+    services.openssh.enable = false;
+
+    # ---------------------------------------------------------------------------
   # The share mount points
   # ---------------------------------------------------------------------------
   #
@@ -98,20 +126,5 @@ in
   # needs a writable directory of its own declares it against a pool volume,
   # which is the mechanism that demonstrably carries ownership correctly into a
   # container (paperless sees /var/lib/paperless as 987:987).
-  options.mediaInstance = {
-    mountedShares = lib.mkOption {
-      type = lib.types.listOf lib.types.str;
-      default = [ ];
-      description = ''
-        Which media shares this instance mounts read-only. Declared per app so
-        the container's surface matches what the app actually reads, and so this
-        list stays reviewable in one place.
-
-        It records surface, it does not create anything: the binds come from
-        each app's ./incus.nix via media.device. See the header for why nothing
-        is created for these paths -- they are read-only CIFS mounts and writing
-        to them would mean writing to the live NAS library.
-      '';
-    };
   };
 }

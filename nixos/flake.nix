@@ -203,6 +203,11 @@
         # Paperless, VPN-only behind Caddy. No networkForward -- the vhost
         # cutover stays a separate hand-off.
         paperless = mkInstance { path = ./hosts/paperless; };
+        # Jellyfin, the first media instance. A container: no kernel of its own
+        # is needed for VAAPI, because the iGPU is passed through as a device
+        # and the host kernel's i915 driver does the work (see
+        # hosts/jellyfin/incus.nix for what was measured about that device).
+        jellyfin = mkInstance { path = ./hosts/jellyfin; };
       };
 
       # Convenience: buildable images, so `nix build .#image-<name>` works.
@@ -212,6 +217,7 @@
         image-forgejo = self.nixosConfigurations.forgejo.config.system.build.squashfs;
         image-syncthing = self.nixosConfigurations.syncthing.config.system.build.squashfs;
         image-paperless = self.nixosConfigurations.paperless.config.system.build.squashfs;
+        image-jellyfin = self.nixosConfigurations.jellyfin.config.system.build.squashfs;
 
         # A VM is one qcow2 disk rather than a rootfs plus a metadata tarball.
         image-wireguard = self.nixosConfigurations.wireguard.config.system.build.qemuImage;
