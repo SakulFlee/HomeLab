@@ -88,15 +88,17 @@ in
       if [ ! -s "${secretFile}" ]; then
         openssl rand -hex 32 > "${secretFile}"
       fi
-      # root:root, 0600. NOT qui:qui -- this file is the LoadCredential SOURCE,
-      # read by systemd as root before the service starts, and systemd then
-      # delivers it into $CREDENTIALS_DIRECTORY for the service. The service
-      # never reads this path directly. An earlier version chowned it to
-      # qui:qui, which is both unnecessary (the service never opens this file)
-      # and insufficient (the credential copy the service actually reads was
-      # still unreadable, for the PrivateUsers reason documented below).
-      chown root:root "${secretFile}"
-      chmod 0600 "${secretFile}"
+      # root:media 0640. NOT root:root 0600, because the service now reads this
+      # file DIRECTLY (LoadCredential is removed -- see the unit override below,
+      # where systemd's delivered copy proved unreadable to the service uid).
+      #
+      # The group is `media`, which is already this instance's primary group and
+      # on the host contains only sakulflee, so this grants nothing that group
+      # did not already have. The secret is still never in the Nix store and
+      # still never world-readable: 0640 root:media is the tightest mode that
+      # lets the service read it at all.
+      chown root:media "${secretFile}"
+      chmod 0640 "${secretFile}"
     '';
   };
 
@@ -127,10 +129,40 @@ in
   # relaxing one hardening flag. Revisit if the namespace hardening is wanted
   # back.
   systemd.services.qui = {
-    # mkForce, not a bare value: the module sets PrivateUsers = true at the same
-    # priority, so a plain `PrivateUsers = false` conflicts rather than
-    # overrides.
-    serviceConfig.PrivateUsers = lib.mkForce false;
+    serviceConfig = {
+      # mkForce on all three: the module sets each at the same priority, so a
+      # bare value is a definition conflict rather than an override.
+      PrivateUsers = lib.mkForce false;
+
+      # QUI CANNOT READ ITS CREDENTIAL ON THIS HOST, and the module offers no
+      # way to change how it is delivered.
+      #
+      #   qui: {"level":"fatal","error":"open
+      #   /run/credentials/qui.service/sessionSecret: permission denied",
+      #   "message":"Could not read QUI__SESSION_SECRET_FILE"}
+      #
+      # with PrivateUsers already off, the oneshot required and active, the
+      # source present and root:root 0600, and the credential demonstrably
+      # delivered (the directory exists for the running process). The service
+      # runs as uid 997 and cannot read the file systemd put there. This was
+      # reproduced with systemd-run directly rather than inferred from qui, so
+      # it is the module's LoadCredential mechanism misbehaving under systemd
+      # 260 here -- not a NixOS mistake on this side and not something the
+      # module exposes an option to change.
+      #
+      # So the credential is removed from the path entirely. qui reads the file
+      # on its own config volume instead, via QUI__SESSION_SECRET_FILE. That
+      # file is root:root 0600 (written by the provisioning oneshot), which
+      # means the service cannot read it either -- so it is provisioned 0640
+      # root:media, readable by the service's PRIMARY group. media is gid 972,
+      # already this instance's group, and contains only sakulflee on the host,
+      # so this grants nothing that group did not already have.
+      #
+      # The secret is still never in the Nix store: it lives only on the
+      # persistent config volume, root-owned, group-readable by `media` alone.
+      LoadCredential = lib.mkForce [ ];
+      Environment = lib.mkForce [ "QUI__SESSION_SECRET_FILE=/config/session-secret" ];
+    };
   };
 
   # ---------------------------------------------------------------------------
