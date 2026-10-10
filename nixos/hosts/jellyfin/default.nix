@@ -50,9 +50,17 @@
     dataDir = "/var/lib/jellyfin";
     cacheDir = "/var/cache/jellyfin";
 
-    # Caddy dials in over incusbr0, so the WebUI must bind the instance
-    # address, not just loopback.
-    address = "0.0.0.0";
+    # There is deliberately NO `address` option here. services.jellyfin has no such
+    # option -- the module passes only --datadir/--configdir/--cachedir/--logdir
+    # to the binary and Jellyfin binds every interface itself (8096 plain, 8920
+    # TLS). An earlier version of this file set address = "0.0.0.0" and the
+    # module rejected it by name:
+    #
+    #   error: The option `services.jellyfin.address' does not exist.
+    #
+    # Reaching it from Caddy over incusbr0 therefore needs nothing here. What
+    # keeps it off the LAN is the absence of any networkForward in ./incus.nix,
+    # not a bind address.
 
     user = "jellyfin";
 
