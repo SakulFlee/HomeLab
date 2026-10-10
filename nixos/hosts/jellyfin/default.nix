@@ -151,6 +151,37 @@
   ];
 
   # ---------------------------------------------------------------------------
+  # Point libva at the Nix store driver
+  # ---------------------------------------------------------------------------
+  #
+  # Without this VAAPI fails while every symptom looks healthy. libva searches a
+  # fixed list of prefixes -- /usr/lib/dri, /usr/lib32/dri,
+  # /usr/lib/x86_64-linux-gnu/dri -- and NixOS puts drivers in the store, so
+  # every one of those misses:
+  #
+  #   libva info: Trying to open /usr/lib/dri/radeonsi_drv_video.so
+  #   libva info: Trying to open /usr/lib/x86_64-linux-gnu/dri/radeonsi_drv_video.so
+  #   libva info: va_openDriver() returns -1
+  #   vaInitialize failed with error code -1
+  #
+  # while the driver is sitting right there in the closure. With the path set:
+  #
+  #   libva info: Found init function __vaDriverInit_1_23
+  #   libva info: va_openDriver() returns 0
+  #   vainfo: Driver version: Mesa Gallium driver 26.1.8 for AMD Radeon 680M
+  #           (radeonsi, rembrandt, ACO, DRM 3.64, 7.2.8)
+  #
+  # Set on the unit rather than globally because this is the only consumer of
+  # VAAPI in this container, and a system-wide environment would be a wider
+  # change than the problem needs. `hardwareAcceleration` is what actually makes
+  # Jellyfin use it; this only makes the driver findable.
+  systemd.services.jellyfin = {
+    environment = {
+      LIBVA_DRIVERS_PATH = "${pkgs.mesa}/lib/dri";
+    };
+  };
+
+  # ---------------------------------------------------------------------------
   # Why there are NO render/video group memberships here
   # ---------------------------------------------------------------------------
   #
