@@ -43,15 +43,30 @@
   # sonarr's does not. So this is the module lagging behind its sibling, not
   # anything about this deployment.
   #
-  # StateDirectory is cleared so systemd stops managing the path, and a tmpfiles
-  # rule creates it sonarr:media instead. /var/lib/sonarr is a `persistent`
-  # pool volume (see ./incus.nix), so the directory exists but with Incus's
-  # default 0711 root:root -- wrong owner, hence the explicit rule rather than
-  # relying on either side to do it.
-  systemd.services.sonarr = {
-    serviceConfig = lib.mkForce { StateDirectory = null; };
-  };
-
+  # /var/lib/sonarr is a `persistent` pool volume (see ./incus.nix), so Incus
+  # creates the mountpoint itself at 0711 root:root. A tmpfiles rule fixes the
+  # ownership to sonarr:media, which is what the service actually needs, and is
+  # how the radarr module in this same family already does it.
+  #
+  # There is deliberately NO attempt to clear StateDirectory here. Two attempts
+  # were wrong:
+  #
+  #   * The sonarr module only sets StateDirectory when dataDir is its default
+  #     (/var/lib/sonarr/.config/NzbDrone), via optionalAttrs. Setting dataDir to
+  #     /var/lib/sonarr already means that branch does not fire -- so nothing
+  #     needed clearing.
+  #   * Clearing it with `serviceConfig.StateDirectory = lib.mkForce null`
+  #     rendered as a literal `StateDirectory=` line in the unit, which systemd
+  #     rejects outright:
+  #
+  #       Loaded: bad-setting (Reason: Unit sonarr.service has a bad unit file
+  #       setting.)
+  #
+  #     Because NixOS' systemd generator emits a null serviceConfig key as an
+  #     empty assignment rather than omitting it. That broke the unit harder
+  #     than the ownership problem it was meant to fix.
+  #
+  # So the fix is ownership only: the tmpfiles rule below, and nothing else.
   systemd.tmpfiles.rules = [
     "d /var/lib/sonarr 0755 sonarr media -"
   ];
