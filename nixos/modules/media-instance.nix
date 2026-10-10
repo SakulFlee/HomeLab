@@ -90,6 +90,30 @@ in
   # Caught by evaluating the config rather than by the build, which is why this
   # file is evaluated before anything goes near the host.
   config = {
+    # ---------------------------------------------------------------------------
+    # The media group
+    # ---------------------------------------------------------------------------
+    #
+    # Exists because three instances declare `group = "media"`
+    # (sonarr, radarr, qui) and the module system asserts a user's primary group
+    # is defined:
+    #
+    #   Failed assertions:
+    #   - The following users have a primary group that is undefined: qui
+    #
+    # It does NOT provide write access to the NAS shares any more, and should
+    # not be read as if it did. That job moved to the bindfs mirror
+    # (modules/mount-nas.nix), which reports ownership as the container root id
+    # so a container process can write without any group being involved. The
+    # measured wall that used to need gid 972 is documented in this file's
+    # header; it is a fact about Incus and CIFS, not something a group fixes.
+    #
+    # gid 972 keeps the number consistent with media-shares.nix's mediaGid, but
+    # inside the container it is just a group id -- nothing maps it to the host.
+    users.groups.${media.mediaGroup} = {
+      gid = media.mediaGid;
+    };
+
     # Same posture as every other instance, for the same reason: the host and
     # the Incus gate are the firewalls (Caddy's VPN gate on each vhost; no media
     # app has a LAN network forward), so a second firewall in the guest would
