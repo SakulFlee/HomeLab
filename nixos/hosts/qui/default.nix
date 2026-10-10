@@ -64,9 +64,46 @@ in
       if [ ! -s "${secretFile}" ]; then
         openssl rand -hex 32 > "${secretFile}"
       fi
-      chown qui:qui "${secretFile}"
+      # root:root, 0600. NOT qui:qui -- this file is the LoadCredential SOURCE,
+      # read by systemd as root before the service starts, and systemd then
+      # delivers it into $CREDENTIALS_DIRECTORY for the service. The service
+      # never reads this path directly. An earlier version chowned it to
+      # qui:qui, which is both unnecessary (the service never opens this file)
+      # and insufficient (the credential copy the service actually reads was
+      # still unreadable, for the PrivateUsers reason documented below).
+      chown root:root "${secretFile}"
       chmod 0600 "${secretFile}"
     '';
+  };
+
+  # The module hardcodes PrivateUsers = true alongside its LoadCredential, and
+  # the two are mutually incompatible here:
+  #
+  #   qui: {"level":"fatal","error":"open
+  #   /run/credentials/qui.service/sessionSecret: permission denied",
+  #   "message":"Could not read QUI__SESSION_SECRET_FILE"}
+  #
+  # PrivateUsers puts the service in a user namespace where only uid 0 maps
+  # normally, so the credential systemd delivers -- owned by the real `qui` uid
+  # -- is unreadable inside it. The service cannot start at all.
+  #
+  # PrivateUsers is turned off for this one instance. It is a real reduction in
+  # hardening, and it is the lesser evil compared to the alternative (a service
+  # that cannot read the secret it requires and never starts). The other
+  # protections the module applies are left in place and still meaningful:
+  # CapabilityBoundingSet="", NoNewPrivileges, ProtectSystem=full (which is what
+  # lets qui hardlink torrent files), ProtectProc, RestrictNamespaces,
+  # MemoryDenyWriteExecute, SystemCallArchitectures=native and the systemd
+  # syscall filter.
+  #
+  # An alternative that keeps PrivateUsers would be to stop using
+  # LoadCredential and put the secret somewhere root-only that the service
+  # reads directly -- but the module's unit reads $CREDENTIALS_DIRECTORY, so
+  # that means replacing the unit's ExecStart, which is a larger change than
+  # relaxing one hardening flag. Revisit if the namespace hardening is wanted
+  # back.
+  systemd.services.qui = {
+    serviceConfig.PrivateUsers = false;
   };
 
   # ---------------------------------------------------------------------------

@@ -47,4 +47,46 @@
       bindaddress = "*";
     };
   };
+
+  # ---------------------------------------------------------------------------
+  # Why this unit is overridden
+  # ---------------------------------------------------------------------------
+  #
+  # The module hardcodes DynamicUser = true with StateDirectory = "prowlarr" and
+  # no User=/Group= to override:
+  #
+  #   status=238/STATE_DIRECTORY
+  #   prowlarr.service: Failed with result 'start-limit-hit'.
+  #
+  # With a dynamic user, systemd picks an ephemeral uid for the service and
+  # expects to own the StateDirectory as that uid. Here dataDir is a mounted
+  # `persistent` volume that already exists root:root 0700 (created by the
+  # module's own tmpfiles rule), and systemd will not chown a pre-existing root
+  # directory to the dynamic user -- so the service cannot access its own data
+  # directory and exits immediately, hitting the start limit.
+  #
+  # DynamicUser is turned off and a real, persistent user/group is used instead,
+  # matching what services.sonarr and services.radarr do (both have real
+  # user/group options defaulting to their own name). The media group is the
+  # primary group for the same reason the other *arr instances use it: the
+  # qBittorrent share is group-writable by gid 972 through the bindfs mirror.
+  #
+  # prowlarr mounts NO media shares (see mediaInstance.mountedShares), so this
+  # identity is not a privilege escalation -- it is the same posture as the
+  # other *arr instances, without a dynamic uid that cannot keep state across
+  # restarts.
+  systemd.services.prowlarr = {
+    serviceConfig = {
+      DynamicUser = false;
+      User = "prowlarr";
+      Group = "media";
+    };
+  };
+
+  # The prowlarr service user. Real (not dynamic) so the StateDirectory stays
+  # owned across restarts, which is what a database on a mounted volume needs.
+  users.users.prowlarr = {
+    group = "media";
+    isSystemUser = true;
+  };
 }
