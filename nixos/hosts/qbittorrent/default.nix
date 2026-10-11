@@ -47,9 +47,13 @@
 # qBittorrent runs as its own system user so its traffic can be identified by
 # uid. Routing is then per-uid:
 #
-#   ip rule add from <uid> lookup qb-vpn-table pref 100
-#   ip rule add from <uid> unreachable    pref 101
+#   ip rule add pref 100 uidrange <uid>-<uid> lookup qb-vpn-table
+#   ip rule add pref 101 uidrange <uid>-<uid> unreachable
 #   ip route add default dev tun0 table qb-vpn-table
+#
+# The selector is `uidrange`, not `from`: `ip rule`'s `from` takes an address or
+# prefix and rejects a bare uid outright. See the postStart comment for what that
+# cost before it was found.
 #
 # tun0 up   -> the table has a route -> traffic tunnels.
 # tun0 down -> the route disappears with the device -> the first rule matches
@@ -89,7 +93,7 @@ let
   #
   # users.users.<name>.uid defaults to null ("allocate the next free one"), and
   # `toString null` is "", so an auto-allocated uid would silently produce
-  #     ip rule add from "" lookup 51820 pref 100
+  #     ip rule add pref 100 uidrange "-" lookup 51820
   # which fails, leaving NO rule at all -- and no rule means traffic falls
   # through to main, i.e. straight out eth0. A kill-switch that silently fails
   # to install is worse than none, because it looks installed.
@@ -268,16 +272,42 @@ in
   # the .ovpn above, precisely so the tunnel can come up without DNS.
   networking.nameservers = piaDns;
 
-  # resolvconf off so the container's only resolver is the list above. There is
-  # no systemd-resolved here to disable -- `networking.systemd-resolved` is not
-  # an option in this nixpkgs:
+  # resolvconf off, and /etc/resolv.conf written directly.
+  #
+  # There is no systemd-resolved here to disable -- `networking.systemd-resolved`
+  # is not an option in this nixpkgs:
   #
   #   error: The option `networking.systemd-resolved' does not exist.
   #
-  # so that was removed rather than worked around. With resolvconf disabled and
-  # nameservers set to PIA's, /etc/resolv.conf contains only those, and there is
-  # no second resolver process that could fall back to the router.
+  # Turning resolvconf off was NOT sufficient on its own. `networking.nameservers`
+  # is consumed BY resolvconf; with resolvconf disabled nothing writes
+  # /etc/resolv.conf at all, and the container came up with NO resolv.conf:
+  #
+  #   cat: /etc/resolv.conf: No such file or directory
+  #
+  # Every lookup then failed, including through the working tunnel. The previous
+  # comment here claimed "with resolvconf disabled and nameservers set to PIA's,
+  # /etc/resolv.conf contains only those" -- the opposite of what happens.
+  #
+  # Writing the file here rather than re-enabling resolvconf is deliberate.
+  # resolvconf MERGES with whatever DHCP hands out, and this container gets
+  # 10.0.0.1 from the Incus bridge that way. A sibling instance shows the result:
+  #
+  #   nameserver 192.168.178.1     <- configured
+  #   nameserver 10.0.0.1          <- injected by DHCP on incusbr0
+  #
+  # so re-enabling resolvconf would hand the one container that must not leak a
+  # resolver that is reachable over eth0. Owning the file outright keeps the
+  # resolver set to exactly PIA's two.
+  #
+  # These two options are the supported pairing: nixpkgs asserts they are not
+  # both set, and that assertion only applies when resolvconf is enabled.
   networking.resolvconf.enable = false;
+  environment.etc."resolv.conf".text = ''
+    nameserver ${builtins.head piaDns}
+    nameserver ${builtins.elemAt piaDns 1}
+    options edns0
+  '';
 
   # ---------------------------------------------------------------------------
   # The tunnel
@@ -352,10 +382,25 @@ in
       # The kill-switch. See the file header -- the `unreachable` rule is
       # load-bearing, not decorative.
       #
+      # `uidrange`, NOT `from`. `ip rule`'s `from` selector takes an address or
+      # a prefix, never a uid, so the original form was rejected outright:
+      #
+      #   Error: any valid prefix is expected rather than "996".
+      #
+      # That failure was not cosmetic. It aborted postStart AFTER OpenVPN had
+      # already authenticated and brought tun0 up, so systemd tore the tunnel
+      # straight back down -- and the rules were never installed. qBittorrent
+      # was left running with no kill-switch at all, which is the one state this
+      # whole file exists to prevent. Measured in that state, uid 996 reached the
+      # internet over eth0 unauthenticated.
+      #
+      # `ip rule add uidrange 996-996` is the uid selector; a single uid is
+      # expressed as the degenerate range uid-uid.
+      #
       # Cleared first so a restart is idempotent; `ip rule add` without
       # `replace` would otherwise fail with "File exists" on every restart.
-      ip rule del from "${qbUid}" lookup "${vpnTable}" pref 100 2>/dev/null || true
-      ip rule del from "${qbUid}" unreachable pref 101 2>/dev/null || true
+      ip rule del pref 100 2>/dev/null || true
+      ip rule del pref 101 2>/dev/null || true
 
       # `lookup 51820` — the table NUMBER. `ip rule` expects a number here,
       # unlike `ip route ... table <n>` which takes either. Both are the bare
@@ -363,21 +408,31 @@ in
       #
       #   error: cannot coerce an integer to a string: 51820
       ip route replace default dev tun0 table "${vpnTable}"
-      ip rule add from "${qbUid}" lookup "${vpnTable}" pref 100
-      ip rule add from "${qbUid}" unreachable    pref 101
+      ip rule add pref 100 uidrange "${qbUid}-${qbUid}" lookup "${vpnTable}"
+      ip rule add pref 101 uidrange "${qbUid}-${qbUid}" unreachable
 
       # Echo the two rules back so `systemctl status` shows what is actually
       # installed. If this prints nothing, the kill-switch is NOT in place and
       # qBittorrent traffic would fall through to eth0.
-      ip -brief rule show | grep -E "pref (100|101)"
+      #
+      # `ip -brief rule show` does NOT print the word "pref"; it prints the
+      # priority as a bare field, like `100:`. The previous grep looked for
+      # "pref 100" and therefore matched nothing EVEN WHEN THE RULES WERE
+      # INSTALLED -- a confirmation that could only ever report failure, which
+      # is worse than none. Anchor on the priority field instead.
+      ip -brief rule show | grep -E "^(100|101):"
     '';
 
     postStop = ''
       # Remove the rules on the way down. Order matters: the `unreachable` rule
       # is removed LAST, so there is no instant during teardown where qBittorrent
       # traffic has neither the tunnel route nor the unreachable catch.
-      ip rule del from "${qbUid}" lookup "${vpnTable}" pref 100 2>/dev/null || true
-      ip rule del from "${qbUid}" unreachable pref 101 2>/dev/null || true
+      #
+      # Deleting by priority rather than by full selector, because a selector
+      # that does not match is a silent no-op here -- the same class of bug as
+      # the `from`-is-not-a-uid error above.
+      ip rule del pref 100 2>/dev/null || true
+      ip rule del pref 101 2>/dev/null || true
     '';
   };
 
