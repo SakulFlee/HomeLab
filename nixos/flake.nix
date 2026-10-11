@@ -218,6 +218,10 @@
         # nothing else, and an unprivileged LXC gets that at 0666 without any
         # added capability (measured -- see hosts/qbittorrent/default.nix).
         qbittorrent = mkInstance { path = ./hosts/qbittorrent; };
+        # Cloudflare DynDNS. A container: one static Go binary, no kernel of
+        # its own, and it makes outbound HTTPS only -- no networkForward.
+        # Replaces the k3s CronJob in apps/cloudflare-ddns/.
+        cloudflare-ddns = mkInstance { path = ./hosts/cloudflare-ddns; };
       };
 
       # Convenience: buildable images, so `nix build .#image-<name>` works.
@@ -233,6 +237,7 @@
         image-prowlarr = self.nixosConfigurations.prowlarr.config.system.build.squashfs;
         image-qui = self.nixosConfigurations.qui.config.system.build.squashfs;
         image-qbittorrent = self.nixosConfigurations.qbittorrent.config.system.build.squashfs;
+        image-cloudflare-ddns = self.nixosConfigurations.cloudflare-ddns.config.system.build.squashfs;
 
         # A VM is one qcow2 disk rather than a rootfs plus a metadata tarball.
         image-wireguard = self.nixosConfigurations.wireguard.config.system.build.qemuImage;

@@ -64,4 +64,10 @@
   # with an `unreachable` rule as the kill-switch -- see the file header in
   # hosts/qbittorrent/default.nix before changing anything there.
   qbittorrent = import ./hosts/qbittorrent/incus.nix;
+
+  # Cloudflare DynDNS. A container: the client is a single static Go binary
+  # with no kernel or device requirements, and it only dials out. Stateless --
+  # the records it manages live in Cloudflare, not on its disk. Replaces the
+  # k3s CronJob in apps/cloudflare-ddns/; see hosts/cloudflare-ddns/default.nix.
+  cloudflare-ddns = import ./hosts/cloudflare-ddns/incus.nix;
 }
