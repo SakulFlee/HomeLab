@@ -71,11 +71,20 @@
 # absent route cannot be. There is no instant during startup or teardown at
 # which a permissive egress rule exists and can be raced.
 #
-# The rules are installed by the openvpn unit's ExecStartPost/ExecStop, so they
-# appear and disappear WITH the tunnel. If OpenVPN never starts, neither do the
-# rules -- and with no rule for that uid at all, traffic falls through to main.
-# So the rules must be installed on a path that runs even when the tunnel fails
-# to establish; see the ordering note on qb-openvpn-rules below.
+# The rules are owned by their own unit, qb-killswitch, which is wanted at boot
+# and runs whether or not OpenVPN succeeds. They deliberately OUTLIVE the tunnel.
+#
+# An earlier version installed them from the openvpn unit's start and removed
+# them on its stop, so the kill-switch appeared and disappeared WITH the thing
+# it was protecting. That is backwards: the rules matter most exactly when the
+# tunnel is down. Measured on this host with the tunnel stopped under that
+# arrangement:
+#
+#   qb-openvpn: inactive, tun0: gone, rules: []
+#   uid 996 egress: 217.224.110.155    <- the home ISP, in the clear
+#
+# A kill-switch that disarms itself when the tunnel drops is worse than none,
+# because it looks armed right up until you test it.
 {
   config,
   lib,
@@ -397,19 +406,26 @@ in
       # `ip rule add uidrange 996-996` is the uid selector; a single uid is
       # expressed as the degenerate range uid-uid.
       #
-      # Cleared first so a restart is idempotent; `ip rule add` without
-      # `replace` would otherwise fail with "File exists" on every restart.
-      ip rule del pref 100 2>/dev/null || true
-      ip rule del pref 101 2>/dev/null || true
+      # The rules themselves belong to qb-killswitch.service and are normally
+      # already installed by the time this runs. Added here only as a repair, and
+      # deliberately WITHOUT the delete-then-add that this used to do: that
+      # opened a window in which neither rule existed, which is precisely the
+      # leaking state. `ip rule add` fails harmlessly with "File exists" when the
+      # rule is already present, and the confirmation grep below is what
+      # actually decides whether the kill-switch is in place.
+      ip rule add pref 100 uidrange "${qbUid}-${qbUid}" lookup "${vpnTable}" 2>/dev/null || true
+      ip rule add pref 101 uidrange "${qbUid}-${qbUid}" unreachable 2>/dev/null || true
 
       # `lookup 51820` — the table NUMBER. `ip rule` expects a number here,
       # unlike `ip route ... table <n>` which takes either. Both are the bare
       # number; the earlier attempt quoted it and produced:
       #
       #   error: cannot coerce an integer to a string: 51820
+      #
+      # This route is what pref 100 resolves to. It lives and dies with tun0:
+      # when the device goes, the route goes with it, pref 100 stops matching,
+      # and traffic falls to pref 101.
       ip route replace default dev tun0 table "${vpnTable}"
-      ip rule add pref 100 uidrange "${qbUid}-${qbUid}" lookup "${vpnTable}"
-      ip rule add pref 101 uidrange "${qbUid}-${qbUid}" unreachable
 
       # Echo the two rules back so `systemctl status` shows what is actually
       # installed. If this prints nothing, the kill-switch is NOT in place and
@@ -424,16 +440,90 @@ in
     '';
 
     postStop = ''
-      # Remove the rules on the way down. Order matters: the `unreachable` rule
-      # is removed LAST, so there is no instant during teardown where qBittorrent
-      # traffic has neither the tunnel route nor the unreachable catch.
+      # Deliberately does NOT remove the kill-switch rules.
       #
-      # Deleting by priority rather than by full selector, because a selector
-      # that does not match is a silent no-op here -- the same class of bug as
-      # the `from`-is-not-a-uid error above.
-      ip rule del pref 100 2>/dev/null || true
-      ip rule del pref 101 2>/dev/null || true
+      # It used to, and that was a leak, not a cleanup. Stopping the tunnel
+      # deleted pref 100 and pref 101, which left qBittorrent running with no
+      # confinement at all. Measured on this host in exactly that state:
+      #
+      #   qb-openvpn: inactive, tun0: gone, rules: []
+      #   uid 996 egress: 217.224.110.155   <- the home ISP, unencrypted
+      #
+      # A kill-switch that switches itself off when the thing it protects goes
+      # down is worse than none, because it looks armed until you test it.
+      #
+      # Nothing needs tidying here either: the pref-100 route lives in the
+      # kernel and is torn down with tun0 automatically. The rules stay, the
+      # route goes, pref 100 stops matching, and traffic falls to pref 101 --
+      # unreachable. That is the intended behaviour, reached by the tunnel
+      # disappearing rather than by anyone deleting a rule.
+      #
+      # The rules are owned by qb-killswitch.service below.
     '';
+  };
+
+  # ---------------------------------------------------------------------------
+  # THE KILL-SWITCH, as its own unit
+  # ---------------------------------------------------------------------------
+  #
+  # These rules used to be installed by qb-openvpn's postStart and removed by its
+  # postStop. That couples the kill-switch's lifetime to the tunnel's lifetime,
+  # which is precisely backwards: the rules have to outlive the tunnel, because
+  # the moment the tunnel drops is the moment they start mattering.
+  #
+  # So they get their own unit, wanted at boot and independent of OpenVPN. It
+  # runs early, arms both rules, and stays armed. Fail-closed from the first
+  # moment of boot: until tun0 exists, pref 100 finds no route and pref 101
+  # makes uid 996 unreachable, which is the correct state for a container whose
+  # entire purpose is not to leak.
+  systemd.services.qb-killswitch = {
+    description = "Arm the qBittorrent kill-switch (blocks uid ${qbUid} unless tun0 is up)";
+    wantedBy = [ "multi-user.target" ];
+    before = [ "qbittorrent.service" ];
+
+    path = [
+      pkgs.iproute2
+      pkgs.coreutils
+    ];
+
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+
+      # Installing a rule needs CAP_NET_ADMIN, same as configuring tun. Granted
+      # to this one-shot and not to qBittorrent.
+      AmbientCapabilities = [ "CAP_NET_ADMIN" ];
+      CapabilityBoundingSet = [ "CAP_NET_ADMIN" ];
+      NoNewPrivileges = true;
+
+      ExecStart = ''
+        # Add-if-missing, never delete-then-add: there must be no instant during
+        # boot when neither rule exists.
+        ip rule add pref 100 uidrange "${qbUid}-${qbUid}" lookup "${vpnTable}" 2>/dev/null || true
+        ip rule add pref 101 uidrange "${qbUid}-${qbUid}" unreachable          2>/dev/null || true
+
+        # Fail loudly at boot rather than silently running disarmed. `ip rule add`
+        # above tolerates "File exists", so this is the only thing that can catch
+        # a rule that genuinely failed to install.
+        missing=0
+        for pref in 100 101; do
+          if ip -brief rule show | grep -qE "^$pref:"; then
+            echo "kill-switch rule pref $pref: armed"
+          else
+            echo "kill-switch rule pref $pref: MISSING -- uid ${qbUid} is NOT confined" >&2
+            missing=1
+          fi
+        done
+        exit $missing
+      '';
+
+      # Only on an explicit stop of THIS unit. qb-openvpn stopping does not run
+      # it, which is the whole point.
+      ExecStop = ''
+        ip rule del pref 100 2>/dev/null || true
+        ip rule del pref 101 2>/dev/null || true
+      '';
+    };
   };
 
   # ---------------------------------------------------------------------------
@@ -481,12 +571,26 @@ in
     };
   };
 
-  # Ordering: qBittorrent after the tunnel. If the tunnel is down, qBittorrent
-  # still starts -- but the `unreachable` rule means it cannot reach any peer or
-  # tracker, so it leaks nothing. Failing closed is the requirement; refusing to
-  # start would be worse UX for no security gain.
+  # Ordering: qBittorrent after the tunnel AND after the kill-switch.
+  #
+  # `Requires` rather than `Wants`: if the kill-switch cannot arm, qBittorrent
+  # must not start at all. `Wants` would let it start anyway and quietly leak,
+  # which is the failure this whole design exists to prevent. The rules are the
+  # thing that confines it, so their absence should stop the service rather than
+  # merely delay it.
+  #
+  # qBittorrent still starts when the TUNNEL is down -- that is deliberate and
+  # safe, because the armed `unreachable` rule means it can reach no peer and no
+  # tracker. Refusing to start would be worse UX for no security gain.
   systemd.services.qbittorrent = {
-    after = [ "qb-openvpn.service" ];
+    after = [
+      "qb-openvpn.service"
+      "qb-killswitch.service"
+    ];
+    requires = [
+      "qb-openvpn.service"
+      "qb-killswitch.service"
+    ];
     wants = [ "qb-openvpn.service" ];
   };
 
