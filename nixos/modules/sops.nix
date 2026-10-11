@@ -121,36 +121,23 @@
   sops.secrets.vpn_pia_username = {};
   sops.secrets.vpn_pia_password = {};
 
-  # qBittorrent's WebUI password -- NOT YET WIRED UP, and deliberately so.
+  # qBittorrent's WebUI credentials.
   #
-  # sops-nix fails the ENTIRE build when a declared secret has no matching key
-  # in secrets.yaml:
+  # BOTH keys must exist in secrets.yaml or the ENTIRE system build fails:
   #
-  #   sops-install-secrets: manifest is not valid: secret
-  #   qbittorrent_webui_password ... cannot be found
+  #   sops-install-secrets: manifest is not valid: secret <name> ... cannot be found
   #
-  # That key must be encrypted with an age private key, so it cannot be added
-  # from a machine that does not hold one. Declaring it before the key exists
-  # makes the system unbuildable, which is exactly what happened.
+  # qbittorrent_password holds qBittorrent's STORED form, not a plaintext
+  # password -- an `@ByteArray(<salt>:<sha512>)` blob, because that is the only
+  # thing the config file can carry and the hash cannot be reproduced outside
+  # the program. The unit refuses to inject a value that does not look like
+  # that blob, rather than silently locking you out of your own WebUI.
   #
-  # There is also a bootstrap deadlock: the password blob can only be captured
-  # from a RUNNING qBittorrent, and qBittorrent needs this secret to start. So
-  # the secret cannot be the only mechanism.
-  #
-  # As it stands, qBittorrent keeps whatever password it already has on disk --
-  # see the ExecStartPre in hosts/qbittorrent/default.nix, which rewrites the
-  # config only when this secret IS present. To harden it:
-  #
-  #   1. log into the WebUI and set a password
-  #   2. capture the blob:
-  #        incus exec qbittorrent -- grep -A1 '^\[Preferences\]' \
-  #          /var/lib/qbittorrent/qBittorrent/config/qBittorrent.conf
-  #   3. sops nixos/secrets.yaml   and add:
-  #        qbittorrent_webui_password: '@ByteArray(<value, no quotes>)'
-  #   4. uncomment the line below, and the matching renderedSecrets entry in
-  #      nixos/hosts/qbittorrent/incus.nix
-  #
-  # sops.secrets.qbittorrent_webui_password = {};
+  # To read the current values:
+  #   incus exec qbittorrent -- grep -E 'Password_PBKDF2|WebUI.Username' \
+  #     /var/lib/qbittorrent/qBittorrent/config/qBittorrent.conf
+  sops.secrets.qbittorrent_username = {};
+  sops.secrets.qbittorrent_password = {};
 
   # Fluxer secrets (from upstream .env + k8s secret mapping)
   sops.secrets.fluxer_postgres_password = {};

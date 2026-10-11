@@ -105,18 +105,19 @@ in
       format = "raw";
       source = "/run/secrets/vpn_pia_password";
     }
-    # The WebUI password is deliberately NOT wired up yet.
-    #
-    # An entry whose `source` does not exist makes apply.sh fail, and the source
-    # cannot exist until sops.secrets.qbittorrent_webui_password is uncommented
-    # in nixos/modules/sops.nix AND the encrypted key is added to secrets.yaml.
-    # See the instructions there.
-    #
-    # {
-    #   file = "qb-webui-password";
-    #   format = "raw";
-    #   source = "/run/secrets/qbittorrent_webui_password";
-    # }
+    {
+      # WebUI username. Without this the username set in the WebUI is lost on
+      # the next start, because the unit rewrites the credentials.
+      file = "qb-webui-username";
+      format = "raw";
+      source = "/run/secrets/qbittorrent_username";
+    }
+    {
+      # WebUI password, in qBittorrent's stored @ByteArray form.
+      file = "qb-webui-password";
+      format = "raw";
+      source = "/run/secrets/qbittorrent_password";
+    }
   ];
 
   # NO networkForward. The WebUI (8080) is reached only through Caddy's

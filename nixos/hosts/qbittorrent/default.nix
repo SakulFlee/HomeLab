@@ -141,6 +141,13 @@ let
   # Where apply.sh renders the instance's secrets (see ./incus.nix).
   qbSecretDir = "/var/lib/incus-secrets";
 
+  # Sentinels delimiting the credential block this unit owns, so it can be
+  # replaced on the next run instead of accumulating one [Preferences] header
+  # per restart. Plain text on purpose: a marker containing a backslash would be
+  # mangled by sed's escape handling.
+  qbCredBegin = "# --- begin nixos-managed qbittorrent credentials ---";
+  qbCredEnd = "# --- end nixos-managed qbittorrent credentials ---";
+
   # The OpenVPN configuration, from the .ovpn PIA publishes. `route-nopull` and
   # `disable-occ` come from that file and are required here, not optional:
   #
@@ -769,57 +776,96 @@ in
     # the parsing. Do not "simplify" this back to ExecStartPre.
     preStart = lib.mkForce ''
       conf="${qbProfileDir}/qBittorrent/config/qBittorrent.conf"
-
-      # Capture the password ALREADY in the file BEFORE anything overwrites it.
-      # This is the difference between fixing the bug and reintroducing it: a
-      # password set in the WebUI must survive the rewrite, whether or not a
-      # sops secret is wired up yet.
-      pw=""
-      if [ -f "$conf" ]; then
-        line=$(${pkgs.gnugrep}/bin/grep -h Password_PBKDF2 "$conf" 2>/dev/null | ${pkgs.coreutils}/bin/head -1)
-        if [ -n "$line" ]; then
-          pw=''${line#*\"}
-          pw=''${pw%\"}
-        fi
-      fi
-
-      # A sops secret, when present, wins over whatever was on disk.
-      if [ -s "${qbSecretDir}/qb-webui-password" ]; then
-        pw=$(${pkgs.coreutils}/bin/tr -d '\n' < "${qbSecretDir}/qb-webui-password")
-        echo "qb-webui-password: using the sops secret"
-      elif [ -n "$pw" ]; then
-        echo "qb-webui-password: no secret yet, preserving the existing password"
-      else
-        echo "qb-webui-password: no secret and no existing password." >&2
-        echo "  qBittorrent will issue a temporary password, readable with:" >&2
-        echo "  journalctl -u qbittorrent | grep 'temporary password'" >&2
-      fi
+      sec="${qbSecretDir}"
 
       ${pkgs.coreutils}/bin/install -d -m 0750 -o ${qbUser} -g media "${qbProfileDir}/qBittorrent/config"
+      ${pkgs.coreutils}/bin/rm -f "$conf.n"
 
-      # printf, not a heredoc. A heredoc terminator has to sit at column 0,
-      # which forces the body to column 0 too, which defeats Nix's
-      # indentation-stripping for the whole block. printf has neither problem.
+      # -------------------------------------------------------------------------
+      # PATCH THE CREDENTIALS, NEVER REWRITE THE FILE
       #
-      # The conditional is in shell, not Nix: `pw` is resolved at RUNTIME, so
-      # lib.optionalString on it would fail at build time with
-      # "undefined variable 'pw'".
-      {
-        if [ -n "$pw" ]; then
-          ${pkgs.coreutils}/bin/printf '%s\n' \
-            "[Preferences]" \
-            "WebUI\\Password_PBKDF2=\"$pw\""
-        fi
-        ${pkgs.coreutils}/bin/printf '%s\n' \
-          "" \
-          "[Session]" \
-          "DefaultSavePath=/mnt/nas/qBittorrent" \
-          "TempPath=${qbProfileDir}/temp" \
-          "" \
-          "[WebUI]" \
-          "Address=*" \
-          "Port=8080"
-      } > "$conf"
+      # An earlier version replaced the whole config with three sections. That
+      # destroyed every setting made through the WebUI: measured on this host, the
+      # username reverted to admin and General\Locale, WebUI\AuthSubnetWhitelist,
+      # the proxy, file-logger and RSS settings were all dropped on the next
+      # start. qBittorrent's parser MERGES duplicate sections (verified) but
+      # takes the FIRST occurrence of a duplicated key, so the only safe edit is
+      # to remove the credential lines and append them again.
+      # -------------------------------------------------------------------------
+
+      # Credentials from sops secrets. Absent secret -> leave the file alone.
+      user=""
+      pass=""
+      if [ -s "$sec/qb-webui-username" ]; then
+        user=$(${pkgs.coreutils}/bin/tr -d '\n' < "$sec/qb-webui-username")
+      fi
+      if [ -s "$sec/qb-webui-password" ]; then
+        cand=$(${pkgs.coreutils}/bin/tr -d '\n' < "$sec/qb-webui-password")
+        # Guard against the secret holding a PLAINTEXT password. Injecting that
+        # would set an unusable password and lock the user out of their own
+        # WebUI, so refuse and keep whatever is already in the file.
+        #
+        # The pattern is written with escaped parentheses because bash does NOT
+        # treat quoted "(...)" as a literal in a case pattern -- `"@ByteArray("`
+        # fails to parse. Verified both ways.
+        case "$cand" in
+          @ByteArray*\(*\))
+            pass="$cand"
+            echo "qb-webui-credentials: password secret accepted"
+            ;;
+          *)
+            echo "qb-webui-credentials: REFUSING the password secret." >&2
+            echo "  It is not qBittorrent's stored @ByteArray(<salt>:<sha512>) form." >&2
+            echo "  A plaintext password cannot be used here. Replace it with:" >&2
+            echo "  incus exec qbittorrent -- grep Password_PBKDF2 <conf>" >&2
+            ;;
+        esac
+      fi
+
+      # NOTHING VALID TO INJECT -> TOUCH NOTHING.
+      #
+      # This check must come BEFORE any deletion. Getting this order wrong means
+      # a missing secret wipes the very credentials it was meant to protect --
+      # the exact failure this whole mechanism exists to prevent. It was caught
+      # by testing, not by reading.
+      if [ -z "$user" ] && [ -z "$pass" ]; then
+        echo "qb-webui-credentials: no usable secrets, leaving the config untouched"
+      else
+        # Markers rather than a bare [Preferences] header, so the block can be
+        # removed again on the next run and cannot accumulate. The markers hold
+        # no backslashes, which matters: a sed/awk pattern containing
+        # WebUI\Username has its backslash eaten as an escape sequence
+        # ("escape sequence \U treated as plain U"), so the key is matched with
+        # grep -F instead, where it is a literal.
+        ${pkgs.gnused}/bin/sed -i \
+          "\|^${qbCredBegin}\$|,\|^${qbCredEnd}\$|d" "$conf"
+        ${pkgs.gnugrep}/bin/grep -vF \
+          -e "WebUI\\Username=" \
+          -e "WebUI\\Password_PBKDF2=" \
+          "$conf" > "$conf.n" && ${pkgs.coreutils}/bin/mv "$conf.n" "$conf"
+
+        {
+          ${pkgs.coreutils}/bin/printf '\n%s\n[Preferences]\n' "${qbCredBegin}"
+          if [ -n "$user" ]; then
+            ${pkgs.coreutils}/bin/printf 'WebUI\\Username="%s"\n' "$user"
+          fi
+          if [ -n "$pass" ]; then
+            ${pkgs.coreutils}/bin/printf 'WebUI\\Password_PBKDF2="%s"\n' "$pass"
+          fi
+          ${pkgs.coreutils}/bin/printf '%s\n' "${qbCredEnd}"
+        } >> "$conf"
+
+        echo "qb-webui-credentials: injected $([ -n "$user" ] && echo username ) $([ -n "$pass" ] && echo password )"
+      fi
+
+      # Enforce the settings the repo owns, in place. Only where the key already
+      # exists -- a missing key is left to qBittorrent's own defaults rather
+      # than having a whole section appended in the wrong place.
+      ${pkgs.gnused}/bin/sed -i \
+        -e "s|^Address=.*|Address=*|" \
+        -e "s|^DefaultSavePath=.*|DefaultSavePath=/mnt/nas/qBittorrent|" \
+        -e "s|^TempPath=.*|TempPath=${qbProfileDir}/temp|" \
+        "$conf"
 
       ${pkgs.coreutils}/bin/chown ${qbUser}:media "$conf"
       ${pkgs.coreutils}/bin/chmod 0600 "$conf"
