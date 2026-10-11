@@ -222,6 +222,11 @@
         # its own, and it makes outbound HTTPS only -- no networkForward.
         # Replaces the k3s CronJob in apps/cloudflare-ddns/.
         cloudflare-ddns = mkInstance { path = ./hosts/cloudflare-ddns; };
+        # Renovate. A container: the language toolchains it execs are userspace,
+        # so no kernel of its own is needed and there is no Docker to require a
+        # privileged guest (contrast forgejo-runner above). Replaces the k3s
+        # CronJob in apps/renovate/.
+        renovate = mkInstance { path = ./hosts/renovate; };
       };
 
       # Convenience: buildable images, so `nix build .#image-<name>` works.
@@ -238,6 +243,7 @@
         image-qui = self.nixosConfigurations.qui.config.system.build.squashfs;
         image-qbittorrent = self.nixosConfigurations.qbittorrent.config.system.build.squashfs;
         image-cloudflare-ddns = self.nixosConfigurations.cloudflare-ddns.config.system.build.squashfs;
+        image-renovate = self.nixosConfigurations.renovate.config.system.build.squashfs;
 
         # A VM is one qcow2 disk rather than a rootfs plus a metadata tarball.
         image-wireguard = self.nixosConfigurations.wireguard.config.system.build.qemuImage;

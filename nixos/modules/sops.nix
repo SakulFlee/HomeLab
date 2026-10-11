@@ -157,6 +157,43 @@
   sops.secrets.livekit_api_secret = {};
   sops.secrets.fluxer_erlang_cookie = {};
 
+  # Renovate's two tokens, for the renovate instance. Both are the k3s
+  # deployment's own values, carried over unchanged from the `renovate-env`
+  # Secret in apps/renovate/secrets/secret.enc.yaml:
+  #
+  #   renovate_token             RENOVATE_TOKEN, the Forgejo bot token Renovate
+  #                              authenticates with. Everything Renovate does
+  #                              runs as this identity, so its permissions on
+  #                              Forgejo are the ceiling on what this deployment
+  #                              can ever do to a repository -- including which
+  #                              repositories autodiscover can even see.
+  #   renovate_github_com_token  RENOVATE_GITHUB_COM_TOKEN, which lets it read
+  #                              github.com release notes and changelogs. Not
+  #                              redundant with the token above: a Forgejo
+  #                              mirror of a GitHub repository has no GitHub
+  #                              metadata behind it, and without this Renovate
+  #                              sees version bumps with no changelog to attach
+  #                              to the PR.
+  #
+  # The other four values that k3s Secret carried -- RENOVATE_PLATFORM,
+  # RENOVATE_ENDPOINT, RENOVATE_AUTODISCOVER and
+  # RENOVATE_ALLOWED_UNSAFE_EXECUTIONS -- are NOT here, and never should have
+  # been. They are configuration: a platform name, a public URL, two booleans
+  # and one enum value, all of them readable by anyone who can reach the
+  # instance. They live openly in hosts/renovate/default.nix. Only the two
+  # tokens are secrets, and putting a fourth non-secret in this file would mean
+  # one more rendered file for something a person could have read off a URL.
+  #
+  # Declared on the host for the same reason as every other rendered secret
+  # above: the instance receives the rendered bytes and no decryption
+  # capability. incus/apply.sh writes them into the container as files, and
+  # services.renovate.credentials passes each to systemd as LoadCredential, so a
+  # root process inside the instance can read its own two tokens and cannot read
+  # the restic password, the Forgejo secrets or the PIA credentials out of this
+  # file.
+  sops.secrets.renovate_token = {};
+  sops.secrets.renovate_github_com_token = {};
+
   # No sops.secrets for the wireguard VM's web UI, and that is a decision rather
   # than an omission.
   #

@@ -70,4 +70,12 @@
   # the records it manages live in Cloudflare, not on its disk. Replaces the
   # k3s CronJob in apps/cloudflare-ddns/; see hosts/cloudflare-ddns/default.nix.
   cloudflare-ddns = import ./hosts/cloudflare-ddns/incus.nix;
+
+  # Renovate. A container: every language manager it drives is a userspace
+  # toolchain it execs directly, so there is no kernel of its own, no /dev
+  # passthrough and no Docker daemon that would have forced a privileged guest.
+  # Stateless -- branches and PRs live in Forgejo -- and driven by an adaptive
+  # scheduler rather than a timer; see hosts/renovate/default.nix. Replaces the
+  # k3s CronJob in apps/renovate/.
+  renovate = import ./hosts/renovate/incus.nix;
 }
