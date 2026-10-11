@@ -123,6 +123,15 @@ let
   # reported at the `lookup` interpolation, several lines away from the cause.
   vpnTable = "51820";
 
+  # The Incus bridge subnet (incusbr0). Traffic to here must NOT be forced into
+  # the VPN, or Caddy cannot reach the WebUI on 10.0.0.112:8080 -- see the
+  # kill-switch bypass rule below.
+  #
+  # A literal rather than a shared option because instance addresses are literals
+  # too (see ./incus.nix); there is no subnet option in media-instance.nix to
+  # read. If the bridge is renumbered, this is the line to change.
+  lanSubnet = "10.0.0.0/24";
+
   # The OpenVPN configuration, from the .ovpn PIA publishes. `route-nopull` and
   # `disable-occ` come from that file and are required here, not optional:
   #
@@ -413,6 +422,7 @@ in
       # leaking state. `ip rule add` fails harmlessly with "File exists" when the
       # rule is already present, and the confirmation grep below is what
       # actually decides whether the kill-switch is in place.
+      ip rule add pref 90 to ${lanSubnet} lookup main 2>/dev/null || true
       ip rule add pref 100 uidrange "${qbUid}-${qbUid}" lookup "${vpnTable}" 2>/dev/null || true
       ip rule add pref 101 uidrange "${qbUid}-${qbUid}" unreachable 2>/dev/null || true
 
@@ -436,7 +446,7 @@ in
       # "pref 100" and therefore matched nothing EVEN WHEN THE RULES WERE
       # INSTALLED -- a confirmation that could only ever report failure, which
       # is worse than none. Anchor on the priority field instead.
-      ip -brief rule show | grep -E "^(100|101):"
+      ip -brief rule show | grep -E "^(90|100|101):"
     '';
 
     postStop = ''
@@ -503,6 +513,7 @@ in
       # or is restarted, and disarming the kill-switch on a failure is the
       # opposite of what should happen.
       ExecStop = ''
+        ip rule del pref 90 2>/dev/null || true
         ip rule del pref 100 2>/dev/null || true
         ip rule del pref 101 2>/dev/null || true
       '';
@@ -522,6 +533,26 @@ in
     # which is why `preStart`/`postStart` elsewhere in this file can open with a
     # comment and work. Do not "simplify" this back to ExecStart.
     script = ''
+      # LAN bypass, evaluated BEFORE the uid rules (pref 90 < 100).
+      #
+      # Without this the kill-switch captures its own control plane: qBittorrent's
+      # REPLY to a WebUI request also originates from uid 996, so it matched
+      # pref 100 and was sent out tun0 to PIA instead of back to Caddy on the
+      # bridge. Measured on this host:
+      #
+      #   ip route get 10.0.0.1   (root)  -> dev eth0  src 10.0.0.112
+      #   ip route get 10.0.0.1   (uid 996) -> dev tun0 table 51820 src 10.133.0.13
+      #
+      # and the symptom was the WebUI answering HTTP 200 on 127.0.0.1:8080 while
+      # the host's connection to 10.0.0.112:8080 hung with no response and no
+      # RST. Adding this rule made the host connect immediately.
+      #
+      # This is not a leak. The bridge is L2 on this host and nothing in this
+      # container forwards to the internet, so traffic to ${lanSubnet} cannot
+      # reach an ISP. It is the same carve-out every split-tunnel VPN config
+      # makes for the local network.
+      ip rule add pref 90 to ${lanSubnet} lookup main 2>/dev/null || true
+
       # Add-if-missing, never delete-then-add: there must be no instant during
       # boot when neither rule exists.
       ip rule add pref 100 uidrange "${qbUid}-${qbUid}" lookup "${vpnTable}" 2>/dev/null || true
@@ -531,7 +562,7 @@ in
       # above tolerates "File exists", so this is the only thing that can catch
       # a rule that genuinely failed to install.
       missing=0
-      for pref in 100 101; do
+      for pref in 90 100 101; do
         if ip -brief rule show | grep -qE "^$pref:"; then
           echo "kill-switch rule pref $pref: armed"
         else
