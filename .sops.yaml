@@ -133,12 +133,14 @@ creation_rules:
         - age1564t00zp3r69x0n7fxwadcgxv0n5v2rkqz77ry52t05q99d6wetqqmr6l6
         - age16n3ufazps5tru37l4wny0sh4f7em63j22yuhlahhfhxu5kz2ufdsmer7mw
         - age1suydyah5q07jdn7xrpt853pzt9ua3ygd7yuu4pys8g0caq2v6dhsmvwcwg
-  - path_regex: apps/renovate/.*\.yaml$
-    key_groups:
-      - age:
-        - age1564t00zp3r69x0n7fxwadcgxv0n5v2rkqz77ry52t05q99d6wetqqmr6l6
-        - age16n3ufazps5tru37l4wny0sh4f7em63j22yuhlahhfhxu5kz2ufdsmer7mw
-        - age1suydyah5q07jdn7xrpt853pzt9ua3ygd7yuu4pys8g0caq2v6dhsmvwcwg
+  # No apps/renovate/ entry. It held six values, and only two of them were
+  # secrets: the tokens, which are now the host's renovate_token and
+  # renovate_github_com_token in secrets.yaml (declared in
+  # nixos/modules/sops.nix, rendered into the renovate instance by apply.sh).
+  # The other four -- platform, endpoint, autodiscover, allowedUnsafeExecutions
+  # -- were never secret and are now configuration, declared openly in
+  # nixos/hosts/renovate/default.nix. The app went to the Incus instance in the
+  # commit before this one.
   - path_regex: apps/kube-prometheus/secrets/.*\.yaml$
     key_groups:
       - age:
