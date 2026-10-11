@@ -146,12 +146,6 @@ in
       endpoint = "https://forgejo.sakul-flee.de/api/v1";
       autodiscover = true;
 
-      # k3s ran `LOG_LEVEL=debug`, so this instance does too. Worth knowing that
-      # it now runs up to 4x as often, because debug logging for an autodiscover
-      # sweep over every repository is genuinely large; "info" is a one-line
-      # change here if the journal ever becomes a problem.
-      logLevel = "debug";
-
       # HomeLab vendors a submodule (apps/pvc-explorer/vendor/pvc-explorer) and
       # Orbital does the same for a Rust crate. Without this the submodule is an
       # empty directory, which breaks the cargo workspace outright
@@ -238,6 +232,20 @@ in
     ];
 
     environment = {
+      # k3s ran `LOG_LEVEL=debug` as an environment variable and so does this,
+      # because that is the only form the validator accepts: put in the config
+      # file, `logLevel` fails the module's build-time check with
+      #
+      #   Invalid configuration option: logLevel
+      #
+      # and takes the whole image down with it. (The k3s secret carried four
+      # other values; this is the only one that could not be moved into
+      # `settings`.) Worth remembering that this instance now runs up to 4x as
+      # often, because debug logging for an autodiscover sweep over every
+      # repository is genuinely large -- "info" is a one-word change here if the
+      # journal ever becomes a problem.
+      LOG_LEVEL = "debug";
+
       # The JDK from runtimePackages, named explicitly. PATH alone would work
       # for most managers, but Gradle and Maven both prefer JAVA_HOME when it is
       # set and fall back to `java` on PATH when it is not, and a manager that
