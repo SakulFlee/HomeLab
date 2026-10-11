@@ -78,4 +78,11 @@
   # scheduler rather than a timer; see hosts/renovate/default.nix. Replaces the
   # k3s CronJob in apps/renovate/.
   renovate = import ./hosts/renovate/incus.nix;
+
+  # The public website, and the only VM in the repository that exists purely to
+  # run a container: the site is served from
+  # forgejo.sakul-flee.de/sakulflee/website:latest, so it needs a container
+  # runtime inside the guest, which is the same "privileged or VM" fork the
+  # runner and fluxer take. See hosts/website/incus.nix.
+  website = import ./hosts/website/incus.nix;
 }

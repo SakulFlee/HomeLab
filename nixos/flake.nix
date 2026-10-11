@@ -227,6 +227,10 @@
         # privileged guest (contrast forgejo-runner above). Replaces the k3s
         # CronJob in apps/renovate/.
         renovate = mkInstance { path = ./hosts/renovate; };
+        # The website. A VM: it serves the site from a container image, so it
+        # needs a container runtime inside the guest, which an LXC could only
+        # provide as security.privileged. Same fork as forgejo-runner above.
+        website = mkInstance { path = ./hosts/website; kind = "vm"; };
       };
 
       # Convenience: buildable images, so `nix build .#image-<name>` works.
@@ -249,6 +253,7 @@
         image-wireguard = self.nixosConfigurations.wireguard.config.system.build.qemuImage;
         image-forgejo-runner = self.nixosConfigurations.forgejo-runner.config.system.build.qemuImage;
         image-fluxer = self.nixosConfigurations.fluxer.config.system.build.qemuImage;
+        image-website = self.nixosConfigurations.website.config.system.build.qemuImage;
       };
 
       # The Incus-level half of each instance: limits, volumes, devices. Plain
