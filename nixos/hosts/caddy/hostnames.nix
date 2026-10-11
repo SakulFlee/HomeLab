@@ -15,8 +15,6 @@
 # not in apps/ at all (grafana and nas are configured outside this repository,
 # or in a manifest this grep did not reach) and one that is (fluxer).
 [
-  "sakul-flee.de"
-  "www.sakul-flee.de"
   "grafana.sakul-flee.de"
   "hermes.sakul-flee.de"
   "hermes-dashboard.sakul-flee.de"
@@ -28,6 +26,11 @@
 ]
 
 # Not in the list, and why:
+#
+# - sakul-flee.de and www.sakul-flee.de are each in their own site block in
+#   ../default.nix, proxying to the website instance at 10.0.0.114. The apex and
+#   www are the one pair that left Traefik together, so they share a block: they
+#   serve the same image and were one Ingress in k3s.
 #
 # - jellyfin, sonarr, radarr, prowlarr and qui are each their own site block in
 #   ../default.nix, proxying to their Incus instance. They left this list when

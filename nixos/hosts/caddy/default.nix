@@ -520,6 +520,43 @@ in
         }
         # -------------------------------------------------------------------
 
+        # -------------------------------------------------------------------
+        # sakul-flee.de, www.sakul-flee.de -- CUTOVER: now served by the
+        # Incus instance (the website VM at 10.0.0.114)
+        # -------------------------------------------------------------------
+        #
+        # The only PUBLIC vhost added by this cutover. Every other block in this
+        # file gates on the VPN; these two deliberately do not, because they
+        # were never gated in k3s either -- the Ingress in apps/website/ had no
+        # middleware, so the site has always been reachable from anywhere. The
+        # set of clients that can reach it does not change across the cutover,
+        # which is the only thing that must not.
+        #
+        # One block for two names rather than two: they are the same image on
+        # the same instance, and they were a single Ingress in k3s. Caddy takes
+        # both labels for one site address, so this is one block either way.
+        #
+        # Plain http:// upstream. TLS terminates here and the container's nginx
+        # speaks plain HTTP on 0.0.0.0:80 inside the VM. There is nothing to
+        # verify -- the image's certificate situation is not a thing, since it
+        # has no certificate at all -- and the certificate Caddy presents for
+        # these names is the one Let's Encrypt issued for them, unchanged.
+        #
+        # header_up Host {http.request.host} rather than cosmetic. nginx's stock
+        # default.conf here has `server_name localhost` but is the default
+        # server for :80, so it answers any Host rather than 404ing -- but
+        # Astro builds can branch on the request host, and sending the name the
+        # browser asked for is what makes apex and www identical anyway.
+        #
+        # 80, not 8080 or anything else: the image exposes only 80/tcp, and
+        # `ports = [ "80:80" ]` in the instance's default.nix publishes it there.
+        sakul-flee.de, www.sakul-flee.de {
+            reverse_proxy http://10.0.0.114:80 {
+                header_up Host {http.request.host}
+            }
+        }
+        # -------------------------------------------------------------------
+
         ${hostBlocks}
       ''} $out
       # cp from the store preserves mode 0444, which `caddy fmt --overwrite`
