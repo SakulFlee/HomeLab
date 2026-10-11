@@ -75,22 +75,29 @@ in
   # cannot read the restic password, the Forgejo secrets or the PIA credentials
   # out of the host's secrets.yaml.
   #
-  # format = "raw" for both. A token is a value to be read, not a KEY=value
-  # line: `env` would wrap each in RENOVATE_TOKEN=..., and these are consumed by
-  # services.renovate.credentials, which hands each path to systemd as
-  # LoadCredential and reads it back with systemd-creds -- not by an
-  # EnvironmentFile parser. 0400 root:root, apply.sh's default, is correct for
-  # that: systemd opens the credential as root before the unit drops to the
-  # renovate user, and renovate itself only ever sees it in $CREDENTIALS_DIRECTORY.
+  # format = "env" for both -- KEY=value lines, because these are consumed by
+  # systemd's EnvironmentFile= rather than by LoadCredential=. That is not a
+  # stylistic choice and not a simplification: it is the only form that works
+  # in an LXC built from this flake, and the reason is in default.nix -- the
+  # image ships a systemd generator that resets LoadCredential= in every unit.
+  #
+  # 0400 root:root, apply.sh's default, is correct: systemd opens an
+  # EnvironmentFile as root before the unit drops to the renovate user, so
+  # renovate only ever sees the token in its own environment. It is not in the
+  # unit file either, and `systemctl show -p Environment` reports the
+  # Environment= property, not what EnvironmentFile= read -- the same property
+  # cloudflare-ddns relies on for its token.
   renderedSecrets = [
     {
-      format = "raw";
-      file = "renovate-token";
+      format = "env";
+      file = "renovate-token-env";
+      env = "RENOVATE_TOKEN";
       source = "/run/secrets/renovate_token";
     }
     {
-      format = "raw";
-      file = "renovate-github-com-token";
+      format = "env";
+      file = "renovate-github-token-env";
+      env = "RENOVATE_GITHUB_COM_TOKEN";
       source = "/run/secrets/renovate_github_com_token";
     }
   ];
@@ -98,15 +105,17 @@ in
   # The unit that reads the files above.
   #
   # Not optional in practice, and the same situation as cloudflare-ddns: on a
-  # first deploy renovate.service cannot start at all, because systemd fails the
-  # unit outright when a LoadCredential source is missing rather than starting it
-  # without the credential. apply.sh writes the files and then restarts this,
-  # which is why it restarts unconditionally (after `systemctl reset-failed`)
-  # instead of using try-restart -- a try-restart on a unit that has never
-  # started is a no-op and the token would never be picked up.
+  # first deploy renovate.service cannot start at all, because systemd fails a
+  # unit outright when an EnvironmentFile= source is missing rather than
+  # starting it without the variables. apply.sh writes the files and then
+  # restarts this, which is why it restarts unconditionally (after `systemctl
+  # reset-failed`) instead of using try-restart -- a try-restart on a unit that
+  # has never started is a no-op and the token would never be picked up.
   #
   # That restart is also a free smoke test: it is a real Renovate run against
   # real credentials, so a bad token fails here rather than at the next
-  # scheduled sweep.
+  # scheduled sweep. Measured, on the first deploy of this instance: the two
+  # files were rendered correctly and the run still failed, which is how the
+  # LoadCredential problem described in default.nix was found at all.
   secretConsumers = [ "renovate.service" ];
 }

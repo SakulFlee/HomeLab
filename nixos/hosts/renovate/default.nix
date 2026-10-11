@@ -118,28 +118,20 @@ in
     # renovate-schedule.service. Do not leave both running.
     schedule = null;
 
-    # The two secrets, and only the two.
+    # The two secrets, and only the two, arrive as environment variables from
+    # the two EnvironmentFile= lines on the run unit below. Not through
+    # services.renovate.credentials, which is the obvious choice and does not
+    # work here at all -- see the LoadCredential note on that unit.
     #
     # RENOVATE_TOKEN is the Forgejo bot token Renovate authenticates with;
     # RENOVATE_GITHUB_COM_TOKEN lets it read github.com release notes and
     # changelogs that a Forgejo mirror does not carry. Both are the k3s
     # deployment's own values, unchanged -- see incus.nix.
     #
-    # Each maps to a file, which the module hands to systemd as
-    # `LoadCredential=SECRET-<NAME>:<path>` and the unit reads back with
-    # systemd-creds into an environment variable. The token therefore exists in
-    # the process environment and in $CREDENTIALS_DIRECTORY, and in neither case
-    # in the unit file, `systemctl show` output, or this Nix configuration --
-    # which is the reason to use credentials rather than services.renovate.environment.
-    #
     # The four other values the k3s secret carried are configuration, not
     # secrets, and are set openly below. RENOVATE_ENDPOINT in particular is a
     # URL anyone can look up, and treating it as a secret bought nothing and
     # cost a rendered file.
-    credentials = {
-      RENOVATE_TOKEN = "${secretsDir}/renovate-token";
-      RENOVATE_GITHUB_COM_TOKEN = "${secretsDir}/renovate-github-com-token";
-    };
 
     settings = {
       platform = "forgejo";
@@ -275,7 +267,49 @@ in
     # schedule is null above, so there is no timer. This unit is started by
     # renovate-schedule.service below, or by hand:
     #   incus exec renovate -- systemctl start --wait renovate.service
+
+    # How the two tokens reach Renovate.
+    #
+    # services.renovate.credentials is the option built for this, and it does
+    # not work in this instance. It becomes LoadCredential=SECRET-<NAME>:<path>
+    # in the unit file, and the image's systemd generator then wipes it out:
+    #
+    #   /nix/store/...-distrobuilder-nixos-generator/lib/systemd/system-generators/.lxc-wrapped
+    #     fix_systemd_override_unit() writes, into /run/systemd/system/service.d/zzz-lxc-service.conf,
+    #     which applies to EVERY service in EVERY container built from this flake:
+    #
+    #       [ "${SYSTEMD}" -ge 249 ] && echo "LoadCredential=";
+    #
+    # An empty assignment to a list-type option resets it, and drop-ins are
+    # applied after the unit file, so by the time systemd has finished parsing,
+    # the credential list is empty. The unit starts, the module's script runs
+    # `systemd-creds cat SECRET-RENOVATE_GITHUB_COM_TOKEN`, and the whole run
+    # dies on the first one:
+    #
+    #   systemd-creds: Credential 'SECRET-RENOVATE_GITHUB_COM_TOKEN' not set.
+    #   renovate.service: Main process exited, code=exited, status=1/FAILURE
+    #
+    # Observed, not theorised. The generator is presumably clearing credentials
+    # it does not expect to find; nothing in a Nix configuration can undo it,
+    # because the reset happens after the unit file is read and there is no
+    # option to switch the generator off.
+    #
+    # EnvironmentFile= is not in that list, so it survives -- which is why
+    # cloudflare-ddns gets its token that way and why this does too. 0400
+    # root:root is right for it: systemd reads the file as root before dropping
+    # to the renovate user, and the values appear in neither the unit file nor
+    # `systemctl show -p Environment`.
+    #
+    # It is `EnvironmentFile` inside serviceConfig rather than a top-level
+    # `environmentFile` because there is no such option for a generic unit --
+    # services.caddy and services.paperless each define their own, and the only
+    # spelling that reaches an arbitrary service is the systemd directive.
+
     serviceConfig = {
+      EnvironmentFile = [
+        "${secretsDir}/renovate-token-env"
+        "${secretsDir}/renovate-github-token-env"
+      ];
       # The module's default. It cannot be used, for the reason given next.
       DynamicUser = lib.mkForce false;
 

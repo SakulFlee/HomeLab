@@ -186,11 +186,17 @@
   #
   # Declared on the host for the same reason as every other rendered secret
   # above: the instance receives the rendered bytes and no decryption
-  # capability. incus/apply.sh writes them into the container as files, and
-  # services.renovate.credentials passes each to systemd as LoadCredential, so a
-  # root process inside the instance can read its own two tokens and cannot read
-  # the restic password, the Forgejo secrets or the PIA credentials out of this
+  # capability. incus/apply.sh writes them into the container as files, and the
+  # renovate unit reads each through systemd's EnvironmentFile=, so a root
+  # process inside the instance can read its own two tokens and cannot read the
+  # restic password, the Forgejo secrets or the PIA credentials out of this
   # file.
+  #
+  # EnvironmentFile= and not LoadCredential=, which is what
+  # services.renovate.credentials would have used: the LXC image's systemd
+  # generator resets LoadCredential= in every unit, so credentials set that way
+  # silently never arrive. Measured on the running instance -- see
+  # nixos/hosts/renovate/default.nix.
   sops.secrets.renovate_token = {};
   sops.secrets.renovate_github_com_token = {};
 
