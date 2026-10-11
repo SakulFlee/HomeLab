@@ -447,40 +447,63 @@ in
 
       log() { printf 'renovate-schedule: %s\n' "$*"; }
 
-      # A stable digest of the set of branches Renovate is maintaining, taken
-      # from the report it just wrote.
+      # A stable digest of the branches Renovate is maintaining, taken from the
+      # report it just wrote.
       #
-      # Branch name and PR number, not `result` and not a count of created PRs.
-      # The set is the one piece of state that both halves of "something
-      # happened" show up in: Renovate opening a PR adds an entry, and someone
-      # merging or closing one removes it. So a diff catches interaction in both
-      # directions -- including a human closing a PR that Renovate then reopens,
-      # which is precisely the case where waiting a full interval is worst --
-      # without this script having to know Renovate's per-branch result
-      # vocabulary, which is not a stable interface.
+      # THE SHAPE OF THE REPORT, measured on the running instance rather than
+      # from the docs: `branches` is NOT a top-level array. The report is
+      #
+      #   { "problems": [...],
+      #     "repositories": { "<repo>": { "branches": [...],
+      #                                     "packageFiles": [...],
+      #                                     "problems": [...] }, ... } }
+      #
+      # with one entry per repository, keyed by name. The first version of this
+      # read `.branches` at the top level and found nothing, which the guard
+      # below turned into "no usable report" -- correct as a fallback, and still
+      # wrong as a result, because the instance then backed off as if nothing
+      # were ever happening.
+      #
+      # Each branch is hashed whole, minus `result`. Whole, because branch name
+      # and PR number alone miss the common case: Renovate groups updates into
+      # branches per version range, so a new patch inside an existing
+      # "renovate/actions-upload-artifact-3.x" branch changes neither and would
+      # read as nothing happening. Minus `result`, because that field is this
+      # run's verdict rather than state -- a real run produced the values
+      # "done", "already-existed", "pr-edited", "branch-limit-reached" and ""
+      # for branches that had not moved -- so including it would make every run
+      # look like activity and pin the interval at five minutes for ever.
+      #
+      # Hashing the whole branch also catches interaction in both directions for
+      # free: a new PR adds an entry, and someone merging or closing one
+      # removes it. That is the case where waiting a full interval is worst.
+      #
+      # Problems are deliberately not hashed. They carry stack traces and
+      # per-run text ("Retry scheduled"), so they churn between identical runs.
       #
       # Returns non-zero for "no usable report", which the caller treats as no
-      # activity rather than as a change. Two things count as unusable, and the
-      # second is the one that matters:
+      # activity rather than as a change. Two things count as unusable:
       #
       #   * the file is missing, empty, or not parseable -- a run that died
       #     before writing one, or a config error;
-      #   * `.branches` is not an array. That is not "no branches", it is this
-      #     script no longer understanding the report, and the difference is the
-      #     whole schedule: read as an empty branch list it would hash
-      #     differently from the stored fingerprint, so every run would look
-      #     like every branch had been deleted and the interval would sit at
-      #     the five-minute rung for ever. As an error it is one log line and a
+      #   * `.repositories` is not an object. That is not "no branches", it is
+      #     this script no longer understanding the report, and the difference is
+      #     the whole schedule: read as an empty set it would hash differently
+      #     from the stored fingerprint, so every run would look like every
+      #     branch had been deleted and the interval would sit at the
+      #     five-minute rung for ever. As an error it is one log line and a
       #     backoff, which is the honest outcome for a report this script can no
-      #     longer read.
+      #     longer read -- and it is what turned the mistake above into a
+      #     visible "no usable report" rather than a silently wrong schedule.
       #
-      # A genuinely empty branch list is still a valid answer -- that is what a
-      # successful run over no repositories looks like -- so only a missing or
-      # mistyped key fails here.
+      # Both candidate fingerprints were checked against three consecutive real
+      # runs on the instance: this one and the branch-name-only variant both
+      # produce the same digest every time, so the difference between them is
+      # sensitivity, not stability.
       fingerprint_of_report() {
         [ -s "${reportPath}" ] || return 1
         local branches
-        branches=$(jq -er 'select((.branches | type) == "array") | [.branches[] | ((.branchName // "?") + "\t" + ((.prNo // "-") | tostring))] | sort | join("\n")' "${reportPath}") || return 1
+        branches=$(jq -er 'select((.repositories | type) == "object") | [.repositories | to_entries[] | .key as $repo | (.value.branches // [])[] | { repo: $repo, branch: (del(.result)) }] | sort_by(.repo, .branch.branchName) | tojson' "${reportPath}") || return 1
         printf '%s' "$branches" | sha256sum | cut -d " " -f 1
       }
 
