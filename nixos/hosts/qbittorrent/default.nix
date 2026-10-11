@@ -85,9 +85,30 @@ let
   # anything else.
   qbUser = "qbittorrent";
 
-  # Routing table number for the VPN. Arbitrary but fixed; referenced by both
-  # the rule installer and the comment above.
-  vpnTable = 51820;
+  # PINNED, not auto-allocated, because this number is the kill-switch.
+  #
+  # users.users.<name>.uid defaults to null ("allocate the next free one"), and
+  # `toString null` is "", so an auto-allocated uid would silently produce
+  #     ip rule add from "" lookup 51820 pref 100
+  # which fails, leaving NO rule at all -- and no rule means traffic falls
+  # through to main, i.e. straight out eth0. A kill-switch that silently fails
+  # to install is worse than none, because it looks installed.
+  #
+  # 996 is unused by the other media instances, which sit at 274, 275, 997 and
+  # 998. Verified against the running instances before choosing it.
+  qbUidNumber = 996;
+
+  # Routing table number for the VPN. Arbitrary but fixed.
+  #
+  # A STRING, not an integer, and that is not cosmetic. Nix treats a bare
+  # /dev/null inside an indented string as a PATH literal, and when a path is
+  # present the whole string is coerced with coerceToString -- which cannot
+  # coerce an integer. An integer here fails at build time with:
+  #
+  #   error: cannot coerce an integer to a string: 51820
+  #
+  # reported at the `lookup` interpolation, several lines away from the cause.
+  vpnTable = "51820";
 
   # The OpenVPN configuration, from the .ovpn PIA publishes. `route-nopull` and
   # `disable-occ` come from that file and are required here, not optional:
@@ -183,8 +204,9 @@ let
     "10.0.0.242"
   ];
 
-  # The uid as a number, resolved from the system user. The rules need the
-  # number, not the name.
+  # The uid as a string for the ip rule lines. Reads the PINNED value from the
+  # user declaration below rather than auto-allocating -- see qbUidNumber for
+  # why that distinction is the whole point of this file.
   qbUid = toString config.users.users.${qbUser}.uid;
 in
 {
@@ -221,6 +243,10 @@ in
     group = "media";
     isSystemUser = true;
     description = "qBittorrent; its uid is the kill-switch's routing key";
+
+    # PINNED. See qbUidNumber: the routing rules key on this exact number, so
+    # auto-allocation would produce `ip rule from "" ...` and no kill-switch.
+    uid = qbUidNumber;
   };
 
   # ---------------------------------------------------------------------------
