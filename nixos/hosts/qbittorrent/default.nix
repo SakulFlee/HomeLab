@@ -496,34 +496,51 @@ in
       CapabilityBoundingSet = [ "CAP_NET_ADMIN" ];
       NoNewPrivileges = true;
 
-      ExecStart = ''
-        # Add-if-missing, never delete-then-add: there must be no instant during
-        # boot when neither rule exists.
-        ip rule add pref 100 uidrange "${qbUid}-${qbUid}" lookup "${vpnTable}" 2>/dev/null || true
-        ip rule add pref 101 uidrange "${qbUid}-${qbUid}" unreachable          2>/dev/null || true
-
-        # Fail loudly at boot rather than silently running disarmed. `ip rule add`
-        # above tolerates "File exists", so this is the only thing that can catch
-        # a rule that genuinely failed to install.
-        missing=0
-        for pref in 100 101; do
-          if ip -brief rule show | grep -qE "^$pref:"; then
-            echo "kill-switch rule pref $pref: armed"
-          else
-            echo "kill-switch rule pref $pref: MISSING -- uid ${qbUid} is NOT confined" >&2
-            missing=1
-          fi
-        done
-        exit $missing
-      '';
-
       # Only on an explicit stop of THIS unit. qb-openvpn stopping does not run
       # it, which is the whole point.
+      #
+      # ExecStop rather than postStop: postStop also fires when the unit fails
+      # or is restarted, and disarming the kill-switch on a failure is the
+      # opposite of what should happen.
       ExecStop = ''
         ip rule del pref 100 2>/dev/null || true
         ip rule del pref 101 2>/dev/null || true
       '';
     };
+
+    # `script`, NOT serviceConfig.ExecStart.
+    #
+    # ExecStart is parsed by systemd, which takes the FIRST TOKEN of the first
+    # line as the executable path. A leading comment therefore becomes the
+    # program to run, and the unit dies before touching any rule:
+    #
+    #   Process: 245 ExecStart=# Add-if-missing, never delete-then-add: ...
+    #   Unable to locate executable '#': No such file or directory
+    #   Failed at step EXEC spawning #: status=203/EXEC
+    #
+    # `script` wraps the text in a generated shell script with a real shebang,
+    # which is why `preStart`/`postStart` elsewhere in this file can open with a
+    # comment and work. Do not "simplify" this back to ExecStart.
+    script = ''
+      # Add-if-missing, never delete-then-add: there must be no instant during
+      # boot when neither rule exists.
+      ip rule add pref 100 uidrange "${qbUid}-${qbUid}" lookup "${vpnTable}" 2>/dev/null || true
+      ip rule add pref 101 uidrange "${qbUid}-${qbUid}" unreachable          2>/dev/null || true
+
+      # Fail loudly at boot rather than silently running disarmed. `ip rule add`
+      # above tolerates "File exists", so this is the only thing that can catch
+      # a rule that genuinely failed to install.
+      missing=0
+      for pref in 100 101; do
+        if ip -brief rule show | grep -qE "^$pref:"; then
+          echo "kill-switch rule pref $pref: armed"
+        else
+          echo "kill-switch rule pref $pref: MISSING -- uid ${qbUid} is NOT confined" >&2
+          missing=1
+        fi
+      done
+      exit $missing
+    '';
   };
 
   # ---------------------------------------------------------------------------
