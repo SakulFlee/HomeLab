@@ -752,7 +752,22 @@ in
     # The value in the secret is `@ByteArray(...)` WITHOUT the surrounding
     # quotes; the quotes are added here, because qBittorrent's INI parser needs
     # them and sops values are stored bare.
-    serviceConfig.ExecStartPre = lib.mkForce ''
+    # `preStart`, NOT serviceConfig.ExecStartPre.
+    #
+    # systemd parses an Exec* directive LINE BY LINE. A multi-line script put
+    # directly in ExecStartPre is split into one directive per line, and the
+    # heredoc body then gets parsed as unit-file syntax:
+    #
+    #   qbittorrent.service:47: Unknown section 'Session'. Ignoring.
+    #   qbittorrent.service:51: Unknown section 'WebUI'. Ignoring.
+    #
+    # and the unit dies with "bad unit file setting" before running anything.
+    #
+    # `preStart` wraps the text in a generated shell script with a real shebang
+    # and points ExecStartPre at it, so newlines survive. This is the same trap
+    # as the ExecStart=# failure earlier in this file: systemd, not bash, does
+    # the parsing. Do not "simplify" this back to ExecStartPre.
+    preStart = lib.mkForce ''
       conf="${qbProfileDir}/qBittorrent/config/qBittorrent.conf"
 
       # Capture the password ALREADY in the file BEFORE anything overwrites it.
@@ -761,7 +776,7 @@ in
       # sops secret is wired up yet.
       pw=""
       if [ -f "$conf" ]; then
-        line=$(${pkgs.gnugrep}/bin/grep -h Password_PBKDF2 "$conf" 2>/dev/null | head -1)
+        line=$(${pkgs.gnugrep}/bin/grep -h Password_PBKDF2 "$conf" 2>/dev/null | ${pkgs.coreutils}/bin/head -1)
         if [ -n "$line" ]; then
           pw=''${line#*\"}
           pw=''${pw%\"}
@@ -782,19 +797,28 @@ in
 
       ${pkgs.coreutils}/bin/install -d -m 0750 -o ${qbUser} -g media "${qbProfileDir}/qBittorrent/config"
 
+      # printf, not a heredoc. A heredoc terminator has to sit at column 0,
+      # which forces the body to column 0 too, which defeats Nix's
+      # indentation-stripping for the whole block. printf has neither problem.
+      #
+      # The conditional is in shell, not Nix: `pw` is resolved at RUNTIME, so
+      # lib.optionalString on it would fail at build time with
+      # "undefined variable 'pw'".
       {
         if [ -n "$pw" ]; then
-          printf '[Preferences]\nWebUI\\Password_PBKDF2="%s"\n\n' "$pw"
+          ${pkgs.coreutils}/bin/printf '%s\n' \
+            "[Preferences]" \
+            "WebUI\\Password_PBKDF2=\"$pw\""
         fi
-        ${pkgs.coreutils}/bin/cat <<EOF
-[Session]
-DefaultSavePath=/mnt/nas/qBittorrent
-TempPath=${qbProfileDir}/temp
-
-[WebUI]
-Address=*
-Port=8080
-EOF
+        ${pkgs.coreutils}/bin/printf '%s\n' \
+          "" \
+          "[Session]" \
+          "DefaultSavePath=/mnt/nas/qBittorrent" \
+          "TempPath=${qbProfileDir}/temp" \
+          "" \
+          "[WebUI]" \
+          "Address=*" \
+          "Port=8080"
       } > "$conf"
 
       ${pkgs.coreutils}/bin/chown ${qbUser}:media "$conf"
