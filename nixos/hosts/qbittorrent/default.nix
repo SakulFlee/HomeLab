@@ -132,6 +132,15 @@ let
   # read. If the bridge is renumbered, this is the line to change.
   lanSubnet = "10.0.0.0/24";
 
+  # Where qBittorrent keeps its profile. Mirrors services.qbittorrent.profileDir
+  # below; duplicated rather than read back out of the module because the
+  # ExecStartPre that writes qBittorrent.conf cannot reference the module's own
+  # options from inside itself.
+  qbProfileDir = "/var/lib/qbittorrent";
+
+  # Where apply.sh renders the instance's secrets (see ./incus.nix).
+  qbSecretDir = "/var/lib/incus-secrets";
+
   # The OpenVPN configuration, from the .ovpn PIA publishes. `route-nopull` and
   # `disable-occ` come from that file and are required here, not optional:
   #
@@ -659,21 +668,24 @@ in
     # turn out to matter.
     torrentingPort = 6881;
 
-    serverConfig = {
-      WebUI = {
-        # Bind the instance address so Caddy on the bridge can reach it.
-        Address = "*";
-        Port = 8080;
-      };
-
-      # Default save path is the rw staging share.
-      Session.DefaultSavePath = "/mnt/nas/qBittorrent";
-
-      # Temp lives on the config volume, not a tmpfs: an interrupted download
-      # survives a reboot and stays resumable, which is worth more than keeping
-      # a few hundred MB of .!qB out of the hourly restic pass.
-      Session.TempPath = "/var/lib/qbittorrent/temp";
-    };
+    # serverConfig is deliberately EMPTY.
+    #
+    # It is what the module turns into qBittorrent.conf, and it cannot carry a
+    # password, because the password arrives from a sops secret at activation
+    # time -- long after the store path has been built. A non-empty serverConfig
+    # also makes the module install its own file in ExecStartPre, clobbering
+    # whatever the unit in default.nix writes.
+    #
+    # The settings that used to live here are now written explicitly by
+    # systemd.services.qbittorrent's ExecStartPre, which CAN read the secret.
+    # Keep the two in sync if you change one:
+    #
+    #   Address=*                so Caddy on the bridge can reach it
+    #   Port=8080                the port the Caddy vhost targets
+    #   DefaultSavePath          the rw staging share
+    #   TempPath                 on the config volume, not tmpfs, so an
+    #                            interrupted download survives a reboot
+    serverConfig = {};
   };
 
   # Ordering: qBittorrent after the tunnel AND after the kill-switch.
@@ -704,6 +716,70 @@ in
     ];
     requires = [ "qb-killswitch.service" ];
     wants = [ "qb-openvpn.service" ];
+
+    # -------------------------------------------------------------------------
+    # WRITE qBittorrent.conf OURSELVES, WITH THE PASSWORD IN IT
+    # -------------------------------------------------------------------------
+    #
+    # WHY THIS EXISTS. The nixpkgs module installs its generated config in
+    # ExecStartPre, unconditionally, on EVERY start of the service:
+    #
+    #   ExecStartPre = install -Dm600 ${configFile} \
+    #       "${profileDir}/qBittorrent/config/qBittorrent.conf"
+    #
+    # `serverConfig` is the whole of that file, so anything not in it is erased.
+    # A password set in the WebUI is stored in qBittorrent.conf and is
+    # therefore not in serverConfig -- so it is destroyed on every restart, not
+    # merely on every rebuild. Observed on this host: the password was set,
+    # logged out of, and came back as a fresh temporary one.
+    #
+    # That is why this replaces the module's ExecStartPre rather than adding to
+    # it. The generated file is written here instead, with the password merged in
+    # from a sops secret, so the repo remains the source of truth AND the
+    # password survives.
+    #
+    # THE PLACEMENT IS NOT ARBITRARY. qBittorrent writes the password under a
+    # [Preferences] section with a flat `WebUI\Password_PBKDF2` key:
+    #
+    #   [Preferences]
+    #   WebUI\Password_PBKDF2="@ByteArray(<salt>:<sha512>)"
+    #
+    # NOT under [WebUI]. Injecting it under [WebUI] is silently ignored -- no
+    # error, no warning, qBittorrent just issues a temporary password as if none
+    # were configured. That cost several wrong attempts before the real config
+    # was read with line numbers and the section identified.
+    #
+    # The value in the secret is `@ByteArray(...)` WITHOUT the surrounding
+    # quotes; the quotes are added here, because qBittorrent's INI parser needs
+    # them and sops values are stored bare.
+    serviceConfig.ExecStartPre = lib.mkForce ''
+      install -d -m 0750 -o ${qbUser} -g media "${qbProfileDir}/qBittorrent/config"
+
+      # Refuse to start rather than silently fall back to a temporary password.
+      # A missing secret here means the next login would break with no
+      # explanation, which is exactly the failure this whole mechanism exists to
+      # prevent.
+      if [ ! -s "${qbSecretDir}/qb-webui-password" ]; then
+        echo "qb-webui-password not rendered -- check sops.secrets.qbittorrent_webui_password and renderedSecrets in ./incus.nix" >&2
+        exit 1
+      fi
+
+      cat > "${qbProfileDir}/qBittorrent/config/qBittorrent.conf" <<EOF
+      [Preferences]
+      WebUI\\Password_PBKDF2="$(tr -d '\n' < "${qbSecretDir}/qb-webui-password")"
+
+      [Session]
+      DefaultSavePath=/mnt/nas/qBittorrent
+      TempPath=${qbProfileDir}/temp
+
+      [WebUI]
+      Address=*
+      Port=8080
+      EOF
+
+      chown ${qbUser}:media "${qbProfileDir}/qBittorrent/config/qBittorrent.conf"
+      chmod 0600 "${qbProfileDir}/qBittorrent/config/qBittorrent.conf"
+    '';
   };
 
   systemd.tmpfiles.rules = [

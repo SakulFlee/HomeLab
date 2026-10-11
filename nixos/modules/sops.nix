@@ -121,6 +121,16 @@
   sops.secrets.vpn_pia_username = {};
   sops.secrets.vpn_pia_password = {};
 
+  # qBittorrent WebUI password.
+  #
+  # The value is NOT the plaintext password -- it is qBittorrent's own stored
+  # form, an `@ByteArray(<salt>:<sha512>)` blob, because that is the only thing
+  # the config file can carry. See the comment block in
+  # nixos/hosts/qbittorrent/default.nix for why the password had to become
+  # declarative at all: NixOS rewrites qBittorrent.conf on every service start,
+  # so a password set in the WebUI does not survive even a plain restart.
+  sops.secrets.qbittorrent_webui_password = {};
+
   # Fluxer secrets (from upstream .env + k8s secret mapping)
   sops.secrets.fluxer_postgres_password = {};
   sops.secrets.fluxer_search_api_key = {};
