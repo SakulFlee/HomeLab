@@ -418,14 +418,27 @@ in
       # vocabulary, which is not a stable interface.
       #
       # Returns non-zero for "no usable report", which the caller treats as no
-      # activity rather than as a change. A report that cannot be parsed must
-      # not be allowed to look like an empty one: that would read as "every
-      # branch was deleted", pin the counter at 0 and leave this thing running
-      # every five minutes until someone read the log.
+      # activity rather than as a change. Two things count as unusable, and the
+      # second is the one that matters:
+      #
+      #   * the file is missing, empty, or not parseable -- a run that died
+      #     before writing one, or a config error;
+      #   * `.branches` is not an array. That is not "no branches", it is this
+      #     script no longer understanding the report, and the difference is the
+      #     whole schedule: read as an empty branch list it would hash
+      #     differently from the stored fingerprint, so every run would look
+      #     like every branch had been deleted and the interval would sit at
+      #     the five-minute rung for ever. As an error it is one log line and a
+      #     backoff, which is the honest outcome for a report this script can no
+      #     longer read.
+      #
+      # A genuinely empty branch list is still a valid answer -- that is what a
+      # successful run over no repositories looks like -- so only a missing or
+      # mistyped key fails here.
       fingerprint_of_report() {
         [ -s "${reportPath}" ] || return 1
         local branches
-        branches=$(jq -r '[.branches[]? | ((.branchName // "?") + "\t" + ((.prNo // "-") | tostring))] | sort | join("\n")' "${reportPath}") || return 1
+        branches=$(jq -er 'select((.branches | type) == "array") | [.branches[] | ((.branchName // "?") + "\t" + ((.prNo // "-") | tostring))] | sort | join("\n")' "${reportPath}") || return 1
         printf '%s' "$branches" | sha256sum | cut -d " " -f 1
       }
 
