@@ -248,15 +248,28 @@ in
   };
 
   # ---------------------------------------------------------------------------
-  # The run unit: the nixpkgs module's, with three changes.
+  # The run unit: the nixpkgs module's, with two changes.
   # ---------------------------------------------------------------------------
+  #
+  # Both changes are mkForce, and that is not incidental. The module sets
+  # DynamicUser and StateDirectory as *plain* definitions -- priority 100, the
+  # same as anything written here -- so overriding them without mkForce is a
+  # hard error rather than a silent merge:
+  #
+  #   The option `systemd.services.renovate.serviceConfig.DynamicUser' has
+  #   conflicting definition values
+  #
+  # It is per-attribute, so only the two keys redefined here need it; the rest
+  # of the module's serviceConfig is untouched. mkDefault would be the wrong
+  # tool in the other direction: it loses to the module's plain definition and
+  # the override would silently not apply.
   systemd.services.renovate = {
     # schedule is null above, so there is no timer. This unit is started by
     # renovate-schedule.service below, or by hand:
     #   incus exec renovate -- systemctl start --wait renovate.service
     serviceConfig = {
       # The module's default. It cannot be used, for the reason given next.
-      DynamicUser = false;
+      DynamicUser = lib.mkForce false;
 
       # Spelled out even though systemd's default is already false here.
       #
@@ -273,7 +286,7 @@ in
       # module, plus the report directory. Added as a second entry rather than
       # as a path under baseDir so that the report cannot be caught by
       # Renovate's own cleanup of its scratch space.
-      StateDirectory = [
+      StateDirectory = lib.mkForce [
         "renovate"
         "renovate-report"
       ];
