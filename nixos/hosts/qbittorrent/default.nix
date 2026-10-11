@@ -453,6 +453,9 @@ in
       # leaking state. `ip rule add` fails harmlessly with "File exists" when the
       # rule is already present, and the confirmation grep below is what
       # actually decides whether the kill-switch is in place.
+      for dns in ${lib.concatStringsSep " " piaDns}; do
+        ip rule add pref 80 to "$dns" lookup "${vpnTable}" 2>/dev/null || true
+      done
       ip rule add pref 90 to ${lanSubnet} lookup main 2>/dev/null || true
       ip rule add pref 100 uidrange "${qbUid}-${qbUid}" lookup "${vpnTable}" 2>/dev/null || true
       ip rule add pref 101 uidrange "${qbUid}-${qbUid}" unreachable 2>/dev/null || true
@@ -477,7 +480,7 @@ in
       # "pref 100" and therefore matched nothing EVEN WHEN THE RULES WERE
       # INSTALLED -- a confirmation that could only ever report failure, which
       # is worse than none. Anchor on the priority field instead.
-      ip -brief rule show | grep -E "^(90|100|101):"
+      ip -brief rule show | grep -E "^(80|90|100|101):"
     '';
 
     postStop = ''
@@ -544,6 +547,7 @@ in
       # or is restarted, and disarming the kill-switch on a failure is the
       # opposite of what should happen.
       ExecStop = ''
+        ip rule del pref 80 2>/dev/null || true
         ip rule del pref 90 2>/dev/null || true
         ip rule del pref 100 2>/dev/null || true
         ip rule del pref 101 2>/dev/null || true
@@ -564,6 +568,28 @@ in
     # which is why `preStart`/`postStart` elsewhere in this file can open with a
     # comment and work. Do not "simplify" this back to ExecStart.
     script = ''
+      # PIA's resolvers FIRST, at pref 80, ahead of the LAN bypass below.
+      #
+      # This is a direct consequence of a mistake in the previous revision. PIA's
+      # resolvers are 10.0.0.243 and 10.0.0.242, which fall INSIDE the
+      # 10.0.0.0/24 bridge subnet. So the LAN bypass below swallowed DNS queries
+      # and sent them out eth0 to an address that does not exist on this LAN:
+      #
+      #   ip route get 10.0.0.243  (uid 996)  ->  dev eth0 src 10.0.0.112
+      #
+      # Every lookup then timed out, trackers could not be resolved, and
+      # qBittorrent showed the flame icon with the torrent interface bound
+      # correctly to tun0. The tunnel was up the whole time and the egress IP
+      # was correct -- only name resolution was broken, which is exactly what
+      # makes this easy to misdiagnose as a peer/connectivity problem.
+      #
+      # Routing the resolvers to the VPN table explicitly, at a lower pref than
+      # the bypass, is the fix. Lower pref is evaluated first, so DNS wins over
+      # the LAN rule while ordinary LAN traffic still bypasses.
+      for dns in ${lib.concatStringsSep " " piaDns}; do
+        ip rule add pref 80 to "$dns" lookup "${vpnTable}" 2>/dev/null || true
+      done
+
       # LAN bypass, evaluated BEFORE the uid rules (pref 90 < 100).
       #
       # Without this the kill-switch captures its own control plane: qBittorrent's
@@ -593,7 +619,7 @@ in
       # above tolerates "File exists", so this is the only thing that can catch
       # a rule that genuinely failed to install.
       missing=0
-      for pref in 90 100 101; do
+      for pref in 80 90 100 101; do
         if ip -brief rule show | grep -qE "^$pref:"; then
           echo "kill-switch rule pref $pref: armed"
         else
