@@ -121,15 +121,36 @@
   sops.secrets.vpn_pia_username = {};
   sops.secrets.vpn_pia_password = {};
 
-  # qBittorrent WebUI password.
+  # qBittorrent's WebUI password -- NOT YET WIRED UP, and deliberately so.
   #
-  # The value is NOT the plaintext password -- it is qBittorrent's own stored
-  # form, an `@ByteArray(<salt>:<sha512>)` blob, because that is the only thing
-  # the config file can carry. See the comment block in
-  # nixos/hosts/qbittorrent/default.nix for why the password had to become
-  # declarative at all: NixOS rewrites qBittorrent.conf on every service start,
-  # so a password set in the WebUI does not survive even a plain restart.
-  sops.secrets.qbittorrent_webui_password = {};
+  # sops-nix fails the ENTIRE build when a declared secret has no matching key
+  # in secrets.yaml:
+  #
+  #   sops-install-secrets: manifest is not valid: secret
+  #   qbittorrent_webui_password ... cannot be found
+  #
+  # That key must be encrypted with an age private key, so it cannot be added
+  # from a machine that does not hold one. Declaring it before the key exists
+  # makes the system unbuildable, which is exactly what happened.
+  #
+  # There is also a bootstrap deadlock: the password blob can only be captured
+  # from a RUNNING qBittorrent, and qBittorrent needs this secret to start. So
+  # the secret cannot be the only mechanism.
+  #
+  # As it stands, qBittorrent keeps whatever password it already has on disk --
+  # see the ExecStartPre in hosts/qbittorrent/default.nix, which rewrites the
+  # config only when this secret IS present. To harden it:
+  #
+  #   1. log into the WebUI and set a password
+  #   2. capture the blob:
+  #        incus exec qbittorrent -- grep -A1 '^\[Preferences\]' \
+  #          /var/lib/qbittorrent/qBittorrent/config/qBittorrent.conf
+  #   3. sops nixos/secrets.yaml   and add:
+  #        qbittorrent_webui_password: '@ByteArray(<value, no quotes>)'
+  #   4. uncomment the line below, and the matching renderedSecrets entry in
+  #      nixos/hosts/qbittorrent/incus.nix
+  #
+  # sops.secrets.qbittorrent_webui_password = {};
 
   # Fluxer secrets (from upstream .env + k8s secret mapping)
   sops.secrets.fluxer_postgres_password = {};

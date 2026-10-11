@@ -753,32 +753,52 @@ in
     # quotes; the quotes are added here, because qBittorrent's INI parser needs
     # them and sops values are stored bare.
     serviceConfig.ExecStartPre = lib.mkForce ''
-      install -d -m 0750 -o ${qbUser} -g media "${qbProfileDir}/qBittorrent/config"
+      conf="${qbProfileDir}/qBittorrent/config/qBittorrent.conf"
 
-      # Refuse to start rather than silently fall back to a temporary password.
-      # A missing secret here means the next login would break with no
-      # explanation, which is exactly the failure this whole mechanism exists to
-      # prevent.
-      if [ ! -s "${qbSecretDir}/qb-webui-password" ]; then
-        echo "qb-webui-password not rendered -- check sops.secrets.qbittorrent_webui_password and renderedSecrets in ./incus.nix" >&2
-        exit 1
+      # Capture the password ALREADY in the file BEFORE anything overwrites it.
+      # This is the difference between fixing the bug and reintroducing it: a
+      # password set in the WebUI must survive the rewrite, whether or not a
+      # sops secret is wired up yet.
+      pw=""
+      if [ -f "$conf" ]; then
+        line=$(${pkgs.gnugrep}/bin/grep -h Password_PBKDF2 "$conf" 2>/dev/null | head -1)
+        if [ -n "$line" ]; then
+          pw=''${line#*\"}
+          pw=''${pw%\"}
+        fi
       fi
 
-      cat > "${qbProfileDir}/qBittorrent/config/qBittorrent.conf" <<EOF
-      [Preferences]
-      WebUI\\Password_PBKDF2="$(tr -d '\n' < "${qbSecretDir}/qb-webui-password")"
+      # A sops secret, when present, wins over whatever was on disk.
+      if [ -s "${qbSecretDir}/qb-webui-password" ]; then
+        pw=$(${pkgs.coreutils}/bin/tr -d '\n' < "${qbSecretDir}/qb-webui-password")
+        echo "qb-webui-password: using the sops secret"
+      elif [ -n "$pw" ]; then
+        echo "qb-webui-password: no secret yet, preserving the existing password"
+      else
+        echo "qb-webui-password: no secret and no existing password." >&2
+        echo "  qBittorrent will issue a temporary password, readable with:" >&2
+        echo "  journalctl -u qbittorrent | grep 'temporary password'" >&2
+      fi
 
-      [Session]
-      DefaultSavePath=/mnt/nas/qBittorrent
-      TempPath=${qbProfileDir}/temp
+      ${pkgs.coreutils}/bin/install -d -m 0750 -o ${qbUser} -g media "${qbProfileDir}/qBittorrent/config"
 
-      [WebUI]
-      Address=*
-      Port=8080
-      EOF
+      {
+        if [ -n "$pw" ]; then
+          printf '[Preferences]\nWebUI\\Password_PBKDF2="%s"\n\n' "$pw"
+        fi
+        ${pkgs.coreutils}/bin/cat <<EOF
+[Session]
+DefaultSavePath=/mnt/nas/qBittorrent
+TempPath=${qbProfileDir}/temp
 
-      chown ${qbUser}:media "${qbProfileDir}/qBittorrent/config/qBittorrent.conf"
-      chmod 0600 "${qbProfileDir}/qBittorrent/config/qBittorrent.conf"
+[WebUI]
+Address=*
+Port=8080
+EOF
+      } > "$conf"
+
+      ${pkgs.coreutils}/bin/chown ${qbUser}:media "$conf"
+      ${pkgs.coreutils}/bin/chmod 0600 "$conf"
     '';
   };
 
