@@ -369,6 +369,37 @@ in
     # (see ./incus.nix). OpenVPN reads it as root before dropping nothing --
     # it stays root, but with a one-capability bounding set.
     preStart = ''
+      # Wait for the rendered secrets to exist before reading them.
+      #
+      # These files are written by the HOST, by incus/apply.sh, into a directory
+      # mounted into this container. That can happen either side of the
+      # container's own boot, and on a cold `incus start` the unit wins the race:
+      #
+      #   03:34:46  pre-start: /var/lib/incus-secrets/pia-username: No such file
+      #   03:34:46  qb-openvpn: Main process exited, status=1/FAILURE
+      #   03:34:47  apply.sh writes pia-username and pia-password   <- 1.5s too late
+      #
+      # OpenVPN then has no credentials, and there is no point proceeding. Wait
+      # for both files rather than failing, and wait for them to be non-empty so
+      # a half-written file is not read as an empty credential.
+      #
+      # Bounded so a genuinely missing secret still fails loudly instead of
+      # hanging the unit forever; the failure mode is then a clear timeout rather
+      # than a tunnel that silently never comes up.
+      waited=0
+      while :; do
+        if [ -s /var/lib/incus-secrets/pia-username ] \
+           && [ -s /var/lib/incus-secrets/pia-password ]; then
+          break
+        fi
+        if [ "$waited" -ge 120 ]; then
+          echo "pia credentials not present after $waited s -- check renderedSecrets in ./incus.nix and that incus/apply.sh rendered them" >&2
+          exit 1
+        fi
+        sleep 1
+        waited=$((waited + 1))
+      done
+
       # Assemble the two-line auth-user-pass file from the two rendered secrets.
       # OpenVPN wants username-then-password, newline separated, and nothing
       # else in the file. The secrets arrive as two separate raw files (see
@@ -621,24 +652,31 @@ in
 
   # Ordering: qBittorrent after the tunnel AND after the kill-switch.
   #
-  # `Requires` rather than `Wants`: if the kill-switch cannot arm, qBittorrent
-  # must not start at all. `Wants` would let it start anyway and quietly leak,
-  # which is the failure this whole design exists to prevent. The rules are the
-  # thing that confines it, so their absence should stop the service rather than
-  # merely delay it.
+  # Requires qb-killswitch, Wants qb-openvpn. The asymmetry is deliberate.
   #
-  # qBittorrent still starts when the TUNNEL is down -- that is deliberate and
-  # safe, because the armed `unreachable` rule means it can reach no peer and no
-  # tracker. Refusing to start would be worse UX for no security gain.
+  # The kill-switch is security-critical: if it cannot arm, uid 996 is not
+  # confined, so qBittorrent must not run. `Requires`.
+  #
+  # The tunnel is NOT security-critical, because the kill-switch already makes a
+  # missing tunnel safe -- pref 100 stops matching when tun0 goes, and traffic
+  # falls to pref 101, unreachable. So `Wants` is correct: qBittorrent starts,
+  # can reach no peer and no tracker, and leaks nothing. Refusing to start would
+  # be worse UX for no security gain.
+  #
+  # An earlier version used `Requires` for BOTH, which turned a transient tunnel
+  # failure into a dead torrent client. `Requires` does not restart the dependent
+  # when the requirement later recovers, so one failed start left qBittorrent
+  # dead indefinitely while the tunnel came back fine:
+  #
+  #   03:34:46  qb-openvpn: Main process exited, status=1/FAILURE
+  #   03:34:57  qbittorrent: Job failed with result 'dependency'
+  #   03:35:07  qb-openvpn restarted and succeeded -- qbittorrent stayed dead
   systemd.services.qbittorrent = {
     after = [
       "qb-openvpn.service"
       "qb-killswitch.service"
     ];
-    requires = [
-      "qb-openvpn.service"
-      "qb-killswitch.service"
-    ];
+    requires = [ "qb-killswitch.service" ];
     wants = [ "qb-openvpn.service" ];
   };
 
