@@ -54,14 +54,31 @@ let
   #     upgrades a world forward and it usually works, but "usually" is not a
   #     property to apply to somebody's two-year build by unattended timer.
   #
-  # 1.21.11 is the newest release in the 1.21 line: still Java 21, a routine
-  # forward step for any 1.20/1.21 world, and the line the three plugin jars
-  # below were resolved against.
+  # 26.3, because that is what the world IS.
   #
-  # If the world turns out to be NEWER than this -- check before loading the k3s
-  # data, because Paper will not go backwards -- change this one line, delete
-  # server.jar and .paper-build on the volume, and restart. See README.md.
-  minecraftVersion = "1.21.11";
+  # This started at 1.21.11, on the reasoning that the roster and the plugin
+  # jars were "1.21-line" and that the chart's `version: LATEST` would be an
+  # unreasonable thing to copy. The first half of that was wrong: the k3s
+  # deployment had been resolving LATEST forward for six weeks and was running
+  # 26.x, and the world says so in a way that is not arguable --
+  #
+  #   world/level.dat            DataVersion 279649
+  #   world/region/              0 files
+  #   world/dimensions/minecraft/overworld/region/   2034 entries
+  #
+  # The nested per-dimension layout is the 26.x world format, and the PVC's
+  # cache/ held mojang_26.1.2.jar and mojang_26.2.jar. So 1.21.11 could not
+  # have loaded this world at all: Paper upgrades a world forward and refuses
+  # backward, and an empty 1.21.11 world is exactly what it generated instead.
+  #
+  # The pin is therefore not a preference any more, it is the floor the data
+  # requires. Newest 26.x is the safe forward target: it accepts a 26.x world
+  # and converts it.
+  #
+  # NOTE the Java implication: 26.x needs Java 25, not 21, so pkgs.jre below is
+  # openjdk25 rather than the default. The container memory limit in ./incus.nix
+  # is unchanged and still has to clear the heap this asks for.
+  minecraftVersion = "26.3";
 
   # Paper's current API. The v2 API this used to be written against
   # (api.papermc.io/v2) is gone:
@@ -91,14 +108,20 @@ let
   # JVM
   # -------------------------------------------------------------------------
   #
-  # openjdk21, because 1.21.11 requires 21 and because that is what this
-  # nixpkgs ships. The container memory limit in ./incus.nix is what makes -Xmx2G
-  # safe; the two are one decision and are not independent.
+  # openjdk25, NOT the nixpkgs default (21). Minecraft 26.x requires Java 25 --
+  # Paper's own API reports java.version.minimum 25 for the 26.x line, which is
+  # where that number comes from rather than from a guess. Running 26.x on Java
+  # 21 is not a degraded mode, it is a refusal to start.
+  #
+  # The container memory limit in ./incus.nix is what makes -Xmx2G safe; the two
+  # are one decision and are not independent.
   jvmOpts = lib.concatStringsSep " " [
     "-Xms1G"
     "-Xmx2G"
-    # Paper's own recommended G1GC set, minus the ones that are about
-    # benchmarking noise rather than a homelab server.
+    # Paper's own recommended G1GC set for this version, taken from
+    # fill.papermc.io/v3 (versions -> java.flags.recommended) rather than
+    # carried over from the 1.21-line advice, and trimmed to the flags about a
+    # server's behaviour rather than about benchmark noise.
     "-XX:+UseG1GC"
     "-XX:MaxGCPauseMillis=200"
     "-XX:+ParallelRefProcEnabled"
@@ -133,28 +156,50 @@ let
   # come across with it and stop being written here at all (see the repair rule
   # in minecraft-config.service). Whoever added an operator in-game since has
   # the authoritative list.
+  # DASHED, and that is not a formatting preference. Paper compares the uuid
+  # string in this file against the one it holds in memory as a raw string
+  # comparison, NOT as parsed UUIDs, so the undashed form Mojang's API returns
+  # does not match and every player is rejected. Found by booting it: the server
+  # logged
+  #
+  #   UUID of player SakulFlee is e1f94c32-e1a1-450a-8e06-5ab0d0209c29
+  #   Disconnecting SakulFlee: You are not whitelisted on this server!
+  #
+  # on the same line as an undashed entry for the same player. Dashed is what
+  # the old server's own whitelist.json used, so these are copied from that file
+  # rather than reformatted from the API -- same source of truth the running
+  # server already accepted.
   whitelist = {
-    SakulFlee = "e1f94c32e1a1450a8e065ab0d0209c29";
-    jendrik12799 = "04678318bc4c4c43be95cd6f7446136b";
-    Lennart116002 = "9da0c24e55ad4005bbcad5443585b4cf";
-    Fisch246 = "23aa287262ba4727bb34fa895ac95170";
-    DarkRune2214 = "8e85b2a7fbe14b54a9c7c6589e21578f";
-    _MinaChan_ = "455539b1b9824fe9966ba37f6a3436ea";
-    Froggy189 = "2c690aa62cc34e68b0ac8e245d297c6f";
+    SakulFlee = "e1f94c32-e1a1-450a-8e06-5ab0d0209c29";
+    jendrik12799 = "04678318-bc4c-4c43-be95-cd6f7446136b";
+    Lennart116002 = "9da0c24e-55ad-4005-bbca-d5443585b4cf";
+    Fisch246 = "23aa2872-62ba-4727-bb34-fa895ac95170";
+    DarkRune2214 = "8e85b2a7-fbe1-4b54-a9c7-c6589e21578f";
+    _MinaChan_ = "455539b1-b982-4fe9-966b-a37f6a3436ea";
+    Froggy189 = "2c690aa6-2cc3-4e68-b0ac-8e245d297c6f";
+
+    # Not in the k3s chart's list: this player is on the old server's whitelist
+    # and would otherwise lose access on migration. Taken from the same file, so
+    # the roster here is the roster that was actually in force rather than the
+    # one the chart was deployed with.
+    zero_MB = "ac7a2b62-4a86-403d-86ed-73543994494e";
   };
 
   ops = {
-    SakulFlee = "e1f94c32e1a1450a8e065ab0d0209c29";
-    jendrik12799 = "04678318bc4c4c43be95cd6f7446136b";
+    SakulFlee = "e1f94c32-e1a1-450a-8e06-5ab0d0209c29";
+    jendrik12799 = "04678318-bc4c-4c43-be95-cd6f7446136b";
   };
 
   # Rendered here rather than assembled in the unit's shell, so the JSON is a
   # build product and cannot be malformed by quoting. Same approach the nixpkgs
   # module takes with pkgs.writeText.
   #
-  # `level: 4` is the vanilla operator level and `bypassesPlayerLimit: false`
-  # is what Paper writes for an ordinary op; both are part of the ops.json entry
-  # shape, and omitting them is not the same as leaving them at a default.
+  # `level: 4` and `bypassesPlayerLimit: false` are what the OLD server's
+  # ops.json contained, byte for byte, so this is not a guess at Paper's schema:
+  # it is the file that was in force on the deployment being replaced. Paper
+  # 1.21.11 emptied a list written in this shape on first boot, which is why this
+  # remains a fallback that the migrated file supersedes rather than the thing
+  # to rely on -- see the repair rule in minecraft-config.service.
   whitelistJson = pkgs.writeText "whitelist.json" (
     builtins.toJSON (lib.mapAttrsToList (name: uuid: { inherit name uuid; }) whitelist)
   );
@@ -526,7 +571,7 @@ in
       User = "minecraft";
       Group = "minecraft";
       WorkingDirectory = "/var/lib/minecraft";
-      ExecStart = lib.getExe' pkgs.jre "java"
+      ExecStart = lib.getExe' pkgs.openjdk25 "java"
         + " ${jvmOpts} -jar server.jar nogui";
 
       # on-failure, not always: a `stop` from the console, or from the backup

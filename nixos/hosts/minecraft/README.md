@@ -13,8 +13,8 @@ front of it).
   snapshots.
 - Backups: `minecraft-backup.timer`, 04:00 daily, archives the whole data
   directory.
-- Minecraft version: pinned to **1.21.11** in `default.nix`. Not `LATEST` --
-  see "The version pin".
+- Minecraft version: pinned to **26.3** in `default.nix`, on `openjdk25`. Not a
+  preference -- it is the floor the world requires. See "The version pin".
 
 > **DHCP is live on `incusbr0`.** There is no `ipv4.dhcp.ranges` in the bridge's
 > config, but dnsmasq is serving addresses from inside the subnet anyway:
@@ -49,33 +49,39 @@ argument.
 are server-side and open no client connection. (fluxer forwards `7882/udp`
 because LiveKit genuinely needs it; there is no equivalent to copy.)
 
-### The version pin
+### The version pin is the floor the world requires
 
-The chart set `version: LATEST`, and itzg's image resolved that at container
-start -- so the old deployment tracked upstream by default. Copying that
-faithfully would be wrong now: `LATEST` today is **Minecraft 26.3**, which
+This is not a preference and it was originally wrong. The first version of this
+file pinned **1.21.11**, reasoning that the roster and plugin jars were
+"1.21-line" and that copying the chart's `version: LATEST` would be
+unreasonable.
 
-- requires **Java 25** (Paper's API reports `java.version.minimum: 25` for
-  26.x), not the Java 21 this flake's nixpkgs ships as its default server JRE,
-  and
-- drags the world across a major version boundary on first boot. Paper upgrades
-  a world forward and it usually works, but "usually" is not a property to apply
-  to somebody's long-running build by an unattended timer.
+The k3s deployment had been resolving `LATEST` forward for six weeks and was
+running **26.x**, and the world says so in a way that is not arguable:
 
-**1.21.11** is the newest release in the 1.21 line: still Java 21, a routine
-forward step for any 1.20/1.21 world, and the line the three plugin jars were
-resolved against.
+```
+world/level.dat                                   DataVersion 279649
+world/region/                                     0 files
+world/dimensions/minecraft/overworld/region/      2034 entries
+```
 
-To change it: edit `minecraftVersion` in `default.nix`, then delete
-`server.jar` and `.paper-build` from the volume and restart the service. The
-fetch unit re-resolves the newest `STABLE` build for whatever version is
-pinned, verifies the sha256 the API publishes for it, and records the result in
-`.paper-build`.
+The nested per-dimension layout is the 26.x world format, and the PVC's `cache/`
+held `mojang_26.1.2.jar` and `mojang_26.2.jar`. So 1.21.11 could not have
+loaded this world: Paper upgrades a world forward and refuses backward, and the
+empty 1.21.11 world that booted instead was Paper declining, not succeeding.
 
-> **Before loading the k3s data, check the world's version.** Paper will not
-> downgrade. If the world turns out to be *newer* than 1.21.11, raise the pin
-> first. The world announces its version in the server log on boot, and the
-> `DataVersion` in `world/level.dat` is the authoritative record.
+Hence **26.3**, the newest 26.x, which accepts a 26.x world and converts it.
+
+**Java 25 is part of this decision.** 26.x requires it -- Paper's API reports
+`java.version.minimum: 25` for the line -- so the unit runs `pkgs.openjdk25`
+rather than the nixpkgs default of 21. The JVM flags are also taken from that
+same API response (`java.flags.recommended`) rather than carried over from
+1.21-line advice.
+
+To change the pin: edit `minecraftVersion`, then delete `server.jar` and
+`.paper-build` from the volume and restart. The fetch unit re-resolves the
+newest `STABLE` build for whatever is pinned, verifies the sha256 the API
+publishes, and records the result in `.paper-build`.
 
 ### Only the archives are replicated
 
@@ -132,11 +138,12 @@ whitelist, server properties), excluding `./backups` itself. An archive of
 
 | | k3s (`apps/minecraft/helm-release.yaml`) | here |
 | --- | --- | --- |
-| server type | Paper, `version: LATEST` | Paper, pinned `1.21.11` |
+| server type | Paper, `version: LATEST` (resolving to 26.x) | Paper, pinned `26.3` |
+| plugins | Portalis, WorldEdit, WorldEditSUI | same three URLs, **1.21-line builds** |
 | EULA | `eula: 'TRUE'` | `eula.txt`, written by `minecraft-config` |
 | difficulty | `normal` | `server.properties`, **only if absent** |
 | motd | `Conduit Network @ SakulFlee` | `server.properties`, **only if absent** |
-| whitelist | 7 names | `whitelist.json` as name+UUID, repaired if absent or empty |
+| whitelist | 7 names | `whitelist.json` as name+**dashed** UUID, repaired if absent or empty |
 | ops | 2 names | `ops.json` as name+UUID+level, repaired if absent or empty |
 | plugins | Portalis, WorldEdit, WorldEditSUI | same three URLs, same versions |
 | memory | limit 2048Mi, request 512Mi | `-Xmx2G` inside a 3GiB limit |
@@ -152,16 +159,28 @@ untouched and `minecraft-config.service` only fills in what is missing.
 
 ### The whitelist/ops UUID trap
 
-These two files are keyed on the player's **UUID**, and a UUID is not optional.
-The chart held them as arrays of bare name strings; Paper parses that as an
-*empty* list and then rewrites the file to `[]` on startup, destroying it. The
-first boot of this instance did exactly that: a running server with
-`white-list=true`, an empty whitelist (so nobody could join) and no operators.
+Two separate traps in the same two files, both found by booting rather than
+reading.
 
-So the entries are `{name, uuid}` objects, with the UUIDs taken from Mojang's
-public profile API -- which is the right source because the server is
-`online-mode=true`, so the UUID has to be the one the account authenticates
-with. A cracked account could not be resolved this way at all.
+**1. UUIDs are mandatory.** The chart held these as arrays of bare name strings.
+Paper parses that as an *empty* list and rewrites the file to `[]` on startup,
+destroying it. So entries are `{name, uuid}` objects.
+
+**2. The UUIDs must be DASHED.** Paper compares the `uuid` string in the file
+against the one it holds in memory as a **raw string comparison**, not as parsed
+UUIDs. Mojang's profile API returns them undashed, so a file built from the API
+matches nothing. The server said so itself:
+
+```
+UUID of player SakulFlee is e1f94c32-e1a1-450a-8e06-5ab0d0209c29
+Disconnecting SakulFlee: You are not whitelisted on this server!
+```
+
+Same player, same UUID, one character of difference between `e1f94c32-e1a1` and
+`e1f94c32e1a1`. The values here are copied from the old server's own
+`whitelist.json`, which is also where the eighth player comes from: `zero_MB` is
+on the live whitelist but was never in the chart, and would have silently lost
+access on migration.
 
 The unit repairs these files when they are **missing or empty** and leaves a
 populated one alone. "Missing" alone would not have been enough: Paper's rewrite
@@ -208,25 +227,40 @@ incus network forward port remove incusbr0 192.168.178.200 tcp 25565
 The k3s manifests are deliberately still in place after this commit, so that
 command is a real rollback and not just a pause.
 
+## Plugins: the known-loose end
+
+The three plugin jars are the **1.21-line builds the chart pinned**, kept
+verbatim from `apps/minecraft/helm-release.yaml`. They are now being asked to
+load on 26.x, six releases ahead, and that is not guaranteed:
+
+| plugin | jar | expectation on 26.x |
+| --- | --- | --- |
+| WorldEdit | `worldedit-bukkit-7.3.17` | likely needs a build matching 26.x |
+| WorldEditSUI | `WorldEditSUI-1.7.4` | follows WorldEdit |
+| Portalis | `portalis-1.0.jar` | unknown |
+
+A plugin that fails to load **disables itself and the world still loads** -- it
+is a degraded feature set, not a failed migration. Watch the startup log for
+`Could not load plugin` / `Unsupported API version`.
+
+`pluginUrls` in `default.nix` is the place to bump them, and the same
+re-fetch rule applies: a URL whose jar already exists is not re-downloaded, so a
+version change means removing the old jar too.
+
 ## Loading the k3s data
 
-The source is the PVC the StatefulSet used, on the host:
+The world is 26.x (see "The version pin is the floor the world requires"), so
+the instance must already be on 26.3 **before** any of this. Paper will not go
+backwards, and a 1.21.11 server handed this world is a failed load, not a
+warning.
 
-```
-/var/lib/rancher/k3s/storage/backup/pvc-86e9f252-7983-4972-a93c-29ef9b6c3432_minecraft_datadir-minecraft-0
-```
-
-(the `local-path-backup` storage class, whose `nodePath` is
-`/var/lib/rancher/k3s/storage/backup`).
-
-Do this **after** the instance is verified, and with the server stopped, so
-nothing writes while the copy runs:
+Do it with the server stopped, so nothing writes while the copy runs:
 
 ```bash
 # 1. stop the service, not the container -- the volume stays attached
 incus exec minecraft -- systemctl stop minecraft minecraft-fetch minecraft-config
 
-# 2. copy the PVC contents over the data volume, excluding our own backups
+# 2. copy the world and its config over the data volume, excluding our backups
 incus exec minecraft -- rsync -aHAX --delete \
   --exclude='/backups' \
   /var/lib/rancher/k3s/storage/backup/pvc-86e9f252-.../  /var/lib/minecraft/
@@ -244,6 +278,14 @@ Notes:
 - **Bind the data volume into a scratch container** rather than reaching into
   `/var/lib/rancher` from inside `minecraft`, or copy on the host. Paperless did
   this with a loader container for the same reason.
+- `--delete` matters: the volume currently holds a **1.21.11 world that Paper
+  generated on first boot**, and leaving it in place next to the 26.x world would
+  be worse than either. The volume is snapshotted `@daily`/`7d`, so that
+  generated world is recoverable if it turns out to matter (it does not).
+- **`server.properties` comes across from the PVC**, including
+  `max-world-size=29999984` and `level-seed=`. That is the intent -- the live
+  server's settings are authoritative and `minecraft-config.service` leaves an
+  existing file alone. The world border in `world/data/` travels with the world.
 - Step 3 is why the uid is pinned in `default.nix` -- the target is a known
   number rather than whatever NixOS allocated.
 - The plugin **jars** need not be copied: `minecraft-fetch.service` re-downloads
