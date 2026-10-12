@@ -41,7 +41,7 @@ in
       type = "block";
       description = "Fluxer Docker data volumes (Postgres, SeaweedFS state, etc.)";
       snapshots = {
-        schedule = "@daily";
+        schedule = "@hourly";
         expiry = "7d";
       };
     }

@@ -9,7 +9,7 @@ front of it).
   see "Why a forward and not a vhost" below.
 - Volumes: `minecraft-data` at `/var/lib/minecraft` (world, plugins, config) and
   `minecraft-backups` at `/var/lib/minecraft/backups` (daily archives, the only
-  thing the Syncthing hub replicates). Both on `persistent`, `@daily`/`7d`
+  thing the Syncthing hub replicates). Both on `persistent`, `@hourly`/`7d`
   snapshots.
 - Backups: `minecraft-backup.timer`, 04:00 daily, archives the whole data
   directory.
@@ -339,7 +339,7 @@ Notes:
   nothing behind.
 - **Wipe the generated world first.** Before the load this volume holds a world
   Paper generated on its own first boot. `rm -rf` it, or you keep whichever
-  `level.dat` wins. The volume is snapshotted `@daily`/`7d`, so the generated
+  `level.dat` wins. The volume is snapshotted `@hourly`/`7d`, so the generated
   world is recoverable if it turns out to matter (it does not).
 - **`server.properties` comes across from the PVC**, including
   `max-world-size=29999984` and `level-seed=`. That is the intent -- the live
@@ -374,7 +374,7 @@ the other migrations did.
 
 Three independent copies, deliberately:
 
-1. **btrfs snapshots** on both volumes, `@daily`/`7d` -- the local rollback.
+1. **btrfs snapshots** on both volumes, `@hourly`/`7d` -- the local rollback.
 2. **restic**, hourly, host-wide. `persistent` is the only pool left and it is
    what the host's restic backs up (`../homelab/services/backup.nix`), so both
    volumes are covered without excluding anything. This also covers the archives,

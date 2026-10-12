@@ -69,7 +69,7 @@ in
       name = "qui-config";
       description = "QUI state: its config, torrent state cache, database";
       snapshots = {
-        schedule = "@daily";
+        schedule = "@hourly";
         expiry = "7d";
       };
     }

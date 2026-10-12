@@ -70,7 +70,7 @@ in
       # snapshot -- see NOTES.md -- because the torrent list is itself sensitive
       # and the seeds are recoverable.
       snapshots = {
-        schedule = "@daily";
+        schedule = "@hourly";
         expiry = "7d";
       };
     }

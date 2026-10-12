@@ -14,7 +14,7 @@ an off-box copy. It replaced the k3s HelmRelease that used to live in
   `192.168.178.0/24` but not `10.0.0.0/24`, which is why the forward exists.
 - Volumes: `syncthing-config` at `/var/lib/syncthing` (config, TLS identity,
   index) and `syncthing-data` at `/data` (the synced files). Both on
-  `persistent`, `@daily`/`7d` snapshots.
+  `persistent`, `@hourly`/`7d` snapshots.
 
 ## Edit the Nix, not the WebUI
 

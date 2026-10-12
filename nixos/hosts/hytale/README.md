@@ -390,11 +390,14 @@ nothing.
 
 ## Snapshots
 
-`@hourly`/`24H` on `hytale-data` and `hytale-backups`, rather than the
-`@daily`/`7d` the older volumes use.
+`@hourly`/`24H` on `hytale-data` and `hytale-backups`. Every other data-bearing
+volume on the host is `@hourly`/`7d`, so the interval is the same everywhere and
+the only thing particular to Hytale is the shorter window.
 
 A btrfs snapshot copies nothing: it costs only the extents written **after** it
-was taken, so cold data is free and only rewrite-heavy data is expensive. This
+was taken, so **the retention window sets the cost, not the interval** --
+`@hourly`/`7d` holds exactly as many bytes of deltas as `@daily`/`7d` and
+resolves them seven times finer. This
 volume is the good case, measured on the live deployment before migrating:
 
 | | size | write behaviour |
@@ -406,10 +409,11 @@ volume is the good case, measured on the live deployment before migrating:
 So the hot-write set is ~220 kB and the 178 MB of region blobs is cold, which
 puts an hourly tier at a few MB a day rather than 178 MB a day.
 
-`minecraft-data` is the counterexample to "make everything hourly" and is
-deliberately **not** changed: Paper rewrites region files continuously while
-players are online, which is the shape that makes hourly snapshots expensive.
-That is a separate decision and wants a measurement behind it.
+`minecraft-data` is the volume everyone expects to be expensive here, because
+Paper rewrites region files continuously while players are online. It moved to
+`@hourly`/`7d` with everything else, and pays the same bytes it already did --
+interval is not the thing that costs. An earlier version of this file exempted it
+on the opposite reasoning, which was wrong for the same reason.
 
 `hytale-backups` is snapshotted hourly for a different reason. The archives are
 immutable, so the snapshots are nearly free; what they buy is a bound on the

@@ -119,7 +119,7 @@ in
       description = "Syncthing config, TLS identity and index database";
 
       snapshots = {
-        schedule = "@daily";
+        schedule = "@hourly";
         expiry = "7d";
       };
     }
@@ -137,7 +137,7 @@ in
       description = "Synced data -- the folders shared with peers";
 
       snapshots = {
-        schedule = "@daily";
+        schedule = "@hourly";
         expiry = "7d";
       };
     }

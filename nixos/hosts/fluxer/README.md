@@ -46,7 +46,7 @@ Start the VM stack after restoring DB data. Verify connectivity.
 ## Backups
 
 Backups use **Incus volume snapshots** (atomic, crash-consistent). The `fluxer-data` block volume has:
-- `snapshots.schedule = "@daily"`
+- `snapshots.schedule = "@hourly"`
 - `snapshots.expiry = "7d"`
 
 Restore from snapshots via `incus storage volume snapshot restore` as needed.

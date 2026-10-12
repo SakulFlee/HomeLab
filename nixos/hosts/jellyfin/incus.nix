@@ -76,7 +76,7 @@ let
     };
 
     # -------------------------------------------------------------------------
-    # Data-bearing volumes on `persistent`, same @daily/7d snapshot policy as
+    # Data-bearing volumes on `persistent`, same @hourly/7d snapshot policy as
     # every other instance. These are POOL volumes, not binds, and pool volumes
     # demonstrably carry ownership correctly into the container (paperless sees
     # /var/lib/paperless as 987:987) -- that is the mechanism that works, and it
@@ -118,7 +118,7 @@ in
 
       # The snapshot is the rollback for a bad config edit or a failed upgrade.
       snapshots = {
-        schedule = "@daily";
+        schedule = "@hourly";
         expiry = "7d";
       };
     }
@@ -127,7 +127,7 @@ in
       name = "jellyfin-cache";
       description = "Transcode scratch and thumbnails -- derived data, snapshot is a convenience not a rollback";
       snapshots = {
-        schedule = "@daily";
+        schedule = "@hourly";
         expiry = "7d";
       };
     }

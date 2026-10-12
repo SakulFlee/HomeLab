@@ -56,7 +56,7 @@ in
 
       # The snapshot is the rollback for a bad series edit or a failed upgrade.
       snapshots = {
-        schedule = "@daily";
+        schedule = "@hourly";
         expiry = "7d";
       };
     }

@@ -150,11 +150,16 @@ in
   # merged into it). Retention is declared per volume rather than inherited,
   # which is the lesson that merge left behind.
   #
-  # @hourly rather than the @daily/7d the older volumes use, and it is worth
-  # being explicit about why this one is not that. A btrfs snapshot copies
-  # nothing: it costs only the extents written AFTER it was taken, so cold data
-  # is free and only rewrite-heavy data is expensive. This volume is the good
-  # case, measured on the live deployment before the migration:
+  # @hourly with a 24-hour window, which is shorter than the 7d the rest of the
+  # host uses. A btrfs snapshot copies nothing: it costs only the extents
+  # written AFTER it was taken, so total bytes retained is governed by the
+  # RETENTION WINDOW and not by the interval -- @hourly/7d holds exactly as many
+  # bytes of deltas as @daily/7d does, and simply resolves them seven times
+  # finer. Hourly only costs more if the window is lengthened, which is not what
+  # this change does.
+  #
+  # This volume is nonetheless the cheapest possible hourly citizen, measured on
+  # the live deployment before the migration:
   #
   #   Assets.zip + jar + .aot.config + Licenses   ~3.6 GB   written ONCE, at
   #                                                            download, never
@@ -165,9 +170,9 @@ in
   #   resources/ + players/ JSON                   220 kB   rewritten constantly
   #
   # So the hot-write set is ~220 kB and the 178 MB of region blobs is cold,
-  # which puts an hourly tier at a few MB a day rather than at 178 MB a day.
-  # 24 hours of expiry keeps that bounded and leaves the durable history to the
-  # daily archive that goes off-box to Dendra.
+  # which puts an hourly tier at a few MB a day. 24 hours of expiry keeps that
+  # bounded and leaves the durable history to the daily archive that goes
+  # off-box to Dendra -- the snapshots are the intra-day undo, not the backup.
   #
   # `24H` and not `24h`: Incus's duration grammar is S M H d w m y, where H is
   # uppercase HOURS and lowercase m is MONTHS. apply.sh validates this field
@@ -179,10 +184,12 @@ in
   # and `7d` is the shape the older volumes use. Caught by running the
   # validator's own regex rather than by reading it.
   #
-  # minecraft-data is the counterexample to "make everything hourly" and is
-  # deliberately NOT changed here: Paper rewrites region files continuously while
-  # players are online, which is the shape that makes hourly snapshots
-  # expensive, and that is a separate decision with a measurement behind it.
+  # An earlier version of this comment claimed minecraft-data was a
+  # counterexample that must stay @daily, on the grounds that Paper rewrites
+  # region files continuously and that is the shape which makes hourly
+  # snapshots expensive. That conflated interval with window: it is the window
+  # that sets the cost, so minecraft-data moved to @hourly/7d with everything
+  # else and pays the same bytes it already did.
   volumes = [
     {
       pool = "persistent";

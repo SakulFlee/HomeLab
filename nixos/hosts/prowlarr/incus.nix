@@ -42,7 +42,7 @@ in
       name = "prowlarr-config";
       description = "Prowlarr state: indexer definitions, application connections, API key";
       snapshots = {
-        schedule = "@daily";
+        schedule = "@hourly";
         expiry = "7d";
       };
     }

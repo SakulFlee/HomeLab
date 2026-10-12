@@ -46,7 +46,7 @@ in
       name = "radarr-config";
       description = "Radarr state: movie database, settings, quality profiles, queue";
       snapshots = {
-        schedule = "@daily";
+        schedule = "@hourly";
         expiry = "7d";
       };
     }
