@@ -48,6 +48,13 @@
   # the live world. See hosts/minecraft/README.md.
   minecraft = import ./hosts/minecraft/incus.nix;
 
+  # Hytale. Same shape as minecraft -- a JVM in a container, and a network
+  # forward rather than a Caddy vhost because QUIC has no hostname in it -- and
+  # the third producer in the Syncthing replication scheme, contributing
+  # hytale-backups (see nixos/replicated-volumes.nix). Archives only, never the
+  # live universe. See hosts/hytale/README.md.
+  hytale = import ./hosts/hytale/incus.nix;
+
   # First of the media stack. Read-only consumer of the library: four NAS
   # shares bind-mounted ro (Incus 7.0.1 cannot make a CIFS bind writable from
   # an unprivileged LXC -- measured, see hosts/jellyfin/incus.nix) and the iGPU

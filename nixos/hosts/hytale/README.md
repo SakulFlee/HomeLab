@@ -1,0 +1,399 @@
+# Hytale (Incus container)
+
+A Hytale dedicated server run from the official jar by a systemd unit,
+replacing the k3s deployment in `apps/hytale/` (a Helm chart wrapping a locally
+built container image).
+
+- Address: `10.0.0.116` on `incusbr0`, in the `default` Incus project.
+- Game port: `5520/udp`, forwarded on `192.168.178.200`. **No Caddy vhost** --
+  see "Why a forward and not a vhost" below.
+- Volumes: `hytale-data` at `/var/lib/hytale` (assets, jar, universe, mods),
+  `hytale-backups` at `/var/lib/hytale/Server/backups` (the archives, the only
+  thing the Syncthing hub replicates) and `hytale-secrets` at
+  `/var/lib/hytale-secrets` (the downloader's OAuth token, unsnapshotted).
+- Backups: made **by the server**, pruned by `hytale-backup.timer` at 04:20
+  daily, 7-day window.
+- Snapshots: `@hourly`/`24H` on the two data volumes.
+
+> **DHCP is live on `incusbr0`**, so every instance here pins a static address.
+> `.116` was chosen after checking the live instances with
+> `incus list homelab: --format csv -c n4`, which is not the same thing as
+> reading this repository: `.110` is wireguard's second NIC and `.114` is
+> `website`, a VM on a macvlan, so neither is an `incusbr0` instance in the
+> registry but both hold an address inside the range.
+
+## The four things that are not obvious
+
+### Why a forward and not a vhost
+
+Everything else in this homelab reaches the internet through Caddy, which
+terminates TLS and routes by hostname. Hytale cannot be routed that way: it
+speaks **QUIC over UDP** -- a TLS-derived transport with its own connection
+migration and congestion control -- addressed by IP and port, with no hostname,
+no path and no request line anywhere in it. Upstream says so outright: "forward
+**UDP port 5520** ... TCP forwarding is not required."
+
+So this instance gets an `incus network forward`, which Incus implements as an
+nftables **DNAT rule rather than a socket bind**. That is what makes it safe to
+add while the incumbent still holds the port: packets aimed at
+`192.168.178.200` are rewritten in `PREROUTING`/`OUTPUT` before socket lookup,
+while Traefik's listener on `0.0.0.0:5520/udp` keeps the port and simply stops
+being reached. See `../caddy/incus.nix` and `incus/README.md` for the full
+argument.
+
+### The server backs itself up, and nobody has to stop it
+
+This is the one that differs most from `minecraft`, and it is why this instance
+does **not** have a `hytale-backup` unit that tars anything.
+
+Minecraft has to stop the server around its backup, because Paper rewrites
+region files in place and a tar that reads one mid-write captures a
+half-updated chunk -- a failure that surfaces weeks later as "that area of the
+map is gone". Hytale does not have that problem, and the reason is in its
+bytecode rather than in its documentation. From the running 0.6.8 jar:
+
+```
+Universe.runLockedBackup()
+  -> universeResources.flushAll()                 <- every resource forced to disk
+  -> BackupTask(Universe::getDirectory, dir)      <- its own ZipOutputStream
+```
+
+and the scheduler that drives it:
+
+```
+SCHEDULED_EXECUTOR.scheduleWithFixedDelay(runner, _, frequency, MINUTES)
+```
+
+`flushAll()` before the zip is the whole point. So the archives are made by the
+server, on a timer, with **zero downtime and no console access required**.
+
+There is no way to reach for that from outside, and it is worth knowing why:
+the server has no RCON, no HTTP admin and no query API -- its only listening
+socket is `0.0.0.0:5520/udp`. (The `hytale-hytale-0:8081` service you see in
+k3s is `pvceplorer.io/managed-by: pvc-explorer`, not Hytale.) So "a systemd unit
+tells the server to back up" is not available, and the honest options were
+either the built-in scheduler or a hand-rolled tar. The built-in one wins on
+every axis except retention, which is what the next section is about.
+
+### Hytale cannot express an age-based retention, so we do the deleting
+
+`BackupConfig`'s codec has exactly five fields, and there is no sixth:
+
+```
+Enabled          boolean   "Determines whether automatic backups are enabled"
+FrequencyMinutes integer   "Must be at least 1"
+Directory        string    "The backup directory path"
+MaxCount         int       "The maximum number of recent backups to retain"
+ArchiveMaxCount  int       "The maximum number of archived backups to retain"
+```
+
+The CLI adds no age option either (`--backup`, `--backup-frequency`,
+`--backup-dir`, `--backup-max-count`, `--backup-archive-max-count`), and there
+is nothing in `config.json` beyond those five. Retention is **count-based,
+full stop**.
+
+A count is not the same as an age, and the difference bites:
+
+- A count silently changes meaning if the frequency is ever edited. 7 archives
+  is a week at `--backup-frequency 1440` and four hours at 60.
+- `scheduleWithFixedDelay` restarts its timer on every boot, so a 24-hour
+  frequency on a server that restarts more often than daily produces one
+  archive *per boot* and never reaches a 24-hour cadence at all.
+
+So `default.nix` sets the counts absurdly high -- they are Hytale's retention
+and this instance does not use them -- and `hytale-backup.timer` deletes by
+**age** instead, once a day:
+
+```bash
+find backups -maxdepth 1 -type f -name '*.zip' -mtime +7 -print -delete
+```
+
+Leaving Hytale's counts at their defaults would mean two prunes racing over one
+directory, and Hytale's would win by *archiving* rather than deleting: moving
+files into `backups/archive/` that nothing then prunes.
+
+`maxdepth 1` is deliberate, for the same reason: this must not quietly empty
+the `archive/` tier that the disabled retention would have used.
+
+**Pruning locally does not delete on the peer.** `hytale-backups` is replicated
+as a **sendonly** folder, and a sendonly folder never applies a remote deletion,
+so an archive removed by the 7-day window stays on Dendra forever. That is the
+right way round for a backup, and it is why the local window can be short
+without being the whole history.
+
+### Only the archives are replicated, and the credentials are not a renderedSecret
+
+The Syncthing hub mounts `hytale-backups` read-only and mirrors it to the peers
+listed in `../syncthing/default.nix` (currently Dendra) as a **sendonly**
+folder. It does *not* see `hytale-data`, so it never replicates a live world --
+the same reasoning as `minecraft-backups`, and for the same reasons:
+
+- A world is 15 whole-file region blobs of 12-32 MB that get rewritten when
+  anyone plays. Replicating that means re-shipping 178 MB and racing the
+  server's writes for it.
+- An archive is one immutable zip, written once, after `flushAll()`.
+
+This is the third producer in the scheme `paperless` established; the contract
+is `../syncthing/NOTES.md` ("Replication standard") and the list is
+`nixos/replicated-volumes.nix`. This instance's obligations:
+
+| obligation | where |
+| --- | --- |
+| data on `persistent`-pool custom volumes, `default` project | `incus.nix` |
+| volume name in `replicated-volumes.nix` | `nixos/replicated-volumes.nix` |
+| producer writes `.stfolder` itself (hub is read-only) | `hytale-dirs` + a tmpfiles rule |
+| folder is `sendonly`, no versioning | derived in `../syncthing/default.nix` |
+
+The downloader's OAuth credentials are on `hytale-secrets`, which has **no
+`snapshots` block**, and that is the point -- a day of hourly snapshots would
+each otherwise hold a copy of a refresh token for a game account.
+
+They are deliberately **not** a `renderedSecrets` entry either, and this is the
+one place this instance diverges from the caddy/forgejo pattern. `apply.sh`
+diffs a rendered file against the host's sops value and **rewrites it on every
+run**, and `incus-reconcile.timer` runs `--all` every fifteen minutes. The
+downloader re-saves its own credentials whenever its tokens refresh, so sops
+would overwrite a refreshed token with a stale one every quarter of an hour, and
+the next download would fail with a 401 at exactly the moment a patch landed.
+The file is unmanaged instead, pointed at explicitly with `-credentials-path`,
+and survives a recreate because the volume does.
+
+## k3s parity
+
+| | k3s (`apps/hytale/`) | here |
+| --- | --- | --- |
+| server | custom image `forgejo.sakul-flee.de/containers/hytale:latest` | official jar, `openjdk25` |
+| JVM opts | `-server -XX:+UseG1GC -XX:+UseStringDeduplication -Xmx4G -Xms512M` | same, minus the duplicated `-server` |
+| launch | `java ... -jar HytaleServer.jar --assets ../Assets.zip --accept-early-plugins` | same, plus the four `--backup*` flags |
+| payload | baked into the image by an entrypoint | `hytale-download.service`, via the official downloader |
+| data | PVC `hytale-hytale-0` (32Gi) at `/opt/hytale` | `hytale-data` at `/var/lib/hytale` |
+| uid | 0 (root) | 989 |
+| memory | limit 8Gi, request 2Gi | 8Gi cgroup, `-Xmx4G` |
+| cpu | limit 2000m, request 250m | 4 (see `incus.nix`) |
+| port | Traefik `hytale` entrypoint, 5520/udp | `incus network forward` 5520/udp |
+| backups | **none** | server-side, daily, replicated, 7-day window |
+| secrets | `hytale-credentials` k8s Secret, `optional: true` and **absent** | `hytale-secrets` volume, written by the downloader |
+
+The last row of that table is the migration's quiet win: the k3s deployment
+passed no backup flags at all, so `Server/backups` did not exist and the world
+had **no backup of any kind**. It does now.
+
+The credentials Secret being `optional: true` and absent is worth noting too --
+the k8s chart mounted `/opt/hytale-downloader-secret` from a Secret that did not
+exist, and the working credential file was a manual `kubectl cp` into the PVC.
+There is a leftover `.hytale-downloader-credentials.json.bad.1787957997` beside
+it, from the downloader finding a session it could no longer load and renaming
+it. That recovery path is why the old file is worth carrying across.
+
+## Deploying
+
+```bash
+incus/apply.sh --check hytale    # build the image, report drift, change nothing
+incus/apply.sh hytale            # reconcile
+incus-status.service             # is it up
+```
+
+### The forward is applied last, on purpose
+
+`apply.sh` applies the `networkForward` **after** the instance is up and its
+consumers have restarted, precisely so a DNAT is never pointed at nothing that
+is serving. But for this instance "up" does not mean "serving": the server
+cannot start until the payload has been downloaded and authenticated for, which
+is a human-gated step.
+
+So the deploy is deliberately in two halves. With the `networkForward` stanza
+absent from `hytale/incus.nix`, Traefik keeps answering `5520/udp` and the live
+k3s server is untouched while the download happens. Once the server has been
+seen to run, adding the stanza and reconciling is the cutover.
+
+Nothing errors if you skip this and deploy with the forward in place -- Traefik
+still holds the port, so the forward simply takes precedence and players find a
+container with no server in it. That is the quietest possible failure and the
+reason the two halves are worth doing separately.
+
+### Getting the server files
+
+There is no anonymous download. The payload comes from Hypixel's own downloader
+through an OAuth device-code flow, once, by hand:
+
+```bash
+incus exec homelab:hytale -- sudo -u hytale \
+  /var/lib/hytale/hytale-downloader-linux-amd64 \
+  -credentials-path /var/lib/hytale-secrets/.hytale-downloader-credentials.json
+```
+
+It prints a URL and a code; authorise in a browser and it pulls ~3.5 GB. After
+that the credentials refresh themselves and the downloader can be re-run
+unattended forever, which is what `hytale-download.service` does.
+
+Two details worth knowing before that first run:
+
+- **It writes a zip and does not extract it**, despite `-download-path` and
+  despite upstream's docs implying the CLI "sets up this layout automatically".
+  `hytale-download.service` does the extraction and then *verifies* that
+  `Server/HytaleServer.jar` and `Assets.zip` are where the server will look for
+  them, so a partial extraction fails in the unit that caused it rather than as
+  a classpath error in `hytale.service` an hour later.
+- **There is no direct URL for the platform binary.**
+  `https://downloader.hytale.com/hytale-downloader-linux-amd64` is a 404, so
+  `hytale-downloader.service` fetches `hytale-downloader.zip` and extracts the
+  one file it wants. It checks integrity by *running* the result (`-version`),
+  not by hashing it: the archive is a moving target carrying the downloader's
+  own self-update mechanism, so a recorded hash would mean shipping a stale
+  downloader exactly when a new one is published.
+
+## Loading the k3s data
+
+~494 MB, and it must be done with the k3s deployment still in place so there is
+something to roll back to.
+
+```bash
+SRC=/var/lib/rancher/k3s/storage/backup/pvc-2f4dc6ea-9ba0-457c-b12b-3a68d017d662_hytale-hytale-0
+
+# 1. stop the service, not the instance -- the volume stays attached
+incus exec homelab:hytale -- systemctl stop hytale
+
+# 2. stream the world, the mods and the config onto the volume.
+#    Assets.zip (3.4G) and the jar (110M) are deliberately NOT copied: they come
+#    from the downloader in the step above, and copying the PVC's copy would
+#    pin the server to whatever version that PVC happened to hold.
+tar -C "$SRC" --exclude=./Assets.zip --exclude=./Server/HytaleServer.jar \
+        --exclude=./Server/HytaleServer.aot.config --exclude=./Server/Licenses \
+        --exclude=./Server/logs -cf - . \
+  | incus exec homelab:hytale -- tar -C /var/lib/hytale -xpf -
+
+# 3. take ownership: the PVC's files belong to the old image's uid, and this
+#    instance runs as 989
+incus exec homelab:hytale -- chown -R 989:989 /var/lib/hytale
+
+# 4. start again
+incus exec homelab:hytale -- systemctl start hytale
+```
+
+Notes:
+
+- **Stop before copying.** The server writes `universe/` continuously.
+- **Stream rather than stage.** A 3.4 GB payload staged in `/var/tmp` and then
+  copied needs the space twice.
+- **`.machine-id` and `auth.enc` travel together, and this is the one that
+  matters.** `/opt/hytale/.machine-id` is a 32-character hex id at the *volume
+  root*, not inside `Server/`, and there is no `auth.key` anywhere -- the
+  credential store is `auth.enc` alone, encrypted against a key derived from
+  that machine id. Copying `auth.enc` without `.machine-id` produces a server
+  that boots and then cannot authenticate. Both are inside the tar above
+  (`--exclude` does not touch either), which is why the excludes are worth
+  reading as a list rather than skimmed.
+- If the server reports an authentication failure anyway, the fallback is
+  `/auth login device` in the console. It is interactive, and you will already
+  have a terminal open for the downloader step.
+- `auth.enc` is mode `0600` in the PVC and `chown -R` does not change modes, so
+  it arrives with the right one.
+- The volume is `@hourly`/`24H`, so a bad load is recoverable by rolling the
+  snapshot back rather than by re-copying.
+
+## Updates: `/update apply` does nothing here
+
+The payload contains upstream's own `start.sh`, and this instance **does not use
+it**. Two reasons, both about control:
+
+- `start.sh` hardcodes `--backup --backup-dir backups --backup-frequency 30` and
+  appends `"$@"` after it. The CLI overrides `config.json`, so the backup
+  cadence could not be set to daily from *anywhere* -- not from `config.json`,
+  not from `default.nix` -- without hand-editing a downloaded, mutable script
+  that nothing in this repository reviews. Thirty-minute archives of a 178 MB
+  universe is ~8 GB/day replicated to Dendra, forever.
+- `start.sh` exists to apply staged updates: the server downloads a new payload
+  into `updater/staging`, exits 8, and the script copies it into place and
+  loops.
+
+Under systemd the loop is redundant -- `Restart=on-failure` handles exit 8 --
+but **the copy step is not**, so `/update apply --confirm` will exit 8, restart,
+and come back on the same binaries.
+
+This is inherited: the k3s deployment also ran the jar directly rather than
+through `start.sh`, so this has always been the behaviour of this server. It is
+called out here rather than left to be discovered during a patch.
+
+It matters more than usual for Hytale than for most games, because the protocol
+is hash-checked: upstream's own note is "the client and server must be on the
+exact same protocol version" and players on a newer client "cannot connect" at
+all. When a patch lands, the upgrade is therefore a deliberate two-step:
+
+```bash
+incus exec homelab:hytale -- /update setup      # writes start.sh/bat to the parent
+# then switch hytale.service to ExecStart=/var/lib/hytale/start.sh and reconcile
+```
+
+`/update setup` extracts the wrapper scripts from the running server, so no
+download is needed for it. `config.json`'s `Update.AutoApplyMode` is `Disabled`
+by default, which is the right setting here: it means the server *notices* a
+version and logs it, and nothing applies it behind your back.
+
+## Adding a producer: restart the hub
+
+The one non-obvious operational step, and it applies to this instance exactly
+as it did to `minecraft-backups`. `replicated-volumes.nix` is enough for the
+*declaration*, but **the hub must be restarted** for a newly added volume to
+actually be mounted:
+
+```bash
+incus restart syncthing
+```
+
+`apply.sh` only rewrites the device config; Incus applies disk devices at
+instance start. A device added to a running hub stays declared and never appears
+in `/proc/self/mounts`, so the path is an ordinary empty directory on the hub's
+own root disk. Nothing errors, nothing is logged, and the folder does not even
+show as "stopped" -- it is `sendonly` over an empty directory, replicating
+nothing.
+
+## Snapshots
+
+`@hourly`/`24H` on `hytale-data` and `hytale-backups`, rather than the
+`@daily`/`7d` the older volumes use.
+
+A btrfs snapshot copies nothing: it costs only the extents written **after** it
+was taken, so cold data is free and only rewrite-heavy data is expensive. This
+volume is the good case, measured on the live deployment before migrating:
+
+| | size | write behaviour |
+| --- | --- | --- |
+| `Assets.zip` + jar + `.aot.config` + `Licenses` | ~3.6 GB | **once**, at download, never again |
+| `chunks/*.region.bin` | 178 MB | 15 whole-file blobs of 12-32 MB, last written Aug 26-30 |
+| `resources/` + `players/` JSON | ~220 kB | rewritten constantly |
+
+So the hot-write set is ~220 kB and the 178 MB of region blobs is cold, which
+puts an hourly tier at a few MB a day rather than 178 MB a day.
+
+`minecraft-data` is the counterexample to "make everything hourly" and is
+deliberately **not** changed: Paper rewrites region files continuously while
+players are online, which is the shape that makes hourly snapshots expensive.
+That is a separate decision and wants a measurement behind it.
+
+`hytale-backups` is snapshotted hourly for a different reason. The archives are
+immutable, so the snapshots are nearly free; what they buy is a bound on the
+blast radius of `hytale-backup.service`, which is the one unit here that
+**deletes** anything. A snapshot taken before each run means a misfire costs an
+hour of archives rather than the whole retention window.
+
+## Verified and not verified
+
+Verified before the port, against the live 0.6.8 jar and the running k3s
+deployment:
+
+- the backup scheduler, `flushAll()` and the `BackupTask(Universe::getDirectory, …)`
+  call, so "no downtime" is read from bytecode and not assumed
+- that `BackupConfig` has no age-based field and the CLI has no age flag
+- that `--backup-dir` is relative to `Server/`, and that `backups` is therefore
+  the same directory this instance mounts `hytale-backups` on
+- that the region data is already compressed: `gzip -6` over the live chunks
+  returned 98% of raw, so `zip` and `tar -czf` land within a percent of each
+  other and compression is not a reason to prefer a hand-rolled tar
+- that the server has no RCON/HTTP admin/query channel
+- that `.machine-id` sits at the volume root and `auth.key` does not exist
+
+**Not yet verified**: that the downloader produces the layout this instance
+expects (the first `hytale-download.service` run asserts it), whether
+`.machine-id` + `auth.enc` are in fact portable as a pair (the fallback is
+`/auth login device`), and whether `--backup-frequency 1440` produces exactly
+one archive per day on a server that is restarted more often than that.

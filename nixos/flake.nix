@@ -207,6 +207,12 @@
         # device to pass through. Its 25565/tcp forward is the cutover -- there
         # is no Caddy vhost, because the Minecraft protocol is not HTTP.
         minecraft = mkInstance { path = ./hosts/minecraft; };
+        # Hytale. A container, for the same reason minecraft is: a JVM and a
+        # jar, no kernel of its own. Its 5520/udp forward is the cutover --
+        # Hytale speaks QUIC, which has no HTTP in it for Caddy to route. Third
+        # producer in the Syncthing scheme, contributing hytale-backups: the
+        # archives the server writes for ITSELF, never the live universe.
+        hytale = mkInstance { path = ./hosts/hytale; };
         # Jellyfin, the first media instance. A container: no kernel of its own
         # is needed for VAAPI, because the iGPU is passed through as a device
         # and the host kernel's i915 driver does the work (see
@@ -245,6 +251,7 @@
         image-syncthing = self.nixosConfigurations.syncthing.config.system.build.squashfs;
         image-paperless = self.nixosConfigurations.paperless.config.system.build.squashfs;
         image-minecraft = self.nixosConfigurations.minecraft.config.system.build.squashfs;
+        image-hytale = self.nixosConfigurations.hytale.config.system.build.squashfs;
         image-jellyfin = self.nixosConfigurations.jellyfin.config.system.build.squashfs;
         image-sonarr = self.nixosConfigurations.sonarr.config.system.build.squashfs;
         image-radarr = self.nixosConfigurations.radarr.config.system.build.squashfs;
