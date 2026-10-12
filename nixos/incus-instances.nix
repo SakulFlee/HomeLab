@@ -40,6 +40,14 @@
   # VPN-only, behind Caddy.
   paperless = import ./hosts/paperless/incus.nix;
 
+  # Minecraft. A container, and the first instance whose public entry point is
+  # not HTTP: the Java protocol is a raw TCP stream, so it gets an
+  # `incus network forward` for 25565/tcp rather than a Caddy vhost. Also the
+  # second producer in the Syncthing replication scheme, contributing
+  # minecraft-backups (see nixos/replicated-volumes.nix) -- archives only, never
+  # the live world. See hosts/minecraft/README.md.
+  minecraft = import ./hosts/minecraft/incus.nix;
+
   # First of the media stack. Read-only consumer of the library: four NAS
   # shares bind-mounted ro (Incus 7.0.1 cannot make a CIFS bind writable from
   # an unprivileged LXC -- measured, see hosts/jellyfin/incus.nix) and the iGPU

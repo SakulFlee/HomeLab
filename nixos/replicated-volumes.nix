@@ -19,4 +19,12 @@
 #     will scan a folder; without it the folder sits "stopped" forever.
 #   - The hub's folder for the volume is `sendonly`: it is a copy, never a
 #     writer, so it also carries no versioning.
-[ "paperless-media" ]
+#     writer, so it also carries no versioning.
+#
+# minecraft-backups is the second entry, and it is deliberately NOT the instance's
+# data volume. What gets replicated is the daily archive, not the live world: a
+# world synced file-by-file re-ships megabytes of region files on every save and
+# races the server's own writes, whereas an archive is small, immutable and
+# append-only. The producer archives first and replicates the archive; see
+# hosts/minecraft/default.nix and hosts/minecraft/README.md.
+[ "paperless-media" "minecraft-backups" ]

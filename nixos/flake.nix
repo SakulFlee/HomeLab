@@ -203,6 +203,10 @@
         # Paperless, VPN-only behind Caddy. No networkForward -- the vhost
         # cutover stays a separate hand-off.
         paperless = mkInstance { path = ./hosts/paperless; };
+        # Minecraft. A container: a JVM and a jar, no kernel of its own and no
+        # device to pass through. Its 25565/tcp forward is the cutover -- there
+        # is no Caddy vhost, because the Minecraft protocol is not HTTP.
+        minecraft = mkInstance { path = ./hosts/minecraft; };
         # Jellyfin, the first media instance. A container: no kernel of its own
         # is needed for VAAPI, because the iGPU is passed through as a device
         # and the host kernel's i915 driver does the work (see
@@ -240,6 +244,7 @@
         image-forgejo = self.nixosConfigurations.forgejo.config.system.build.squashfs;
         image-syncthing = self.nixosConfigurations.syncthing.config.system.build.squashfs;
         image-paperless = self.nixosConfigurations.paperless.config.system.build.squashfs;
+        image-minecraft = self.nixosConfigurations.minecraft.config.system.build.squashfs;
         image-jellyfin = self.nixosConfigurations.jellyfin.config.system.build.squashfs;
         image-sonarr = self.nixosConfigurations.sonarr.config.system.build.squashfs;
         image-radarr = self.nixosConfigurations.radarr.config.system.build.squashfs;
