@@ -92,16 +92,37 @@ let
   paperApi = "https://fill.papermc.io/v3/projects/paper";
 
   # -------------------------------------------------------------------------
-  # Plugin jars, verbatim from apps/minecraft/helm-release.yaml
+  # Plugin jars
   # -------------------------------------------------------------------------
   #
-  # Same three URLs, same order, same versions. These are the plugin *configs*
-  # that migrate with the world; the jars themselves are re-downloaded rather
-  # than copied, so a corrupt jar in the PVC cannot be inherited.
+  # WorldEdit and WorldEditSUI are NOT the versions the k3s chart pinned, and the
+  # reason is the version floor: 7.3.17 and 1.7.4 are 1.21-line builds and
+  # refuse 26.3 outright --
+  #
+  #   ** This Minecraft version (26.3-175 ...) is not supported by this
+  #      version of WorldEdit.
+  #
+  # WorldEditSUI then fails with a NullPointerException rather than a clean
+  # message, because it `depend`s on WorldEdit and dereferences a plugin instance
+  # that never loaded. So the SUI failure is a symptom, not a second problem.
+  #
+  # The newest builds are chosen by asking what each jar actually supports,
+  # because Hangar does not publish a supported-Minecraft-versions field and the
+  # plugin only tells you at runtime. WorldEdit resolves a Bukkit adapter per MC
+  # version out of bundled packages, so the adapter list IS the support matrix:
+  #
+  #   7.4.6-beta-02  adapters through v26_3   <- supports 26.3
+  #   7.4.5          adapters through v26_2   <- does NOT
+  #
+  # So WorldEdit on 26.3 means a beta. That is the trade this file makes
+  # deliberately: the alternative is pinning the server to 26.2 for a stable
+  # WorldEdit, and the world is already 26.3-converted, so that is a downgrade
+  # Paper will not serve. Revisit when 7.4.6 goes stable -- the URL below is the
+  # only line that changes.
   pluginUrls = [
     "https://hangarcdn.papermc.io/plugins/KingTheGuy/Portalis/versions/1.0/PAPER/portalis-1.0.jar"
-    "https://hangarcdn.papermc.io/plugins/EngineHub/WorldEdit/versions/7.3.17/PAPER/worldedit-bukkit-7.3.17.jar"
-    "https://hangarcdn.papermc.io/plugins/kennytv/WorldEditSUI/versions/1.7.4/PAPER/WorldEditSUI-1.7.4.jar"
+    "https://hangarcdn.papermc.io/plugins/EngineHub/WorldEdit/versions/7.4.6-beta-02/PAPER/worldedit-bukkit-7.4.6-beta-02.jar"
+    "https://hangarcdn.papermc.io/plugins/kennytv/WorldEditSUI/versions/1.8.0/PAPER/WorldEditSUI-1.8.0.jar"
   ];
 
   # -------------------------------------------------------------------------

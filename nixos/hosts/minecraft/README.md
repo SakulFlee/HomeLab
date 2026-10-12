@@ -145,7 +145,7 @@ whitelist, server properties), excluding `./backups` itself. An archive of
 | motd | `Conduit Network @ SakulFlee` | `server.properties`, **only if absent** |
 | whitelist | 7 names | `whitelist.json` as name+**dashed** UUID, repaired if absent or empty |
 | ops | 2 names | `ops.json` as name+UUID+level, repaired if absent or empty |
-| plugins | Portalis, WorldEdit, WorldEditSUI | same three URLs, same versions |
+| plugins | Portalis 1.0, WorldEdit 7.3.17, WorldEditSUI 1.7.4 | Portalis 1.0, **WorldEdit 7.4.6-beta-02**, **WorldEditSUI 1.8.0** |
 | memory | limit 2048Mi, request 512Mi | `-Xmx2G` inside a 3GiB limit |
 | port | Traefik `minecraft` entrypoint | `incus network forward` 25565/tcp |
 | autoscaling | mc-router, `replicaCount: 0` | none -- always running |
@@ -227,25 +227,54 @@ incus network forward port remove incusbr0 192.168.178.200 tcp 25565
 The k3s manifests are deliberately still in place after this commit, so that
 command is a real rollback and not just a pause.
 
-## Plugins: the known-loose end
+## Plugins
 
-The three plugin jars are the **1.21-line builds the chart pinned**, kept
-verbatim from `apps/minecraft/helm-release.yaml`. They are now being asked to
-load on 26.x, six releases ahead, and that is not guaranteed:
+`portalis` 1.0 is unchanged from the chart and loads on 26.3.
 
-| plugin | jar | expectation on 26.x |
-| --- | --- | --- |
-| WorldEdit | `worldedit-bukkit-7.3.17` | likely needs a build matching 26.x |
-| WorldEditSUI | `WorldEditSUI-1.7.4` | follows WorldEdit |
-| Portalis | `portalis-1.0.jar` | unknown |
+WorldEdit and WorldEditSUI had to move: the chart's 7.3.17 / 1.7.4 are 1.21-line
+builds and refuse 26.3 with
 
-A plugin that fails to load **disables itself and the world still loads** -- it
-is a degraded feature set, not a failed migration. Watch the startup log for
-`Could not load plugin` / `Unsupported API version`.
+```
+** This Minecraft version (26.3-175 ...) is not supported by this version of WorldEdit.
+```
 
-`pluginUrls` in `default.nix` is the place to bump them, and the same
-re-fetch rule applies: a URL whose jar already exists is not re-downloaded, so a
-version change means removing the old jar too.
+WorldEditSUI's resulting `NullPointerException` is a **symptom, not a second
+problem** -- it `depend`s on WorldEdit and dereferences a plugin instance that
+never loaded. Fixing WorldEdit fixes both.
+
+### Picking the version, since Hangar does not tell you
+
+Hangar publishes no supported-Minecraft-versions field, and the plugin only
+reports the mismatch at runtime. WorldEdit resolves a Bukkit adapter per MC
+version from bundled packages, so **the adapter package list is the support
+matrix**:
+
+```
+$ unzip -l worldedit-bukkit-<ver>.jar | grep adapter/impl | sort -V
+v1_21_11  v26_1  v26_2  v26_3      <- 7.4.6-beta-02
+v1_21_11  v26_1  v26_2             <- 7.4.5 (stable)
+```
+
+That is how the choice was made, and it has a cost worth stating plainly:
+**WorldEdit on 26.3 requires a beta.** The alternative is pinning the server to
+26.2 and using stable 7.4.5, but the world is already 26.3-converted and Paper
+will not serve a downgrade, so the beta is the only route to both 26.3 and
+WorldEdit. Revisit when 7.4.6 goes stable -- one URL in `pluginUrls` changes.
+
+### Changing a plugin version
+
+`pluginUrls` in `default.nix` is the source. The fetch unit **skips a jar whose
+filename already exists**, so a version change also means removing the old jar,
+or you end up with two copies of the same plugin and a duplicate-load error:
+
+```bash
+incus exec minecraft -- rm -f /var/lib/minecraft/plugins/worldedit-bukkit-7.3.17.jar \
+                            /var/lib/minecraft/plugins/WorldEditSUI-1.7.4.jar
+systemctl restart minecraft-fetch minecraft
+```
+
+Plugin *configuration* under `plugins/<name>/` is world data: it is not touched
+by a jar swap, so plugin upgrades carry their own settings forward.
 
 ## Loading the k3s data
 
