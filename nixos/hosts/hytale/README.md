@@ -11,8 +11,10 @@ built container image).
   `hytale-backups` at `/var/lib/hytale/Server/backups` (the archives, the only
   thing the Syncthing hub replicates) and `hytale-secrets` at
   `/var/lib/hytale-secrets` (the downloader's OAuth token, unsnapshotted).
-- Backups: made **by the server**, pruned by `hytale-backup.timer` at 04:20
-  daily, 7-day window.
+- Backups: `hytale-backup.timer` at 04:20 daily sends `/backup` to the server's
+  tmux console and then prunes by age, 7-day window.
+- Console: `tmux attach -t hytale` -- stdin is the only admin channel Hytale
+  has, and auth certificates expire about hourly.
 - Snapshots: `@hourly`/`24H` on the two data volumes.
 
 > **DHCP is live on `incusbr0`**, so every instance here pins a static address.
@@ -65,15 +67,76 @@ SCHEDULED_EXECUTOR.scheduleWithFixedDelay(runner, _, frequency, MINUTES)
 ```
 
 `flushAll()` before the zip is the whole point. So the archives are made by the
-server, on a timer, with **zero downtime and no console access required**.
+server itself, with **zero downtime**.
 
-There is no way to reach for that from outside, and it is worth knowing why:
-the server has no RCON, no HTTP admin and no query API -- its only listening
-socket is `0.0.0.0:5520/udp`. (The `hytale-hytale-0:8081` service you see in
-k3s is `pvceplorer.io/managed-by: pvc-explorer`, not Hytale.) So "a systemd unit
-tells the server to back up" is not available, and the honest options were
-either the built-in scheduler or a hand-rolled tar. The built-in one wins on
-every axis except retention, which is what the next section is about.
+`BackupCommand` calls `Universe.runBackup()` -- the *same* method the built-in
+scheduler calls -- so the flush and the zip are identical whether the archive is
+triggered internally or by a command. That is what makes the next section
+possible: we can drive the backup ourselves and change nothing about how it is
+made.
+
+### The server's own scheduler does not survive a restart
+
+The scheduler above is created during startup:
+
+```
+SCHEDULED_EXECUTOR.scheduleWithFixedDelay(runner, initialDelay, delay, MINUTES)
+```
+
+Two consequences, both observed rather than inferred. A server started with
+`--backup-frequency 1440` logged
+
+```
+[Universe|P] Scheduled backup to run every 1440 minute(s)
+```
+
+and then produced **no archive at all** over the following quarter of an hour --
+so the initial delay is the period, not zero. And because the countdown is
+rebuilt on every boot, a server restarted inside the window never backs up *at
+all*, silently: an empty `backups/` is indistinguishable from "not due yet".
+
+On this host that is not hypothetical. `incus-apply-<name>.path` fires on every
+`git pull`, any image change recreates the instance, and the host auto-updates
+hourly. A busy week could mean no backup whatsoever, and nothing would say so.
+
+So `hytale-backup.timer` presses the button instead, by sending `/backup` to
+the console described below.
+
+### stdin is the only administration channel, so there is a console
+
+Hytale has no RCON, no HTTP admin API and no query endpoint. `Options` was
+checked in both 0.6.8 and 0.7.0; the only match for any of those is Hypixel's own
+*"Session token for Session Service API"*. **stdin is the only way to administer
+this server**, which is why the k3s deployment ran it with `stdin: true,
+tty: true`, and why the `hytale-hytale-0:8081` service you see in k3s being
+`pvceplorer.io/managed-by: pvc-explorer` rather than Hytale is worth noting.
+
+So this instance runs the JVM inside a **tmux session**, which is what gives it
+a console:
+
+```bash
+incus exec homelab:hytale -- sudo -u hytale tmux attach -t hytale
+```
+
+and sends it commands without stopping anything:
+
+```bash
+incus exec homelab:hytale -- sudo -u hytale tmux send-keys -t hytale '/backup' Enter
+```
+
+tmux rather than a plain pipe on stdin, and the reason is that tmux hands java a
+**real pty**. A FIFO works and was the first version of this file, but it relies
+on JLine falling back to a dumb terminal when stdin is not a TTY -- `ConsoleModule`
+uses `org.jline`'s `TerminalBuilder` and `LineReaderBuilder`, and the fallback
+exists, but that is an assumption about a library on the one path the whole
+server depends on. tmux removes the assumption and gives an attachable console
+as well.
+
+That last part earns its keep more than the backup does. **Hytale's auth
+certificates expire roughly hourly, and an outage longer than that loses the
+server's authenticated identity outright.** Being able to run
+`/auth login device` against a *running* server turns a player-visible outage
+into a command.
 
 ### Hytale cannot express an age-based retention, so we do the deleting
 
@@ -92,17 +155,15 @@ The CLI adds no age option either (`--backup`, `--backup-frequency`,
 is nothing in `config.json` beyond those five. Retention is **count-based,
 full stop**.
 
-A count is not the same as an age, and the difference bites:
-
-- A count silently changes meaning if the frequency is ever edited. 7 archives
-  is a week at `--backup-frequency 1440` and four hours at 60.
-- `scheduleWithFixedDelay` restarts its timer on every boot, so a 24-hour
-  frequency on a server that restarts more often than daily produces one
-  archive *per boot* and never reaches a 24-hour cadence at all.
+A count is not the same as an age, and the difference bites: a count silently
+changes meaning if the frequency is ever edited. 7 archives is a week at
+`--backup-frequency 1440` and four hours at 60.
 
 So `default.nix` sets the counts absurdly high -- they are Hytale's retention
-and this instance does not use them -- and `hytale-backup.timer` deletes by
-**age** instead, once a day:
+and this instance does not use them -- and sets the *frequency* to a year, so
+the built-in scheduler never fires while `/backup` still has the directory it
+needs to be willing to run. `hytale-backup.timer` asks for the archive at
+04:20 daily and then deletes by **age**:
 
 ```bash
 find backups -maxdepth 1 -type f -name '*.zip' -mtime +7 -print -delete
@@ -290,8 +351,10 @@ SRC=$(kubectl get pv pvc-2f4dc6ea-9ba0-457c-b12b-3a68d017d662 \
         -o jsonpath='{.spec.local.path}')
 echo "$SRC"
 
-# 1. stop the service, not the instance -- the volume stays attached
-incus exec homelab:hytale -- systemctl stop hytale
+# 1. stop the service, not the instance -- the volume stays attached.
+#    Killing the tmux session makes the supervision loop fall out and systemd
+#    restart the unit, so stop the unit rather than the session.
+incus exec homelab:hytale -- sudo systemctl stop hytale
 
 # 2. stream the world, the mods and the config onto the volume.
 #    Assets.zip (3.4G) and the jar (110M) are deliberately NOT copied: they come
@@ -308,7 +371,7 @@ tar -C "$SRC" --exclude=./Assets.zip --exclude=./Server/HytaleServer.jar \
 incus exec homelab:hytale -- sudo chown -R 989:989 /var/lib/hytale
 
 # 4. start again
-incus exec homelab:hytale -- systemctl start hytale
+incus exec homelab:hytale -- sudo systemctl start hytale
 ```
 
 Notes:
@@ -319,14 +382,29 @@ Notes:
 - **`.machine-id` and `auth.enc` travel together, and this is the one that
   matters.** `/opt/hytale/.machine-id` is a 32-character hex id at the *volume
   root*, not inside `Server/`, and there is no `auth.key` anywhere -- the
-  credential store is `auth.enc` alone, encrypted against a key derived from
-  that machine id. Copying `auth.enc` without `.machine-id` produces a server
-  that boots and then cannot authenticate. Both are inside the tar above
+  credential store is `auth.enc` alone. Both are inside the tar above
   (`--exclude` does not touch either), which is why the excludes are worth
   reading as a list rather than skimmed.
-- If the server reports an authentication failure anyway, the fallback is
-  `/auth login device` in the console. It is interactive, and you will already
-  have a terminal open for the downloader step.
+- **They did not actually work, and this is the part worth knowing.** The copy
+  was byte-perfect -- `auth.enc` arrived at 1407 bytes with its mtime preserved
+  -- and the server still logged:
+
+  ```
+  [ServerAuthManager] Auth credential store: Encrypted
+  [HytaleServer] No server tokens configured. Use /auth login to authenticate.
+  ```
+
+  The decisive detail is that the run *before* the data load logged the same
+  two lines, so the migrated store changed nothing observable: 0.6.8's
+  `auth.enc` does not carry into 0.7.0. The fallback is `/auth login device`,
+  which is why this instance has a console to type it into:
+
+  ```bash
+  incus exec homelab:hytale -- sudo -u hytale tmux attach -t hytale
+  ```
+
+  A successful run logs `Authentication successful! Mode: OAUTH_STORE` and
+  `Token refresh scheduled in 3300 seconds`.
 - `auth.enc` is mode `0600` in the PVC and `chown -R` does not change modes, so
   it arrives with the right one.
 - The volume is `@hourly`/`24H`, so a bad load is recoverable by rolling the
@@ -454,8 +532,15 @@ Verified on the deployed instance:
   and no `HytaleServer.aot`, so `-XX:AOTCache=HytaleServer.aot` names a path
   that does not exist
 
-**Not yet verified**: whether `.machine-id` + `auth.enc` are in fact portable as
-a pair (a fresh volume logs `No server tokens configured. Use /auth login to
-authenticate.`, and the fallback is `/auth login device`), and whether
-`--backup-frequency 1440` produces exactly one archive per day on a server that
-is restarted more often than that.
+**Verified after the fact, on the deployed server:**
+
+- `--backup-frequency 1440` logs `Scheduled backup to run every 1440 minute(s)`
+  and produces **no archive** over the following quarter of an hour, which is
+  what established that the initial delay is the period rather than zero
+- `.machine-id` + `auth.enc` copy intact across instances and versions but do
+  **not** authenticate 0.7.0; `/auth login device` is required
+
+**Not yet verified**: that `tmux send-keys '/backup'` produces an archive, and
+that the daily timer survives a restart in the way the built-in scheduler did
+not. Both are the reason this was staged -- the tmux wrapper landed on its own
+first.

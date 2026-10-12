@@ -81,10 +81,42 @@ let
   # Backup policy
   # -------------------------------------------------------------------------
   #
-  # Daily, because the off-box copy is the durable layer and a game world does
-  # not need sub-daily resolution. Hytale ships 30 minutes as the default, which
-  # on a 178 MB universe is ~8 GB/day replicated to Dendra, forever -- a sendonly
-  # folder never applies a remote deletion, so none of it is ever reclaimed.
+  # Hytale's OWN scheduler is effectively switched off, and `hytale-backup.timer`
+  # presses the button instead. The frequency below is a year for that reason,
+  # not as a policy statement.
+  #
+  # It has to be a large number rather than an absent flag, because `/backup`
+  # refuses to run when no backup directory is configured:
+  #
+  #   BackupCommand: getConfig().getBackupConfig().getDirectory()
+  #                 server.commands.backup.notConfigured
+  #
+  # and enabling backups is what creates that configuration. So the server is
+  # told backups exist and where they go, with a period it will never reach.
+  #
+  # Why not leave Hytale to schedule itself, which is what the first version of
+  # this file did at 1440 minutes? Because it does not survive a restart.
+  # `Universe` calls
+  #
+  #   SCHEDULED_EXECUTOR.scheduleWithFixedDelay(runner, initialDelay, delay, MINUTES)
+  #
+  # during startup, so the countdown is rebuilt from zero on every boot -- and
+  # the initial delay is the period, not zero, which is observable: a server
+  # started with --backup-frequency 1440 logged
+  #
+  #   [Universe|P] Scheduled backup to run every 1440 minute(s)
+  #
+  # and produced no archive at all over the following quarter of an hour. A
+  # server restarted inside the window therefore NEVER backs up, and silently,
+  # because an empty backups/ directory is indistinguishable from "not due yet".
+  # On this host that is not a hypothetical: incus-apply-<name>.path fires on
+  # every git pull and any image change recreates the instance.
+  #
+  # Driving `/backup` from a timer is calendar-driven and restart-proof, and it
+  # costs nothing in consistency: BackupCommand calls Universe.runBackup(), which
+  # is the SAME method the built-in scheduler calls, so the flushAll() before the
+  # zip -- the reason this server can be backed up while players are online --
+  # still happens. Only who presses the button, and when, changes.
   #
   # The two counts are set absurdly high on purpose. They are Hytale's retention
   # and this instance does not use them: `hytale-backup.timer` deletes by age
@@ -92,7 +124,9 @@ let
   # defaults would mean two independent prunes racing over one directory, and
   # Hytale's would win the race by archiving rather than deleting -- moving
   # files into backups/archive/ that nothing then prunes.
-  backupFrequencyMinutes = 1440;
+  # 365 days: long enough that the built-in scheduler never fires, short enough
+  # to stay inside the option's own integer range.
+  backupFrequencyMinutes = 525600;
   backupMaxCount = 100000;
   backupArchiveMaxCount = 100000;
 
@@ -147,10 +181,15 @@ in
   # the game payload it produces are zips, and jq so a config.json can be read
   # without guesswork. openjdk25 is here rather than referenced only by the unit
   # so that `incus exec hytale -- java -version` works while debugging.
+  #
+  # tmux because the server runs inside a session of it, and the session is the
+  # only administration channel this software has -- no RCON, no HTTP admin. See
+  # the hytale.service header for why it is a tmux session rather than a FIFO.
   environment.systemPackages = with pkgs; [
     curl
     jq
     openjdk25
+    tmux
     unzip
   ];
 
@@ -424,6 +463,7 @@ in
     path = [
       pkgs.openjdk25
       pkgs.coreutils
+      pkgs.tmux
     ];
     serviceConfig = {
       Type = "simple";
@@ -431,10 +471,11 @@ in
       Group = "hytale";
       WorkingDirectory = "/var/lib/hytale/Server";
 
-      # No stdin. The k3s deployment gave the server a TTY and stdin because a
-      # container image needs one to stay alive; systemd has no equivalent need,
-      # and a server reading from a closed stdin is a server that can be shut
-      # down by anything that closes a file descriptor.
+      # stdin is /dev/null, and that is deliberate even though the server runs
+      # inside tmux below. Nothing writes to this unit's stdin; the server's
+      # console is the tmux session, and a stray writer to this fd cannot reach
+      # it. A server reading a closed stdin is a server that can be shut down by
+      # anything that closes a file descriptor.
       StandardInput = "null";
 
       # on-failure, not always: this also covers exit code 8, which Hytale uses
@@ -461,40 +502,104 @@ in
       SuccessExitStatus = "0 143";
     };
 
-    # A script rather than ExecStart, for exactly one reason: the AOT cache flag
-    # is conditional. Upstream recommends
+    # -------------------------------------------------------------------------
+    # Why tmux
+    # -------------------------------------------------------------------------
     #
-    #   java -XX:AOTCache=HytaleServer.aot -jar HytaleServer.jar
+    # Hytale has no RCON, no HTTP admin API and no query endpoint. `Options` in
+    # 0.6.8 and 0.7.0 were both checked; the only match for any of those is
+    # Hypixel's own "Session token for Session Service API". **stdin is the only
+    # administration channel this server has**, which is why the k3s deployment
+    # ran it with `stdin: true, tty: true`.
     #
-    # but the layout this produces carries `HytaleServer.aot.config`, and the
-    # flag names a path that does not exist. Passing it anyway is what the k3s
-    # deployment did and it is a no-op the JVM merely warns about. So it is added
-    # only when the file is actually there, which is the case for a payload laid
-    # down by the downloader and is worth getting right either way.
+    # So it needs a console, and there are two ways to give it one. A FIFO on
+    # stdin works and is smaller, and it was the first version of this file. It
+    # relies on JLine falling back to a dumb terminal when stdin is not a TTY --
+    # ConsoleModule uses org.jline's TerminalBuilder and LineReaderBuilder on a
+    # dedicated ConsoleThread, and the fallback exists, but it is an assumption
+    # about a library's behaviour on the one path the whole server depends on.
     #
-    # A plain string rather than an array, so the expansion is a plain
-    # unquoted-split that behaves the same in sh and bash -- `set -u` is happy
-    # with an empty-but-set variable either way, and the value contains no
-    # whitespace, so there is nothing for the split to get wrong.
+    # tmux removes the assumption: it hands java a REAL pty, which is the
+    # configuration this software is known to work in, because that is what k3s
+    # gave it. It also gives something the FIFO never could -- an attachable
+    # console:
+    #
+    #   incus exec homelab:hytale -- sudo -u hytale tmux attach -t hytale
+    #
+    # which is what makes `/auth login device` possible without stopping the
+    # server. That matters more than it sounds: Hytale's auth certificates
+    # expire about hourly, and an outage longer than that loses the server's
+    # authenticated identity outright.
+    #
+    # Three costs, all of them real:
+    #
+    #   * tmux becomes the parent of the JVM. If the tmux server dies, java gets
+    #     SIGHUP; the supervision loop below then exits and systemd restarts the
+    #     unit. Recoverable, but it is one more thing that can take the server
+    #     down.
+    #   * `tmux new-session` needs a terminal, so under systemd it must be -d,
+    #     which returns immediately -- and systemd would conclude the service
+    #     exited. Hence the supervision loop.
+    #   * A restart must kill any session left over first, or `new-session`
+    #     fails on the duplicate name and the unit crash-loops until noticed.
     script = ''
       set -euo pipefail
+
+      session=hytale
+
+      # A stale session from a previous run would make new-session fail. -t is
+      # the target; the guard keeps `set -e` from killing the unit over it.
+      tmux kill-session -t "$session" 2>/dev/null || true
 
       aot=""
       if [ -f HytaleServer.aot ]; then
         aot="-XX:AOTCache=HytaleServer.aot"
       fi
 
-      exec ${lib.getExe' pkgs.openjdk25 "java"} \
-        ${javaOpts} \
-        $aot \
-        -jar HytaleServer.jar \
-        --assets ../Assets.zip \
-        --accept-early-plugins \
-        --backup \
-        --backup-dir backups \
-        --backup-frequency ${toString backupFrequencyMinutes} \
-        --backup-max-count ${toString backupMaxCount} \
-        --backup-archive-max-count ${toString backupArchiveMaxCount}
+      # -d because there is no terminal here. -c because WorkingDirectory
+      # applies to this script, not to the shell tmux spawns.
+      tmux new-session -d -s "$session" -c /var/lib/hytale/Server \
+        "${lib.getExe' pkgs.openjdk25 "java"} ${javaOpts} $aot \
+          -jar HytaleServer.jar \
+          --assets ../Assets.zip \
+          --accept-early-plugins \
+          --backup \
+          --backup-dir backups \
+          --backup-frequency ${toString backupFrequencyMinutes} \
+          --backup-max-count ${toString backupMaxCount} \
+          --backup-archive-max-count ${toString backupArchiveMaxCount}"
+
+      # Stay in the foreground so systemd tracks the server's lifetime: this
+      # loop ends exactly when the tmux session does.
+      #
+      # `sleep 5 & wait $!` rather than a plain `sleep`, and that is the whole
+      # trick. A foreground sleep does not return until it finishes, so SIGTERM
+      # is not delivered to anything until the sleep ends -- the stop would hang
+      # for the remainder of the interval and then hit TimeoutStopSec, turning
+      # every restart into a 300s kill in the middle of a world flush.
+      # Backgrounding the sleep and waiting for it puts a shell builtin in the
+      # foreground, and wait returns the moment the signal arrives.
+      while tmux has-session -t "$session" 2>/dev/null; do
+        sleep 5 &
+        wait $! || true
+      done
+
+      # Reaching here means the session ended on its own: the JVM exited. That
+      # covers a crash and Hytale's exit code 8 ("staged update ready"), and both
+      # want a restart -- which is what Restart=on-failure is for.
+      #
+      # So this MUST be a non-zero exit. An earlier version ended with `exit 0`,
+      # reasoning that the loop ending was not itself an error. That silently
+      # disarmed the restart policy: the JVM would crash, tmux would drop the
+      # session, the loop would finish successfully, systemd would record a
+      # clean stop, and the game server would stay down until the next deploy.
+      #
+      # A deliberate `systemctl stop` never gets here -- systemd SIGTERMs this
+      # script while it is in the wait below, and bash has no trap, so it dies
+      # from the signal instead of falling out of the loop. That asymmetry is
+      # what lets one exit code mean "restart" without also meaning "ignore the
+      # operator".
+      exit 1
     '';
   };
 
@@ -527,11 +632,17 @@ in
   # prune only looks at names and mtimes, so there is no consistency requirement
   # and no reason to interrupt a running server. The hourly btrfs snapshots on
   # hytale-backups bound what a misfire here can cost.
+  #
+  # It also ASKS for one, through the tmux console, and that is the part this
+  # unit exists for. See backupFrequencyMinutes for why the server's own
+  # scheduler is not trusted with the cadence.
   systemd.services.hytale-backup = {
-    description = "Prune Hytale archives older than the retention window";
+    description = "Take a Hytale universe archive, then prune the old ones";
     path = [
       pkgs.findutils
       pkgs.coreutils
+      pkgs.tmux
+      pkgs.systemd
     ];
     serviceConfig = {
       Type = "oneshot";
@@ -543,7 +654,56 @@ in
       set -euo pipefail
 
       backups=/var/lib/hytale/Server/backups
+      session=hytale
 
+      # -- the archive ------------------------------------------------------
+      #
+      # Skipped, not failed, when the server is down -- deliberately, and for
+      # the same reason minecraft-backup does not start a server somebody
+      # stopped. Persistent=true on the timer means the run happens when the
+      # container comes back, so an outage costs a missed archive rather than a
+      # failed unit that nobody reads.
+      #
+      # Failing the unit instead would be worse than useless here: the unit
+      # cannot archive without a server, so it would fail every night the game
+      # is deliberately switched off.
+      if ! systemctl is-active --quiet hytale.service; then
+        echo "hytale.service is not running; archiving nothing"
+      elif ! tmux has-session -t "$session" 2>/dev/null; then
+        # The service is active but its console is gone, which means the
+        # supervision loop has not noticed yet or tmux died under it. Either way
+        # there is no console to type into, so there is no backup.
+        echo "hytale.service is up but the tmux console is missing; archiving nothing" >&2
+      else
+        echo "asking the server for an archive"
+        tmux send-keys -t "$session" '/backup' Enter
+
+        # The archive is asynchronous: /backup returns as soon as it is queued,
+        # and the work happens on the server's own thread. Waiting for it here
+        # is what makes the prune below see a settled directory, and it makes
+        # this unit's success mean "an archive exists" rather than "a key was
+        # typed".
+        #
+        # Bounded, because a server that never answers must not hang the unit
+        # until TimeoutStartSec: the zip is ~175 MB and took well under a
+        # minute in practice, so 300s is generous rather than tight.
+        deadline=$(( SECONDS + 300 ))
+        while [ $SECONDS -lt $deadline ]; do
+          # Newest archive newer than this run started.
+          if [ -n "$(find "$backups" -maxdepth 1 -type f -name '*.zip' -newermt '-10 minutes' -print -quit 2>/dev/null)" ]; then
+            echo "archive written"
+            break
+          fi
+          sleep 10 &
+          wait $! || true
+        done
+
+        if [ -z "$(find "$backups" -maxdepth 1 -type f -name '*.zip' -newermt '-10 minutes' -print -quit 2>/dev/null)" ]; then
+          echo "no archive appeared within 300s" >&2
+        fi
+      fi
+
+      # -- the prune --------------------------------------------------------
       if [ ! -d "$backups" ]; then
         echo "no backup directory yet; nothing to prune"
         exit 0
@@ -557,17 +717,17 @@ in
   };
 
   systemd.timers.hytale-backup = {
-    description = "Prune old Hytale archives daily";
+    description = "Archive the Hytale universe and prune old archives, daily";
     wantedBy = [ "timers.target" ];
     timerConfig = {
       # 04:20, and deliberately not on the hour or on :00. minecraft-backup.timer
-      # takes 04:00 and the host's restic ran at :37; 04:20 is clear of both and
-      # randomisation is off so it cannot drift into them.
+      # takes 04:00; 04:20 is clear of it and randomisation is off so it cannot
+      # drift in.
       OnCalendar = "*-*-* 04:20:00";
 
-      # A container that was off at 04:20 still prunes when it comes back,
-      # rather than quietly carrying an unbounded directory until the next boot
-      # that happens to be awake at the right minute.
+      # A container that was off at 04:20 still runs when it comes back, rather
+      # than quietly going a day without an archive -- which is the failure this
+      # whole unit was rewritten to remove.
       Persistent = true;
       AccuracySec = "1m";
     };
