@@ -276,7 +276,19 @@ Two more details:
 something to roll back to.
 
 ```bash
-SRC=/var/lib/rancher/k3s/storage/backup/pvc-2f4dc6ea-9ba0-457c-b12b-3a68d017d662_hytale-hytale-0
+# The host path is NOT guessable. local-path names the directory
+# pvc-<uuid>_<namespace>_<claim>, and dropping the namespace segment is
+# easy here precisely because the namespace and the claim share a prefix.
+# A glob then matches nothing and tar is handed an empty SRC:
+#
+#   zsh: no matches found: .../backup/*hytale-hytale-0
+#   tar: : Cannot open: No such file or directory
+#
+# Ask the PV instead, which is authoritative and cannot rot. Keep the echo:
+# a wrong SRC here is a silent no-op at the far end of a pipe.
+SRC=$(kubectl get pv pvc-2f4dc6ea-9ba0-457c-b12b-3a68d017d662 \
+        -o jsonpath='{.spec.local.path}')
+echo "$SRC"
 
 # 1. stop the service, not the instance -- the volume stays attached
 incus exec homelab:hytale -- systemctl stop hytale
@@ -288,11 +300,12 @@ incus exec homelab:hytale -- systemctl stop hytale
 tar -C "$SRC" --exclude=./Assets.zip --exclude=./Server/HytaleServer.jar \
         --exclude=./Server/HytaleServer.aot.config --exclude=./Server/Licenses \
         --exclude=./Server/logs -cf - . \
-  | incus exec homelab:hytale -- tar -C /var/lib/hytale -xpf -
+  | incus exec homelab:hytale -- sudo tar -C /var/lib/hytale -xpf -
 
 # 3. take ownership: the PVC's files belong to the old image's uid, and this
-#    instance runs as 989
-incus exec homelab:hytale -- chown -R 989:989 /var/lib/hytale
+#    instance runs as 989. sudo, because extracting as root creates root-owned
+#    files and the server then cannot write its own world.
+incus exec homelab:hytale -- sudo chown -R 989:989 /var/lib/hytale
 
 # 4. start again
 incus exec homelab:hytale -- systemctl start hytale
