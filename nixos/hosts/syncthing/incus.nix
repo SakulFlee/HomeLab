@@ -56,6 +56,32 @@ let
   # this hub may be reconciled before that instance is. The device then attaches
   # on a later reconcile and the folder sits "stopped" in the WebUI until the
   # producer also writes its .stfolder marker.
+  #
+  # ^ The sentence above is WRONG about "attaches on a later reconcile", and it
+  # was believed until it cost a silent six hours. apply.sh only rewrites the
+  # device *config*; Incus applies disk devices when the instance STARTS. A
+  # device added to a running instance stays declared and never appears in
+  # /proc/self/mounts, so the path is an ordinary empty directory on the hub's
+  # own root disk -- and a sendonly folder over that is not "stopped", it is
+  # quietly replicating nothing at all.
+  #
+  # Measured, having added minecraft-backups (the second producer) to a hub that
+  # was already running:
+  #
+  #   hub instance started        02:29:37
+  #   minecraft-backups created   02:31:26     <- two minutes too late
+  #   /proc/self/mounts           only paperless-media
+  #
+  # `required = false` is what makes this quiet: a missing volume is a legitimate
+  # ordering state, not an error, so nothing is logged and no unit fails.
+  #
+  # THE RULE: after adding a producer, RESTART the hub --
+  # `incus restart syncthing` -- or the new volume is never replicated. Reconcile
+  # alone is not enough, and the folder will look fine in the WebUI.
+  #
+  # paperless-media only ever worked because the hub happened to be restarted
+  # after its volume existed. Every producer added to a hub that is already up
+  # needs this.
   replicatedDevices = builtins.listToAttrs (builtins.map (name: {
     name = name;
     value = {

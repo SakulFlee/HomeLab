@@ -343,10 +343,57 @@ Three independent copies, deliberately:
    which is redundant on purpose.
 3. **Syncthing** to Dendra -- the off-box copy, archives only.
 
-There is no `backup` storage pool. There used to be one, and it was merged into
-`persistent`: same btrfs driver, same filesystem, no quota, and nothing had ever
-enforced a difference. Retention is declared per volume, not inherited from a
-pool name.
+A verified archive is 3.0 GB and takes ~75s, of which the server is down for the
+duration.
+
+## Adding a producer: restart the hub
+
+The one non-obvious operational step. `replicated-volumes.nix` is enough for the
+*declaration*, but **the hub must be restarted** for a newly added volume to
+actually be mounted:
+
+```bash
+incus restart syncthing
+```
+
+`apply.sh` only rewrites the device config; Incus applies disk devices at
+instance start. A device added to a running hub stays declared and never appears
+in `/proc/self/mounts`, so the path is an empty directory on the hub's own root
+disk. Nothing errors, nothing is logged, and the folder does not even show as
+"stopped" -- it is `sendonly` over an empty directory, replicating nothing.
+
+That is what happened here: the hub started at 02:29:37, `minecraft-backups` was
+created at 02:31:26, and the first archive sat unsynced until a restart. The
+comment in `../syncthing/incus.nix` claimed the device "attaches on a later
+reconcile", which is the belief this corrects.
+
+## The first backup run failed, twice, for the same reason
+
+Worth recording because the diagnosis was wrong both times.
+
+```
+/bin/sh: line 1: gzip: command not found
+tar: Child returned status 127
+tar: ... Wrote only 4096 of 10240 bytes
+```
+
+`tar -czf` does not compress internally -- it execs an external `gzip`. The
+unit's `path` listed `gnutar` and not `gzip`, so the archive failed in under two
+seconds and left a 0-byte `.tmp`.
+
+The first occurrence was read as "the container recreate killed the tar
+mid-flight", which is why the trap and the recreate got credit for the survival
+and the gzip omission went unnoticed. It was not that: the tar had failed
+instantly, and a recreate only explains why nobody noticed. The backup had never
+once worked.
+
+Two consequences now handled in the unit: `pkgs.gzip` is on the `path`, and a
+run deletes stale `.tmp` files first. That second part matters because a failed
+tar leaves its `.tmp` **root-owned** (the unit runs as root to stop and start
+the server) inside a `minecraft`-owned directory, so the next run cannot
+overwrite it and the corpse sits there permanently -- silently, since
+`.stignore` keeps it off the peer. The finished archive is chowned to
+`minecraft` for the same reason.
 
 ## Adding a plugin
 
