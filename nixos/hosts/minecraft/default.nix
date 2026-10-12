@@ -105,6 +105,70 @@ let
     "-XX:+DisableExplicitGC"
   ];
 
+  # -------------------------------------------------------------------------
+  # Whitelist and ops
+  # -------------------------------------------------------------------------
+  #
+  # As name -> UUID, because whitelist.json and ops.json are keyed on the
+  # player's UUID and a UUID is not optional. This was found by booting it, not
+  # by reading it: the first version of this file wrote the two lists as arrays
+  # of bare name strings, which is what the k3s chart held them as, and Paper
+  # silently parsed both as EMPTY and then rewrote them to `[]` on startup --
+  # destroying them. The symptom was a server running with `white-list=true` and
+  # an empty whitelist, i.e. one nobody could join, plus no operators.
+  #
+  # The nixpkgs module this file does not use gets the same thing right, and its
+  # option shape is the reason for the format below: `whitelist` there is an
+  # attrsOf of a UUID-matching string, rendered as `{ name, uuid }` objects.
+  #
+  # These UUIDs come from Mojang's public profile API
+  # (api.mojang.com/users/profiles/minecraft/<name>), which is the right source
+  # precisely because this server runs online-mode=true: the UUID has to be the
+  # one the account authenticates with, and for a premium account that is what
+  # Mojang says it is. A cracked/offline player would need a different UUID and
+  # could not be resolved this way at all.
+  #
+  # The rosters themselves are the chart's, verbatim, and they are a starting
+  # point rather than the last word: once the k3s PVC is loaded these two files
+  # come across with it and stop being written here at all (see the repair rule
+  # in minecraft-config.service). Whoever added an operator in-game since has
+  # the authoritative list.
+  whitelist = {
+    SakulFlee = "e1f94c32e1a1450a8e065ab0d0209c29";
+    jendrik12799 = "04678318bc4c4c43be95cd6f7446136b";
+    Lennart116002 = "9da0c24e55ad4005bbcad5443585b4cf";
+    Fisch246 = "23aa287262ba4727bb34fa895ac95170";
+    DarkRune2214 = "8e85b2a7fbe14b54a9c7c6589e21578f";
+    _MinaChan_ = "455539b1b9824fe9966ba37f6a3436ea";
+    Froggy189 = "2c690aa62cc34e68b0ac8e245d297c6f";
+  };
+
+  ops = {
+    SakulFlee = "e1f94c32e1a1450a8e065ab0d0209c29";
+    jendrik12799 = "04678318bc4c4c43be95cd6f7446136b";
+  };
+
+  # Rendered here rather than assembled in the unit's shell, so the JSON is a
+  # build product and cannot be malformed by quoting. Same approach the nixpkgs
+  # module takes with pkgs.writeText.
+  #
+  # `level: 4` is the vanilla operator level and `bypassesPlayerLimit: false`
+  # is what Paper writes for an ordinary op; both are part of the ops.json entry
+  # shape, and omitting them is not the same as leaving them at a default.
+  whitelistJson = pkgs.writeText "whitelist.json" (
+    builtins.toJSON (lib.mapAttrsToList (name: uuid: { inherit name uuid; }) whitelist)
+  );
+
+  opsJson = pkgs.writeText "ops.json" (
+    builtins.toJSON (
+      lib.mapAttrsToList (name: uuid: {
+        inherit name uuid;
+        level = 4;
+        bypassesPlayerLimit = false;
+      }) ops
+    )
+  );
+
   # Where the backups go, and how many to keep. 14 archives is two weeks of
   # dailies, which is the window in which somebody notices a bad world edit.
   #
@@ -369,24 +433,35 @@ in
 
       # -- whitelist and ops ----------------------------------------------------
       #
-      # JSON arrays, written only when missing, from the chart's `whitelist` and
-      # `ops`. A migrated volume already carries both files with whatever the
-      # live server has been doing since, which is the authoritative version.
+      # Written when MISSING **or unusable**, and that second condition is the
+      # whole subtlety. "Missing" alone was the first version's rule, and it is
+      # not enough: Paper owns these two files at runtime and rewrites them when
+      # it loads a list it could not parse, so a malformed file does not stay
+      # malformed -- it gets replaced with `[]`, which then counts as present and
+      # would never be repaired. That is precisely the state this unit created on
+      # its first run, and `[]` is not a whitelist anybody wants on a server with
+      # `white-list=true`.
       #
-      # Note that `ops` is NOT a server.properties key and never was: it is this
-      # file, which is the concrete reason this could not be services.minecraft-server's
-      # `ops`-shaped option.
-      if [ ! -f whitelist.json ]; then
-        jq -n --args '$ARGS.positional' \
-          "SakulFlee" "jendrik12799" "Lennart116002" "Fisch246" \
-          "DarkRune2214" "_MinaChan_" "Froggy189" > whitelist.json
-        echo "wrote whitelist.json from the k3s chart's list"
+      # So: repair an absent or empty list, preserve a populated one. That gives
+      # a fresh volume a working roster, gives a migrated volume the live
+      # server's own roster untouched, and repairs the destroy-on-first-boot case
+      # -- without ever clobbering an operator somebody added in-game, which is
+      # the thing a blanket "always overwrite" would throw away.
+      #
+      # `ops` is NOT a server.properties key and never was: it is this file,
+      # which is the concrete reason this could not have been an option.
+      if jq -e 'type == "array" and length > 0' whitelist.json >/dev/null 2>&1; then
+        echo "whitelist.json is populated; leaving it alone"
+      else
+        install -m 0644 ${whitelistJson} whitelist.json
+        echo "wrote whitelist.json ($(jq -r 'length' whitelist.json) players)"
       fi
 
-      if [ ! -f ops.json ]; then
-        jq -n --args '$ARGS.positional' \
-          "SakulFlee" "jendrik12799" > ops.json
-        echo "wrote ops.json from the k3s chart's list"
+      if jq -e 'type == "array" and length > 0' ops.json >/dev/null 2>&1; then
+        echo "ops.json is populated; leaving it alone"
+      else
+        install -m 0644 ${opsJson} ops.json
+        echo "wrote ops.json ($(jq -r 'length' ops.json) operators)"
       fi
 
       # -- the replication marker ----------------------------------------------

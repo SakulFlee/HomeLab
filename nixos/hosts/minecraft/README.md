@@ -136,21 +136,38 @@ whitelist, server properties), excluding `./backups` itself. An archive of
 | EULA | `eula: 'TRUE'` | `eula.txt`, written by `minecraft-config` |
 | difficulty | `normal` | `server.properties`, **only if absent** |
 | motd | `Conduit Network @ SakulFlee` | `server.properties`, **only if absent** |
-| whitelist | 7 names | `whitelist.json`, **only if absent** |
-| ops | 2 names | `ops.json`, **only if absent** |
+| whitelist | 7 names | `whitelist.json` as name+UUID, repaired if absent or empty |
+| ops | 2 names | `ops.json` as name+UUID+level, repaired if absent or empty |
 | plugins | Portalis, WorldEdit, WorldEditSUI | same three URLs, same versions |
 | memory | limit 2048Mi, request 512Mi | `-Xmx2G` inside a 3GiB limit |
 | port | Traefik `minecraft` entrypoint | `incus network forward` 25565/tcp |
 | autoscaling | mc-router, `replicaCount: 0` | none -- always running |
 | backups | none | daily archive, replicated |
 
-**"Only if absent" is the important column.** The k3s PVC is the authority for
-this server's real configuration, not the values it was created with. Six weeks
-of play will have drifted from the chart -- level seed, pvp, spawn-npcs, the
-world border, the operator list, whatever somebody set in-game. So a migrated
-volume keeps every one of those files untouched and `minecraft-config.service`
-only fills in what a brand new volume is missing. On a migrated volume it
-becomes a no-op, which is the intended end state.
+**The k3s PVC is the authority for this server's real configuration**, not the
+values it was created with. Six weeks of play will have drifted from the chart --
+level seed, pvp, spawn-npcs, the world border, the operator list, whatever
+somebody set in-game. So a migrated volume keeps every one of those files
+untouched and `minecraft-config.service` only fills in what is missing.
+
+### The whitelist/ops UUID trap
+
+These two files are keyed on the player's **UUID**, and a UUID is not optional.
+The chart held them as arrays of bare name strings; Paper parses that as an
+*empty* list and then rewrites the file to `[]` on startup, destroying it. The
+first boot of this instance did exactly that: a running server with
+`white-list=true`, an empty whitelist (so nobody could join) and no operators.
+
+So the entries are `{name, uuid}` objects, with the UUIDs taken from Mojang's
+public profile API -- which is the right source because the server is
+`online-mode=true`, so the UUID has to be the one the account authenticates
+with. A cracked account could not be resolved this way at all.
+
+The unit repairs these files when they are **missing or empty** and leaves a
+populated one alone. "Missing" alone would not have been enough: Paper's rewrite
+turns a malformed file into `[]`, which then counts as present and would never be
+repaired. This way a fresh volume gets a working roster, a migrated volume keeps
+the live server's own roster, and an operator added in-game is never clobbered.
 
 ### mc-router is not being ported
 
