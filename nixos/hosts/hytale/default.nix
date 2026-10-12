@@ -206,10 +206,27 @@ in
   #
   # No home directory: there is nothing to put in it, and `hytale-dirs` below
   # owns every directory the service writes to.
+  #
+  # The shell is bash, NOT the nologin NixOS gives a system user by default, and
+  # that is load-bearing rather than cosmetic. tmux runs a session's command
+  # through the user's LOGIN SHELL -- `$SHELL -c '<command>'` -- so a nologin
+  # shell makes every session die the instant it is created:
+  #
+  #   nologin[1040]: Attempted login by UNKNOWN (UID: 989) on /dev/pts/1
+  #   hytale.service: Main process exited, code=exited, status=1/FAILURE
+  #
+  # in a 15-second loop, with the real cause nowhere in the unit's own output.
+  # Found by deploying it, not by reading it.
+  #
+  # A real shell on a passwordless, SSH-less system account is not a login
+  # surface: the account has no password, services.openssh is off, and nothing
+  # forwards port 22. It is only here because a supervisor needs somewhere to
+  # run a command from.
   users.users.hytale = {
     isSystemUser = true;
     group = "hytale";
     uid = 989;
+    shell = pkgs.bash;
     description = "Hytale dedicated server";
   };
   users.groups.hytale.gid = 989;
