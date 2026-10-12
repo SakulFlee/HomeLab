@@ -283,16 +283,29 @@ the instance must already be on 26.3 **before** any of this. Paper will not go
 backwards, and a 1.21.11 server handed this world is a failed load, not a
 warning.
 
-Do it with the server stopped, so nothing writes while the copy runs:
+Do it with the server stopped, so nothing writes while the copy runs.
+
+**Use a tar stream, not rsync.** rsync is not in this image, and finding that
+out costs a silent half-copied world:
 
 ```bash
-# 1. stop the service, not the container -- the volume stays attached
-incus exec minecraft -- systemctl stop minecraft minecraft-fetch minecraft-config
+SRC=/var/lib/rancher/k3s/storage/backup/pvc-86e9f252-7983-4972-a93c-29ef9b6c3432_minecraft_datadir-minecraft-0
 
-# 2. copy the world and its config over the data volume, excluding our backups
-incus exec minecraft -- rsync -aHAX --delete \
-  --exclude='/backups' \
-  /var/lib/rancher/k3s/storage/backup/pvc-86e9f252-.../  /var/lib/minecraft/
+# 1. stop the service, not the container -- the volume stays attached
+incus exec minecraft -- systemctl stop minecraft
+
+# 2. stream the world and its config onto the volume
+#
+#    The four --exclude are load-bearing, and their absence is worse than it
+#    looks: they keep the PRODUCER's server.jar / versions / cache / libraries
+#    out of the destination. Those belong to minecraft-fetch, and copying them
+#    silently downgrades the server -- a PVC from a 26.1.2 deployment overwrites
+#    the 26.3 jar, and the result boots and *serves* while refusing its own
+#    chunks ("Server attempted to load chunk saved with newer version of
+#    minecraft! 4903 > 4790"). That happened here.
+tar -C "$SRC" --exclude=./server.jar --exclude=./versions \
+        --exclude=./cache --exclude=./libraries -cf - . \
+  | incus exec minecraft -- tar -C /var/lib/minecraft -xpf -
 
 # 3. take ownership: the PVC's files belong to the k3s image's uid, and this
 #    instance's service runs as 988
@@ -302,30 +315,55 @@ incus exec minecraft -- chown -R 988:988 /var/lib/minecraft
 incus exec minecraft -- systemctl start minecraft
 ```
 
+If the PVC is not readable as your user -- `/var/lib/rancher/k3s/storage` is
+`drwx------ root` -- take a tarball of it first and extract that instead. Same
+excludes:
+
+```bash
+tar -czf /home/you/minecraft.tar.gz -C \
+  /var/lib/rancher/k3s/storage/backup \
+  pvc-86e9f252-7983-4972-a93c-29ef9b6c3432_minecraft_datadir-minecraft-0
+tar -xzf ~/minecraft.tar.gz -C /var/tmp          # no sudo: /var/tmp is 1777
+```
+
+`incus exec` needs no sudo, and neither does the extraction -- `/var/tmp` is
+world-writable, so the archive being root-owned inside does not matter. Only
+reading the PVC itself does.
+
 Notes:
 
-- **Bind the data volume into a scratch container** rather than reaching into
-  `/var/lib/rancher` from inside `minecraft`, or copy on the host. Paperless did
-  this with a loader container for the same reason.
-- `--delete` matters: the volume currently holds a **1.21.11 world that Paper
-  generated on first boot**, and leaving it in place next to the 26.x world would
-  be worse than either. The volume is snapshotted `@daily`/`7d`, so that
-  generated world is recoverable if it turns out to matter (it does not).
+- **Stop before copying.** The server writes the world continuously; copying into
+  a live data directory is how you get a torn world.
+- **Stream rather than stage.** A 4.4 GB world staged in `/var/tmp` and then
+  copied needs the space twice. The stream above needs it once, and leaves
+  nothing behind.
+- **Wipe the generated world first.** Before the load this volume holds a world
+  Paper generated on its own first boot. `rm -rf` it, or you keep whichever
+  `level.dat` wins. The volume is snapshotted `@daily`/`7d`, so the generated
+  world is recoverable if it turns out to matter (it does not).
 - **`server.properties` comes across from the PVC**, including
   `max-world-size=29999984` and `level-seed=`. That is the intent -- the live
   server's settings are authoritative and `minecraft-config.service` leaves an
-  existing file alone. The world border in `world/data/` travels with the world.
+  existing file alone. The world border travels with the world in
+  `world/dimensions/minecraft/overworld/data/minecraft/world_border.dat`.
+- **The whitelist and ops lists come across too**, which is what you want: they
+  are the live rosters, and `minecraft-config.service` leaves a populated file
+  alone. Worth diffing them against the lists in `default.nix` afterwards -- that
+  is how `zero_MB` was found, a whitelisted player in no chart value.
 - Step 3 is why the uid is pinned in `default.nix` -- the target is a known
-  number rather than whatever NixOS allocated.
-- The plugin **jars** need not be copied: `minecraft-fetch.service` re-downloads
-  them. The plugin **configs** under `plugins/*/` are part of the world and do
-  come across.
-- After the load, `minecraft-config.service` becomes a no-op and will keep
-  whatever the live server had.
+  number rather than whatever NixOS allocated. The source files arrive owned by
+  the k3s image's uid (2000 in the tarball), so without this the server cannot
+  write its own world.
+- Plugin **jars** are re-downloaded by `minecraft-fetch.service`; plugin
+  **configs** under `plugins/*/` are world data and do come across.
 - Check the version pin *before* this step. Paper upgrades a world forward but
   never backwards.
-- The first boot after the load is the real test: the log states the world it
-  found and the version it is running.
+- **Verify the version in the log afterwards**, not just that the server started:
+
+  ```
+  Starting minecraft server version 26.3
+  Server attempted to load chunk saved with newer version of minecraft!   <- must be absent
+  ```
 
 Once this is done and verified, the k3s manifests (`apps/minecraft/`,
 `clusters/homelab/apps/minecraft.yaml`) and the `minecraft` entrypoint in
@@ -395,8 +433,21 @@ overwrite it and the corpse sits there permanently -- silently, since
 `.stignore` keeps it off the peer. The finished archive is chowned to
 `minecraft` for the same reason.
 
-## Adding a plugin
+## Verified end state
 
-`pluginUrls` in `default.nix` -- append the Hangar URL, reconcile, and the jar is
-fetched on first boot. It is not overwritten if already present, so a version
-bump means deleting the old jar from `plugins/` as well.
+For anyone auditing this later, this is what "working" looked like once the
+migration was finished:
+
+```
+Paper 26.3-175 (build 175), started by systemd, 2 CPU / 3GiB
+world/            4.4G, 2212 files, 26.x dimensions/ layout
+whitelist.json    8 players, dashed UUIDs
+ops.json          2 operators
+plugins/          WorldEdit 7.4.6-beta-02, WorldEditSUI 1.8.0, portalis 1.0
+backups/          3.0G archive, ~75s, verified to contain level.dat,
+                  server.properties, whitelist.json, ops.json and the jars
+syncthing         sendonly -> Dendra, mounted ro after a hub restart
+forward           192.168.178.200:25565/tcp -> 10.0.0.115:25565
+```
+
+`zero` errors in the server log across a full day of running on 26.3.
