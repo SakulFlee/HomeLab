@@ -231,6 +231,18 @@ in
   # the downloader otherwise phones home on every invocation to announce a newer
   # version of itself, which is a network round trip on an interactive command
   # that is about to do a multi-gigabyte download anyway.
+  #
+  # `${downloaderUrl}` in braces, never `$downloaderUrl` bare, and this is the
+  # same trap hosts/minecraft/default.nix documents for `paperApi`: Nix does not
+  # interpolate a bare `$name` inside an indented ''…'' string, so it lands in
+  # the script verbatim and arrives in the shell as an unset variable. With
+  # `set -u` the unit dies on the *first* one, before a single byte is fetched:
+  #
+  #   hytale-downloader-start: line 13: downloaderUrl: unbound variable
+  #
+  # which names neither the URL nor the download. Every Nix value in every
+  # script in this file is braced for that reason, including the ones that look
+  # like shell variables. Cost one deploy to find out.
   systemd.services.hytale-downloader = {
     description = "Fetch the Hytale downloader";
     wantedBy = [ "multi-user.target" ];
@@ -260,8 +272,8 @@ in
         exit 0
       fi
 
-      echo "fetching $downloaderUrl"
-      curl -fsSL --retry 3 --retry-delay 2 -o downloader.zip "$downloaderUrl"
+      echo "fetching ${downloaderUrl}"
+      curl -fsSL --retry 3 --retry-delay 2 -o downloader.zip "${downloaderUrl}"
 
       # Extract only the file this platform needs. The archive also carries a
       # Windows .exe, and taking the first zip member blindly is how the wrong
