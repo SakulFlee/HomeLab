@@ -651,6 +651,19 @@ in
       pkgs.coreutils
       pkgs.findutils
       pkgs.gnutar
+      # gzip is NOT implied by gnutar, and its absence is silent until the
+      # archive runs. `tar -czf` does not compress internally: it execs an
+      # external `gzip`, and this list IS the unit's PATH, so without this line
+      # the first real run failed with
+      #
+      #   /bin/sh: line 1: gzip: command not found
+      #   tar: Child returned status 127
+      #   ... Wrote only 4096 of 10240 bytes
+      #
+      # leaving a 0-byte .tmp and no archive. Found by running it, twice: the
+      # first occurrence was misread as a deploy killing the tar mid-flight,
+      # when in fact it had failed instantly for this reason both times.
+      pkgs.gzip
       pkgs.systemd
     ];
     serviceConfig = {
@@ -672,6 +685,13 @@ in
       backups=$data/backups
       stamp=$(date -u +%Y%m%dT%H%M%SZ)
       archive=minecraft-$stamp.tar.gz
+
+      # Clear any archive a previous run left half-written. A failed tar leaves
+      # its .tmp behind, and that is not cosmetic: it is root-owned inside a
+      # minecraft-owned directory, so the next run cannot overwrite it and the
+      # dead file sits there forever. The .stignore means Syncthing ignores it,
+      # so it costs nothing off-box -- it just misreports what is backed up.
+      find "$backups" -maxdepth 1 -type f -name '*.tmp' -print -delete
 
       # If the server is up, stop it for the duration. If it is already down --
       # deliberately, or because it crashed -- the world on disk is quiescent
@@ -715,6 +735,13 @@ in
         .
 
       mv "$backups/$archive.tmp" "$backups/$archive"
+
+      # This unit runs as root -- it has to stop and start minecraft.service --
+      # so the archive lands root-owned inside a minecraft-owned directory.
+      # Hand it back, so the volume has one owner and a later run by either uid
+      # can replace its own output.
+      chown minecraft:minecraft "$backups/$archive"
+
       echo "wrote $backups/$archive ($(du -h "$backups/$archive" | cut -f1))"
 
       # Local retention only. A sendonly folder never applies a remote deletion,
