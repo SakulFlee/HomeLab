@@ -214,19 +214,47 @@ reason the two halves are worth doing separately.
 ### Getting the server files
 
 There is no anonymous download. The payload comes from Hypixel's own downloader
-through an OAuth device-code flow, once, by hand:
+through an OAuth device-code flow, once, by hand.
+
+**Prefer the unit.** It does the whole thing unattended and is the only form
+that ends with the layout verified:
+
+```bash
+incus exec homelab:hytale -- sudo systemctl start hytale-download
+```
+
+The credentials it needs are created by that same run, so it works on a volume
+that has never seen the account. Subsequent runs are fully unattended, which is
+the point: the device code is only ever needed once.
+
+Running the binary by hand is the better shape for that *first* run, because the
+device-code output is easier to follow in a terminal:
 
 ```bash
 incus exec homelab:hytale -- sudo -u hytale \
   /var/lib/hytale/hytale-downloader-linux-amd64 \
-  -credentials-path /var/lib/hytale-secrets/.hytale-downloader-credentials.json
+  -credentials-path /var/lib/hytale-secrets/.hytale-downloader-credentials.json \
+  -download-path /var/lib/hytale/game.zip
 ```
 
-It prints a URL and a code; authorise in a browser and it pulls ~3.5 GB. After
-that the credentials refresh themselves and the downloader can be re-run
-unattended forever, which is what `hytale-download.service` does.
+It prints a URL and a code; authorise in a browser and it pulls ~4 GB. After
+that the credentials refresh themselves and every later run is unattended.
 
-Two details worth knowing before that first run:
+**`-download-path` is not optional when you run it by hand**, and that is a real
+trap rather than a style point. Left off, the downloader writes
+`<version>.zip` into the **current directory** -- and `incus exec` starts in `/`,
+so the first attempt here died with
+
+```
+downloading latest ("release" patchline) to "0.7.0.zip"
+error downloading: could not create file: open 0.7.0.zip: permission denied
+```
+
+after a successful authorisation, because `hytale` cannot write to the
+container's root. Passing `-download-path` (or `systemd-run`/the unit, which set
+`WorkingDirectory`) avoids it.
+
+Two more details:
 
 - **It writes a zip and does not extract it**, despite `-download-path` and
   despite upstream's docs implying the CLI "sets up this layout automatically".
@@ -392,8 +420,25 @@ deployment:
 - that the server has no RCON/HTTP admin/query channel
 - that `.machine-id` sits at the volume root and `auth.key` does not exist
 
-**Not yet verified**: that the downloader produces the layout this instance
-expects (the first `hytale-download.service` run asserts it), whether
-`.machine-id` + `auth.enc` are in fact portable as a pair (the fallback is
-`/auth login device`), and whether `--backup-frequency 1440` produces exactly
-one archive per day on a server that is restarted more often than that.
+Verified on the deployed instance:
+
+- the downloader produces exactly the layout this instance expects --
+  `hytale-download.service` asserted `Server/HytaleServer.jar` and `Assets.zip`
+  after extracting, and the server booted on the result
+- `-credentials-path` really does keep the token off `hytale-data`: the file
+  appeared at `/var/lib/hytale-secrets/.hytale-downloader-credentials.json`,
+  mode `0600 hytale:hytale`, on its own unsnapshotted volume
+- the server listens on `0.0.0.0:5520/udp` and the `networkForward` DNAT is in
+  place alongside every other instance's forward on `192.168.178.200`
+- the Syncthing hub mounts `hytale-backups` read-only **only after
+  `incus restart syncthing`** -- before that the device was declared and
+  `/proc/self/mounts` had two replicated mounts, not three
+- the AOT flag is correctly omitted: the payload ships `HytaleServer.aot.config`
+  and no `HytaleServer.aot`, so `-XX:AOTCache=HytaleServer.aot` names a path
+  that does not exist
+
+**Not yet verified**: whether `.machine-id` + `auth.enc` are in fact portable as
+a pair (a fresh volume logs `No server tokens configured. Use /auth login to
+authenticate.`, and the fallback is `/auth login device`), and whether
+`--backup-frequency 1440` produces exactly one archive per day on a server that
+is restarted more often than that.
