@@ -388,19 +388,16 @@ Notes:
   credential store is `auth.enc` alone. Both are inside the tar above
   (`--exclude` does not touch either), which is why the excludes are worth
   reading as a list rather than skimmed.
-- **`.machine-id` is telemetry, not a key.** It is worth stating separately
-  because this file previously claimed the opposite. HytaleContainer's
-  `entrypoint.sh` generates it on first boot and then does
+- **The machine-id is the key, via `HardwareUtil` -- see "How this got
+  backwards twice" below.** HytaleContainer's `entrypoint.sh` generates
+  `/opt/hytale/.machine-id` on first boot and then does
   `cat /opt/hytale/.machine-id | tee /etc/machine-id` on every start, so the
   volume-root file is the source of truth and `/etc/machine-id` is derived from
-  it. Grepping the whole 0.7.0 jar for the literal `machine-id` returns exactly
-  one class, `com/hypixel/hytale/common/util/HardwareUtil`, and it reads
-  `/etc/machine-id` (plus `/var/lib/dbus/machine-id` and
-  `/sys/class/dmi/id/product_uuid`) to build a hardware UUID which
-  `TelemetryDataCollector.generateMachineIdHash` SHA-256s into a `machineIdHash`
-  packet field. Nothing reads `/opt/hytale/.machine-id`. It has no relationship
-  to `auth.enc`, and reading the two files' co-location on the volume as intent
-  was inference dressed up as a finding.
+  it. **That `tee` is not cosmetic and not only telemetry**: `/etc/machine-id` is
+  what `EncryptedAuthCredentialStore` derives the `auth.enc` key from, by way of
+  `HardwareUtil.getUUID()`. Copying `auth.enc` across without also pinning
+  `/etc/machine-id` to the id it was encrypted under is why the migrated store
+  never opened.
 - **They did not actually work, and this is the part worth knowing.** The copy
   was byte-perfect -- `auth.enc` arrived at 1407 bytes with its mtime preserved
   -- and the server still logged:
@@ -530,9 +527,11 @@ deployment:
   other and compression is not a reason to prefer a hand-rolled tar
 - that the server has no RCON/HTTP admin/query channel
 - that `.machine-id` sits at the volume root and `auth.key` does not exist
-- that `HardwareUtil` reads `/etc/machine-id` for a telemetry `machineIdHash` and
-  nothing reads `/opt/hytale/.machine-id`, so the two files' co-location is not
-  a key relationship
+- that `HardwareUtil.getUUID()` reads `/etc/machine-id` and serves two callers:
+  `TelemetryDataCollector.generateMachineIdHash` for the telemetry packet, and
+  `EncryptedAuthCredentialStore.resolvePassphrases` for the PBKDF2 key that
+  protects `auth.enc`. The auth package contains no literal `machine-id`, so a
+  grep for one alone will not find this
 
 Verified on the deployed instance:
 
@@ -556,25 +555,68 @@ Verified on the deployed instance:
 - `--backup-frequency 1440` logs `Scheduled backup to run every 1440 minute(s)`
   and produces **no archive** over the following quarter of an hour, which is
   what established that the initial delay is the period rather than zero
-- `.machine-id` + `auth.enc` copy intact across instances and versions but do
-  **not** authenticate 0.7.0; `/auth login device` is required. `.machine-id` is
-  in no position to help -- it feeds a telemetry hash and nothing else
-- the auth tokens in `auth.enc` are the part that does not survive a restart:
-  the 00:20 run logged `Token refresh scheduled in 3300 seconds`, and a later
-  outage spanning that refresh produced `No server tokens configured` on the next
-  boot with `auth.enc` still intact at 1407 bytes. The window is ~55 minutes
-- Incus gives every instance a distinct `/etc/machine-id` already (the host is
-  `563da553...`, minecraft `088fec56...`), so the identity problem
-  `entrypoint.sh` solves in Docker -- containers inheriting the host's
-  machine-id -- does not exist here
-- **the machine-id is deliberately NOT pinned**, even though pinning it works.
-  `/var/lib/hytale/.machine-id` is carried from k3s and nothing reads it.
-  Pinning it to `/etc/machine-id` was implemented and deployed, and it costs
-  the journal: `journalctl` resolves its search path from `/etc/machine-id`,
-  while journald has already written the boot under `/var/log/journal/<id-at-
-  boot>/`, so after the pin every `journalctl` returns `No journal files were
-  found.` Measured both ways on the same boot with nothing else changed. A
-  telemetry hash is not worth making the instance undiagnosable.
+- `.machine-id` + `auth.enc` copied intact across instances and versions but did
+  **not** authenticate 0.7.0. The volume-root `.machine-id` was never the
+  relevant file; `/etc/machine-id` is, and it was not migrated. `/auth login
+  device` was required, and the real diagnosis is below.
+- **`auth.enc` is encrypted with a key derived from the machine id**, so it does
+  not survive a recreate. This is the actual cause of the recurring
+  re-authentication, and it was misdiagnosed twice before being pinned down:
+
+  ```java
+  EncryptedAuthCredentialStore.resolvePassphrases(Path)
+    -> com/hypixel/hytale/common/util/HardwareUtil.getUUID()
+    -> PBKDF2WithHmacSHA256 -> SecretKey
+  ```
+
+  On Linux `HardwareUtil.getUUID()` reads `/etc/machine-id`, so Incus handing
+  out a fresh id per recreate makes every previously written `auth.enc`
+  undecryptable:
+
+  ```
+  [EncryptedAuthCredentialStore] Failed to decrypt credentials from auth.enc
+  ```
+
+  It is **not** a token-expiry problem. `Token refresh scheduled in 3300
+  seconds` is real but irrelevant; the store fails to open at all.
+
+  Proven rather than inferred: `/etc/machine-id` was set back to the value in
+  effect when `/auth login device` last ran, the server restarted, and the log
+  said `Authentication successful! Mode: OAUTH_STORE` -- same `auth.enc`, same
+  1407 bytes, no browser.
+
+- **`/etc/machine-id` is therefore pinned** to `/var/lib/hytale/.machine-id`,
+  which lives on `hytale-data`. One final `/auth login device` is needed to
+  re-key the store to the pinned id; after that, deploys stop costing a browser.
+- **Pinning costs nothing, provided the journal is redirected with it.**
+  `journalctl` resolves its search path from `/etc/machine-id`, and journald has
+  already written the boot under `/var/log/journal/<id-at-boot>/`, so a bare pin
+  makes every query return `No journal files were found.` `hytale-dirs` points
+  `/var/log/journal/<pinned-id>` at the boot-time directory as a symlink, before
+  changing the id, and warns on stderr if that directory is missing rather than
+  skipping silently.
+
+### How this got backwards twice, since the wrong answers are the useful part
+
+1. **"`.machine-id` and `auth.enc` travel together."** Right conclusion, wrong
+   file: it pointed at `/opt/hytale/.machine-id`, the volume-root file that
+   HytaleContainer's `entrypoint.sh` generates. That file is indeed copied to
+   `/etc/machine-id` on every start -- it is a real Docker-era workaround, just
+   for telemetry.
+2. **"No, it is telemetry only."** Grepping the whole jar for the literal
+   `machine-id` returns exactly one class, `HardwareUtil`, and its output feeds
+   `TelemetryDataCollector.generateMachineIdHash`. Correct grep, wrong
+   conclusion: the string never appears in the auth package, because it calls
+   `HardwareUtil.getUUID()` and inherits the path from there. `HardwareUtil`
+   serves both purposes.
+3. **"So it is telemetry, and pinning it costs the journal."** The cost was
+   real and measured. What was missing is that the cost is avoidable -- the
+   journal directory just needs redirecting -- while the benefit, auth
+   surviving deploys, was thrown away with it.
+
+The lesson worth keeping: a literal grep is good evidence that a string is
+absent and poor evidence that a behaviour is. And a measured cost is a reason to
+look for a way around it, not automatically a reason to drop the benefit.
 
 **Verified on the deployed server, the last unproven link:**
 

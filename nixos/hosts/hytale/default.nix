@@ -309,69 +309,115 @@ in
       # "stopped" in the WebUI and nothing is ever replicated.
       mkdir -p /var/lib/hytale/Server/backups/.stfolder
 
-      # -- the machine id: DELIBERATELY NOT PINNED ---------------------------
+      # -- the machine id -----------------------------------------------------
       #
-      # HytaleContainer's entrypoint.sh generates an id on first boot and then
-      # derives /etc/machine-id from it on every start:
+      # /etc/machine-id is pinned to the copy on hytale-data, and it is
+      # load-bearing in a way that took three wrong answers to establish.
       #
-      #   if [ ! -f /opt/hytale/.machine-id ]; then
-      #     cat /proc/sys/kernel/random/uuid | tr -d '-' > /opt/hytale/.machine-id
-      #   fi
-      #   cat /opt/hytale/.machine-id | tee /etc/machine-id
+      # WHAT IT IS FOR. `auth.enc` is encrypted with a key derived from the
+      # machine's hardware UUID. On Linux that UUID comes from /etc/machine-id,
+      # and the code path is:
       #
-      # So the volume-root file is the source of truth and /etc/machine-id is
-      # derived. Nothing in the server reads the former -- grepping the whole
-      # 0.7.0 jar for the literal "machine-id" returns exactly one class,
-      # com/hypixel/hytale/common/util/HardwareUtil, and it reads
-      # /etc/machine-id (plus /var/lib/dbus/machine-id and
-      # /sys/class/dmi/id/product_uuid) to build a hardware UUID that
-      # TelemetryDataCollector.generateMachineIdHash SHA-256s into a machineIdHash
-      # packet field. It is telemetry, not a key, and it has nothing to do with
-      # auth.enc.
+      #   EncryptedAuthCredentialStore.resolvePassphrases(Path)
+      #     -> com/hypixel/hytale/common/util/HardwareUtil.getUUID()
+      #     -> PBKDF2WithHmacSHA256 -> SecretKey
       #
-      # It exists in Docker because a container inherits its host's
-      # /etc/machine-id, so every container on the box would report the same
-      # machine. Incus does not have that problem -- each instance gets its own,
-      # and they were checked: the host is 563da553..., minecraft 088fec56...,
-      # this instance 4a10f23c... So the UNIQUENESS the entrypoint buys is
-      # already free here.
+      # EncryptedAuthCredentialStore.class references HardwareUtil directly. So
+      # change /etc/machine-id and auth.enc stops decrypting:
       #
-      # The only thing left to buy is STABILITY: /etc/machine-id lives on the
-      # instance ROOT filesystem, which apply.sh replaces on every image change,
-      # so Incus's id survives a restart and changes on every recreate. Pinning
-      # it to the copy on hytale-data would make the identity survive deploys.
+      #   [EncryptedAuthCredentialStore] Failed to decrypt credentials from
+      #     auth.enc - file may be corrupted
       #
-      # That was implemented, deployed, and then removed, because pinning it
-      # costs the journal:
+      # /etc/machine-id is mode 0444 on the instance ROOT filesystem, which
+      # apply.sh replaces on every image change, and Incus generates a fresh one
+      # each time. Unpinned, EVERY recreate therefore costs a device-code login:
+      # someone opens a browser, prints an authorisation code, and types it into
+      # a console. That is not theoretical -- it happened three times in one
+      # session, and it is the reason the deploys felt dangerous.
       #
-      #   journalctl resolves its search path from /etc/machine-id, and journald
-      #   had already written this boot's log to /var/log/journal/<boot-id>/.
-      #   Change the id and journalctl looks in a directory that does not exist:
+      # Proven rather than argued: the id was set back to the value in effect
+      # when /auth login device last ran, the server was restarted, and the log
+      # said
       #
-      #     No journal files were found.
-      #     -- No entries --
+      #   Authentication successful! Mode: OAUTH_STORE
+      #   Token refresh scheduled in 3300 seconds
       #
-      # Measured both ways on the deployed instance, same boot, nothing else
-      # changed: with the boot-time id in /etc/machine-id, `journalctl -n 1`
-      # returned a line; with the pinned id, the same command found nothing. It
-      # takes `journalctl --directory=` to read the log at all.
+      # with no browser involved. Same auth.enc, same 1407 bytes, different
+      # machine-id.
       #
-      # So the trade is a telemetry hash against the ability to read the game
-      # server's log -- and the log is what the pipe-pane plumbing below exists
-      # to deliver. A cosmetic identity is not worth making the instance
-      # undiagnosable, so the id is left exactly as Incus set it and
-      # /var/lib/hytale/.machine-id is carried but unread. Nothing depends on
-      # that file; it is kept only so the identity that came across from k3s is
-      # not lost, and a future change can use it if the journal problem is ever
-      # solved properly (pinning before journald starts, not after).
+      # A NOTE ON GETTING HERE, because the file's history says the opposite
+      # twice. It was first claimed that .machine-id and auth.enc "travel
+      # together" -- right conclusion, wrong file. It was then "corrected" to
+      # telemetry-only, on the grounds that grepping the jar for the literal
+      # "machine-id" returns exactly one class, HardwareUtil, and that its
+      # output feeds TelemetryDataCollector.generateMachineIdHash. That grep is
+      # correct and the conclusion is still wrong, because the string simply
+      # does not appear in the auth package -- it calls HardwareUtil.getUUID()
+      # and inherits the path from there. HardwareUtil serves BOTH: telemetry
+      # and the credential-store key. Searching for a literal to prove a
+      # negative is how the wrong answer looked like a careful one.
       #
-      # For the record, the first attempt also failed in a way worth not
-      # repeating: `rm -f /etc/machine-id` + `install` returned EBUSY at boot
-      # ("Device or resource busy"), which failed this unit and took hytale
+      # WHY NOT JUST PIN IT AND LIVE WITH IT. Pinning alone breaks journalctl:
+      # journalctl resolves its search path from /etc/machine-id, and journald
+      # has already written this boot under /var/log/journal/<boot-id>/, so
+      # after the pin every query returns
+      #
+      #   No journal files were found.
+      #
+      # That was measured both ways on the same boot before being believed. The
+      # fix is the symlink below rather than a compromise, because the pinned id
+      # is CONSTANT -- the same value every boot -- so one stable name can point
+      # at whichever directory journald is using this time.
+      #
+      # Not pinned before journald starts, which would be the other way to do
+      # this: the image is built once and shared by every instance, so a static
+      # id cannot be baked in.
+      #
+      # Also note `rm -f /etc/machine-id` + `install` fails at boot with EBUSY
+      # ("Device or resource busy"), which fails this unit and takes hytale
       # service down with it, since that unit Requires= this one. /etc/machine-id
       # is NOT a bind mount -- /proc/self/mountinfo does not list it and stat
       # reports a regular file with one link -- and the same rm succeeds seconds
-      # later, so whatever holds it only does so during startup.
+      # later, so whatever holds it only does so during startup. Rewriting the
+      # inode in place does not depend on the unlink and works either way.
+      mid=/var/lib/hytale/.machine-id
+      if [ ! -s "$mid" ]; then
+        echo "no machine id on the volume; generating one"
+        tr -d "-" < /proc/sys/kernel/random/uuid > "$mid"
+      fi
+      pinned=$(tr -d "[:space:]" < "$mid")
+
+      # What journald is using THIS boot, captured before the id changes.
+      boot=$(tr -d "[:space:]" < /etc/machine-id)
+
+      # Give journalctl a path under the id it is about to be asked for. Done
+      # first, so there is no instant where the id is changed and the directory
+      # is missing. rm -rf on a symlink removes the link, not the journal behind
+      # it; and the guard keeps it from pointing a directory at itself on the
+      # boot where the pinned id already happens to be the boot id.
+      if [ "$boot" != "$pinned" ] && [ -d "/var/log/journal/$boot" ]; then
+        rm -rf "/var/log/journal/$pinned"
+        ln -s "/var/log/journal/$boot" "/var/log/journal/$pinned"
+      elif [ "$boot" != "$pinned" ]; then
+        # Loud on purpose. Skipping this silently costs the journal -- the pin
+        # still lands, and every journalctl then returns "No journal files were
+        # found", which reads like an empty log rather than a missing one. The
+        # directory should always exist by now, because journald creates it
+        # before multi-user.target; if it does not, something is wrong upstream
+        # and that is worth a line in the journal of the run that fixed it.
+        echo "WARNING: /var/log/journal/$boot is absent; journalctl will not find this boot's log under the pinned id $pinned" >&2
+      fi
+
+      # In place: touch creates it if absent and only bumps mtime otherwise, so
+      # it cannot truncate before the write. 0444 is restored at the end because
+      # it is the convention systemd sets.
+      touch /etc/machine-id
+      chmod 0644 /etc/machine-id
+      printf '%s\n' "$pinned" > /etc/machine-id
+      chown root:root /etc/machine-id
+      chmod 0444 /etc/machine-id
+
+      echo "machine id: $pinned (boot was $boot)"
     '';
   };
 
