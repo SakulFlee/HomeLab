@@ -365,10 +365,36 @@ in
       fi
       echo "machine id: $(cat "$mid")"
 
-      # Replaced rather than overwritten, because /etc/machine-id is mode 0444 by
-      # convention -- systemd creates it that way so nothing edits it casually.
-      rm -f /etc/machine-id
-      install -m 0444 -o root -g root "$mid" /etc/machine-id
+      # Rewritten in place, never replaced.
+      #
+      # The obvious `rm -f` + `install` is a trap here. At boot the unlink fails:
+      #
+      #   rm: cannot remove '/etc/machine-id': Device or resource busy
+      #   hytale-dirs.service: Main process exited, code=exited, status=1/FAILURE
+      #
+      # and because hytale.service Requires= this unit, that takes the game
+      # server down with it -- the unit that exists to prepare the volume is the
+      # unit that stops the thing using it.
+      #
+      # It is worth being precise about what this is NOT, because the first
+      # guess was wrong. /etc/machine-id is not a bind mount: /proc/self/
+      # mountinfo does not list it and stat reports a regular file with one
+      # link. And the same `rm` succeeds seconds later, once the instance has
+      # finished starting, so the busy window is transient and something holds
+      # it only during startup. Chasing the holder is not worth it here;
+      # truncating and writing the existing inode succeeds in BOTH states, and
+      # that is the only property this line needs.
+      #
+      # touch first, so a system that somehow has no machine-id yet gets one
+      # rather than failing on chmod. It updates the mtime on an existing file
+      # and does not truncate it.
+      touch /etc/machine-id
+      chmod 0644 /etc/machine-id
+      cat "$mid" > /etc/machine-id
+      chown root:root /etc/machine-id
+
+      # 0444 is the convention systemd sets, so nothing edits it casually.
+      chmod 0444 /etc/machine-id
     '';
   };
 
