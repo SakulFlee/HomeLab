@@ -55,12 +55,6 @@ spec:
           default: true
         exposedPort: 25565
         protocol: TCP
-      hytale:
-        port: 5520
-        expose:
-          default: true
-        exposedPort: 5520
-        protocol: UDP
       livekit-tcp:
         port: 7881
         expose:

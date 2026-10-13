@@ -582,9 +582,7 @@ in
     path = [
       pkgs.openjdk25
       pkgs.coreutils
-      pkgs.gnused
       pkgs.tmux
-      pkgs.systemd
     ];
     serviceConfig = {
       Type = "simple";
@@ -680,12 +678,10 @@ in
       # -d because there is no terminal here. -c because WorkingDirectory
       # applies to this script, not to the shell tmux spawns.
       #
-      # -x/-y set a wide pane on purpose. The JVM's stdout goes to the PANE, not
-      # to this unit, and what pipe-pane forwards to the journal below is the
-      # pane's rendered output -- so the pane width is the log's wrap column.
-      # Hytale's startup is full of very long lines (asset warnings dump whole
-      # JSON records), and at the default 80 columns they wrap into unreadable
-      # ladders. 300 costs nothing and removes most of it.
+      # -x/-y set a wide pane so that `tmux capture-pane` is useful when nobody
+      # is attached, which is the normal state: Hytale's startup is full of very
+      # long lines, and at the default 80 columns they wrap into unreadable
+      # ladders. An attaching client overrides the size anyway.
       tmux new-session -d -s "$session" -c /var/lib/hytale/Server \
         -x 300 -y 60 \
         "${lib.getExe' pkgs.openjdk25 "java"} ${javaOpts} $aot \
@@ -698,65 +694,57 @@ in
           --backup-max-count ${toString backupMaxCount} \
           --backup-archive-max-count ${toString backupArchiveMaxCount}"
 
-      # Put the server's output back in the journal.
+      # -- no pipe-pane, because the server already logs itself ----------------
       #
-      # `tmux new-session -d` DETACHES, so the JVM's stdout belongs to the tmux
-      # server rather than to this unit, and systemd never sees a byte of it.
-      # The first deployed version of this file had exactly that, and the
-      # symptom is quiet: the unit reports
+      # tmux is here for the CONSOLE and nothing else. The log does not come from
+      # the unit's stdout and never did: `tmux new-session -d` detaches, so the
+      # JVM's stdout belongs to the tmux server and systemd sees none of it.
       #
-      #   Started Hytale dedicated server.
+      # Two attempts to route it into the journal were made and both are gone.
       #
-      # and `journalctl -u hytale` then shows that line and nothing else, for
-      # the whole life of the server. Nothing errors; the log is simply gone,
-      # and it is gone precisely when you most want it -- reading why the
-      # server is unhappy. Found by deploying it.
+      # The first, `tmux pipe-pane ... | systemd-cat -t hytale`, lost the log
+      # silently: the unit reported "Started Hytale dedicated server" and
+      # `journalctl -u hytale` showed that line and nothing else, for the whole
+      # life of the server. Nothing errors; the log is simply absent, and absent
+      # exactly when you want it -- reading why the server is unhappy.
       #
-      # pipe-pane tees the pane to systemd-cat, so the log is searchable in the
-      # journal again, under the `hytale` syslog identifier:
+      # The second worked and was still wrong, twice over.
       #
-      #   journalctl -t hytale -f
-      #
-      # -o means "from now on", so the handful of lines between new-session and
-      # this call are the only thing not captured, which is nothing.
-      #
-      # The sed and tr are not tidying. pipe-pane forwards what tmux RENDERS, so
-      # the stream carries the pane's control sequences, and journald stores any
-      # field containing one as binary rather than text:
+      # pipe-pane forwards what tmux RENDERS, so the stream carries the pane's
+      # control sequences and journald stores any field containing one as binary:
       #
       #   Oct 13 03:05:14 hytale hytale[584]: [140B blob data]
       #
-      # for every single line, which is a log that exists and cannot be read.
-      # `journalctl -o json` shows what actually arrived:
+      # for every line. A log that exists and cannot be read is barely better
+      # than the missing one. Fixing that meant stripping CSI/OSC with sed and
+      # tr in front of systemd-cat, which worked -- and then systemd-cat died
+      # silently partway through the next idle gap, taking the consumer with it
+      # while tmux still reported `pane_pipe=1`. Nothing logged the death; sed
+      # and tr were still running, writing into a pipe with no reader. So the
+      # arrangement had a single point of failure that reported success while
+      # broken, which is the same failure shape as the unit that would not load,
+      # and as the pin that blinded journalctl. Three today, all mine.
       #
-      #   MESSAGE:[62,32,13,27,91,75,27,91,109,...]
-      #            >  \r  \e [ K  \e [ m ...
+      # What makes all of it unnecessary is that Hytale writes its own log:
       #
-      # so exactly two control bytes are in play across the whole stream, 0x0d
-      # and 0x1b, and both are removable. Measured on 369 real messages lifted
-      # back out of the journal as byte arrays: after this pipeline, zero
-      # control bytes remain and the text is intact.
+      #   Server/logs/2026-10-13_03-12-40_server.log
       #
-      # The sed strips CSI and OSC sequences -- colour, erase-in-line, cursor
-      # moves -- and tr is the net for anything else, including a sequence form
-      # not seen yet. tr alone is not enough and was tried first: it deletes the
-      # ESC and leaves "[K" and "[33m" behind as literal text, which is worse
-      # than no logging because it looks like content.
+      # one file per session, complete, unwrapped, and on hytale-data where the
+      # hourly btrfs snapshots cover it. Verified on the deployed server: the
+      # current session's file is 362 KB and contains Universe ready!, Listening
+      # on /0.0.0.0:5520 and Authentication successful! Mode: OAUTH_DEVICE --
+      # the same content the console shows, without the JLine "> " prompt
+      # prefixes and without the pane's wrap column.
       #
-      # A deliberately simple character class, [\x1b\[[0-9;?]*[a-zA-Z]. The
-      # thorough-looking [\x1b\[[0-9;?]*[ -\/]*[@-~] silently matches nothing:
-      # GNU sed does not treat \/ as an escape inside a bracket expression, so
-      # the class becomes a range from space to BACKSLASH rather than to slash,
-      # and the whole pattern fails to match. Verified against the same real
-      # data rather than trusted.
+      # To read it:
       #
-      # The `> ` prompt prefixes in the result are JLine's, drawn into the pane
-      # before the log line. They are left alone: they are printable, they are
-      # what the console actually shows, and filtering them would be guessing.
-      tmux pipe-pane -o -t "$session" \
-        "${lib.getExe' pkgs.gnused "sed"} -E 's/\x1b\[[0-9;?]*[a-zA-Z]//g; s/\x1b\][^\x07]*\x07//g' \
-        | ${lib.getExe' pkgs.coreutils "tr"} -d '\000-\010\013-\037\177' \
-        | ${lib.getExe' pkgs.systemd "systemd-cat"} -t hytale"
+      #   incus exec homelab:hytale -- \
+      #     tail -F /var/lib/hytale/Server/logs/$(ls -t /var/lib/hytale/Server/logs/*.log | head -1)
+      #
+      # The files are named for the session start, so the newest is the live one.
+      # They are NOT pruned by anything here, unlike archives in backups/ --
+      # Hytale's own retention governs this directory and nothing in this file
+      # touches it.
 
       # Stay in the foreground so systemd tracks the server's lifetime: this
       # loop ends exactly when the tmux session does.

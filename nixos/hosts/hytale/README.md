@@ -2,7 +2,10 @@
 
 A Hytale dedicated server run from the official jar by a systemd unit,
 replacing the k3s deployment in `apps/hytale/` (a Helm chart wrapping a locally
-built container image).
+built container image). **That deployment has been removed** -- along with
+`clusters/homelab/apps/hytale.yaml`, its dead `.sops.yaml` rule and its Traefik
+entrypoint -- once an archive had been produced here *and* confirmed replicated
+off the host. See "Verified" at the bottom for that evidence.
 
 - Address: `10.0.0.116` on `incusbr0`, in the `default` Incus project.
 - Game port: `5520/udp`, forwarded on `192.168.178.200`. **No Caddy vhost** --
@@ -573,7 +576,31 @@ Verified on the deployed instance:
   found.` Measured both ways on the same boot with nothing else changed. A
   telemetry hash is not worth making the instance undiagnosable.
 
-**Not yet verified**: that `tmux send-keys '/backup'` produces an archive, and
-that the daily timer survives a restart in the way the built-in scheduler did
-not. Both are the reason this was staged -- the tmux wrapper landed on its own
-first.
+**Verified on the deployed server, the last unproven link:**
+
+- `systemctl start hytale-backup` works. `tmux send-keys '/backup'` produced
+  `2026-10-13_03-21-26.zip`, 178,282,405 bytes, in 12.2s, with the unit
+  reporting `Result=success`. The server stayed up throughout, which is the
+  whole point of `flushAll()` running before the zip.
+- The archive reaches the hub: byte-identical on syncthing's read-only mount at
+  `/mnt/replicated/hytale-backups`.
+- And it reaches **off the box**, which is what the teardown was waiting on.
+  `replicated-hytale-backups` reports `state: idle`, `localFiles: 1`,
+  `globalFiles: 1`, `globalBytes: 178282405`, `needFiles: 0`, `needBytes: 0`
+  -- synced to the peer with nothing outstanding.
+
+**Verified about logging, after two wrong implementations:**
+
+- The server writes its own per-session log to `Server/logs/`, and it is the
+  complete unwrapped console output. The live session's file was 362 KB and
+  contained `Universe ready!`, `Listening on /0.0.0.0:5520` and
+  `Authentication successful! Mode: OAUTH_DEVICE`.
+- `tmux pipe-pane | systemd-cat` does not work here, and both failures are worth
+  remembering: the pane's render carries control sequences, so journald stored
+  every line as `[140B blob data]`; and after stripping them, `systemd-cat` died
+  silently mid-session while tmux still reported `pane_pipe=1`. Read the file,
+  not the journal. See the comment above `tmux new-session` in `default.nix`.
+
+**Not yet verified**: that `hytale-backup.timer` fires on its own at 04:20 and
+that it survives a restart in the way the built-in scheduler did not. The unit
+itself is proven; only the timer schedule is not.
