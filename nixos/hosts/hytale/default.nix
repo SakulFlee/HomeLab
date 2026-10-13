@@ -261,92 +261,115 @@ in
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
-      ExecStart = lib.getExe' pkgs.coreutils "install"
-        + " -d -m 0755 -o hytale -g hytale"
-        + " /var/lib/hytale /var/lib/hytale/Server /var/lib/hytale/Server/backups /var/lib/hytale-secrets";
     };
 
-    # Both of these run as root, after the directories above exist and before
-    # anything writes into them. They are ExecStartPost rather than the
-    # module's `postStart` because that option execs its strings directly --
-    # systemd has no shell in ExecStartPost -- and two of the four things below
-    # are conditionals.
-    serviceConfig.ExecStartPost = lib.getExe' pkgs.coreutils "sh"
-      + " -c "
-      + lib.escapeShellArg ''
-        set -euo pipefail
+    # ONE script rather than an ExecStart plus an ExecStartPost, and that shape
+    # is not stylistic. An earlier version of this unit carried the marker and
+    # the machine-id pin in a hand-built
+    #
+    #   ExecStartPost = sh -c ${lib.escapeShellArg "..."}
+    #
+    # and escapeShellArg quotes for a SHELL. systemd parses ExecStartPost with
+    # its own rules, and inside a single-quoted systemd string a backslash is
+    # not an escape character -- so the '\'' that escapeShellArg emits for every
+    # apostrophe terminates the quote early and systemd gives up:
+    #
+    #   Unbalanced quoting, ignoring: "/nix/store/...-coreutils/bin/sh -c 'set -euo pipefail"
+    #   hytale-dirs.service: Unit configuration has fatal error, unit will not be started.
+    #   Loaded: bad-setting (Reason: Unit hytale-dirs.service has a bad unit file setting.)
+    #
+    # The unit then refuses to load AT ALL, which is silent at the level that
+    # matters: `systemctl --failed` is empty, multi-user.target is reached
+    # cleanly, and journalctl -u hytale-dirs prints "No entries". Nothing
+    # anywhere says a unit was broken. Only `systemctl status` shows it, in a
+    # field nothing looks at.
+    #
+    # And it is not only tr -d '-' that did it. Every apostrophe in the comment
+    # block -- HytaleContainer's, container's, systemd's -- broke the parse just
+    # as effectively, so the hazard is invisible: a comment is not supposed to
+    # be able to take a service down.
+    #
+    # The module's `script` option writes the body to its own file in the store
+    # and points ExecStart at it, so there is no Exec*= line to quote. It also
+    # makes the ordering the code implies rather than the order two attributes
+    # happen to be written in, and matches every other unit in this file.
+    script = ''
+      set -euo pipefail
 
-        # -- the Syncthing marker --------------------------------------------
-        # install -d above cannot make this: it creates the directory but not
-        # its contents, and the marker is a directory Syncthing insists on
-        # finding before it will scan a folder. The hub mounts hytale-backups
-        # READ-ONLY and so can never create it itself -- without this the folder
-        # sits "stopped" in the WebUI and nothing is ever replicated.
-        mkdir -p /var/lib/hytale/Server/backups/.stfolder
+      # -- the mount points --------------------------------------------------
+      install -d -m 0755 -o hytale -g hytale \
+        /var/lib/hytale /var/lib/hytale/Server /var/lib/hytale/Server/backups \
+        /var/lib/hytale-secrets
 
-        # -- the machine id --------------------------------------------------
-        #
-        # Parity with the container image this replaces. HytaleContainer's
-        # entrypoint.sh does exactly this, and it is worth reading before
-        # changing it:
-        #
-        #   if [ ! -f /opt/hytale/.machine-id ]; then
-        #     cat /proc/sys/kernel/random/uuid | tr -d '-' > /opt/hytale/.machine-id
-        #   fi
-        #   cat /opt/hytale/.machine-id | tee /etc/machine-id
-        #
-        # So the volume-root file is the SOURCE OF TRUTH and /etc/machine-id is
-        # derived from it on every start. Nothing in the server reads the
-        # former -- grepping the whole 0.7.0 jar for the literal "machine-id"
-        # returns exactly one class, com/hypixel/hytale/common/util/HardwareUtil,
-        # and it reads /etc/machine-id (plus /var/lib/dbus/machine-id and
-        # /sys/class/dmi/id/product_uuid) to build a hardware UUID that
-        # TelemetryDataCollector SHA-256s into a `machineIdHash` packet field.
-        #
-        # In other words: telemetry only. It is NOT a key, it has nothing to do
-        # with auth.enc, and an earlier version of this file's README claimed
-        # otherwise by reading the two files' co-location as intent. The
-        # bytecode says telemetry, so the README says telemetry now.
-        #
-        # The reason it exists in Docker is that a container inherits its host's
-        # /etc/machine-id, so every container on the box would otherwise
-        # report the same machine.
-        #
-        # Incus does not have that problem -- each instance gets its own, and
-        # they were checked: this one is 966e7fde..., the host is 563da553...,
-        # minecraft is 088fec56.... So the UNIQUENESS the entrypoint was
-        # buying is already free here, and this block is not needed to make the
-        # id unique.
-        #
-        # What it IS needed for is the other half: /etc/machine-id lives on the
-        # instance's ROOT filesystem, which apply.sh replaces wholesale on every
-        # image change, so Incus's generated id is stable across a restart and
-        # changes on every recreate. Pinning it to a file on hytale-data makes
-        # the identity survive deploys, which is the property the Docker
-        # deployment had and this would otherwise quietly lose.
-        #
-        # Keeping the id that came across from k3s is deliberate. It is the same
-        # game server, the same world and the same licence, so Hypixel's
-        # telemetry should see one machine rather than a second one appearing in
-        # LXC and the first one vanishing.
-        #
-        # The one thing this cannot do is be consistent from the first line of
-        # boot: systemd reads /etc/machine-id before this unit runs, so within a
-        # given boot journald and dbus keep the id they started with and only
-        # later readers see this one. That is also what happens under Docker,
-        # where the entrypoint runs after init, and it costs nothing.
-        mid=/var/lib/hytale/.machine-id
-        if [ ! -s "$mid" ]; then
-          echo "no machine id on the volume; generating one"
-          tr -d '-' < /proc/sys/kernel/random/uuid > "$mid"
-        fi
-        echo "machine id: $(cat "$mid")"
+      # -- the Syncthing marker ----------------------------------------------
+      # A separate step because `install -d` creates the directory and not its
+      # contents, and the marker is a directory Syncthing insists on finding
+      # before it will scan a folder. The hub mounts hytale-backups READ-ONLY
+      # and so can never create it itself -- without this the folder sits
+      # "stopped" in the WebUI and nothing is ever replicated.
+      mkdir -p /var/lib/hytale/Server/backups/.stfolder
 
-        # /etc/machine-id is mode 0444 by convention (systemd creates it that way
-        # so nothing edits it casually), so replace rather than overwrite.
-        rm -f /etc/machine-id
-        install -m 0444 -o root -g root "$mid" /etc/machine-id
-      '';
+      # -- the machine id ----------------------------------------------------
+      #
+      # Parity with the container image this replaces. HytaleContainer's
+      # entrypoint.sh does exactly this, and it is worth reading before
+      # changing it:
+      #
+      #   if [ ! -f /opt/hytale/.machine-id ]; then
+      #     cat /proc/sys/kernel/random/uuid | tr -d '-' > /opt/hytale/.machine-id
+      #   fi
+      #   cat /opt/hytale/.machine-id | tee /etc/machine-id
+      #
+      # So the volume-root file is the SOURCE OF TRUTH and /etc/machine-id is
+      # derived from it on every start. Nothing in the server reads the former
+      # -- grepping the whole 0.7.0 jar for the literal "machine-id" returns
+      # exactly one class, com/hypixel/hytale/common/util/HardwareUtil, and it
+      # reads /etc/machine-id (plus /var/lib/dbus/machine-id and
+      # /sys/class/dmi/id/product_uuid) to build a hardware UUID that
+      # TelemetryDataCollector.generateMachineIdHash SHA-256s into a
+      # machineIdHash packet field.
+      #
+      # In other words: telemetry only. It is NOT a key, it has nothing to do
+      # with auth.enc, and an earlier version of this file's README claimed
+      # otherwise by reading two files that share a volume root as intent.
+      #
+      # It exists in Docker because a container inherits its host's
+      # /etc/machine-id, so every container on the box would otherwise report
+      # the same machine.
+      #
+      # Incus does not have that problem -- each instance gets its own, and they
+      # were checked: this one was 966e7fde..., the host is 563da553...,
+      # minecraft is 088fec56.... So the UNIQUENESS the entrypoint was buying
+      # is already free here and this step is not needed to make the id unique.
+      #
+      # What it IS needed for is the other half: /etc/machine-id is mode 0444 on
+      # the instance ROOT filesystem, which apply.sh replaces wholesale on every
+      # image change, so Incus's own id is stable across a restart and changes
+      # on every recreate. Pinning it to a file on hytale-data makes the
+      # identity survive deploys -- the property the Docker deployment had and
+      # this would otherwise quietly lose.
+      #
+      # Keeping the id that came across from k3s is deliberate. Same game server,
+      # same world, same licence, so Hypixel's telemetry should see one machine
+      # rather than a second one appearing in LXC and the first one vanishing.
+      #
+      # The one thing this cannot be is consistent from the first line of boot:
+      # systemd reads /etc/machine-id before this unit runs, so within a given
+      # boot journald and dbus keep the id they started with and only later
+      # readers see this one. That is also what happens under Docker, where the
+      # entrypoint runs after init, and it costs nothing.
+      mid=/var/lib/hytale/.machine-id
+      if [ ! -s "$mid" ]; then
+        echo "no machine id on the volume; generating one"
+        tr -d "-" < /proc/sys/kernel/random/uuid > "$mid"
+      fi
+      echo "machine id: $(cat "$mid")"
+
+      # Replaced rather than overwritten, because /etc/machine-id is mode 0444 by
+      # convention -- systemd creates it that way so nothing edits it casually.
+      rm -f /etc/machine-id
+      install -m 0444 -o root -g root "$mid" /etc/machine-id
+    '';
   };
 
   # -------------------------------------------------------------------------
