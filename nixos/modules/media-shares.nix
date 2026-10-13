@@ -1,12 +1,11 @@
 # Where the media shares live, and which tree each one currently resolves to.
 #
 # Plain data in its own file, the same idiom as hosts/caddy/hostnames.nix,
-# because four consumers need it and none of them should carry a private copy
+# because three consumers need it and none of them should carry a private copy
 # of the list:
 #
 #   modules/mount-nas.nix                              the CIFS mounts on the host
 #   modules/mount-media.nix                            the local tree on the host
-#   hosts/homelab/services/backup.nix                  what to include in the restic run
 #   hosts/<app>/incus.nix  (via the `device` function)  the bind mount into each instance
 #
 # The local tree exists because the NAS (//192.168.178.250) is a single point of
@@ -164,12 +163,6 @@ let
       path = inInstancePath;
     };
 
-  # Library shares that live on the local tree and are worth backing up.
-  #
-  # qBittorrent is excluded on purpose: it is re-downloadable, so an hourly
-  # restic scan of it buys nothing. Everything else is not recoverable from
-  # anywhere else, so it must be included wherever it is.
-  localLibraryShares = builtins.filter (s: roots.${s} == localMount && s != "qBittorrent") shares;
 in
 {
   inherit
@@ -186,6 +179,5 @@ in
     roots
     device
     deviceAt
-    localLibraryShares
     ;
 }

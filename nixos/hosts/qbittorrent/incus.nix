@@ -66,7 +66,7 @@ in
 
       # This volume holds the ONLY thing that must not leak: the qBittorrent
       # credentials and torrent list. The snapshot is the rollback for a bad
-      # config edit. It is NOT backed up off-box by restic beyond the pool
+      # config edit. It is NOT replicated off-box beyond the pool
       # snapshot -- see NOTES.md -- because the torrent list is itself sensitive
       # and the seeds are recoverable.
       snapshots = {

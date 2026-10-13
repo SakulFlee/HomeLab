@@ -1,12 +1,12 @@
 { config, lib, pkgs, utils, ... }:
 let
   # Storage pools live on the SATA SSD (btrfs), NOT on the NVMe that holds /,
-  # /home, /nix and the restic repo. See hardware.nix for the mount.
+  # /home and /nix. See hardware.nix for the mount.
   #
-  # This mirrors the existing separation deliberately: source data on the SSD,
-  # backup on the NVMe. Incus does bursty disposable I/O (image imports,
+  # This separation is deliberate: source data on the SSD, system on the NVMe.
+  # Incus does bursty disposable I/O (image imports,
   # instance creation, rootfs reads at every service start) and should not
-  # compete with /nix or a 'restic forget --prune' sweep.
+  # compete with /nix.
   #
   # /var/lib/incus itself -- the dqlite database, sockets and logs -- stays on
   # the NVMe, because it is small and latency-sensitive.
@@ -19,8 +19,8 @@ let
   poolsMount = "${utils.escapeSystemdPath poolsPath}.mount";
 in
 {
-  # Incus replaces k3s as the workload substrate. This phase deliberately keeps
-  # k3s running; pools are a sibling subvolume on the same device.
+  # Incus is the workload substrate. Pools are a sibling subvolume on the same
+  # device as the retired k3s storage.
   virtualisation.incus = {
     enable = true;
 
@@ -73,12 +73,9 @@ in
       # enforced a difference. What separated them was a paragraph.
       #
       # The earlier version of the pool comment claimed `backup` was restic'd
-      # and `persistent` was not. Both halves were wrong, and by the time the
-      # pools were merged the second half was wrong twice over: Phase 0 had put
-      # a restic binary, service and timer on this host backing up BOTH pool
-      # paths (nixos/hosts/homelab/services/backup.nix). The DaemonSet claim in
-      # the old text -- that homelab-restic was the only restic anywhere -- was
-      # already stale when it was written.
+      # and `persistent` was not. Both halves were wrong: the host restic
+      # service backed up BOTH pool
+      # paths (nixos/hosts/homelab/services/backup.nix, since removed).
       #
       # So the split bought nothing and cost a decision for every new volume.
       # The three volumes in `backup` (caddy-data, forgejo-data, and the empty
@@ -166,30 +163,23 @@ in
   # nftables: MANDATORY for Incus
   #
   # Incus requires the nftables backend; the NixOS module asserts against
-  # iptables. Verified safe against the running k3s:
+  # iptables.
   #
   #  1. No 'flush ruleset' is emitted.
   #     nixos/modules/services/networking/nftables.nix defaults flushRuleset to
   #     (stateVersion < 23.11) || (rulesetFile != null || ruleset != "").
   #     We are 25.11 and leave the ruleset empty (firewall is off), so it stays
   #     false and the generated script contains neither 'flush ruleset' nor
-  #     'delete table'. k3s's rules are untouched.
+  #     'delete table'.
   #
   #  2. 'boot.blacklistedKernelModules = [ "ip_tables" ]' in that same file is
-  #     harmless: nixpkgs' iptables symlinks to xtables-nft-multi, so
-  #     kube-proxy already uses nf_tables and never loads the legacy module.
+  #     harmless: nixpkgs' iptables symlinks to xtables-nft-multi.
   #
-  #  3. Incus manages its own 'table incus'; flannel and kube-proxy manage
-  #     ip nat / ip filter. No overlap.
+  #  3. Incus manages its own 'table incus'.
   #
   # Reverting, if ever needed, is a single nixos-rebuild switch.
   networking.nftables.enable = true;
 
   # networking.firewall stays disabled (see configuration.nix) for now: there
-  # is no host input filtering, so incusbr0 NATs and forwards freely. That is
-  # what we want for the trial, and it keeps k3s's own nftables rules
-  # authoritative. Revisit in the final phase, after k3s is gone, with
-  # networking.firewall.enable = true and
-  # trustedInterfaces = [ "incusbr0" ]. Enabling it earlier would put the NixOS
-  # firewall in charge of tables k3s also writes to.
+  # is no host input filtering, so incusbr0 NATs and forwards freely.
 }

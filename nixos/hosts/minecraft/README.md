@@ -370,16 +370,12 @@ Once this is done and verified, the k3s manifests (`apps/minecraft/`,
 `apps/traefik/helm-chart-config.yaml` can go in a separate commit, exactly as
 the other migrations did.
 
-## Backups and restic
+## Backups
 
-Three independent copies, deliberately:
+Two independent copies, deliberately:
 
 1. **btrfs snapshots** on both volumes, `@hourly`/`7d` -- the local rollback.
-2. **restic**, hourly, host-wide. `persistent` is the only pool left and it is
-   what the host's restic backs up (`../homelab/services/backup.nix`), so both
-   volumes are covered without excluding anything. This also covers the archives,
-   which is redundant on purpose.
-3. **Syncthing** to Dendra -- the off-box copy, archives only.
+2. **Syncthing** to Dendra -- the off-box copy, archives only.
 
 A verified archive is 3.0 GB and takes ~75s, of which the server is down for the
 duration.

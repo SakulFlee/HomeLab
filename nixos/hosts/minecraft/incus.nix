@@ -114,11 +114,10 @@ in
   # difference. Retention is declared per volume below rather than inherited from
   # a pool, which is the lesson that merge left behind.
   #
-  # Consequence for anyone arriving here with "put the world on the restic'd
-  # pool" in mind: `persistent` IS the restic'd one. The host's hourly restic
-  # backs up /var/lib/incus/storage-pools/persistent wholesale
-  # (nixos/hosts/homelab/services/backup.nix), which covers both volumes below,
-  # archives included, and excludes nothing.
+  # Consequence for anyone arriving here with "put the world on a separate
+  # backup pool" in mind: there is one pool, `persistent`. Retention is
+  # declared per volume below rather than inherited from
+  # a pool, which is the lesson that merge left behind.
   volumes = [
     {
       pool = "persistent";
@@ -140,8 +139,8 @@ in
 
       # Redundant with the archives themselves by design. The snapshot is the
       # local rollback (an archive written by a tar that raced something); the
-      # peer is the off-box copy. restic also captures this volume, so there are
-      # three independent copies, which for a game world is not paranoia so much
+      # peer is the off-box copy. There are
+      # two independent copies, which for a game world is not paranoia so much
       # as the price of it being the one thing here nobody can regenerate.
       snapshots = {
         schedule = "@hourly";

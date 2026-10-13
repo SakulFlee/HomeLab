@@ -1,7 +1,7 @@
 # Host-side ttyd: a terminal over the web, behind Caddy, VPN-only.
 #
 # Stateless by design: no volume, no database, nothing to back up. That is why
-# there is no entry in services/backup.nix and no snapshot policy anywhere --
+# there is no snapshot policy anywhere --
 # a recreate/rebuild loses nothing because there is nothing to lose.
 #
 # Reached via ttyd.sakul-flee.de (see hosts/caddy/default.nix). Caddy

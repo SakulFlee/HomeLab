@@ -43,7 +43,7 @@ in
   # authoritative: the DNS records live in Cloudflare, and the client's cache of
   # API responses (zone ID, record IDs) is in-memory only -- v1.16.2 opens no
   # files for writing anywhere, so a restart re-reads and carries on. A recreate
-  # loses nothing, so there is nothing for restic to back up.
+  # loses nothing, so there is nothing to back up.
   #
   # That is also why the unit's ProtectSystem=strict needs no ReadWritePaths
   # escape hatch for the client's WorkingDirectory (/var/lib/cloudflare-ddns,

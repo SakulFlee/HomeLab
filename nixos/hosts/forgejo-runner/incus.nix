@@ -150,7 +150,8 @@ in
   rootDiskSize = "40GiB";
 
   # The runner's writable state, on `persistent` and
-  # deliberately NOT restic'd, for two reasons that are the same
+  # deliberately excluded from off-box replication, for two reasons that are
+  # the same
   # reason stated twice:
   #
   #   * the generated config.yaml lands here, and it holds the
@@ -172,7 +173,7 @@ in
     {
       pool = "persistent";
       name = "forgejo-runner-data";
-      description = "Runner state: actions cache, job workspaces, rendered secrets and the generated config (holds the runner token) -- not restic'd";
+      description = "Runner state: actions cache, job workspaces, rendered secrets and the generated config (holds the runner token) -- not replicated off-box";
     }
   ];
 

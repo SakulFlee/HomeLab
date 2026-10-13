@@ -2,9 +2,9 @@
 let
   # The share list, the NAS address and the ownership ids all come from
   # modules/media-shares.nix, which is also what each media instance's
-  # incus.nix and hosts/homelab/services/backup.nix read. Before this, the list
+  # incus.nix reads. Before this, the list
   # lived here and nowhere else, so adding a share to the library meant
-  # remembering to touch the mounts, the instances and the backup paths by
+  # remembering to touch the mounts and the instances by
   # hand.
   media = import ./media-shares.nix;
 

@@ -37,7 +37,7 @@ in
   };
 
   # No volumes. The zone is default.nix, not a database, so a recreate loses
-  # nothing and there is nothing for restic to back up. Deliberately no
+  # nothing and there is nothing to back up. Deliberately no
   # snapshot policy either: rolling back a stateless resolver is meaningless.
 
   # No renderedSecrets and no secretConsumers: this instance holds no secret

@@ -123,10 +123,10 @@ replicate. Until then, a producer's volume can be attached by hand.
 
 ## Backup posture
 
-Syncthing data is not what restic is meant to protect; the peer is the off-box
-copy and the snapshots are the rollback. Restic's pool-wide walk of
-`/var/lib/incus/storage-pools/persistent` does capture these volumes, because
-they are on `persistent` like everything else -- nothing excludes them. The old
-k3s Syncthing replicated the restic repository itself off-box; the Incus one
-deliberately does not mount `/var/lib/backups`, so that off-box replication is
-gone. See `nixos/hosts/homelab/services/backup.nix`.
+The snapshots are the rollback; the Syncthing peer is the off-box
+copy. There is no third tier: the host restic service that used to walk
+`/var/lib/incus/storage-pools/persistent` has been retired
+(`nixos/hosts/homelab/services/backup.nix` is gone), along with the old
+k3s Syncthing that replicated the restic repository itself off-box. The Incus
+hub deliberately does not mount any backup repository, so nothing here
+reintroduces that path.

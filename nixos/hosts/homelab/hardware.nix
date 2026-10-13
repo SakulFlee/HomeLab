@@ -30,36 +30,11 @@
       options = [ "subvol=nix" ];
     };
 
-  # Cluster storage (k3s local-path tiers) lives on the dedicated SSD (/dev/sda1).
-  # The local restic repository (/var/lib/backups) intentionally stays on the NVMe
-  # so the source data and its backup are on separate disks.
-  # noauto: mounted explicitly by k3s.service preStart so switch-to-configuration
-  # never tries to unmount/remount it while k3s/containerd hold the path busy
-  # (which hung rebuilds at "restarting sysinit-reactivation.target").
-  fileSystems."/var/lib/rancher/k3s/storage" =
-    { device = "/dev/disk/by-uuid/a8ab0668-28ae-437c-96dc-bed48481b2c0";
-      fsType = "btrfs";
-      options = [ "subvol=storage" "compress=zstd" "noauto" ];
-    };
-
-  # Incus storage pools: a sibling subvolume on the same SSD, so source data
-  # stays on the SSD and the restic repo stays on the NVMe. Incus' own state
-  # directory (/var/lib/incus -- dqlite DB, sockets, logs) remains on the NVMe,
-  # since only the pools are mounted here.
-  #
-  # The subvolume must exist before this mounts, and NixOS does not create btrfs
-  # subvolumes, so it was created once on the server (2026-09-30). It is a true
-  # top-level sibling of 'storage' -- both report top level 5 -- rather than
-  # nested inside it, so it survives k3s' removal in the final migration phase
-  # and stays clean under quota/snapshot tooling:
-  #
-  #   sudo mkdir -p /mnt/incus-tmp
-  #   sudo mount -t btrfs -o subvol=/ \
-  #     /dev/disk/by-uuid/a8ab0668-28ae-437c-96dc-bed48481b2c0 /mnt/incus-tmp
-  #   sudo btrfs subvolume create /mnt/incus-tmp/incus-pools
-  #   sudo umount /mnt/incus-tmp && sudo rmdir /mnt/incus-tmp
-  #
-  # Verify with: sudo btrfs subvolume list /var/lib/rancher/k3s/storage
+  # The Incus pool and media subvolumes below live on the dedicated SSD
+  # (/dev/sda1). The old k3s local-path `storage` subvolume is still on that
+  # same filesystem, retained unmounted -- local-path Retain means its data
+  # stays until it is migrated or explicitly deleted, never as a side effect
+  # of removing the mount entry.
   #
   # The mountpoint is /var/lib/incus/storage-pools specifically, NOT an arbitrary
   # directory under /var/lib/incus. Incus rejects any pool source that sits
@@ -117,7 +92,7 @@
   #
   # Same subvolume recipe and the same reasoning as incus-pools above: a true
   # top-level sibling of 'storage' and 'incus-pools', so it stays clean under
-  # quota/snapshot tooling and outlives k3s' removal. Created once on the
+  # quota/snapshot tooling. Created once on the
   # server, since NixOS does not create btrfs subvolumes:
   #
   #   sudo mkdir -p /mnt/media-tmp
@@ -126,7 +101,7 @@
   #   sudo btrfs subvolume create /mnt/media-tmp/media
   #   sudo umount /mnt/media-tmp && sudo rmdir /mnt/media-tmp
   #
-  # Verify with: sudo btrfs subvolume list /var/lib/rancher/k3s/storage
+  # Verify with: sudo btrfs subvolume list /var/lib/incus/storage-pools
   #
   # No quota on it. Capacity is explicitly deferred: with nothing stored here,
   # a limit would only be a guess, and modules/mount-media.nix records what the

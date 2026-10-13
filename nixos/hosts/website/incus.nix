@@ -70,7 +70,7 @@ in
   # artefact that lives in the image, podman's copy is re-pullable by definition
   # (and is re-pulled anyway -- `pull = "always"`, see default.nix), and there
   # is no database and no writable application directory. So a re-create loses
-  # nothing, there is nothing for restic to back up, and rolling a stateless
+  # nothing, there is nothing to back up, and rolling a stateless
   # static site back to a previous snapshot would be meaningless.
   #
   # The default 10 GiB VM root disk is deliberately left alone: the closure plus

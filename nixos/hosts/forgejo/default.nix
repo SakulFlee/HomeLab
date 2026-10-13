@@ -376,7 +376,7 @@ in
   # Consequence worth knowing: because the files live in customDir, they are
   # inside the state directory rather than on a volume. customDir lives on the
   # container's root disk, which is the `persistent` pool, so they are still not
-  # restic'd -- consistent with every other secret here.
+  # replicated off-box -- consistent with every other secret here.
   #
   # --------------------------------------------------------------------------
   # Why *_URI and not services.forgejo.secrets
