@@ -879,24 +879,48 @@ in
       backups=/var/lib/hytale/Server/backups
       session=hytale
 
+      # The outcome, decided once and acted on once at the end. Three states and
+      # they must not be conflated:
+      #
+      #   done     an archive exists that this run asked for
+      #   skipped  the server is not running, so there was nothing to ask
+      #   failed   the server IS running and did not produce an archive
+      #
+      # The first version of this unit collapsed the last two into a log line
+      # and exited 0 either way. It ran at 04:20, the console was wedged, no
+      # archive appeared, and the unit reported
+      #
+      #   no archive appeared within 300s
+      #   archives before: 1 / archives after: 1
+      #   Result=success
+      #
+      # Which is the "reports success while broken" shape that has now cost this
+      # instance three times: a unit that would not load, a machine-id pin that
+      # blinded journalctl, and this. So `failed` exits non-zero and lands in
+      # `systemctl --failed`, where it is visible without reading a log.
+      #
+      # `skipped` deliberately still exits 0, and that is not an inconsistency.
+      # The unit cannot archive without a server, so failing every time the game
+      # is deliberately switched off would train everyone to ignore it. An
+      # outage that keeps the server down costs a missed archive, and
+      # Persistent=true on the timer runs it when the container comes back.
+      outcome=failed
+      detail=""
+
       # -- the archive ------------------------------------------------------
       #
-      # Skipped, not failed, when the server is down -- deliberately, and for
-      # the same reason minecraft-backup does not start a server somebody
-      # stopped. Persistent=true on the timer means the run happens when the
-      # container comes back, so an outage costs a missed archive rather than a
-      # failed unit that nobody reads.
-      #
-      # Failing the unit instead would be worse than useless here: the unit
-      # cannot archive without a server, so it would fail every night the game
-      # is deliberately switched off.
+      # Skipped, not failed, when the server is down -- for the reason above.
       if ! systemctl is-active --quiet hytale.service; then
-        echo "hytale.service is not running; archiving nothing"
+        outcome=skipped
+        detail="hytale.service is not running"
+        echo "$detail; archiving nothing"
       elif ! tmux has-session -t "$session" 2>/dev/null; then
         # The service is active but its console is gone, which means the
         # supervision loop has not noticed yet or tmux died under it. Either way
-        # there is no console to type into, so there is no backup.
-        echo "hytale.service is up but the tmux console is missing; archiving nothing" >&2
+        # there is no console to type into, so there is no backup -- and this is
+        # a failure, not a skip, because the server IS meant to be running.
+        detail="hytale.service is up but the tmux console is missing"
+        echo "$detail; archiving nothing" >&2
       else
         echo "asking the server for an archive"
         tmux send-keys -t "$session" '/backup' Enter
@@ -908,34 +932,83 @@ in
         # typed".
         #
         # Bounded, because a server that never answers must not hang the unit
-        # until TimeoutStartSec: the zip is ~175 MB and took well under a
-        # minute in practice, so 300s is generous rather than tight.
+        # until TimeoutStartSec: the zip is ~178 MB and took 10s in practice, so
+        # 300s is generous rather than tight.
         deadline=$(( SECONDS + 300 ))
         while [ $SECONDS -lt $deadline ]; do
           # Newest archive newer than this run started.
           if [ -n "$(find "$backups" -maxdepth 1 -type f -name '*.zip' -newermt '-10 minutes' -print -quit 2>/dev/null)" ]; then
-            echo "archive written"
+            outcome=done
             break
           fi
           sleep 10 &
           wait $! || true
         done
 
-        if [ -z "$(find "$backups" -maxdepth 1 -type f -name '*.zip' -newermt '-10 minutes' -print -quit 2>/dev/null)" ]; then
-          echo "no archive appeared within 300s" >&2
+        if [ "$outcome" != done ]; then
+          detail="no archive appeared within 300s"
+
+          # Distinguish "the server heard us and refused" from "the console is
+          # deaf". They are different faults and look identical from here: in
+          # both cases send-keys delivers bytes to the pty and nothing comes
+          # back. On the 04:20 run the console had stopped reading entirely --
+          # /backup AND /help were echoed by the pty with no response -- and the
+          # only reason that was diagnosable at all was a manual probe.
+          #
+          # So probe. /help is harmless, always available, and prints a long
+          # block followed by the prompt, so "did the prompt come back" is a
+          # usable signal. capture-pane -S - gives scrollback, because the
+          # answer may be above the visible pane.
+          #
+          # This is a diagnosis, not a repair. Restarting the server here would
+          # disconnect players over a missed backup, which is the wrong trade --
+          # the backup is recoverable by running it again, the session is not.
+          tmux send-keys -t "$session" '/help' Enter
+          sleep 6
+          if tmux capture-pane -p -S -40 -t "$session" 2>/dev/null | grep -qE '^\s*>\s*$'; then
+            detail="$detail; the console answered /help, so the server is refusing the backup or is not writing one"
+          else
+            detail="$detail; the console did not answer /help either, so it is not reading input -- restart hytale.service by hand"
+          fi
+          echo "$detail" >&2
         fi
       fi
 
       # -- the prune --------------------------------------------------------
+      #
+      # Run even after a failure. Deleting nothing is not the same as doing
+      # nothing useful, and the prune only reads names and mtimes, so it is safe
+      # to run while the archive half is broken.
       if [ ! -d "$backups" ]; then
         echo "no backup directory yet; nothing to prune"
-        exit 0
+      else
+        echo "archives before: $(find "$backups" -maxdepth 1 -type f -name '*.zip' | wc -l)"
+        find "$backups" -maxdepth 1 -type f -name '*.zip' \
+          -mtime +${toString backupKeepDays} -print -delete
+        echo "archives after:  $(find "$backups" -maxdepth 1 -type f -name '*.zip' | wc -l)"
       fi
 
-      echo "archives before: $(find "$backups" -maxdepth 1 -type f -name '*.zip' | wc -l)"
-      find "$backups" -maxdepth 1 -type f -name '*.zip' \
-        -mtime +${toString backupKeepDays} -print -delete
-      echo "archives after:  $(find "$backups" -maxdepth 1 -type f -name '*.zip' | wc -l)"
+      # -- the verdict ------------------------------------------------------
+      #
+      # One line, because `systemctl show -p Result` and the last thing anyone
+      # reads should agree. Skipped is the only non-success that is not a
+      # failure, and it says so.
+      case $outcome in
+        done)
+          newest=$(find "$backups" -maxdepth 1 -type f -name '*.zip' -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
+          size=$(stat -c %s "$newest" 2>/dev/null || echo "?")
+          echo "OK: archive $newest ($size bytes)"
+          exit 0
+          ;;
+        skipped)
+          echo "SKIPPED: $detail"
+          exit 0
+          ;;
+        *)
+          echo "FAILED: $detail" >&2
+          exit 1
+          ;;
+      esac
     '';
   };
 

@@ -596,6 +596,56 @@ Verified on the deployed instance:
   changing the id, and warns on stderr if that directory is missing rather than
   skipping silently.
 
+### The console can go deaf, and the backup notices
+
+Observed once, on the deployed server. The 04:20 timer fired on schedule and the
+archive never appeared:
+
+```
+04:20:25  asking the server for an archive
+04:25:25  no archive appeared within 300s
+04:25:25  archives before: 1 / archives after: 1
+          Result=success
+```
+
+The server was healthy throughout -- logging every two minutes, and it had served
+a player minutes earlier. But `/backup` **and** `/help` were both echoed into the
+pane with no response. That echo is the pty's own, not the server's: JLine had
+stopped reading from the pty entirely.
+
+Three dead ends, recorded so nobody repeats them:
+
+- `jcmd <pid> Thread.print` fails with
+  `AttachNotSupportedException: state is not ready to participate in attach handshake`.
+  The JVM will not service attach requests while in this state.
+- `kill -3 <pid>` (SIGQUIT) produced **no** thread dump in the pane. The JVM's
+  stdout is the pty, so the dump should have appeared there. It did not.
+- `systemctl --failed` was empty, the timer showed no error, and the only
+  evidence was one log line. This is the same "reports success while broken"
+  shape as the unit that would not load and the pin that blinded `journalctl`.
+
+A plain `systemctl restart hytale.service` cleared it, and auth survived that
+restart without a browser, which is the machine-id pin doing its job.
+
+**Consequence for the design:** backups are driven through the console, so a deaf
+console silently costs a day's backups. The unit now handles this rather than
+absorbing it:
+
+- it exits **non-zero** when the server is up but no archive appears, so the
+  failure shows up in `systemctl --failed`;
+- on timeout it probes with `/help` and reports whether the console answered, so
+  "the server refused" and "the console is deaf" are distinguishable from the log
+  alone. Verified both ways: `ALIVE` against the real console, `DEAF` against a
+  session whose pane echoes text but has no prompt.
+
+It does **not** restart the server to recover. A backup is recoverable by running
+it again; disconnecting players is not. That judgement is left to a human.
+
+Unresolved: what actually kills the console reader. It was last seen alive at
+03:52 (a device login) and dead by 04:20, with a player connecting at 04:06 and
+disconnecting at 04:09 -- but there is no console-related error in the log around
+that disconnect, so the player session is a guess and not a finding.
+
 ### How this got backwards twice, since the wrong answers are the useful part
 
 1. **"`.machine-id` and `auth.enc` travel together."** Right conclusion, wrong
@@ -643,6 +693,13 @@ look for a way around it, not automatically a reason to drop the benefit.
   silently mid-session while tmux still reported `pane_pipe=1`. Read the file,
   not the journal. See the comment above `tmux new-session` in `default.nix`.
 
-**Not yet verified**: that `hytale-backup.timer` fires on its own at 04:20 and
-that it survives a restart in the way the built-in scheduler did not. The unit
-itself is proven; only the timer schedule is not.
+**Verified**: that `hytale-backup.timer` fires on its own. It triggered at
+`04:20:25` -- 25s late, inside `AccuracySec=1m` -- with no manual involvement,
+which is the property the built-in scheduler did not have. That run produced no
+archive for the reason in "The console can go deaf" above; the run after a
+restart produced one in 10s. The timer rescheduled itself to
+`Wed 2026-10-14 04:20:00`.
+
+Worth knowing: `systemctl list-timers` shows `NEXT: -` while the triggered unit
+is still running. That is systemd declining to re-arm, not a broken schedule --
+`NEXT` reappears once the unit exits.
