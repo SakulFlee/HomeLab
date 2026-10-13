@@ -582,6 +582,7 @@ in
     path = [
       pkgs.openjdk25
       pkgs.coreutils
+      pkgs.gnused
       pkgs.tmux
       pkgs.systemd
     ];
@@ -718,8 +719,44 @@ in
       #
       # -o means "from now on", so the handful of lines between new-session and
       # this call are the only thing not captured, which is nothing.
+      #
+      # The sed and tr are not tidying. pipe-pane forwards what tmux RENDERS, so
+      # the stream carries the pane's control sequences, and journald stores any
+      # field containing one as binary rather than text:
+      #
+      #   Oct 13 03:05:14 hytale hytale[584]: [140B blob data]
+      #
+      # for every single line, which is a log that exists and cannot be read.
+      # `journalctl -o json` shows what actually arrived:
+      #
+      #   MESSAGE:[62,32,13,27,91,75,27,91,109,...]
+      #            >  \r  \e [ K  \e [ m ...
+      #
+      # so exactly two control bytes are in play across the whole stream, 0x0d
+      # and 0x1b, and both are removable. Measured on 369 real messages lifted
+      # back out of the journal as byte arrays: after this pipeline, zero
+      # control bytes remain and the text is intact.
+      #
+      # The sed strips CSI and OSC sequences -- colour, erase-in-line, cursor
+      # moves -- and tr is the net for anything else, including a sequence form
+      # not seen yet. tr alone is not enough and was tried first: it deletes the
+      # ESC and leaves "[K" and "[33m" behind as literal text, which is worse
+      # than no logging because it looks like content.
+      #
+      # A deliberately simple character class, [\x1b\[[0-9;?]*[a-zA-Z]. The
+      # thorough-looking [\x1b\[[0-9;?]*[ -\/]*[@-~] silently matches nothing:
+      # GNU sed does not treat \/ as an escape inside a bracket expression, so
+      # the class becomes a range from space to BACKSLASH rather than to slash,
+      # and the whole pattern fails to match. Verified against the same real
+      # data rather than trusted.
+      #
+      # The `> ` prompt prefixes in the result are JLine's, drawn into the pane
+      # before the log line. They are left alone: they are printable, they are
+      # what the console actually shows, and filtering them would be guessing.
       tmux pipe-pane -o -t "$session" \
-        "${lib.getExe' pkgs.systemd "systemd-cat"} -t hytale"
+        "${lib.getExe' pkgs.gnused "sed"} -E 's/\x1b\[[0-9;?]*[a-zA-Z]//g; s/\x1b\][^\x07]*\x07//g' \
+        | ${lib.getExe' pkgs.coreutils "tr"} -d '\000-\010\013-\037\177' \
+        | ${lib.getExe' pkgs.systemd "systemd-cat"} -t hytale"
 
       # Stay in the foreground so systemd tracks the server's lifetime: this
       # loop ends exactly when the tmux session does.
