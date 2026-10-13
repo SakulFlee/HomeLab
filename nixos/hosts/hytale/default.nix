@@ -309,92 +309,69 @@ in
       # "stopped" in the WebUI and nothing is ever replicated.
       mkdir -p /var/lib/hytale/Server/backups/.stfolder
 
-      # -- the machine id ----------------------------------------------------
+      # -- the machine id: DELIBERATELY NOT PINNED ---------------------------
       #
-      # Parity with the container image this replaces. HytaleContainer's
-      # entrypoint.sh does exactly this, and it is worth reading before
-      # changing it:
+      # HytaleContainer's entrypoint.sh generates an id on first boot and then
+      # derives /etc/machine-id from it on every start:
       #
       #   if [ ! -f /opt/hytale/.machine-id ]; then
       #     cat /proc/sys/kernel/random/uuid | tr -d '-' > /opt/hytale/.machine-id
       #   fi
       #   cat /opt/hytale/.machine-id | tee /etc/machine-id
       #
-      # So the volume-root file is the SOURCE OF TRUTH and /etc/machine-id is
-      # derived from it on every start. Nothing in the server reads the former
-      # -- grepping the whole 0.7.0 jar for the literal "machine-id" returns
-      # exactly one class, com/hypixel/hytale/common/util/HardwareUtil, and it
-      # reads /etc/machine-id (plus /var/lib/dbus/machine-id and
+      # So the volume-root file is the source of truth and /etc/machine-id is
+      # derived. Nothing in the server reads the former -- grepping the whole
+      # 0.7.0 jar for the literal "machine-id" returns exactly one class,
+      # com/hypixel/hytale/common/util/HardwareUtil, and it reads
+      # /etc/machine-id (plus /var/lib/dbus/machine-id and
       # /sys/class/dmi/id/product_uuid) to build a hardware UUID that
-      # TelemetryDataCollector.generateMachineIdHash SHA-256s into a
-      # machineIdHash packet field.
-      #
-      # In other words: telemetry only. It is NOT a key, it has nothing to do
-      # with auth.enc, and an earlier version of this file's README claimed
-      # otherwise by reading two files that share a volume root as intent.
+      # TelemetryDataCollector.generateMachineIdHash SHA-256s into a machineIdHash
+      # packet field. It is telemetry, not a key, and it has nothing to do with
+      # auth.enc.
       #
       # It exists in Docker because a container inherits its host's
-      # /etc/machine-id, so every container on the box would otherwise report
-      # the same machine.
+      # /etc/machine-id, so every container on the box would report the same
+      # machine. Incus does not have that problem -- each instance gets its own,
+      # and they were checked: the host is 563da553..., minecraft 088fec56...,
+      # this instance 4a10f23c... So the UNIQUENESS the entrypoint buys is
+      # already free here.
       #
-      # Incus does not have that problem -- each instance gets its own, and they
-      # were checked: this one was 966e7fde..., the host is 563da553...,
-      # minecraft is 088fec56.... So the UNIQUENESS the entrypoint was buying
-      # is already free here and this step is not needed to make the id unique.
+      # The only thing left to buy is STABILITY: /etc/machine-id lives on the
+      # instance ROOT filesystem, which apply.sh replaces on every image change,
+      # so Incus's id survives a restart and changes on every recreate. Pinning
+      # it to the copy on hytale-data would make the identity survive deploys.
       #
-      # What it IS needed for is the other half: /etc/machine-id is mode 0444 on
-      # the instance ROOT filesystem, which apply.sh replaces wholesale on every
-      # image change, so Incus's own id is stable across a restart and changes
-      # on every recreate. Pinning it to a file on hytale-data makes the
-      # identity survive deploys -- the property the Docker deployment had and
-      # this would otherwise quietly lose.
+      # That was implemented, deployed, and then removed, because pinning it
+      # costs the journal:
       #
-      # Keeping the id that came across from k3s is deliberate. Same game server,
-      # same world, same licence, so Hypixel's telemetry should see one machine
-      # rather than a second one appearing in LXC and the first one vanishing.
+      #   journalctl resolves its search path from /etc/machine-id, and journald
+      #   had already written this boot's log to /var/log/journal/<boot-id>/.
+      #   Change the id and journalctl looks in a directory that does not exist:
       #
-      # The one thing this cannot be is consistent from the first line of boot:
-      # systemd reads /etc/machine-id before this unit runs, so within a given
-      # boot journald and dbus keep the id they started with and only later
-      # readers see this one. That is also what happens under Docker, where the
-      # entrypoint runs after init, and it costs nothing.
-      mid=/var/lib/hytale/.machine-id
-      if [ ! -s "$mid" ]; then
-        echo "no machine id on the volume; generating one"
-        tr -d "-" < /proc/sys/kernel/random/uuid > "$mid"
-      fi
-      echo "machine id: $(cat "$mid")"
-
-      # Rewritten in place, never replaced.
+      #     No journal files were found.
+      #     -- No entries --
       #
-      # The obvious `rm -f` + `install` is a trap here. At boot the unlink fails:
+      # Measured both ways on the deployed instance, same boot, nothing else
+      # changed: with the boot-time id in /etc/machine-id, `journalctl -n 1`
+      # returned a line; with the pinned id, the same command found nothing. It
+      # takes `journalctl --directory=` to read the log at all.
       #
-      #   rm: cannot remove '/etc/machine-id': Device or resource busy
-      #   hytale-dirs.service: Main process exited, code=exited, status=1/FAILURE
+      # So the trade is a telemetry hash against the ability to read the game
+      # server's log -- and the log is what the pipe-pane plumbing below exists
+      # to deliver. A cosmetic identity is not worth making the instance
+      # undiagnosable, so the id is left exactly as Incus set it and
+      # /var/lib/hytale/.machine-id is carried but unread. Nothing depends on
+      # that file; it is kept only so the identity that came across from k3s is
+      # not lost, and a future change can use it if the journal problem is ever
+      # solved properly (pinning before journald starts, not after).
       #
-      # and because hytale.service Requires= this unit, that takes the game
-      # server down with it -- the unit that exists to prepare the volume is the
-      # unit that stops the thing using it.
-      #
-      # It is worth being precise about what this is NOT, because the first
-      # guess was wrong. /etc/machine-id is not a bind mount: /proc/self/
-      # mountinfo does not list it and stat reports a regular file with one
-      # link. And the same `rm` succeeds seconds later, once the instance has
-      # finished starting, so the busy window is transient and something holds
-      # it only during startup. Chasing the holder is not worth it here;
-      # truncating and writing the existing inode succeeds in BOTH states, and
-      # that is the only property this line needs.
-      #
-      # touch first, so a system that somehow has no machine-id yet gets one
-      # rather than failing on chmod. It updates the mtime on an existing file
-      # and does not truncate it.
-      touch /etc/machine-id
-      chmod 0644 /etc/machine-id
-      cat "$mid" > /etc/machine-id
-      chown root:root /etc/machine-id
-
-      # 0444 is the convention systemd sets, so nothing edits it casually.
-      chmod 0444 /etc/machine-id
+      # For the record, the first attempt also failed in a way worth not
+      # repeating: `rm -f /etc/machine-id` + `install` returned EBUSY at boot
+      # ("Device or resource busy"), which failed this unit and took hytale
+      # service down with it, since that unit Requires= this one. /etc/machine-id
+      # is NOT a bind mount -- /proc/self/mountinfo does not list it and stat
+      # reports a regular file with one link -- and the same rm succeeds seconds
+      # later, so whatever holds it only does so during startup.
     '';
   };
 

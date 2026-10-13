@@ -560,12 +560,18 @@ Verified on the deployed instance:
   the 00:20 run logged `Token refresh scheduled in 3300 seconds`, and a later
   outage spanning that refresh produced `No server tokens configured` on the next
   boot with `auth.enc` still intact at 1407 bytes. The window is ~55 minutes
-- Incus gives every instance a distinct `/etc/machine-id` already (this one
-  `966e7fde...`, host `563da553...`, minecraft `088fec56...`), so the identity
-  problem `entrypoint.sh` solves in Docker -- containers inheriting the host's
-  machine-id -- does not exist here. `hytale-dirs` still pins `/etc/machine-id`
-  to the copy on `hytale-data`, because Incus's own id lives on the instance root
-  filesystem and `apply.sh` replaces that on every image change
+- Incus gives every instance a distinct `/etc/machine-id` already (the host is
+  `563da553...`, minecraft `088fec56...`), so the identity problem
+  `entrypoint.sh` solves in Docker -- containers inheriting the host's
+  machine-id -- does not exist here
+- **the machine-id is deliberately NOT pinned**, even though pinning it works.
+  `/var/lib/hytale/.machine-id` is carried from k3s and nothing reads it.
+  Pinning it to `/etc/machine-id` was implemented and deployed, and it costs
+  the journal: `journalctl` resolves its search path from `/etc/machine-id`,
+  while journald has already written the boot under `/var/log/journal/<id-at-
+  boot>/`, so after the pin every `journalctl` returns `No journal files were
+  found.` Measured both ways on the same boot with nothing else changed. A
+  telemetry hash is not worth making the instance undiagnosable.
 
 **Not yet verified**: that `tmux send-keys '/backup'` produces an archive, and
 that the daily timer survives a restart in the way the built-in scheduler did
