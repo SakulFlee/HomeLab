@@ -266,11 +266,87 @@ in
         + " /var/lib/hytale /var/lib/hytale/Server /var/lib/hytale/Server/backups /var/lib/hytale-secrets";
     };
 
-    # The marker needs the directory to exist first, so it is a second ExecStart
-    # rather than something folded into the install above: install -d on a path
-    # whose parent does not exist yet would create the parents too, with the
-    # wrong ownership.
-    postStart = lib.getExe' pkgs.coreutils "mkdir" + " -p /var/lib/hytale/Server/backups/.stfolder";
+    # Both of these run as root, after the directories above exist and before
+    # anything writes into them. They are ExecStartPost rather than the
+    # module's `postStart` because that option execs its strings directly --
+    # systemd has no shell in ExecStartPost -- and two of the four things below
+    # are conditionals.
+    serviceConfig.ExecStartPost = lib.getExe' pkgs.coreutils "sh"
+      + " -c "
+      + lib.escapeShellArg ''
+        set -euo pipefail
+
+        # -- the Syncthing marker --------------------------------------------
+        # install -d above cannot make this: it creates the directory but not
+        # its contents, and the marker is a directory Syncthing insists on
+        # finding before it will scan a folder. The hub mounts hytale-backups
+        # READ-ONLY and so can never create it itself -- without this the folder
+        # sits "stopped" in the WebUI and nothing is ever replicated.
+        mkdir -p /var/lib/hytale/Server/backups/.stfolder
+
+        # -- the machine id --------------------------------------------------
+        #
+        # Parity with the container image this replaces. HytaleContainer's
+        # entrypoint.sh does exactly this, and it is worth reading before
+        # changing it:
+        #
+        #   if [ ! -f /opt/hytale/.machine-id ]; then
+        #     cat /proc/sys/kernel/random/uuid | tr -d '-' > /opt/hytale/.machine-id
+        #   fi
+        #   cat /opt/hytale/.machine-id | tee /etc/machine-id
+        #
+        # So the volume-root file is the SOURCE OF TRUTH and /etc/machine-id is
+        # derived from it on every start. Nothing in the server reads the
+        # former -- grepping the whole 0.7.0 jar for the literal "machine-id"
+        # returns exactly one class, com/hypixel/hytale/common/util/HardwareUtil,
+        # and it reads /etc/machine-id (plus /var/lib/dbus/machine-id and
+        # /sys/class/dmi/id/product_uuid) to build a hardware UUID that
+        # TelemetryDataCollector SHA-256s into a `machineIdHash` packet field.
+        #
+        # In other words: telemetry only. It is NOT a key, it has nothing to do
+        # with auth.enc, and an earlier version of this file's README claimed
+        # otherwise by reading the two files' co-location as intent. The
+        # bytecode says telemetry, so the README says telemetry now.
+        #
+        # The reason it exists in Docker is that a container inherits its host's
+        # /etc/machine-id, so every container on the box would otherwise
+        # report the same machine.
+        #
+        # Incus does not have that problem -- each instance gets its own, and
+        # they were checked: this one is 966e7fde..., the host is 563da553...,
+        # minecraft is 088fec56.... So the UNIQUENESS the entrypoint was
+        # buying is already free here, and this block is not needed to make the
+        # id unique.
+        #
+        # What it IS needed for is the other half: /etc/machine-id lives on the
+        # instance's ROOT filesystem, which apply.sh replaces wholesale on every
+        # image change, so Incus's generated id is stable across a restart and
+        # changes on every recreate. Pinning it to a file on hytale-data makes
+        # the identity survive deploys, which is the property the Docker
+        # deployment had and this would otherwise quietly lose.
+        #
+        # Keeping the id that came across from k3s is deliberate. It is the same
+        # game server, the same world and the same licence, so Hypixel's
+        # telemetry should see one machine rather than a second one appearing in
+        # LXC and the first one vanishing.
+        #
+        # The one thing this cannot do is be consistent from the first line of
+        # boot: systemd reads /etc/machine-id before this unit runs, so within a
+        # given boot journald and dbus keep the id they started with and only
+        # later readers see this one. That is also what happens under Docker,
+        # where the entrypoint runs after init, and it costs nothing.
+        mid=/var/lib/hytale/.machine-id
+        if [ ! -s "$mid" ]; then
+          echo "no machine id on the volume; generating one"
+          tr -d '-' < /proc/sys/kernel/random/uuid > "$mid"
+        fi
+        echo "machine id: $(cat "$mid")"
+
+        # /etc/machine-id is mode 0444 by convention (systemd creates it that way
+        # so nothing edits it casually), so replace rather than overwrite.
+        rm -f /etc/machine-id
+        install -m 0444 -o root -g root "$mid" /etc/machine-id
+      '';
   };
 
   # -------------------------------------------------------------------------
@@ -481,6 +557,7 @@ in
       pkgs.openjdk25
       pkgs.coreutils
       pkgs.tmux
+      pkgs.systemd
     ];
     serviceConfig = {
       Type = "simple";
@@ -575,7 +652,15 @@ in
 
       # -d because there is no terminal here. -c because WorkingDirectory
       # applies to this script, not to the shell tmux spawns.
+      #
+      # -x/-y set a wide pane on purpose. The JVM's stdout goes to the PANE, not
+      # to this unit, and what pipe-pane forwards to the journal below is the
+      # pane's rendered output -- so the pane width is the log's wrap column.
+      # Hytale's startup is full of very long lines (asset warnings dump whole
+      # JSON records), and at the default 80 columns they wrap into unreadable
+      # ladders. 300 costs nothing and removes most of it.
       tmux new-session -d -s "$session" -c /var/lib/hytale/Server \
+        -x 300 -y 60 \
         "${lib.getExe' pkgs.openjdk25 "java"} ${javaOpts} $aot \
           -jar HytaleServer.jar \
           --assets ../Assets.zip \
@@ -585,6 +670,30 @@ in
           --backup-frequency ${toString backupFrequencyMinutes} \
           --backup-max-count ${toString backupMaxCount} \
           --backup-archive-max-count ${toString backupArchiveMaxCount}"
+
+      # Put the server's output back in the journal.
+      #
+      # `tmux new-session -d` DETACHES, so the JVM's stdout belongs to the tmux
+      # server rather than to this unit, and systemd never sees a byte of it.
+      # The first deployed version of this file had exactly that, and the
+      # symptom is quiet: the unit reports
+      #
+      #   Started Hytale dedicated server.
+      #
+      # and `journalctl -u hytale` then shows that line and nothing else, for
+      # the whole life of the server. Nothing errors; the log is simply gone,
+      # and it is gone precisely when you most want it -- reading why the
+      # server is unhappy. Found by deploying it.
+      #
+      # pipe-pane tees the pane to systemd-cat, so the log is searchable in the
+      # journal again, under the `hytale` syslog identifier:
+      #
+      #   journalctl -t hytale -f
+      #
+      # -o means "from now on", so the handful of lines between new-session and
+      # this call are the only thing not captured, which is nothing.
+      tmux pipe-pane -o -t "$session" \
+        "${lib.getExe' pkgs.systemd "systemd-cat"} -t hytale"
 
       # Stay in the foreground so systemd tracks the server's lifetime: this
       # loop ends exactly when the tmux session does.

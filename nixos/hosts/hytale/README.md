@@ -379,12 +379,25 @@ Notes:
 - **Stop before copying.** The server writes `universe/` continuously.
 - **Stream rather than stage.** A 3.4 GB payload staged in `/var/tmp` and then
   copied needs the space twice.
-- **`.machine-id` and `auth.enc` travel together, and this is the one that
-  matters.** `/opt/hytale/.machine-id` is a 32-character hex id at the *volume
+- **`.machine-id` and `auth.enc` travel together, but only one of them means
+  anything.** `/opt/hytale/.machine-id` is a 32-character hex id at the *volume
   root*, not inside `Server/`, and there is no `auth.key` anywhere -- the
   credential store is `auth.enc` alone. Both are inside the tar above
   (`--exclude` does not touch either), which is why the excludes are worth
   reading as a list rather than skimmed.
+- **`.machine-id` is telemetry, not a key.** It is worth stating separately
+  because this file previously claimed the opposite. HytaleContainer's
+  `entrypoint.sh` generates it on first boot and then does
+  `cat /opt/hytale/.machine-id | tee /etc/machine-id` on every start, so the
+  volume-root file is the source of truth and `/etc/machine-id` is derived from
+  it. Grepping the whole 0.7.0 jar for the literal `machine-id` returns exactly
+  one class, `com/hypixel/hytale/common/util/HardwareUtil`, and it reads
+  `/etc/machine-id` (plus `/var/lib/dbus/machine-id` and
+  `/sys/class/dmi/id/product_uuid`) to build a hardware UUID which
+  `TelemetryDataCollector.generateMachineIdHash` SHA-256s into a `machineIdHash`
+  packet field. Nothing reads `/opt/hytale/.machine-id`. It has no relationship
+  to `auth.enc`, and reading the two files' co-location on the volume as intent
+  was inference dressed up as a finding.
 - **They did not actually work, and this is the part worth knowing.** The copy
   was byte-perfect -- `auth.enc` arrived at 1407 bytes with its mtime preserved
   -- and the server still logged:
@@ -514,6 +527,9 @@ deployment:
   other and compression is not a reason to prefer a hand-rolled tar
 - that the server has no RCON/HTTP admin/query channel
 - that `.machine-id` sits at the volume root and `auth.key` does not exist
+- that `HardwareUtil` reads `/etc/machine-id` for a telemetry `machineIdHash` and
+  nothing reads `/opt/hytale/.machine-id`, so the two files' co-location is not
+  a key relationship
 
 Verified on the deployed instance:
 
@@ -538,7 +554,18 @@ Verified on the deployed instance:
   and produces **no archive** over the following quarter of an hour, which is
   what established that the initial delay is the period rather than zero
 - `.machine-id` + `auth.enc` copy intact across instances and versions but do
-  **not** authenticate 0.7.0; `/auth login device` is required
+  **not** authenticate 0.7.0; `/auth login device` is required. `.machine-id` is
+  in no position to help -- it feeds a telemetry hash and nothing else
+- the auth tokens in `auth.enc` are the part that does not survive a restart:
+  the 00:20 run logged `Token refresh scheduled in 3300 seconds`, and a later
+  outage spanning that refresh produced `No server tokens configured` on the next
+  boot with `auth.enc` still intact at 1407 bytes. The window is ~55 minutes
+- Incus gives every instance a distinct `/etc/machine-id` already (this one
+  `966e7fde...`, host `563da553...`, minecraft `088fec56...`), so the identity
+  problem `entrypoint.sh` solves in Docker -- containers inheriting the host's
+  machine-id -- does not exist here. `hytale-dirs` still pins `/etc/machine-id`
+  to the copy on `hytale-data`, because Incus's own id lives on the instance root
+  filesystem and `apply.sh` replaces that on every image change
 
 **Not yet verified**: that `tmux send-keys '/backup'` produces an archive, and
 that the daily timer survives a restart in the way the built-in scheduler did
