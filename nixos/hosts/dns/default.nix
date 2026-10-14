@@ -16,7 +16,8 @@ let
   # of 100.64.0.x, and is rejected with 403 even for a connected client.
   #
   # Keep in lockstep with the Traefik `vpn-only` ingresses until those apps
-  # migrate to Incus, and with the Caddy VPN-gated vhosts (incus, ttyd) after.
+  # migrate to Incus, and with the Caddy VPN-gated vhosts (incus, ttyd,
+  # syncthing, paperless, wireguard-ui) after.
   vpnOnlyNames = [
     "incus"
     "hermes-dashboard"
@@ -36,6 +37,11 @@ let
     "vpn"
     "pvc-explorer"
     "ttyd"
+    # The wireguard-ui web UI's vhost in caddy/default.nix. Without the entry
+    # here the name falls through to the public wildcard, arrives at Caddy from
+    # a Cloudflare edge IP instead of 100.64.0.x, and is rejected with 403 even
+    # for a client that is connected to the tunnel.
+    "wireguard-ui"
   ];
 
   namePattern = lib.concatStringsSep "|" vpnOnlyNames;

@@ -51,10 +51,26 @@ which is what keeps the client migration short.
 | what            | value                     | where it is set                          |
 | --------------- | ------------------------- | ---------------------------------------- |
 | VM on the LAN   | `192.168.178.210`         | `default.nix`, pinned by `hwaddr` in `incus.nix` |
-| web UI          | `192.168.178.210:51821`   | `bindAddress`                            |
+| web UI (bind)   | `0.0.0.0:51821`           | `bindAddress`                            |
+| web UI (vhost)  | `https://wireguard-ui.sakul-flee.de` (VPN only) | `hosts/caddy/default.nix`   |
 | tunnel listen   | `100.64.0.1/24`, UDP 51820| `serverInterfaceAddresses`, `listenPort`  |
 | public endpoint | `wg.sakul-flee.de:51820`  | `endpointAddress`                        |
 | VPN resolver    | `192.168.178.200`         | `dnsServers`, and the guest's own DNS     |
+
+Three ways to reach the web UI, and all three are deliberate:
+
+* **`https://wireguard-ui.sakul-flee.de`** -- through Caddy, gated to
+  `100.64.0.0/10`, so only a connected tunnel client gets anything but a 403.
+  Caddy dials the **bridge** address `10.0.0.110:51821`: the LAN address is
+  unreachable from a container (macvlan cannot exchange frames with its parent
+  interface), which is why the UI binds `0.0.0.0` rather than one address.
+* **`http://192.168.178.210:51821`** -- straight from the LAN, no tunnel. The
+  escape hatch for the chicken-and-egg, and the one the cutover steps below use.
+* **`http://10.0.0.110:51821`** -- from the host or any instance, the fallback
+  when neither of the above is an option.
+
+None of the three is reachable from the internet: the router forwards UDP 51820
+and nothing else.
 
 The resolver is still the split-horizon CoreDNS in k3s. Deliberate: moving DNS in
 the same change as the VPN would mean debugging routing and name resolution at
@@ -116,8 +132,10 @@ an unreachable VM.
 to `192.168.178.210`. This is the cutover, and it is the only step that touches
 the live VPN — see below.
 
-**4. The router must not** forward the web UI's 51821. It is bound to the LAN
-address and reachable from home and over the VPN, which is the intent.
+**4. The router must not** forward the web UI's 51821. It binds `0.0.0.0`, so
+what keeps it off the internet is exactly this -- there is no forward. From home
+the LAN path (`http://192.168.178.210:51821`) and the VPN-gated vhost both work
+by design.
 
 ## Cutover
 

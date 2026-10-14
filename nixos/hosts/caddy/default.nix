@@ -305,6 +305,67 @@ in
         }
 
         # -------------------------------------------------------------------
+        # wireguard-ui.sakul-flee.de -- the WireGuard web UI, VPN only
+        # -------------------------------------------------------------------
+        # A separate site block, NOT an entry in hostnames.nix: those all
+        # import still-traefik, and the name was never one of them -- it did
+        # not exist until this block.
+        #
+        # Same gate shape as every other block in this file: `remote_ip`, never
+        # `client_ip` (the incus forward is a DNAT and does not rewrite the
+        # source, so remote_ip is the real client address and is unforgeable,
+        # while X-Forwarded-For is settable by anyone and with no
+        # trusted_proxies a client_ip gate is a one-header bypass), and the
+        # same 100.64.0.0/10 tunnel range. The name is in vpnOnlyNames in
+        # hosts/dns/default.nix so split-horizon CoreDNS answers it with the
+        # host's LAN address -- without that it resolves at a Cloudflare edge
+        # IP instead and the gate below rejects even a connected client.
+        #
+        # The upstream is the BRIDGE address, 10.0.0.110:51821, not the UI's
+        # LAN address 192.168.178.210:51821, and that is load-bearing rather
+        # than incidental:
+        #
+        #   * The VM's LAN NIC is macvlan on eno1, and macvlan cannot exchange
+        #     frames with its parent interface -- a kernel property, not an
+        #     Incus one. Anything the host transmits on eno1 toward the VM's
+        #     MAC never comes back to it, so a container dialling the LAN
+        #     address times out regardless of routing.
+        #   * Incus additionally masquerades container egress off incusbr0, so
+        #     even the source would be the host's -- the very address the
+        #     macvlan parent isolation blocks.
+        #
+        # The bridge path (eth1, 10.0.0.110) is the only container-to-VM path
+        # there is, and it is deliberately un-NATted on the tunnel side too --
+        # see hosts/wireguard/default.nix on networking.nat.extraCommands --
+        # which is what keeps a VPN client's source address intact on arrival
+        # here and lets the gate above pass.
+        #
+        # The UI binds 0.0.0.0:51821 (hosts/wireguard/default.nix), so this
+        # bridge address answers. The LAN fallback -- http://192.168.178.210:51821
+        # straight from a device at home, no VPN needed -- is the second reason
+        # for that bind and the escape hatch for the chicken-and-egg of a UI
+        # that is only reachable over the tunnel it serves. Nothing on the
+        # router forwards 51821 from the internet; that is the whole reason
+        # both paths are safe.
+        #
+        # header_up Host {http.request.host} is the file-wide convention;
+        # wireguard-ui does not match on Host, so here it is belt and braces
+        # rather than the fix.
+        wireguard-ui.sakul-flee.de {
+            tls {
+                dns cloudflare {env.CF_API_TOKEN}
+            }
+
+            @notvpn not remote_ip 100.64.0.0/10
+            respond @notvpn "The WireGuard admin UI is reachable over the VPN only.\n" 403
+
+            reverse_proxy http://10.0.0.110:51821 {
+                header_up Host {http.request.host}
+            }
+        }
+        # -------------------------------------------------------------------
+
+        # -------------------------------------------------------------------
         # syncthing.sakul-flee.de -- CUTOVER: now served by the Incus instance
         # -------------------------------------------------------------------
         # Same gate shape as ttyd above: `remote_ip`, not `client_ip` (the forward

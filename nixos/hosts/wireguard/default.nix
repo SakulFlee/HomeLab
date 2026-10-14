@@ -13,10 +13,11 @@
 let
   cfg = config.services.wireguard-ui;
 
-  # The VM's own LAN address. Set in three places that must agree: here, the
-  # bind address for the web UI below, and the DHCP reservation the router needs.
-  # There is no single source of truth across those, which is why it is defined
-  # once here and used for the two guest-side values.
+  # The VM's own LAN address. Set in two places that must agree: here, and the
+  # DHCP reservation the router needs. There is no single source of truth across
+  # those, which is why it is defined once here. The web UI does NOT bind this
+  # address -- see bindAddress below: it binds 0.0.0.0 so both the bridge path
+  # Caddy dials (10.0.0.110) and the direct LAN fallback answer.
   lanAddress = "192.168.178.210";
 
   # Must match hwaddr in incus.nix, which pins the Incus NIC's MAC so this
@@ -168,8 +169,8 @@ in
   # 192.168.178.210 must be outside the router's DHCP pool, or it will eventually
   # be handed to something else and the two will fight. Reserved on the router.
 
-  # A VM on the LAN over macvlan, so it answers on the LAN. The web UI is bound
-  # to lanAddress rather than 0.0.0.0 for the reason given in wireguard-ui.nix.
+  # A VM on the LAN over macvlan, so it answers on the LAN. The web UI binds
+  # 0.0.0.0 rather than an address, for the reason given at bindAddress below.
   networking.firewall = {
     enable = true;
     allowedTCPPorts = [
@@ -300,9 +301,35 @@ in
   services.wireguard-ui = {
     enable = true;
 
-    # Reachable from home and over the VPN. Nothing forwards this port from the
-    # internet -- the router's only new forward is the tunnel's UDP port.
-    bindAddress = "${lanAddress}:51821";
+    # 0.0.0.0, deliberately. The instinct against it -- the UI can hand out a
+    # working client for the whole homelab, so keep it off every interface --
+    # loses to the geometry here:
+    #
+    # Caddy's vhost (wireguard-ui.sakul-flee.de, hosts/caddy/default.nix) is
+    # the VPN-only route in, and it dials this UI over the BRIDGE address:
+    # http://10.0.0.110:51821. The LAN address this used to bind,
+    # 192.168.178.210:51821, is unreachable from a container -- macvlan cannot
+    # exchange frames with its parent interface, and Incus masquerades
+    # container egress off incusbr0 on top of that -- so binding only the LAN
+    # address would leave the vhost dialling a port nobody listens on.
+    #
+    # One bind string, so 0.0.0.0 is what covers both paths at once:
+    #
+    #   10.0.0.110:51821    the bridge, for Caddy (and for the host and every
+    #                       other instance -- `curl http://10.0.0.110:51821`
+    #                       from here works and is the fallback when no tunnel
+    #                       is up)
+    #   192.168.178.210:51821  the LAN, the documented escape hatch for the
+    #                       chicken-and-egg: a UI that needs a tunnel to reach
+    #                       it, serving the configs that build the tunnel
+    #   100.64.0.1:51821    the tunnel itself; any connected client can reach
+    #                       the UI directly over HTTP, which it could already
+    #                       do via the LAN address anyway
+    #
+    # None of that is internet exposure and that is the condition the whole
+    # arrangement rests on: the router forwards UDP 51820 only. README.md
+    # note 4 is the router side of that.
+    bindAddress = "0.0.0.0:51821";
 
     # The tunnel's UDP port. Upstream defaults to 51820, which is also the
     # router's forward, so this matches what clients already have.
@@ -404,7 +431,10 @@ in
     #                      incus.nix. The accepted consequence of leaving it unset
     #                      is that session cookies are signed with the compiled-in
     #                      default, a constant published in the upstream source.
-    #                      Safe only because the UI is VPN-gated.
+    #                      Accepted because nothing on the router forwards 51821
+    #                      to the internet and the direct paths are the home LAN
+    #                      and the tunnel, both trusted -- and because the vhost
+    #                      in hosts/caddy/default.nix is VPN-gated on top of it.
   };
 
   # ---------------------------------------------------------------------

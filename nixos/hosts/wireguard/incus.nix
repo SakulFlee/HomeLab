@@ -159,24 +159,28 @@ in
   #                                  sops.
   #
   #   wireguard_ui_session_secret    -session-secret is read at every start, so
-  #                                  this one does work, but the UI is only
-  #                                  reachable over the VPN, which needs a working
-  #                                  tunnel, which needs this file to already
-  #                                  exist. Rendering it needs apply.sh running
-  #                                  as root before the first boot completes --
-  #                                  a genuine ordering dependency for a
-  #                                  convenience. Dropped, and the consequence is
-  #                                  accepted: the compiled-in default is a
-  #                                  constant published in the upstream source, so
-  #                                  session cookies are forgeable by anyone who
-  #                                  has read it. That is acceptable only because
-  #                                  the UI is VPN-gated; it is not acceptable if
-  #                                  this vhost is ever exposed to the LAN.
+  #                                  this one does work, but rendering it needs
+  #                                  apply.sh running as root before the first
+  #                                  boot completes -- a genuine ordering
+  #                                  dependency for a convenience. Dropped, and
+  #                                  the consequence is accepted: the
+  #                                  compiled-in default is a constant
+  #                                  published in the upstream source, so
+  #                                  session cookies are forgeable by anyone
+  #                                  who has read it. That is acceptable
+  #                                  because nothing on the router forwards
+  #                                  51821 to the internet -- the only callers
+  #                                  are the home LAN, the tunnel, and the
+  #                                  VPN-gated wireguard-ui vhost in
+  #                                  hosts/caddy/default.nix -- all of which
+  #                                  are trusted or gated already.
   #
   # The consequence worth stating plainly: because the password is initialised
   # from a default on first start, a fresh volume comes up as admin/admin. That
-  # is the documented upstream behaviour and the reason the UI is not reachable
-  # until the VPN is up.
+  # is the documented upstream behaviour, and it is exercised from the LAN on
+  # purpose (README cutover step 3). The internet never sees the port, the
+  # vhost is VPN-gated, and changing the password in the UI is the first thing
+  # that has to happen.
   renderedSecrets = [ ];
 
   # Nothing consumes a rendered secret, so nothing needs restarting after one.

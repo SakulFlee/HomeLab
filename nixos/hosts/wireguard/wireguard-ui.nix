@@ -68,11 +68,15 @@ in
 
     bindAddress = lib.mkOption {
       type = lib.types.str;
-      example = "192.168.178.210:51821";
+      example = "0.0.0.0:51821";
       description = ''
-        Address:port for the web UI. Bound to an address rather than 0.0.0.0 on
-        purpose: the UI can hand out a working client for the whole homelab, so
-        it should not be on every interface the machine has.
+        Address:port for the web UI. What to bind is an instance-level
+        decision, not a module one: binding a single address keeps the UI off
+        the interfaces that should not carry it, while 0.0.0.0 covers two
+        paths that cannot share one address -- see bindAddress in
+        hosts/wireguard/default.nix for why this instance chooses the latter
+        (Caddy dials the bridge address, the LAN address is the fallback, and
+        nothing forwards the port from the internet).
       '';
     };
 

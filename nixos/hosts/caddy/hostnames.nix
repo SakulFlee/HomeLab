@@ -42,4 +42,10 @@
 #   block either: that instance is not migrated yet, so the name currently
 #   serves nothing from Caddy. It comes back with the qBittorrent cutover.
 #
+# - wireguard-ui.sakul-flee.de was never in this list: it is a name that did
+#   not exist before its own site block in ../default.nix was written, proxying
+#   to the wireguard VM's web UI on the bridge, VPN-gated. Note it is NOT
+#   vpn.sakul-flee.de -- that one is a still-traefik entry above and has
+#   nothing to do with the WireGuard UI.
+#
 # - Nothing else routed by Traefik on homelab in that snapshot.
