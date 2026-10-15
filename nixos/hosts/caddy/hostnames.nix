@@ -16,8 +16,6 @@
 # or in a manifest this grep did not reach) and one that is (fluxer).
 [
   "grafana.sakul-flee.de"
-  "hermes.sakul-flee.de"
-  "hermes-dashboard.sakul-flee.de"
   "nas.sakul-flee.de"
   "ollama.sakul-flee.de"
   "open-webui.sakul-flee.de"
@@ -41,6 +39,17 @@
 #   qbittorrent.sakul-flee.de is ALSO gone from this list but is NOT in a site
 #   block either: that instance is not migrated yet, so the name currently
 #   serves nothing from Caddy. It comes back with the qBittorrent cutover.
+#
+# - hermes and hermes-dashboard left this list with the Hermes cutover: both
+#   are now one site block in ../default.nix proxying to the hermes instance
+#   at 10.0.0.117 (the gateway's API on :8642 for /v1 and /health, the
+#   dashboard on :9119 for everything else).
+#
+#   ollama and open-webui are STILL here and are now the last two names tied
+#   to a Traefik that no longer exists -- nothing serves them, and nothing
+#   will: Hermes runs its own llama.cpp runtime instead of an Ollama instance,
+#   so there is nothing to cut over. They sit in this list, proxy to a dead
+#   upstream, and can be deleted whenever the cleanup is wanted.
 #
 # - wireguard-ui.sakul-flee.de was never in this list: it is a name that did
 #   not exist before its own site block in ../default.nix was written, proxying

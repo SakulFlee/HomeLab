@@ -200,6 +200,24 @@
   sops.secrets.renovate_token = {};
   sops.secrets.renovate_github_com_token = {};
 
+  # Hermes's environment file, for the hermes instance.
+  #
+  # One multi-line string in secrets.yaml (key `hermes-env`), carried over from
+  # the k3s deployment that b9b3b184 rolled down: the API server key the
+  # gateway authenticates /v1 callers with, and the dashboard basic-auth pair.
+  # The key already existed in secrets.yaml but was never declared here, which
+  # means it was never decrypted to /run/secrets at all -- apply.sh names that
+  # exact failure mode when a renderedSecrets source does not exist. These
+  # declarations are what make sops-nix write it.
+  #
+  # Declared on the host for the same reason as every other rendered secret
+  # above: the instance receives the rendered bytes (apply.sh writes them as a
+  # raw EnvironmentFile -- see the renderedSecrets stanza in
+  # hosts/hermes/incus.nix) and no decryption capability, so a root process in
+  # the hermes container cannot read the restic password, the Forgejo secrets
+  # or the PIA credentials out of this file.
+  sops.secrets."hermes-env" = {};
+
   # No sops.secrets for the wireguard VM's web UI, and that is a decision rather
   # than an omission.
   #

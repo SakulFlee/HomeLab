@@ -100,4 +100,12 @@
   # runtime inside the guest, which is the same "privileged or VM" fork the
   # runner and fluxer take. See hosts/website/incus.nix.
   website = import ./hosts/website/incus.nix;
+
+  # Hermes (NousResearch hermes-agent), replacing the k3s deployment that
+  # b9b3b184 rolled down. A container: the gateway, the dashboard and the
+  # managed llama-server are all userspace, and the iGPU comes in through a
+  # bare `gpu` device (vulkan compute, sharing the card with jellyfin's VAAPI).
+  # Local models are served by Hermes's own llama.cpp runtime rather than an
+  # Ollama instance -- see hosts/hermes/default.nix.
+  hermes = import ./hosts/hermes/incus.nix;
 }

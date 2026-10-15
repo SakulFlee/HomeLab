@@ -582,6 +582,57 @@ in
         # -------------------------------------------------------------------
 
         # -------------------------------------------------------------------
+        # hermes.sakul-flee.de and hermes-dashboard.sakul-flee.de --
+        # CUTOVER: now served by the Incus instance
+        # -------------------------------------------------------------------
+        #
+        # Both names proxy to the same instance (10.0.0.117) and the same two
+        # ports, because what used to split them is gone: the community
+        # hermes-webui that hermes.sakul-flee.de served needed a container
+        # runtime and never came back from k3s, and upstream's own dashboard
+        # is now the browser surface. The name is kept alive rather than
+        # dropped so nothing that bookmarked it 404s, and both resolve to the
+        # same app on the VPN, same as before.
+        #
+        # Same gate shape as every block above: `remote_ip`, not `client_ip`
+        # (the forward is DNAT and does not rewrite the source, so remote_ip is
+        # the real client address and is unforgeable, while X-Forwarded-For
+        # is settable by anyone), and the same /10 tunnel range the Traefik
+        # vpn-only middleware used on these names in k3s.
+        #
+        # Two upstreams, split by path. The gateway's OpenAI-compatible API and
+        # its health probe are the same process the k3s deployment exposed on
+        # 8642, and Hermes Desktop's /v1 clients authenticate against it with
+        # the API server key; everything else is the dashboard web app on
+        # 9119.
+        #
+        # header_up Host {http.request.host} on both: the dashboard binds
+        # 0.0.0.0 inside the container (see hosts/hermes/default.nix for why it
+        # cannot bind an address and still serve both names), and sending the
+        # name the browser asked for is what keeps its cookie paths and any
+        # redirect consistent.
+        hermes.sakul-flee.de, hermes-dashboard.sakul-flee.de {
+            tls {
+                dns cloudflare {env.CF_API_TOKEN}
+            }
+
+            @notvpn not remote_ip 100.64.0.0/10
+            respond @notvpn "Hermes is reachable over the VPN only.\n" 403
+
+            # 8642: the gateway's API server (OpenAI-compatible /v1, /health).
+            @hermesApi path /v1/* /health*
+            reverse_proxy @hermesApi http://10.0.0.117:8642 {
+                header_up Host {http.request.host}
+            }
+
+            # 9119: the dashboard, which also serves the web application.
+            reverse_proxy http://10.0.0.117:9119 {
+                header_up Host {http.request.host}
+            }
+        }
+        # -------------------------------------------------------------------
+
+        # -------------------------------------------------------------------
         # sakul-flee.de, www.sakul-flee.de -- CUTOVER: now served by the
         # Incus instance (the website VM at 10.0.0.114)
         # -------------------------------------------------------------------

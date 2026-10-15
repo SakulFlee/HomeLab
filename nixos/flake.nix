@@ -31,6 +31,18 @@
     # documented above, mirrored by hosts/paperless/default.nix. Everything else
     # stays on the 26.05 pin; only services.paperless.package pulls from here.
     nixpkgs-paperless.url = "github:NixOS/nixpkgs/e7439b6b14ad3cc35d05608ebca9bce01a25f5f8";
+
+    # Hermes Agent (NousResearch). Pinned to a release tag, not a branch: the
+    # module's own package default is inputs.self.packages.<system>.default
+    # from THIS flake, so the pin is what decides which hermes the instance
+    # runs.
+    #
+    # Deliberately NO inputs.nixpkgs.follows. Their uv2nix packaging is built
+    # and tested against their own nixpkgs pin; forcing ours (nixos-26.05)
+    # would rebuild the whole Python closure against a toolchain upstream
+    # never validated it on, to save a few store paths. The cost is two
+    # nixpkgs in the closure, which is the cheap side of that trade.
+    hermes-agent.url = "github:NousResearch/hermes-agent/v0.22.1";
   };
 
   outputs = { self, nixpkgs, ... }@inputs:
@@ -241,6 +253,11 @@
         # needs a container runtime inside the guest, which an LXC could only
         # provide as security.privileged. Same fork as forgejo-runner above.
         website = mkInstance { path = ./hosts/website; kind = "vm"; };
+        # Hermes. A container: the agent, the dashboard and the managed
+        # llama-server are all userspace, and the only kernel surface it needs
+        # is the iGPU render node -- which a bare `gpu` device already hands
+        # over 0666 into an unprivileged guest (measured for jellyfin).
+        hermes = mkInstance { path = ./hosts/hermes; };
       };
 
       # Convenience: buildable images, so `nix build .#image-<name>` works.
@@ -260,6 +277,7 @@
         image-qbittorrent = self.nixosConfigurations.qbittorrent.config.system.build.squashfs;
         image-cloudflare-ddns = self.nixosConfigurations.cloudflare-ddns.config.system.build.squashfs;
         image-renovate = self.nixosConfigurations.renovate.config.system.build.squashfs;
+        image-hermes = self.nixosConfigurations.hermes.config.system.build.squashfs;
 
         # A VM is one qcow2 disk rather than a rootfs plus a metadata tarball.
         image-wireguard = self.nixosConfigurations.wireguard.config.system.build.qemuImage;
