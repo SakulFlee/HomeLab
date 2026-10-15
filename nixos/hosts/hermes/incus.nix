@@ -104,30 +104,16 @@ in
   # the restic password, the Forgejo JWT secret or the VPN credentials even if
   # it wants to.
   #
-  # `format = "raw"`, not the env default: hermes.env is ONE multi-line string
-  # in the host's secrets.yaml (the k3s deployment's whole KEY=value block --
-  # Matrix credentials, the Ollama URL, the OpenCode key). format=env would
-  # wrap those newlines into a single enormous KEY=value line; raw writes the
-  # bytes through, which is exactly what a systemd EnvironmentFile wants.
+  # format=env: each is a single KEY=value line, which is exactly what that
+  # format produces and what a systemd EnvironmentFile wants.
   #
   # 0440 root:hermes, not the 0400 root-only default, and load-bearing rather
   # than tidier: both hermes units run as User=hermes and systemd opens
   # EnvironmentFile as root before dropping privileges -- but the module ALSO
-  # merges this file into $HERMES_HOME/.env at activation, and that install
-  # runs as the service owner. At 0400 root:root the units would start and the
+  # merges these into $HERMES_HOME/.env at activation, and that install runs
+  # as the service owner. At 0400 root:root the units would start and the
   # activation merge would silently warn.
   renderedSecrets = [
-    {
-      format = "raw";
-      file = "hermes.env";
-      source = "/run/secrets/hermes/env";
-      mode = "0440";
-      group = "hermes";
-    }
-
-    # The four the blob above never had, one file each (renovate's shape).
-    # format=env -- each is a single KEY=value line, which is exactly what
-    # that format produces and what a systemd EnvironmentFile wants.
     {
       format = "env";
       file = "api-server-key-env";
