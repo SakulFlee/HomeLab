@@ -132,7 +132,7 @@ in
       format = "env";
       file = "api-server-key-env";
       env = "API_SERVER_KEY";
-      source = "/run/secrets/api_server_key";
+      source = "/run/secrets/hermes/api_server_key";
       mode = "0440";
       group = "hermes";
     }
@@ -140,7 +140,7 @@ in
       format = "env";
       file = "dashboard-username-env";
       env = "HERMES_DASHBOARD_BASIC_AUTH_USERNAME";
-      source = "/run/secrets/hermes_dashboard_username";
+      source = "/run/secrets/hermes/dashboard_username";
       mode = "0440";
       group = "hermes";
     }
@@ -148,7 +148,7 @@ in
       format = "env";
       file = "dashboard-password-env";
       env = "HERMES_DASHBOARD_BASIC_AUTH_PASSWORD";
-      source = "/run/secrets/hermes_dashboard_password";
+      source = "/run/secrets/hermes/dashboard_password";
       mode = "0440";
       group = "hermes";
     }
@@ -156,7 +156,7 @@ in
       format = "env";
       file = "dashboard-session-env";
       env = "HERMES_DASHBOARD_BASIC_AUTH_SECRET";
-      source = "/run/secrets/hermes_dashboard_session_secret";
+      source = "/run/secrets/hermes/dashboard_session_secret";
       mode = "0440";
       group = "hermes";
     }
