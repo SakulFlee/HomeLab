@@ -58,7 +58,7 @@
 
     # Where the host writes these (renderedSecrets in incus.nix):
     #
-    #   hermes-env              the k3s deployment's own blob -- Matrix
+    #   hermes.env             the k3s deployment's own blob -- Matrix
     #                           credentials, the Ollama URL, the OpenCode key.
     #   api-server-key-env      API_SERVER_KEY, without which the gateway's
     #                           /v1 API server refuses to start at all.
@@ -75,7 +75,7 @@
     # also get them as systemd EnvironmentFiles below, which are read at every
     # start -- see the unit overrides under "Secrets" below.
     environmentFiles = [
-      "/var/lib/incus-secrets/hermes-env"
+      "/var/lib/incus-secrets/hermes.env"
       "/var/lib/incus-secrets/api-server-key-env"
       "/var/lib/incus-secrets/dashboard-username-env"
       "/var/lib/incus-secrets/dashboard-password-env"
@@ -107,7 +107,7 @@
       # is what the vhosts route /v1 and /health to (Hermes Desktop and any
       # OpenAI-client use this; the k3s deployment exposed the same surface).
       # Caller auth is the global API server key, read from API_SERVER_KEY in
-      # the rendered hermes-env.
+      # the rendered hermes.env.
       platforms.api_server = {
         enabled = true;
         # Same reasoning as backend.host: bind everything inside the container
@@ -136,14 +136,14 @@
   # The gateway and the backend are two processes sharing one HERMES_HOME, so
   # both read the files.
   systemd.services.hermes-agent.serviceConfig.EnvironmentFile = [
-    "/var/lib/incus-secrets/hermes-env"
+    "/var/lib/incus-secrets/hermes.env"
     "/var/lib/incus-secrets/api-server-key-env"
     "/var/lib/incus-secrets/dashboard-username-env"
     "/var/lib/incus-secrets/dashboard-password-env"
     "/var/lib/incus-secrets/dashboard-session-env"
   ];
   systemd.services.hermes-backend.serviceConfig.EnvironmentFile = [
-    "/var/lib/incus-secrets/hermes-env"
+    "/var/lib/incus-secrets/hermes.env"
     "/var/lib/incus-secrets/api-server-key-env"
     "/var/lib/incus-secrets/dashboard-username-env"
     "/var/lib/incus-secrets/dashboard-password-env"

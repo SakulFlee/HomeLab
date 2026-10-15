@@ -202,7 +202,7 @@
 
   # Hermes's environment file, for the hermes instance.
   #
-  # One multi-line string in secrets.yaml (key `hermes-env`), carried over from
+  # One multi-line string in secrets.yaml (key `hermes.env`), carried over from
   # the k3s deployment that b9b3b184 rolled down: the API server key the
   # gateway authenticates /v1 callers with, and the dashboard basic-auth pair.
   # The key already existed in secrets.yaml but was never declared here, which
@@ -216,9 +216,9 @@
   # hosts/hermes/incus.nix) and no decryption capability, so a root process in
   # the hermes container cannot read the restic password, the Forgejo secrets
   # or the PIA credentials out of this file.
-  sops.secrets."hermes-env" = {};
+  sops.secrets."hermes.env" = {};
 
-  # The four values hermes-env never had, as separate keys rather than more
+  # The four values hermes.env never had, as separate keys rather than more
   # lines in that multi-line blob -- one secret per value is what makes them
   # addable with a plain `sops nixos/secrets.yaml` edit, which the blob is not.
   #
@@ -227,7 +227,7 @@
   # configured (there is no unauthenticated public mode at all), and the
   # gateway's OpenAI-compatible API server refuses to start without
   # API_SERVER_KEY even on loopback. The k3s deployment carried both, but in
-  # its own Secret, and the hermes-env string carried over here only had the
+  # its own Secret, and the hermes.env string carried over here only had the
   # Matrix credentials, the Ollama URL and the OpenCode key.
   #
   #   hermes.api_server_key             API_SERVER_KEY. Caller authentication

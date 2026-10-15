@@ -104,11 +104,11 @@ in
   # the restic password, the Forgejo JWT secret or the VPN credentials even if
   # it wants to.
   #
-  # `format = "raw"`, not the env default: hermes-env is ONE multi-line string
+  # `format = "raw"`, not the env default: hermes.env is ONE multi-line string
   # in the host's secrets.yaml (the k3s deployment's whole KEY=value block --
-  # API_SERVER_KEY, the dashboard basic-auth pair). format=env would wrap those
-  # newlines into a single enormous KEY=value line; raw writes the bytes
-  # through, which is exactly what a systemd EnvironmentFile wants.
+  # Matrix credentials, the Ollama URL, the OpenCode key). format=env would
+  # wrap those newlines into a single enormous KEY=value line; raw writes the
+  # bytes through, which is exactly what a systemd EnvironmentFile wants.
   #
   # 0440 root:hermes, not the 0400 root-only default, and load-bearing rather
   # than tidier: both hermes units run as User=hermes and systemd opens
@@ -119,8 +119,8 @@ in
   renderedSecrets = [
     {
       format = "raw";
-      file = "hermes-env";
-      source = "/run/secrets/hermes-env";
+      file = "hermes.env";
+      source = "/run/secrets/hermes/env";
       mode = "0440";
       group = "hermes";
     }
