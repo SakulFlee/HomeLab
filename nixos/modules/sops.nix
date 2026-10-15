@@ -216,7 +216,7 @@
   # hosts/hermes/incus.nix) and no decryption capability, so a root process in
   # the hermes container cannot read the restic password, the Forgejo secrets
   # or the PIA credentials out of this file.
-  sops.secrets."hermes.env" = {};
+  sops.secrets."hermes/env" = {};
 
   # The four values hermes.env never had, as separate keys rather than more
   # lines in that multi-line blob -- one secret per value is what makes them
@@ -230,21 +230,25 @@
   # its own Secret, and the hermes.env string carried over here only had the
   # Matrix credentials, the Ollama URL and the OpenCode key.
   #
-  #   hermes.api_server_key             API_SERVER_KEY. Caller authentication
+  #   hermes/api_server_key             API_SERVER_KEY. Caller authentication
   #                                     for /v1 and /health on :8642.
-  #   hermes.dashboard_username         HERMES_DASHBOARD_BASIC_AUTH_USERNAME.
-  #   hermes.dashboard_password         ..._PASSWORD. Hashed in-memory at
+  #   hermes/dashboard_username         HERMES_DASHBOARD_BASIC_AUTH_USERNAME.
+  #   hermes/dashboard_password         ..._PASSWORD. Hashed in-memory at
   #                                     start; plaintext in sops, same posture
   #                                     as every other rendered secret here.
-  #   hermes.dashboard_session_secret   ..._SECRET. Signs dashboard session
+  #   hermes/dashboard_session_secret   ..._SECRET. Signs dashboard session
   #                                     tokens. Empty would work but would
   #                                     sign with a per-process random key,
   #                                     so every restart of the backend logs
   #                                     every session out.
-  sops.secrets."hermes.api_server_key" = {};
-  sops.secrets."hermes.dashboard_username" = {};
-  sops.secrets."hermes.dashboard_password" = {};
-  sops.secrets."hermes.dashboard_session_secret" = {};
+  #
+  # Slashes, not dots: sops-nix's recurseSecretKey splits the key on `/` to
+  # walk the nested YAML map. A dotted name would be looked up as a flat
+  # top-level key and miss entirely.
+  sops.secrets."hermes/api_server_key" = {};
+  sops.secrets."hermes/dashboard_username" = {};
+  sops.secrets."hermes/dashboard_password" = {};
+  sops.secrets."hermes/dashboard_session_secret" = {};
 
   # No sops.secrets for the wireguard VM's web UI, and that is a decision rather
   # than an omission.
