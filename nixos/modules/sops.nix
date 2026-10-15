@@ -218,6 +218,33 @@
   # or the PIA credentials out of this file.
   sops.secrets."hermes-env" = {};
 
+  # The four values hermes-env never had, as separate keys rather than more
+  # lines in that multi-line blob -- one secret per value is what makes them
+  # addable with a plain `sops nixos/secrets.yaml` edit, which the blob is not.
+  #
+  # Both units fail closed without these, which is how the gap was found: the
+  # dashboard REFUSES to bind a non-loopback address unless an auth provider is
+  # configured (there is no unauthenticated public mode at all), and the
+  # gateway's OpenAI-compatible API server refuses to start without
+  # API_SERVER_KEY even on loopback. The k3s deployment carried both, but in
+  # its own Secret, and the hermes-env string carried over here only had the
+  # Matrix credentials, the Ollama URL and the OpenCode key.
+  #
+  #   api_server_key                API_SERVER_KEY. Caller authentication for
+  #                                 /v1 and /health on :8642.
+  #   hermes_dashboard_username     HERMES_DASHBOARD_BASIC_AUTH_USERNAME. The
+  #   hermes_dashboard_password     ..._PASSWORD. Hashed in-memory at start;
+  #                                 plaintext in sops, same posture as every
+  #                                 other rendered secret here.
+  #   hermes_dashboard_session_...  ..._SECRET. Signs dashboard session tokens.
+  #                                 Empty would work but would sign with a
+  #                                 per-process random key, so every restart
+  #                                 of the backend logs every session out.
+  sops.secrets.api_server_key = {};
+  sops.secrets.hermes_dashboard_username = {};
+  sops.secrets.hermes_dashboard_password = {};
+  sops.secrets.hermes_dashboard_session_secret = {};
+
   # No sops.secrets for the wireguard VM's web UI, and that is a decision rather
   # than an omission.
   #

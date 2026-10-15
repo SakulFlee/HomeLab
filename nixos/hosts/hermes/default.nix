@@ -56,18 +56,31 @@
   services.hermes-agent = {
     enable = true;
 
-    # The host writes this file into the instance (renderedSecrets in
-    # incus.nix) from the host's own sops secret hermes-env. It holds the
-    # API_SERVER_KEY and the dashboard basic-auth pair -- the same values the
-    # k3s deployment used, re-declared on the host so this instance gets bytes
-    # and no decryption capability.
+    # Where the host writes these (renderedSecrets in incus.nix):
     #
-    # The module merges this into $HERMES_HOME/.env at activation. That alone
-    # is not enough on a first deploy: apply.sh renders the file AFTER the
+    #   hermes-env              the k3s deployment's own blob -- Matrix
+    #                           credentials, the Ollama URL, the OpenCode key.
+    #   api-server-key-env      API_SERVER_KEY, without which the gateway's
+    #                           /v1 API server refuses to start at all.
+    #   dashboard-*-env         username/password/secret for the dashboard's
+    #                           basic auth, without which the backend refuses
+    #                           to bind any non-loopback address.
+    #
+    # All from the host's own sops secrets, so this instance gets bytes and no
+    # decryption capability.
+    #
+    # The module merges these into $HERMES_HOME/.env at activation. That alone
+    # is not enough on a first deploy: apply.sh renders the files AFTER the
     # instance is created, so the first activation reads nothing. Both units
-    # also get it as a systemd EnvironmentFile below, which is read at every
+    # also get them as systemd EnvironmentFiles below, which are read at every
     # start -- see the unit overrides under "Secrets" below.
-    environmentFiles = [ "/var/lib/incus-secrets/hermes-env" ];
+    environmentFiles = [
+      "/var/lib/incus-secrets/hermes-env"
+      "/var/lib/incus-secrets/api-server-key-env"
+      "/var/lib/incus-secrets/dashboard-username-env"
+      "/var/lib/incus-secrets/dashboard-password-env"
+      "/var/lib/incus-secrets/dashboard-session-env"
+    ];
 
     # `hermes dashboard`: the browser admin panel AND everything `serve` gives
     # (the /api/ws and /api/pty sockets Hermes Desktop connects to). One
@@ -121,9 +134,21 @@
   # sufficient on its own.
   #
   # The gateway and the backend are two processes sharing one HERMES_HOME, so
-  # both read the file.
-  systemd.services.hermes-agent.serviceConfig.EnvironmentFile = [ "/var/lib/incus-secrets/hermes-env" ];
-  systemd.services.hermes-backend.serviceConfig.EnvironmentFile = [ "/var/lib/incus-secrets/hermes-env" ];
+  # both read the files.
+  systemd.services.hermes-agent.serviceConfig.EnvironmentFile = [
+    "/var/lib/incus-secrets/hermes-env"
+    "/var/lib/incus-secrets/api-server-key-env"
+    "/var/lib/incus-secrets/dashboard-username-env"
+    "/var/lib/incus-secrets/dashboard-password-env"
+    "/var/lib/incus-secrets/dashboard-session-env"
+  ];
+  systemd.services.hermes-backend.serviceConfig.EnvironmentFile = [
+    "/var/lib/incus-secrets/hermes-env"
+    "/var/lib/incus-secrets/api-server-key-env"
+    "/var/lib/incus-secrets/dashboard-username-env"
+    "/var/lib/incus-secrets/dashboard-password-env"
+    "/var/lib/incus-secrets/dashboard-session-env"
+  ];
 
   # -------------------------------------------------------------------------
   # Vulkan, for the managed llama-server

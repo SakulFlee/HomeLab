@@ -124,6 +124,42 @@ in
       mode = "0440";
       group = "hermes";
     }
+
+    # The four the blob above never had, one file each (renovate's shape).
+    # format=env -- each is a single KEY=value line, which is exactly what
+    # that format produces and what a systemd EnvironmentFile wants.
+    {
+      format = "env";
+      file = "api-server-key-env";
+      env = "API_SERVER_KEY";
+      source = "/run/secrets/api_server_key";
+      mode = "0440";
+      group = "hermes";
+    }
+    {
+      format = "env";
+      file = "dashboard-username-env";
+      env = "HERMES_DASHBOARD_BASIC_AUTH_USERNAME";
+      source = "/run/secrets/hermes_dashboard_username";
+      mode = "0440";
+      group = "hermes";
+    }
+    {
+      format = "env";
+      file = "dashboard-password-env";
+      env = "HERMES_DASHBOARD_BASIC_AUTH_PASSWORD";
+      source = "/run/secrets/hermes_dashboard_password";
+      mode = "0440";
+      group = "hermes";
+    }
+    {
+      format = "env";
+      file = "dashboard-session-env";
+      env = "HERMES_DASHBOARD_BASIC_AUTH_SECRET";
+      source = "/run/secrets/hermes_dashboard_session_secret";
+      mode = "0440";
+      group = "hermes";
+    }
   ];
 
   # Units inside this instance that read a rendered file, and that apply.sh
