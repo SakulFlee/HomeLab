@@ -231,6 +231,33 @@
   sops.secrets."hermes/dashboard_password" = {};
   sops.secrets."hermes/dashboard_session_secret" = {};
 
+  # The four values OmniRoute refuses to start without, for the omniroute
+  # instance. Same posture as every rendered secret above: declared on the
+  # host so the instance gets the rendered bytes and no decryption capability.
+  #
+  #   omniroute_jwt_secret              JWT_SECRET. Signs dashboard sessions
+  #                                     and internal tokens.
+  #   omniroute_api_key_secret          API_KEY_SECRET. Signs the gateway
+  #                                     keys that /v1 clients present --
+  #                                     REQUIRE_API_KEY=true on the instance.
+  #   omniroute_initial_password        INITIAL_PASSWORD. First-login password
+  #                                     for the admin account; change it on
+  #                                     first login (see the instance's
+  #                                     NOTES.md for recovery).
+  #   omniroute_storage_encryption_key  STORAGE_ENCRYPTION_KEY. Encrypts
+  #                                     provider credentials at rest in
+  #                                     DATA_DIR. Losing it means losing them:
+  #                                     regenerate only if you also plan to
+  #                                     re-enter every provider key.
+  #
+  # Exactly these four. MACHINE_ID_SALT is upstream's one other documented
+  # secret-ish value and stays at its default: a secret nobody needs to rotate
+  # buys nothing and costs a rendered file.
+  sops.secrets.omniroute_jwt_secret = {};
+  sops.secrets.omniroute_api_key_secret = {};
+  sops.secrets.omniroute_initial_password = {};
+  sops.secrets.omniroute_storage_encryption_key = {};
+
   # No sops.secrets for the wireguard VM's web UI, and that is a decision rather
   # than an omission.
   #

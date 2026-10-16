@@ -258,6 +258,11 @@
         # is the iGPU render node -- which a bare `gpu` device already hands
         # over 0666 into an unprivileged guest (measured for jellyfin).
         hermes = mkInstance { path = ./hosts/hermes; };
+        # OmniRoute. A container: a Node.js gateway, userspace throughout.
+        # Packaged from the npm release in hosts/omniroute/package.nix, with
+        # upstream's own prebuilt Next.js dist standing in for the webpack
+        # build.
+        omniroute = mkInstance { path = ./hosts/omniroute; };
       };
 
       # Convenience: buildable images, so `nix build .#image-<name>` works.
@@ -278,6 +283,7 @@
         image-cloudflare-ddns = self.nixosConfigurations.cloudflare-ddns.config.system.build.squashfs;
         image-renovate = self.nixosConfigurations.renovate.config.system.build.squashfs;
         image-hermes = self.nixosConfigurations.hermes.config.system.build.squashfs;
+        image-omniroute = self.nixosConfigurations.omniroute.config.system.build.squashfs;
 
         # A VM is one qcow2 disk rather than a rootfs plus a metadata tarball.
         image-wireguard = self.nixosConfigurations.wireguard.config.system.build.qemuImage;

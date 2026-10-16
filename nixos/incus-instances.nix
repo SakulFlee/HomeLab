@@ -108,4 +108,12 @@
   # Local models are served by Hermes's own llama.cpp runtime rather than an
   # Ollama instance -- see hosts/hermes/default.nix.
   hermes = import ./hosts/hermes/incus.nix;
+
+  # OmniRoute (diegosouzapw/OmniRoute), the AI gateway: a unified /v1 API in
+  # front of many providers. A container, like hermes: a Node.js process, no
+  # kernel of its own and no device to pass through. Packaged from the npm
+  # release in hosts/omniroute/package.nix. VPN-only behind Caddy, and the
+  # only instance whose guest firewall is ON -- it listens on a port that can
+  # spend money. See hosts/omniroute/NOTES.md.
+  omniroute = import ./hosts/omniroute/incus.nix;
 }

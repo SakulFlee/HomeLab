@@ -42,6 +42,10 @@ let
     # a Cloudflare edge IP instead of 100.64.0.x, and is rejected with 403 even
     # for a client that is connected to the tunnel.
     "wireguard-ui"
+    # The OmniRoute AI gateway's vhost in caddy/default.nix. Same reasoning as
+    # wireguard-ui above: without the entry the name resolves at a Cloudflare
+    # edge IP and the VPN gate rejects even a connected client.
+    "omniroute"
   ];
 
   namePattern = lib.concatStringsSep "|" vpnOnlyNames;
