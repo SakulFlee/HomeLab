@@ -263,6 +263,11 @@
         # upstream's own prebuilt Next.js dist standing in for the webpack
         # build.
         omniroute = mkInstance { path = ./hosts/omniroute; };
+        # JupyterHub. A container: the hub, the proxy and every single-user
+        # notebook server are Python; the iGPU is a bare `gpu` device and needs
+        # no kernel of its own. Multi-user Forgejo OAuth, VPN-only behind Caddy,
+        # guest firewall ON. See hosts/jupyterhub/default.nix.
+        jupyterhub = mkInstance { path = ./hosts/jupyterhub; };
       };
 
       # Convenience: buildable images, so `nix build .#image-<name>` works.
@@ -284,6 +289,7 @@
         image-renovate = self.nixosConfigurations.renovate.config.system.build.squashfs;
         image-hermes = self.nixosConfigurations.hermes.config.system.build.squashfs;
         image-omniroute = self.nixosConfigurations.omniroute.config.system.build.squashfs;
+        image-jupyterhub = self.nixosConfigurations.jupyterhub.config.system.build.squashfs;
 
         # A VM is one qcow2 disk rather than a rootfs plus a metadata tarball.
         image-wireguard = self.nixosConfigurations.wireguard.config.system.build.qemuImage;

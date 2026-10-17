@@ -258,6 +258,23 @@
   sops.secrets.omniroute_initial_password = {};
   sops.secrets.omniroute_storage_encryption_key = {};
 
+  # The Forgejo OAuth2 client secret, for the jupyterhub instance. The matching
+  # client id is NOT here: it is public -- it appears in the browser's redirect
+  # URL on every login -- and lives openly as `forgejoClientId` in
+  # hosts/jupyterhub/default.nix. Only the secret is a secret.
+  #
+  # Declared on the host for the same reason as every rendered secret above:
+  # apply.sh reads /run/secrets/jupyterhub_forgejo_client_secret and writes it
+  # into the instance as a KEY=value EnvironmentFile, so the instance gets
+  # bytes and no decryption capability. A root process in the jupyterhub
+  # container -- which is every notebook user's shell, by design -- cannot read
+  # the restic password, the Forgejo secrets or the VPN credentials out of this
+  # file.
+  #
+  # The value is created when the OAuth2 application is registered in Forgejo;
+  # see hosts/jupyterhub/NOTES.md for the redirect URI to supply.
+  sops.secrets.jupyterhub_forgejo_client_secret = {};
+
   # No sops.secrets for the wireguard VM's web UI, and that is a decision rather
   # than an omission.
   #

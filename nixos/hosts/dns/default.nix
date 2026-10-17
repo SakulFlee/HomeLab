@@ -46,6 +46,11 @@ let
     # wireguard-ui above: without the entry the name resolves at a Cloudflare
     # edge IP and the VPN gate rejects even a connected client.
     "omniroute"
+    # JupyterHub's vhost in caddy/default.nix. Same reasoning again -- and it
+    # bites harder here, because the browser also has to reach the OAuth
+    # callback under this name: an edge address would fail the gate before the
+    # login page, so the name would look broken rather than 403.
+    "jupyter"
   ];
 
   namePattern = lib.concatStringsSep "|" vpnOnlyNames;

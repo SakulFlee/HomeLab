@@ -112,8 +112,17 @@
   # OmniRoute (diegosouzapw/OmniRoute), the AI gateway: a unified /v1 API in
   # front of many providers. A container, like hermes: a Node.js process, no
   # kernel of its own and no device to pass through. Packaged from the npm
-  # release in hosts/omniroute/package.nix. VPN-only behind Caddy, and the
-  # only instance whose guest firewall is ON -- it listens on a port that can
-  # spend money. See hosts/omniroute/NOTES.md.
+  # release in hosts/omniroute/package.nix. VPN-only behind Caddy, and one of
+  # the two instances whose guest firewall is ON -- it listens on a port that
+  # can spend money (jupyterhub is the other; see below). See
+  # hosts/omniroute/NOTES.md.
   omniroute = import ./hosts/omniroute/incus.nix;
+
+  # JupyterHub. A container: the hub, the proxy, systemdspawner and every
+  # single-user notebook server are Python processes, and the iGPU arrives as a
+  # bare `gpu` device rather than a driver of its own. Multi-user, authenticated
+  # against the homelab's own Forgejo over OAuth2, and VPN-only behind Caddy --
+  # no networkForward. The second instance whose guest firewall is ON: 8000 is a
+  # code-execution surface. See hosts/jupyterhub/NOTES.md.
+  jupyterhub = import ./hosts/jupyterhub/incus.nix;
 }

@@ -676,6 +676,51 @@ in
         # -------------------------------------------------------------------
 
         # -------------------------------------------------------------------
+        # jupyter.sakul-flee.de -- JupyterHub, VPN only
+        # -------------------------------------------------------------------
+        # A separate site block, NOT an entry in hostnames.nix: those all
+        # import still-traefik, and this name never existed before this block.
+        #
+        # Same gate shape as every other VPN-only block in this file:
+        # `remote_ip`, never `client_ip` (the forward is DNAT and does not
+        # rewrite the source, so remote_ip is the real client address and is
+        # unforgeable, while X-Forwarded-For is settable by anyone), and the
+        # same 100.64.0.0/10 tunnel range. The name is in vpnOnlyNames in
+        # hosts/dns/default.nix so split-horizon CoreDNS answers it with the
+        # host's LAN address -- without that it resolves at a Cloudflare edge
+        # IP instead and the gate below rejects even a connected client.
+        #
+        # A second gate lives behind this one: JupyterHub authenticates every
+        # user against Forgejo over OAuth2 and its allow-list decides who gets
+        # a notebook, so a connected VPN client still needs a Forgejo identity.
+        # See hosts/jupyterhub/NOTES.md.
+        #
+        # Plain http:// upstream: TLS terminates here and the hub speaks plain
+        # HTTP on 8000 inside the container. The instance's guest firewall
+        # additionally confines 8000 to bridge-arrived traffic, so the LAN has
+        # no path to it even without a forward.
+        #
+        # header_up Host {http.request.host} is the file-wide convention;
+        # JupyterHub is told its own external URL through the OAuth callback,
+        # not by matching Host, so here it is belt and braces rather than the
+        # fix. No X-Forwarded-* handling is needed beyond what Caddy already
+        # sets, and websockets (the notebook kernel channel) pass through
+        # reverse_proxy without extra configuration.
+        jupyter.sakul-flee.de {
+            tls {
+                dns cloudflare {env.CF_API_TOKEN}
+            }
+
+            @notvpn not remote_ip 100.64.0.0/10
+            respond @notvpn "JupyterHub is reachable over the VPN only.\n" 403
+
+            reverse_proxy http://10.0.0.119:8000 {
+                header_up Host {http.request.host}
+            }
+        }
+        # -------------------------------------------------------------------
+
+        # -------------------------------------------------------------------
         # sakul-flee.de, www.sakul-flee.de -- CUTOVER: now served by the
         # Incus instance (the website VM at 10.0.0.114)
         # -------------------------------------------------------------------
