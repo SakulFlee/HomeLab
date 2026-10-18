@@ -34,15 +34,16 @@ name: Update flake.lock
 
 on:
   schedule:
-    # Daily at 03:53 Europe/Berlin (DST-aware; drop `timezone:` and use UTC on a
-    # Forgejo without the key).
+    # Daily at 03:53 server time. No `timezone:` key: the Forgejo server
+    # already runs with time.timeZone = Europe/Berlin, so the cron expression
+    # is local time and a timezone key would be redundant.
     - cron: '53 3 * * *'
-      timezone: Europe/Berlin
   workflow_dispatch:
 
-permissions:
-  contents: write
-  issues: write
+# No `permissions:` block: Forgejo does not support it (it warns and ignores
+# it). The automatic workflow token (secrets.GITHUB_TOKEN == FORGEJO_TOKEN)
+# already has write access to this repository, which is all the push and the
+# issue call below need. Grant more via Authorized Integrations if ever needed.
 
 # Never overlap two lock bumps.
 concurrency:
