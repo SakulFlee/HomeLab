@@ -60,10 +60,17 @@ let
   # and they are declared to the instance at every daemon start (the
   # runner's Declare RPC), so the last daemon to start wins -- see
   # NOTES.md, "Labels".
+  # `nix:host` is the host executor: jobs with `runs-on: nix` run directly
+  # in a shell inside this VM, where Nix already lives. Used by the
+  # flake-lock updater in NixOS-Config, which needs a real build of the
+  # host configuration -- work that wants a persistent store and native
+  # compilation, not an ephemeral container. See the PATH set on the daemon
+  # below (git and Node are mandatory: actions/checkout is a JS action).
   runnerLabels = [
     "default:docker://${jobImage}"
     "ubuntu-latest:docker://${jobImage}"
     "ubuntu-24.04:docker://${jobImage}"
+    "nix:host"
   ];
 in
 {
@@ -241,6 +248,35 @@ in
   environment.systemPackages = [ pkgs.forgejo-runner ];
 
   # ---------------------------------------------------------------------
+  # Nix, now that this VM also builds things
+  # ---------------------------------------------------------------------
+  # Host-executor jobs build the NixOS-Config host configuration in this
+  # VM's own store, so the settings a plain runner never needed matter now.
+  nix.settings.experimental-features = [
+    "nix-command"
+    "flakes"
+  ];
+
+  # The VM is capped at 4 cpu / 12 GiB (incus.nix). Nix defaults max-jobs to
+  # the core count and runs four derivations at once, which is how a heavy
+  # closure (the ROCm/llama.cpp side of that config) turns the memory cap
+  # into an OOM. Two jobs is the ceiling that keeps a build from taking the
+  # VM down; the work is daily and unattended, so slow-but-finishing wins.
+  nix.settings.max-jobs = 2;
+
+  # Bound the store. Without this the first cold build of the host config
+  # plus every daily delta accumulates until the 80 GiB root disk is full.
+  # Mirrors the host's own intent (hosts/homelab) but with a longer window,
+  # because here the store is the build cache and throwing away a week of
+  # it re-compiles the parts cache.nixos.org does not carry.
+  nix.gc = {
+    automatic = true;
+    dates = "weekly";
+    options = "--delete-older-than 10d";
+  };
+  nix.settings.auto-optimise-store = true;
+
+  # ---------------------------------------------------------------------
   # The generated config
   # ---------------------------------------------------------------------
   # forgejo-runner-config.service writes /var/lib/forgejo-runner/config.yaml
@@ -318,7 +354,7 @@ log:
 runner:
   # Where the registration result would be stored. Unused in this
   # design -- the daemon takes its connection from server.connections
-  # below -- but kept so a stray `forgejo-runner register` lands on the
+  # below -- but kept so a stray forgejo-runner register lands on the
   # volume instead of the root disk.
   file: .runner
   capacity: 4
@@ -332,6 +368,7 @@ runner:
     - "default:docker://${jobImage}"
     - "ubuntu-latest:docker://${jobImage}"
     - "ubuntu-24.04:docker://${jobImage}"
+    - "nix:host"
 cache:
   enabled: true
   dir: /var/lib/forgejo-runner/home/cache
@@ -361,6 +398,12 @@ container:
   docker_host: "-"
   force_pull: false
   force_rebuild: false
+# Host-executor jobs (the nix:host label) run in a shell forked from
+# the daemon, directly on this VM. Their workspace goes on the data
+# volume rather than the disposable root disk, so a checkout and the
+# build artefacts it produces survive a re-create.
+host:
+  workdir_parent: /var/lib/forgejo-runner/home/workspace
 server:
   connections:
     forgejo:
@@ -399,6 +442,31 @@ EOF
     requires = [ "docker.service" "forgejo-runner-config.service" ];
     after = [ "docker.service" "forgejo-runner-config.service" "network-online.target" ];
     wants = [ "network-online.target" ];
+
+    # A NixOS unit's PATH is coreutils/findutils/grep/sed/systemd and
+    # nothing else. Host-executor jobs (`runs-on: nix`) fork a shell from
+    # this process and inherit its environment, so everything a job needs
+    # has to be here: nix and git for the work itself, and -- easy to miss
+    # -- nodejs, because actions/checkout and any other JS action are run
+    # with a NodeJS that will NOT be installed for you. nodejs here is what
+    # keeps `actions/checkout` from failing on the host executor.
+    path = with pkgs; [
+      bash
+      coreutils
+      findutils
+      gnugrep
+      gnused
+      gnutar
+      gzip
+      xz
+      git
+      nix
+      nodejs
+      curl
+      cacert
+      openssh
+      jq
+    ];
 
     serviceConfig = {
       User = "forgejo-runner";

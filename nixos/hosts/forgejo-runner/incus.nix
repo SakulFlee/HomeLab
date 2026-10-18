@@ -65,16 +65,17 @@ in
   # see apply.sh.
   autostart = true;
 
-  # The k3s deployment this replaces ran capacity 4 with a limit of
+  # The k3s deployment this replaced ran capacity 4 with a limit of
   # 1 cpu and 4 GiB per job pod, so its worst case was four
-  # concurrent builds plus the runner itself. 4 cpu and 8 GiB is
-  # that ceiling plus room for dockerd and the image layers a
-  # build pulls in; it is a cap, not a reservation. The host has
-  # 16 cores and 30 GiB, so there is room to raise this if the
-  # queue backs up -- the reason to keep it here is parity with
-  # what k3s did. Adjustable live with `incus config set`.
+  # concurrent builds plus the runner itself. That ceiling plus room
+  # for dockerd and the image layers a build pulls in was 8 GiB; it was
+  # raised to 12 GiB once host-executor jobs arrived, because a Nix
+  # build of the NixOS-Config host configuration shares this memory with
+  # dockerd and does not fit comfortably in 8. It is a cap, not a
+  # reservation. The host has 16 cores and 30 GiB. Adjustable live with
+  # `incus config set`.
   limits = {
-    memory = "8GiB";
+    memory = "12GiB";
     cpu = "4";
   };
 
@@ -147,7 +148,12 @@ in
   # `sdb2` and the data volume took over `sda`. disk.nix finds its disk by
   # LABEL rather than by name precisely so that this is a non-event, and it
   # was -- but it is why nothing in this guest may assume `sda`.
-  rootDiskSize = "40GiB";
+  # Raised from 40 GiB when host-executor jobs landed. The 40 GiB
+  # reasoning above still holds for the Docker side; what changed is that
+  # the store now also carries a cold build of the NixOS-Config host
+  # configuration, whose ROCm/llama.cpp closure is large and is NOT fully
+  # substitutable from cache.nixos.org. One-way, as noted above.
+  rootDiskSize = "80GiB";
 
   # The runner's writable state, on `persistent` and
   # deliberately excluded from off-box replication, for two reasons that are
