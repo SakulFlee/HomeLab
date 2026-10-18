@@ -1,0 +1,176 @@
+name: Update flake.lock
+
+# Bumps nixos/flake.lock input-by-input. Each input must pass the gate before it
+# is kept; an input that fails is reverted on its own, so one broken input does
+# not block the rest. The committed lock is picked up automatically by the
+# host's `nixos-auto-update` timer (git merge --ff-only + nixos-rebuild).
+#
+# The flake lives in nixos/, not at the repo root, so every run step works from
+# there (defaults.run.working-directory below) and the file committed is
+# nixos/flake.lock.
+#
+# THE GATE, and why it is two halves:
+#
+#   * `nix eval ... .config.system.build.toplevel.drvPath` for EVERY entry in
+#     nixosConfigurations. This instantiates each system's whole derivation
+#     graph without building anything, so a package or option that was renamed
+#     or removed upstream in *any* instance (there are ~22 here, most of which
+#     would otherwise only surface when incus/apply.sh rebuilds that image on
+#     the host) fails this run instead of the deploy.
+#   * `nix build .#nixosConfigurations.HomeLab...toplevel` for the bare-metal
+#     host. This is the one closure actually built, because it is the thing the
+#     host's auto-updater will switch to; the instances are only evaluated.
+#
+# NOTE on the runner VM: forgejo-runner is itself an instance defined by this
+# flake, so an accepted nixpkgs bump changes image-forgejo-runner and the host's
+# reconcile (incus/apply.sh) recreates that VM, wiping its /nix store (only the
+# forgejo-runner-data volume survives). Builds after a bump therefore substitute
+# from cache.nixos.org. That is expected, not a misconfiguration.
+#
+# Runs on the `nix:host` label: a host-executor job inside the forgejo-runner
+# NixOS VM, which already has Nix and a store that is warm between recreations.
+# Staggered from the NixOS-Config repo's 03:23 run because both share this one
+# runner.
+
+on:
+  schedule:
+    # Daily at 03:53 Europe/Berlin (DST-aware; drop `timezone:` and use UTC on a
+    # Forgejo without the key).
+    - cron: '53 3 * * *'
+      timezone: Europe/Berlin
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  issues: write
+
+# Never overlap two lock bumps.
+concurrency:
+  group: flake-lock
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: nix
+    defaults:
+      run:
+        working-directory: nixos
+    steps:
+      - name: Check out the repository
+        uses: https://data.forgejo.org/actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Update inputs one by one, gated on eval + a full host build
+        id: gate
+        run: |
+          set -uo pipefail
+
+          export NIX_CONFIG="experimental-features = nix-command flakes"
+          git config user.name  "forgejo-actions"
+          git config user.email "actions@forgejo.sakul-flee.de"
+
+          # Read the top-level input names straight from the lockfile -- no jq,
+          # no hand-maintained list. They live under .nodes.root.inputs: the
+          # lock's top-level "root" key is the *string* "root" (a node name),
+          # not the node itself, so `.root.inputs` throws "expected a set but
+          # found a string". nixpkgs first: its bump moves everything that
+          # `follows` it and is by far the largest delta.
+          #
+          # The other three inputs are pinned in flake.nix (nixpkgs-paperless to
+          # a full rev, hermes-agent to a release tag), so their `nix flake
+          # update` is a no-op by design and costs nothing.
+          inputs=$(nix eval --raw --impure --expr \
+            'builtins.concatStringsSep " " (builtins.attrNames (builtins.fromJSON (builtins.readFile ./flake.lock)).nodes.root.inputs)')
+          order="nixpkgs $(printf '%s\n' $inputs | grep -vx nixpkgs | tr '\n' ' ')"
+
+          cp flake.lock /tmp/flake.lock.keep
+
+          # Instantiate every system config without building it. Cheap next to a
+          # build, and it is the only thing that catches a break in an instance
+          # image this repo does not build in CI.
+          eval_all() {
+            local c
+            for c in $(nix eval --raw .#nixosConfigurations \
+                         --apply 'x: builtins.concatStringsSep " " (builtins.attrNames x)'); do
+              nix eval --raw ".#nixosConfigurations.$c.config.system.build.toplevel.drvPath" \
+                >/dev/null || return 1
+            done
+          }
+
+          reverted=""
+          for i in $order; do
+            echo "::group::update $i"
+            if ! nix flake update "$i"; then
+              cp /tmp/flake.lock.keep flake.lock
+              reverted="$reverted $i"
+              echo "REVERTED $i (update failed)"
+            # Compare against the checkpoint, not HEAD: after the first kept
+            # input the working tree already differs from HEAD, so `git diff`
+            # would wrongly report every later no-op input as a change. This is
+            # what makes the deliberately pinned inputs (nixpkgs-paperless,
+            # hermes-agent) free.
+            elif cmp -s flake.lock /tmp/flake.lock.keep; then
+              echo "NO CHANGE $i"
+            elif eval_all \
+               && nix build --no-link ".#nixosConfigurations.HomeLab.config.system.build.toplevel"; then
+              cp flake.lock /tmp/flake.lock.keep
+              echo "KEPT $i"
+            else
+              cp /tmp/flake.lock.keep flake.lock
+              reverted="$reverted $i"
+              echo "REVERTED $i (gate failed)"
+            fi
+            echo "::endgroup::"
+          done
+
+          # Defensive: the accepted set must build as a whole. Cheap when the
+          # store is warm -- only the last iteration's state is re-checked.
+          nix build --no-link ".#nixosConfigurations.HomeLab.config.system.build.toplevel"
+
+          echo "reverted=$reverted" >> "$GITHUB_OUTPUT"
+
+      - name: Commit and push if the lock changed
+        run: |
+          set -euo pipefail
+          if git diff --quiet -- flake.lock; then
+            echo "flake.lock unchanged -- nothing to do"
+            exit 0
+          fi
+          git add flake.lock
+          git commit -m "flake.lock: automated update ($(date -u +%F))"
+          git push origin HEAD:main
+
+      - name: Report reverted inputs as an issue
+        if: steps.gate.outputs.reverted != ''
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          API: ${{ forgejo.api_url }}
+          REPO: ${{ forgejo.repository }}
+        run: |
+          set -euo pipefail
+
+          title="flake.lock: input(s) reverted by the CI build gate"
+          body="The following inputs failed the eval/host-build gate and were kept at their previous revision:
+
+          \`\`\`
+          ${{ steps.gate.outputs.reverted }}
+          \`\`\`
+
+          The remaining inputs were updated and pushed. See the latest run under **Actions**."
+
+          existing=$(curl -fsSL -H "Authorization: token $TOKEN" \
+            "$API/repos/$REPO/issues?state=open&type=issues" \
+            | jq -r --arg t "$title" '.[] | select(.title == $t) | .number' | head -n1 || true)
+
+          if [ -n "${existing:-}" ]; then
+            curl -fsSL -X POST -H "Authorization: token $TOKEN" -H "Content-Type: application/json" \
+              "$API/repos/$REPO/issues/$existing/comments" \
+              -d "$(jq -n --arg b "$body" '{body:$b}')" >/dev/null
+            echo "Commented on existing issue #$existing"
+          else
+            curl -fsSL -X POST -H "Authorization: token $TOKEN" -H "Content-Type: application/json" \
+              "$API/repos/$REPO/issues" \
+              -d "$(jq -n --arg t "$title" --arg b "$body" '{title:$t, body:$b}')" >/dev/null
+            echo "Opened a new issue"
+          fi
