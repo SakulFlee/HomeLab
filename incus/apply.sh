@@ -1044,9 +1044,7 @@ ensure_volumes() {
     # case where the volume may carry a schedule that has to be CLEARED. It read
     # as "current is unset, desired is unset, they agree", and the volume could
     # never be un-snapshotted by editing the repository, which is the only way
-    # an operator has to remove one. Found by section 5 of
-    # incus/apply-snapshots-test.sh, which exists for the clearing case and
-    # nothing else.
+    # an operator has to remove one.
     volume_json=$(incus query "$volume_url")
 
     # Three fields, one read, one PATCH.
@@ -1069,9 +1067,7 @@ ensure_volumes() {
     # every pass ended with a blank description, which the following pass
     # repaired from a path nobody was reading. That is why it shipped green:
     # six volumes in a row, every volume declaring `snapshots` lost its
-    # description and every volume declaring none kept its own, and the suite
-    # modelled the handler as merging description when the handler assigns it.
-    # Section 13 of incus/apply-snapshots-test.sh is the test.
+    # description and every volume declaring none kept its own.
     #
     # Description is reconciled, not just set on creation. Two reasons: a
     # volume predating this code keeps whatever it had, and `incus storage
@@ -1846,9 +1842,8 @@ sync_network_forward() {
   # outage this whole function exists to prevent, reached *through* the guard that
   # was supposed to prevent it.
   #
-  # Found by incus/apply-forward-test.sh test 6, which points the registry stub
-  # at nothing and watches it happen. Reading the code had shown the die(); only
-  # running it showed that the die() did nothing.
+  # Reading the code had shown the die(); only running it, against a registry
+  # that reads as empty, showed that the die() did nothing.
   #
   # Command substitution keeps the status where die() can act on it.
   local declarations

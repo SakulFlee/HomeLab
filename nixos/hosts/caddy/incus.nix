@@ -71,15 +71,11 @@ in
   # The Caddyfile itself is in the flake and is not stored here.
   volumes = [
     {
-      # Snapshotted, and the reason is testing rather than data: caddy-data is
+      # Snapshotted because these are ACME certificates: losing them means every
+      # client sees a certificate error until they re-issue. caddy-data is only
       # 360K, so a real `incus storage volume snapshot restore` against it costs
-      # seconds and destroys nothing. It is where incus/apply-snapshots-test.sh's
-      # companion check proves a snapshot can actually be rolled back, rather
-      # than proving only that a schedule string was written somewhere.
-      #
-      # Worth snapshotting for its own sake too -- these are ACME certificates,
-      # and losing them means every client sees a certificate error until they
-      # re-issue.
+      # seconds and destroys nothing -- a cheap way to rehearse a rollback
+      # against something real rather than to trust the schedule string alone.
       pool = "persistent";
       name = "caddy-data";
       description = "Caddy ACME certificates and runtime state";

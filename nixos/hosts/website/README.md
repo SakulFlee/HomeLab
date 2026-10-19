@@ -49,7 +49,7 @@ anonymously succeeds. No `login`, no sops secret, nothing to rotate.
 ## Deploy
 
 ```bash
-NIX_SUDO=1 ./incus/image-eval-test.sh   # the image has to evaluate first
+nix build ./nixos#nixosConfigurations.website.config.system.build.toplevel  # image must evaluate
 incus/apply.sh --check website          # build, report drift, change nothing
 incus/apply.sh website                  # or: systemctl start incus-apply-website.service
 ```

@@ -333,13 +333,14 @@ than by remembering not to point two runners at one instance.
 
 Deploy and verify:
 
-1. `NIX_SUDO=1 ./incus/image-eval-test.sh` — the image has to evaluate
-   before anything is worth deploying. This is the check that catches
-   the failure mode NixOS gives no other warning about: an option name
-   that does not exist is accepted when the module is read and only
-   fails when `system.build.toplevel` is forced, which is to say at
-   build time. See the header of that file for the two real instances
-   of it in this file's sibling, `default.nix`.
+1. From `nixos/`, run
+   `nix build .#nixosConfigurations.forgejo-runner.config.system.build.toplevel`
+   — the image has to evaluate before anything is worth deploying. This is the
+   check that catches the failure mode NixOS gives no other warning about: an
+   option name that does not exist is accepted when the module is read and only
+   fails when `system.build.toplevel` is forced, which is to say at build time.
+   See the notes in this file's sibling, `default.nix`, for the two real
+   instances of it.
 2. Deploy: `incus/apply.sh forgejo-runner` (or
    `systemctl start incus-apply-forgejo-runner.service`).
 3. `docker.service` exists in the guest. `forgejo-runner.service`

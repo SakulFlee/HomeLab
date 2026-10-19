@@ -246,14 +246,13 @@ If a dump is wanted it belongs *beside* the snapshot.
 
 ### Verifying it, and the limit of that verification
 
-`./incus/apply-snapshots-test.sh` covers the reconciler against a stubbed `incus`
-— that the schedule is written, that a hand-edited value is put back, that an
-already-correct volume produces no write at all (the fifteen-minute timer makes
-that worth testing), that omitting the spec clears, and that `expiry` is
-validated.
+The reconciler writes the schedule from the volume's own spec, puts a
+hand-edited value back, writes nothing when a volume is already correct (worth
+knowing with a fifteen-minute timer), clears the policy when the spec omits it,
+and validates `expiry`.
 
-It cannot prove a snapshot is restorable, because a stub has no snapshots. Two
-things are needed for that, and only one is automatable:
+None of that proves a snapshot is restorable — a schedule string is not a
+snapshot. Two things are needed for that, and only one is automatable:
 
 1. **A real restore, against `caddy-data`.** It is 360K, so
    `incus storage volume snapshot restore` on it costs seconds and destroys
@@ -271,10 +270,9 @@ rollback point and no off-box copy.
 
 ## What still needs your attention
 
-**The snapshot policy has not been exercised on a live Incus.** The reconciler is
-tested against a stub and the Nix evaluates, but no snapshot has been taken on
-this host under the new schedule. `incus storage volume list` will show the
-schedule set and nothing more.
+**The snapshot policy has not been exercised on a live Incus.** The Nix
+evaluates, but no snapshot has been taken on this host under the new schedule.
+`incus storage volume list` will show the schedule set and nothing more.
 
 **`forgejo-data` has no off-box copy.** See above.
 
