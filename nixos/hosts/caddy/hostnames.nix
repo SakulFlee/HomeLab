@@ -30,26 +30,11 @@
 #   www are the one pair that left Traefik together, so they share a block: they
 #   serve the same image and were one Ingress in k3s.
 #
-# - jellyfin, sonarr, radarr, prowlarr and qui are each their own site block in
-#   ../default.nix, proxying to their Incus instance. They left this list when
-#   they left Traefik. Putting a name here would import still-traefik and hand
-#   it straight back to k3s -- so a name must be in exactly one of the two
-#   places, never both.
-#
-#   qbittorrent.sakul-flee.de is ALSO gone from this list but is NOT in a site
-#   block either: that instance is not migrated yet, so the name currently
-#   serves nothing from Caddy. It comes back with the qBittorrent cutover.
-#
-# - hermes and hermes-dashboard left this list with the Hermes cutover: both
-#   are now one site block in ../default.nix proxying to the hermes instance
-#   at 10.0.0.117 (the gateway's API on :8642 for /v1 and /health, the
-#   dashboard on :9119 for everything else).
-#
-#   ollama and open-webui are STILL here and are now the last two names tied
+# - ollama and open-webui are STILL here and are now the last two names tied
 #   to a Traefik that no longer exists -- nothing serves them, and nothing
-#   will: Hermes runs its own llama.cpp runtime instead of an Ollama instance,
-#   so there is nothing to cut over. They sit in this list, proxy to a dead
-#   upstream, and can be deleted whenever the cleanup is wanted.
+#   will: they pointed at an Ollama instance that no longer exists, so there is
+#   nothing to cut over. They sit in this list, proxy to a dead upstream, and
+#   can be deleted whenever the cleanup is wanted.
 #
 # - wireguard-ui.sakul-flee.de was never in this list: it is a name that did
 #   not exist before its own site block in ../default.nix was written, proxying

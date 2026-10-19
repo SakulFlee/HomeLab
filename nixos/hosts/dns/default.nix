@@ -20,16 +20,8 @@ let
   # syncthing, paperless, wireguard-ui) after.
   vpnOnlyNames = [
     "incus"
-    "hermes-dashboard"
-    "hermes"
     "ollama"
     "open-webui"
-    "jellyfin"
-    "sonarr"
-    "radarr"
-    "prowlarr"
-    "qbittorrent"
-    "qui"
     "grafana"
     "paperless"
     "syncthing"
@@ -42,15 +34,6 @@ let
     # a Cloudflare edge IP instead of 100.64.0.x, and is rejected with 403 even
     # for a client that is connected to the tunnel.
     "wireguard-ui"
-    # The OmniRoute AI gateway's vhost in caddy/default.nix. Same reasoning as
-    # wireguard-ui above: without the entry the name resolves at a Cloudflare
-    # edge IP and the VPN gate rejects even a connected client.
-    "omniroute"
-    # JupyterHub's vhost in caddy/default.nix. Same reasoning again -- and it
-    # bites harder here, because the browser also has to reach the OAuth
-    # callback under this name: an edge address would fail the gate before the
-    # login page, so the name would look broken rather than 403.
-    "jupyter"
   ];
 
   namePattern = lib.concatStringsSep "|" vpnOnlyNames;

@@ -55,31 +55,6 @@
   # live universe. See hosts/hytale/README.md.
   hytale = import ./hosts/hytale/incus.nix;
 
-  # First of the media stack. Read-only consumer of the library: four NAS
-  # shares bind-mounted ro (Incus 7.0.1 cannot make a CIFS bind writable from
-  # an unprivileged LXC -- measured, see hosts/jellyfin/incus.nix) and the iGPU
-  # passed through for VAAPI. Config and cache are pool volumes.
-  jellyfin = import ./hosts/jellyfin/incus.nix;
-
-  # The *ARR family and QUI. Same shape as jellyfin: unprivileged, shares
-  # bind-mounted from the bindfs mirror at /mnt/nas-mapped (which is what makes
-  # them writable), config on a `persistent` pool volume.
-  #
-  # Read/write split, which is the one thing that differs between them and is
-  # worth stating here rather than per file: the library shares are mounted
-  # read-only and only the qBittorrent staging share is writable. These apps
-  # hand releases to qBittorrent; they do not edit media in place.
-  sonarr = import ./hosts/sonarr/incus.nix;
-  radarr = import ./hosts/radarr/incus.nix;
-  prowlarr = import ./hosts/prowlarr/incus.nix;
-  qui = import ./hosts/qui/incus.nix;
-
-  # qBittorrent, all traffic through PIA. The security-critical one: every
-  # packet it sends is confined by uid-based routing to the OpenVPN tunnel,
-  # with an `unreachable` rule as the kill-switch -- see the file header in
-  # hosts/qbittorrent/default.nix before changing anything there.
-  qbittorrent = import ./hosts/qbittorrent/incus.nix;
-
   # Cloudflare DynDNS. A container: the client is a single static Go binary
   # with no kernel or device requirements, and it only dials out. Stateless --
   # the records it manages live in Cloudflare, not on its disk. Replaces the
@@ -100,29 +75,4 @@
   # runtime inside the guest, which is the same "privileged or VM" fork the
   # runner and fluxer take. See hosts/website/incus.nix.
   website = import ./hosts/website/incus.nix;
-
-  # Hermes (NousResearch hermes-agent), replacing the k3s deployment that
-  # b9b3b184 rolled down. A container: the gateway, the dashboard and the
-  # managed llama-server are all userspace, and the iGPU comes in through a
-  # bare `gpu` device (vulkan compute, sharing the card with jellyfin's VAAPI).
-  # Local models are served by Hermes's own llama.cpp runtime rather than an
-  # Ollama instance -- see hosts/hermes/default.nix.
-  hermes = import ./hosts/hermes/incus.nix;
-
-  # OmniRoute (diegosouzapw/OmniRoute), the AI gateway: a unified /v1 API in
-  # front of many providers. A container, like hermes: a Node.js process, no
-  # kernel of its own and no device to pass through. Packaged from the npm
-  # release in hosts/omniroute/package.nix. VPN-only behind Caddy, and one of
-  # the two instances whose guest firewall is ON -- it listens on a port that
-  # can spend money (jupyterhub is the other; see below). See
-  # hosts/omniroute/NOTES.md.
-  omniroute = import ./hosts/omniroute/incus.nix;
-
-  # JupyterHub. A container: the hub, the proxy, systemdspawner and every
-  # single-user notebook server are Python processes, and the iGPU arrives as a
-  # bare `gpu` device rather than a driver of its own. Multi-user, authenticated
-  # against the homelab's own Forgejo over OAuth2, and VPN-only behind Caddy --
-  # no networkForward. The second instance whose guest firewall is ON: 8000 is a
-  # code-execution surface. See hosts/jupyterhub/NOTES.md.
-  jupyterhub = import ./hosts/jupyterhub/incus.nix;
 }

@@ -78,9 +78,8 @@ jobs:
           # found a string". nixpkgs first: its bump moves everything that
           # `follows` it and is by far the largest delta.
           #
-          # The other three inputs are pinned in flake.nix (nixpkgs-paperless to
-          # a full rev, hermes-agent to a release tag), so their `nix flake
-          # update` is a no-op by design and costs nothing.
+          # nixpkgs-paperless is pinned in flake.nix to a full rev, so its
+          # `nix flake update` is a no-op by design and costs nothing.
           inputs=$(nix eval --raw --impure --expr \
             'builtins.concatStringsSep " " (builtins.attrNames (builtins.fromJSON (builtins.readFile ./flake.lock)).nodes.root.inputs)')
           order="nixpkgs $(printf '%s\n' $inputs | grep -vx nixpkgs | tr '\n' ' ')"
@@ -109,8 +108,8 @@ jobs:
             # Compare against the checkpoint, not HEAD: after the first kept
             # input the working tree already differs from HEAD, so `git diff`
             # would wrongly report every later no-op input as a change. This is
-            # what makes the deliberately pinned inputs (nixpkgs-paperless,
-            # hermes-agent) free.
+            # what makes the deliberately pinned input (nixpkgs-paperless)
+            # free.
             elif cmp -s flake.lock /tmp/flake.lock.keep; then
               echo "NO CHANGE $i"
             elif eval_all \

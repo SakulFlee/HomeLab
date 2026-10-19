@@ -5,7 +5,7 @@
     isNormalUser = true;
     # incus-admin: full Incus API access (create/remove instances, pools, ...)
     # as opposed to the read-only "incus" group.
-    extraGroups = [ "networkmanager" "wheel" "video" "render" "uinput" "i2c" "media" "incus-admin" ];
+    extraGroups = [ "networkmanager" "wheel" "video" "render" "uinput" "i2c" "incus-admin" ];
     shell = pkgs.zsh;
   };
 

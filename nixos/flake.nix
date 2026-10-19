@@ -32,17 +32,6 @@
     # stays on the 26.05 pin; only services.paperless.package pulls from here.
     nixpkgs-paperless.url = "github:NixOS/nixpkgs/e7439b6b14ad3cc35d05608ebca9bce01a25f5f8";
 
-    # Hermes Agent (NousResearch). Pinned to a release tag, not a branch: the
-    # module's own package default is inputs.self.packages.<system>.default
-    # from THIS flake, so the pin is what decides which hermes the instance
-    # runs.
-    #
-    # Deliberately NO inputs.nixpkgs.follows. Their uv2nix packaging is built
-    # and tested against their own nixpkgs pin; forcing ours (nixos-26.05)
-    # would rebuild the whole Python closure against a toolchain upstream
-    # never validated it on, to save a few store paths. The cost is two
-    # nixpkgs in the closure, which is the cheap side of that trade.
-    hermes-agent.url = "github:NousResearch/hermes-agent/v0.22.1";
   };
 
   outputs = { self, nixpkgs, ... }@inputs:
@@ -225,21 +214,6 @@
         # producer in the Syncthing scheme, contributing hytale-backups: the
         # archives the server writes for ITSELF, never the live universe.
         hytale = mkInstance { path = ./hosts/hytale; };
-        # Jellyfin, the first media instance. A container: no kernel of its own
-        # is needed for VAAPI, because the iGPU is passed through as a device
-        # and the host kernel's i915 driver does the work (see
-        # hosts/jellyfin/incus.nix for what was measured about that device).
-        jellyfin = mkInstance { path = ./hosts/jellyfin; };
-        # The *ARR family and QUI. Containers, like jellyfin: no GPU, and the
-        # shares arrive through the bindfs mirror as ordinary devices.
-        sonarr = mkInstance { path = ./hosts/sonarr; };
-        radarr = mkInstance { path = ./hosts/radarr; };
-        prowlarr = mkInstance { path = ./hosts/prowlarr; };
-        qui = mkInstance { path = ./hosts/qui; };
-        # qBittorrent. A container, not a VM: OpenVPN needs /dev/net/tun and
-        # nothing else, and an unprivileged LXC gets that at 0666 without any
-        # added capability (measured -- see hosts/qbittorrent/default.nix).
-        qbittorrent = mkInstance { path = ./hosts/qbittorrent; };
         # Cloudflare DynDNS. A container: one static Go binary, no kernel of
         # its own, and it makes outbound HTTPS only -- no networkForward.
         # Replaces the k3s CronJob in apps/cloudflare-ddns/.
@@ -253,21 +227,6 @@
         # needs a container runtime inside the guest, which an LXC could only
         # provide as security.privileged. Same fork as forgejo-runner above.
         website = mkInstance { path = ./hosts/website; kind = "vm"; };
-        # Hermes. A container: the agent, the dashboard and the managed
-        # llama-server are all userspace, and the only kernel surface it needs
-        # is the iGPU render node -- which a bare `gpu` device already hands
-        # over 0666 into an unprivileged guest (measured for jellyfin).
-        hermes = mkInstance { path = ./hosts/hermes; };
-        # OmniRoute. A container: a Node.js gateway, userspace throughout.
-        # Packaged from the npm release in hosts/omniroute/package.nix, with
-        # upstream's own prebuilt Next.js dist standing in for the webpack
-        # build.
-        omniroute = mkInstance { path = ./hosts/omniroute; };
-        # JupyterHub. A container: the hub, the proxy and every single-user
-        # notebook server are Python; the iGPU is a bare `gpu` device and needs
-        # no kernel of its own. Multi-user Forgejo OAuth, VPN-only behind Caddy,
-        # guest firewall ON. See hosts/jupyterhub/default.nix.
-        jupyterhub = mkInstance { path = ./hosts/jupyterhub; };
       };
 
       # Convenience: buildable images, so `nix build .#image-<name>` works.
@@ -279,17 +238,8 @@
         image-paperless = self.nixosConfigurations.paperless.config.system.build.squashfs;
         image-minecraft = self.nixosConfigurations.minecraft.config.system.build.squashfs;
         image-hytale = self.nixosConfigurations.hytale.config.system.build.squashfs;
-        image-jellyfin = self.nixosConfigurations.jellyfin.config.system.build.squashfs;
-        image-sonarr = self.nixosConfigurations.sonarr.config.system.build.squashfs;
-        image-radarr = self.nixosConfigurations.radarr.config.system.build.squashfs;
-        image-prowlarr = self.nixosConfigurations.prowlarr.config.system.build.squashfs;
-        image-qui = self.nixosConfigurations.qui.config.system.build.squashfs;
-        image-qbittorrent = self.nixosConfigurations.qbittorrent.config.system.build.squashfs;
         image-cloudflare-ddns = self.nixosConfigurations.cloudflare-ddns.config.system.build.squashfs;
         image-renovate = self.nixosConfigurations.renovate.config.system.build.squashfs;
-        image-hermes = self.nixosConfigurations.hermes.config.system.build.squashfs;
-        image-omniroute = self.nixosConfigurations.omniroute.config.system.build.squashfs;
-        image-jupyterhub = self.nixosConfigurations.jupyterhub.config.system.build.squashfs;
 
         # A VM is one qcow2 disk rather than a rootfs plus a metadata tarball.
         image-wireguard = self.nixosConfigurations.wireguard.config.system.build.qemuImage;

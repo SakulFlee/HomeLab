@@ -11,9 +11,6 @@
   # Tell SOPS which keys to use for decryption on the hardware
   sops.age.sshKeyPaths = [ "/etc/ssh/ssh_host_ed25519_key" ];
 
-  # Define the secrets
-  sops.secrets.smb_credentials = {};
-
   # Decrypted to /run/secrets/cloudflare_api_token, root-only, on tmpfs.
   #
   # Declared here rather than in the caddy instance so that the instance needs
@@ -106,39 +103,6 @@
   sops.secrets.forgejo_runner_uuid = {};
   sops.secrets.forgejo_runner_token = {};
 
-  # PIA VPN credentials, for qBittorrent's gluetun sidecar.
-  #
-  # Both keys already exist in secrets.yaml as vpn_pia_username /
-  # vpn_pia_password; these declarations are what make sops-nix decrypt them to
-  # /run/secrets at all. Declared ahead of the qBittorrent work so the host half
-  # is in place -- a key present in secrets.yaml but NOT declared here is never
-  # written to /run/secrets, and apply.sh names that exact failure mode when a
-  # renderedSecrets source does not exist.
-  #
-  # Same reasoning as the caddy token: qBittorrent's instance receives the two
-  # rendered values and no decryption capability, so a root process in there
-  # cannot read the restic password or any Forgejo secret out of this file.
-  sops.secrets.vpn_pia_username = {};
-  sops.secrets.vpn_pia_password = {};
-
-  # qBittorrent's WebUI credentials.
-  #
-  # BOTH keys must exist in secrets.yaml or the ENTIRE system build fails:
-  #
-  #   sops-install-secrets: manifest is not valid: secret <name> ... cannot be found
-  #
-  # qbittorrent_password holds qBittorrent's STORED form, not a plaintext
-  # password -- an `@ByteArray(<salt>:<sha512>)` blob, because that is the only
-  # thing the config file can carry and the hash cannot be reproduced outside
-  # the program. The unit refuses to inject a value that does not look like
-  # that blob, rather than silently locking you out of your own WebUI.
-  #
-  # To read the current values:
-  #   incus exec qbittorrent -- grep -E 'Password_PBKDF2|WebUI.Username' \
-  #     /var/lib/qbittorrent/qBittorrent/config/qBittorrent.conf
-  sops.secrets.qbittorrent_username = {};
-  sops.secrets.qbittorrent_password = {};
-
   # Fluxer secrets (from upstream .env + k8s secret mapping)
   sops.secrets.fluxer_postgres_password = {};
   sops.secrets.fluxer_search_api_key = {};
@@ -199,81 +163,6 @@
   # nixos/hosts/renovate/default.nix.
   sops.secrets.renovate_token = {};
   sops.secrets.renovate_github_com_token = {};
-
-  # The credentials Hermes needs, as separate keys under a hermes/ group
-  # rather than one multi-line blob. One secret per value is what makes them
-  # addable with a plain `sops edit`, which a blob is not.
-  #
-  # Both units fail closed without these, which is how the gap was found: the
-  # dashboard REFUSES to bind a non-loopback address unless an auth provider is
-  # configured (there is no unauthenticated public mode at all), and the
-  # gateway's OpenAI-compatible API server refuses to start without
-  # API_SERVER_KEY even on loopback. The k3s deployment carried both, but in
-  # its own Secret.
-  #
-  #   hermes/api_server_key             API_SERVER_KEY. Caller authentication
-  #                                     for /v1 and /health on :8642.
-  #   hermes/dashboard_username         HERMES_DASHBOARD_BASIC_AUTH_USERNAME.
-  #   hermes/dashboard_password         ..._PASSWORD. Hashed in-memory at
-  #                                     start; plaintext in sops, same posture
-  #                                     as every other rendered secret here.
-  #   hermes/dashboard_session_secret   ..._SECRET. Signs dashboard session
-  #                                     tokens. Empty would work but would
-  #                                     sign with a per-process random key,
-  #                                     so every restart of the backend logs
-  #                                     every session out.
-  #
-  # Slashes, not dots: sops-nix's recurseSecretKey splits the key on `/` to
-  # walk the nested YAML map. A dotted name would be looked up as a flat
-  # top-level key and miss entirely.
-  sops.secrets."hermes/api_server_key" = {};
-  sops.secrets."hermes/dashboard_username" = {};
-  sops.secrets."hermes/dashboard_password" = {};
-  sops.secrets."hermes/dashboard_session_secret" = {};
-
-  # The four values OmniRoute refuses to start without, for the omniroute
-  # instance. Same posture as every rendered secret above: declared on the
-  # host so the instance gets the rendered bytes and no decryption capability.
-  #
-  #   omniroute_jwt_secret              JWT_SECRET. Signs dashboard sessions
-  #                                     and internal tokens.
-  #   omniroute_api_key_secret          API_KEY_SECRET. Signs the gateway
-  #                                     keys that /v1 clients present --
-  #                                     REQUIRE_API_KEY=true on the instance.
-  #   omniroute_initial_password        INITIAL_PASSWORD. First-login password
-  #                                     for the admin account; change it on
-  #                                     first login (see the instance's
-  #                                     NOTES.md for recovery).
-  #   omniroute_storage_encryption_key  STORAGE_ENCRYPTION_KEY. Encrypts
-  #                                     provider credentials at rest in
-  #                                     DATA_DIR. Losing it means losing them:
-  #                                     regenerate only if you also plan to
-  #                                     re-enter every provider key.
-  #
-  # Exactly these four. MACHINE_ID_SALT is upstream's one other documented
-  # secret-ish value and stays at its default: a secret nobody needs to rotate
-  # buys nothing and costs a rendered file.
-  sops.secrets.omniroute_jwt_secret = {};
-  sops.secrets.omniroute_api_key_secret = {};
-  sops.secrets.omniroute_initial_password = {};
-  sops.secrets.omniroute_storage_encryption_key = {};
-
-  # The Forgejo OAuth2 client secret, for the jupyterhub instance. The matching
-  # client id is NOT here: it is public -- it appears in the browser's redirect
-  # URL on every login -- and lives openly as `forgejoClientId` in
-  # hosts/jupyterhub/default.nix. Only the secret is a secret.
-  #
-  # Declared on the host for the same reason as every rendered secret above:
-  # apply.sh reads /run/secrets/jupyterhub_forgejo_client_secret and writes it
-  # into the instance as a KEY=value EnvironmentFile, so the instance gets
-  # bytes and no decryption capability. A root process in the jupyterhub
-  # container -- which is every notebook user's shell, by design -- cannot read
-  # the restic password, the Forgejo secrets or the VPN credentials out of this
-  # file.
-  #
-  # The value is created when the OAuth2 application is registered in Forgejo;
-  # see hosts/jupyterhub/NOTES.md for the redirect URI to supply.
-  sops.secrets.jupyterhub_forgejo_client_secret = {};
 
   # No sops.secrets for the wireguard VM's web UI, and that is a decision rather
   # than an omission.
