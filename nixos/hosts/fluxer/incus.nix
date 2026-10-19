@@ -29,8 +29,12 @@ in
 
   autostart = true;
 
+  # 4 GiB, down from 12. The VM idled at 3.1 GiB and, like every VM, never
+  # handed its page cache back: the host kept the full 12 GiB resident, which
+  # is what htop showed. Lowering the cap is what makes the balloon reclaim
+  # it. Raise again if Fluxer ever needs the headroom.
   limits = {
-    memory = "12GiB";
+    memory = "4GiB";
     cpu = "4";
   };
 

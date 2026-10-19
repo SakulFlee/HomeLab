@@ -257,12 +257,21 @@ in
     "flakes"
   ];
 
-  # The VM is capped at 4 cpu / 12 GiB (incus.nix). Nix defaults max-jobs to
+  # The VM is capped at 4 cpu / 8 GiB (incus.nix). Nix defaults max-jobs to
   # the core count and runs four derivations at once, which is how a heavy
   # closure (the ROCm/llama.cpp side of that config) turns the memory cap
   # into an OOM. Two jobs is the ceiling that keeps a build from taking the
   # VM down; the work is daily and unattended, so slow-but-finishing wins.
   nix.settings.max-jobs = 2;
+
+  # Keep the store from refilling the 80 GiB disk. The per-input gate builds
+  # a fresh host closure for every input it accepts, and those results are
+  # unrooted, so without this they accumulate exactly as they did to cause
+  # the ENOSPC. Nix now collects garbage lazily, mid-build, once free space
+  # drops below `min-free`, down to `max-free` -- reclaiming the previous
+  # input's closure while keeping the paths the current build still shares.
+  nix.settings.min-free = "15G";
+  nix.settings.max-free = "20G";
 
   # Bound the store. Without this the first cold build of the host config
   # plus every daily delta accumulates until the 80 GiB root disk is full.
@@ -357,7 +366,7 @@ runner:
   # below -- but kept so a stray forgejo-runner register lands on the
   # volume instead of the root disk.
   file: .runner
-  capacity: 4
+  capacity: 2
   envs:
     # The k3s podspec set this on the job container; here it applies to
     # every job the same way.

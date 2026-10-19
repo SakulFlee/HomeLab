@@ -65,17 +65,16 @@ in
   # see apply.sh.
   autostart = true;
 
-  # The k3s deployment this replaced ran capacity 4 with a limit of
-  # 1 cpu and 4 GiB per job pod, so its worst case was four
-  # concurrent builds plus the runner itself. That ceiling plus room
-  # for dockerd and the image layers a build pulls in was 8 GiB; it was
-  # raised to 12 GiB once host-executor jobs arrived, because a Nix
-  # build of the NixOS-Config host configuration shares this memory with
-  # dockerd and does not fit comfortably in 8. It is a cap, not a
-  # reservation. The host has 16 cores and 30 GiB. Adjustable live with
-  # `incus config set`.
+  # 8 GiB, down from 12. This is a cap, not a reservation, but a VM keeps
+  # whatever it has touched -- mostly page cache -- resident on the host
+  # until the balloon reclaims it, so at 12 GiB the host showed the full
+  # 12 even when the guest reported far less. With `capacity: 2` (see
+  # default.nix) the peak is two jobs, not four, so 8 GiB leaves a real
+  # working set (~4.5 GiB anonymous at idle) plus headroom. Nix's
+  # `min-free`/`max-free` in default.nix keep the store from filling the
+  # disk again. Adjustable live with `incus config set`.
   limits = {
-    memory = "12GiB";
+    memory = "8GiB";
     cpu = "4";
   };
 
