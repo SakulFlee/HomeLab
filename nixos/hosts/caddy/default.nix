@@ -38,13 +38,22 @@ let
   #      specified: sha256-hEHgAG0F0ozHRAPuxEqLyTATBrE+pajeXDiSNwniorg=
   #         got:    sha256-dQvk6ezY6TQ1J7PjhCXnThF/SqVgPwBO8/RXzHCY+js=
   #
+  # Which is exactly what happened again on the next automated bump
+  # (419aa6f6, nixpkgs 26f4107): caddy moved 2.11.4 -> 2.11.7 and the FOD
+  # hash moved with it:
+  #
+  #   hash mismatch in fixed-output derivation
+  #     'caddy-src-with-plugins-ea5480ecce2b088b2b65ad3423502471-2.11.7':
+  #      specified: sha256-dQvk6ezY6TQ1J7PjhCXnThF/SqVgPwBO8/RXzHCY+js=
+  #         got:    sha256-xRJ5evsAJ2akg47j3Bt6YDXJOgX88B/rKNP50KSVyNY=
+  #
   # So expect to rediscover this on every nixpkgs bump, not just when the
   # plugin list changes. It fails late and indirectly: the error names the
   # Caddy package, then etc, then Caddyfile, then the whole image, four levels
   # away from the line that is actually wrong.
   caddyPkg = pkgs.caddy.withPlugins {
     plugins = [ "github.com/caddy-dns/cloudflare@v0.2.4" ];
-    hash = "sha256-dQvk6ezY6TQ1J7PjhCXnThF/SqVgPwBO8/RXzHCY+js=";
+    hash = "sha256-xRJ5evsAJ2akg47j3Bt6YDXJOgX88B/rKNP50KSVyNY=";
   };
 in
 {
