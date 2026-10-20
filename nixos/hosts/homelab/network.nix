@@ -118,7 +118,10 @@ in
 
     serviceConfig = {
       Type = "oneshot";
-      RemainAfterExit = true;
+      # Do not remain active: the timer below must be able to run the
+      # idempotent `ip route replace` again if the route disappears without an
+      # Incus restart.
+      RemainAfterExit = false;
     };
 
     # `ip` by absolute store path, not by name.
@@ -149,6 +152,20 @@ in
       # missing rather than silently doing nothing.
       ip route replace 100.64.0.0/24 via ${tunnelNextHop} dev incusbr0 proto static
     '';
+  };
+
+  # The route has disappeared while the oneshot still reported active, so a
+  # boot-only install is not enough. This timer is a cheap convergence check:
+  # `ip route replace` is idempotent, and a missing route is restored within
+  # two minutes without restarting Incus or a VM.
+  systemd.timers.wireguard-tunnel-route = {
+    description = "Keep the WireGuard tunnel return route installed";
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnBootSec = "1min";
+      OnUnitActiveSec = "2min";
+      Persistent = false;
+    };
   };
 
   # No incusbr0 entry here. The route it used to carry is the oneshot above, and
