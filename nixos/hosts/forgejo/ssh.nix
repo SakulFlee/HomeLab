@@ -228,9 +228,32 @@ in {
   services.openssh = {
     enable = true;
     openFirewall = false; # the guest firewall is off; the host gates this
+
+    # Keep the SSH identity on the persistent Forgejo data volume.
+    #
+    # The default paths are under /etc/ssh on the container's root disk. Incus
+    # replaces that disk on every image change, so the default arrangement
+    # regenerated the host key on every Forgejo recreate and broke every Git
+    # client's known_hosts entry. `/var/lib/forgejo/data` is the `forgejo-data`
+    # volume and survives replacement.
+    #
+    # These paths were seeded from the running instance's /etc/ssh before the
+    # configuration changed, so the first replacement after this switch keeps
+    # the current fingerprint. NixOS's sshd-keygen generates either file only if
+    # it is missing, which covers a genuinely fresh data volume.
+    hostKeys = [
+      {
+        type = "rsa";
+        bits = 4096;
+        path = "/var/lib/forgejo/data/ssh/ssh_host_rsa_key";
+      }
+      {
+        type = "ed25519";
+        path = "/var/lib/forgejo/data/ssh/ssh_host_ed25519_key";
+      }
+    ];
+
     settings = {
-      # No host key in the image: Incus hands the instance one, and a baked-in key
-      # would be identical in every copy of this image.
       PermitRootLogin = "no";
       PasswordAuthentication = false;
       KbdInteractiveAuthentication = false;

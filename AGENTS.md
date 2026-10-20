@@ -143,6 +143,11 @@ started.
   timeout so a late ESP does not push the whole guest into maintenance.
 - **Instance replacement is expected on an image change.** Data that must
   survive belongs on an Incus storage volume, never on the root disk.
+- **Forgejo's SSH host keys live on `forgejo-data`.** They are deliberately at
+  `/var/lib/forgejo/data/ssh`, not the container root's `/etc/ssh`: the root disk
+  is replaced on every image change, and rekeying there breaks every Git
+  client's `known_hosts` entry. If moving or restoring Forgejo, preserve that
+  directory.
 - **Old images may remain after replacement.** Delete them only when
   unreferenced; `incus-image-gc.sh` only handles images carrying
   `user.build-source`, so it does not cover every Tofu-created image.
