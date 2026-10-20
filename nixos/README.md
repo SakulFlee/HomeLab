@@ -32,7 +32,9 @@ systemctl start incus-secrets.service
 tofu plan
 ```
 
-Do not run `tofu apply` unattended; an image change replaces running guests.
+The host updater can apply safe plans automatically after a host rebuild.
+Plans containing destructive deletes are blocked for manual review; an image
+change replaces the guest and causes a short interruption.
 
 ## Adding a new device
 To add a new device, first boot from and install via the official NixOS ISO.

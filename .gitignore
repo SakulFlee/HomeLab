@@ -18,4 +18,5 @@ incus/infra/.terraform.lock.hcl.tmp
 incus/infra/terraform.tfstate
 incus/infra/terraform.tfstate.*
 incus/infra/.terraform.tfstate.lock.info
+incus/infra/*.tfplan
 incus/infra/crash.log

@@ -278,8 +278,13 @@ tofu plan                        # must be clean
 ```
 
 All of it needs root: Tofu talks to the Incus unix socket, and Nix store paths
-are only writable by the daemon's group. An image change replaces the instance;
-there is no automatic `tofu apply` in the host updater.
+are only writable by the daemon's group. An image change replaces the instance.
+
+The host updater also runs `gen-tf.sh`, produces `auto.tfplan`, and applies it
+when the plan is safe. Safe means image/instance creation and replacement,
+in-place instance changes, and volume creation or snapshot-policy updates. It
+blocks plans that delete an instance without replacement, a storage volume,
+project, network, forward, pool or server, and leaves the plan for review.
 
 After a secret rotation (a rebuild that changes `/run/secrets`), the path unit
 starts `incus-secrets.service` automatically; the five-minute timer is only a
@@ -307,12 +312,12 @@ fingerprint.
 
 ## Redeploying after a config change
 
-There is no per-instance systemd unit any more. Changing an instance's Nix
-config, a shared module, or a secret does not touch Incus by itself: run
-`incus/gen-tf.sh`, review `tofu plan`, and apply. `nixos-auto-update` still
-updates the host closure and sops secrets, but it deliberately does not run
-`tofu apply` — an unattended apply can replace running instances and must stay a
-reviewed action.
+There is no per-instance systemd unit any more. `nixos-auto-update` runs after
+the host rebuild, regenerates the Tofu JSON, plans, and applies safe plans.
+Plans that delete an instance without replacement, a storage volume, project,
+network, forward, pool or server are blocked and left as
+`incus/infra/auto.tfplan` for review. Run the commands manually when changing
+the infrastructure outside that safe set.
 
 The historical first apply replaced every instance once, because the image
 changed from a manually imported fingerprint to a resource-managed one. If

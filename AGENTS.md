@@ -39,9 +39,11 @@ That file, the `.artifacts/` out-links, `.terraform/`, plans and state are
 local-only and must not be committed. The generated out-links are GC roots;
 do not delete them while a plan is pending.
 
-Never run an unattended `tofu apply`. The host's automatic updater may rebuild
-the host and refresh sops material, but it does not apply infrastructure that
-could replace running guests.
+The host's automatic updater may rebuild the host, regenerate the Tofu JSON,
+and apply a plan when the plan is safe. A plan that deletes an instance with no
+replacement, a storage volume, project, network, forward, pool or server is
+blocked and left for manual review. Do not bypass that guard by applying such a
+plan automatically.
 
 ## Adding a deployment
 

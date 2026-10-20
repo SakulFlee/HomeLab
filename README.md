@@ -64,7 +64,9 @@ systemctl start incus-secrets.service
 tofu plan   # must be clean
 ```
 
-Do not run an unattended `tofu apply`: an image change replaces instances.
+The host updater can apply safe plans automatically after a host rebuild.
+Destructive plans are blocked for manual review; an image change replaces the
+instance, so expect a short interruption when that is applied.
 
 ## Current guests
 

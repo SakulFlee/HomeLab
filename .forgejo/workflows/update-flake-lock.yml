@@ -3,7 +3,8 @@ name: Update flake.lock
 # Bumps nixos/flake.lock input-by-input. Each input must pass the gate before it
 # is kept; an input that fails is reverted on its own, so one broken input does
 # not block the rest. The committed lock is picked up automatically by the
-# host's `nixos-auto-update` timer (git merge --ff-only + nixos-rebuild).
+# host's `nixos-auto-update` timer (git merge --ff-only + nixos-rebuild), then
+# the host updater builds guest images and applies a safe Tofu plan.
 #
 # The flake lives in nixos/, not at the repo root, so every run step works from
 # there (defaults.run.working-directory below) and the file committed is
@@ -22,8 +23,8 @@ name: Update flake.lock
 #     host's auto-updater will switch to; the instances are only evaluated.
 #
 # NOTE on the runner VM: forgejo-runner is itself an instance defined by this
-# flake, so an accepted nixpkgs bump changes image-forgejo-runner and the next
-# reviewed Tofu apply recreates that VM, wiping its /nix store (only the
+# flake, so an accepted nixpkgs bump changes image-forgejo-runner and the host
+# updater's safe Tofu apply recreates that VM, wiping its /nix store (only the
 # forgejo-runner-data volume survives). Builds after a bump therefore substitute
 # from cache.nixos.org. That is expected, not a misconfiguration.
 #
