@@ -64,20 +64,28 @@ adopt incus_profile.default default
 echo "storage volumes"
 while read -r instance; do
   project=$(jq -r --arg i "$instance" '.[$i] // ""' <<<"$instance_projects_json")
-  prefix=""
-  [[ -n $project ]] && prefix="$project/"
   while read -r volume; do
-    adopt "incus_storage_volume.$(label "$volume")" "${prefix}persistent/${volume}"
+    # The provider treats the first component before a slash as the project.
+    # The leading slash is an explicit empty project, needed because the pool
+    # and name are both required fields.
+    if [[ -n $project ]]; then
+      volume_id="$project/persistent/$volume"
+    else
+      volume_id="/persistent/$volume"
+    fi
+    adopt "incus_storage_volume.$(label "$volume")" "$volume_id"
   done < <(jq -r --arg i "$instance" '.[$i].volumes[]?.name' <<<"$instances_json")
 done < <(jq -r 'keys[]' <<<"$instances_json")
 
 echo "network forwards"
+# Same provider parsing quirk as volumes: the leading slash is an explicit
+# empty project, otherwise incusbr0 would be read as the project name.
 while IFS=$'\t' read -r resource id; do
   adopt "incus_network_forward.$resource" "$id"
 done < <(jq -r '
   .resource.incus_network_forward // {}
   | to_entries[]
-  | "\(.key)\t\(.value.network)/\(.value.listen_address)"
+  | "\(.key)\t/\(.value.network)/\(.value.listen_address)"
 ' "$infra/generated.tf.json")
 
 echo "instances"
