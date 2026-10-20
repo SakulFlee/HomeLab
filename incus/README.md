@@ -4,19 +4,29 @@ Tooling for building NixOS container images and turning them into running
 Incus instances. Everything here is meant to be run on the homelab host, where
 `/etc/nixos` is a clone of this repository.
 
+> **Lifecycle is owned by OpenTofu now.** Images, instances, volumes, networks,
+> profiles and projects live in `incus/infra/`, generated from the flake by
+> `incus/gen-tf.sh`. The host runs `incus-secrets.service` for the one thing
+> Tofu cannot do without putting plaintext in state: rendering sops secrets into
+> the guests. `apply.sh` is kept only as a migration/rollback reference; the
+> operational commands below all go through `gen-tf.sh` and Tofu.
+
 ## Layout
 
 | path                          | what it is                                                      |
 | ----------------------------- | --------------------------------------------------------------- |
-| `incus/apply.sh`              | the reconciler: build image, import, create/recreate             |
+| `incus/gen-tf.sh`             | build image artefacts and regenerate `infra/generated.tf.json`   |
+| `incus/import.sh`             | one-time adoption of the live setup into Tofu state              |
+| `incus/infra/main.tf`         | provider and static resources (server, pool, network, profile)   |
+| `incus/apply.sh`              | legacy reconciler: build image, import, create/recreate          |
+| `nixos/incus-tf.nix`          | Nix → Tofu JSON generator                                        |
 | `nixos/incus-instances.nix`   | the registry — the only list of instance names                   |
 | `nixos/hosts/<n>/default.nix` | the OS config, built into the image                              |
 | `nixos/hosts/<n>/incus.nix`   | the container config: limits, volumes, devices                  |
 
-**On the host**, this directory is `/etc/nixos/incus/`, so the reconciler lives
-at **`/etc/nixos/incus/apply.sh`**. It runs straight from the checkout rather
-than from a store path, which is what lets the `.path` unit watch it: a store
-path is immutable, so a unit watching one could never fire.
+**On the host**, this directory is `/etc/nixos/incus/`. The generated Tofu
+configuration is `infra/generated.tf.json`; it is not committed because it
+contains store paths that only exist after `gen-tf.sh` has built the artefacts.
 
 An instance is defined in two files, deliberately split:
 
@@ -26,9 +36,9 @@ An instance is defined in two files, deliberately split:
   only Incus knows, so they cannot live in the image.
 
 `nixos/incus-instances.nix` imports the `incus.nix` of every instance and is the
-single source of the names. It is read twice — once by the flake, which exposes
-it as `incusInstances`, and once by the host config, which generates the systemd
-units. There is no second list to keep in sync.
+single source of the names. The flake exposes it as `incusInstances`, and both
+the Tofu generator and `incus-secrets` read that output. There is no second list
+to keep in sync.
 
 ## Image identity
 
@@ -52,11 +62,11 @@ looked the image up by `user.build-source` and found nothing — correctly, beca
 the build genuinely was not in the pool — and reported a confusing error that
 pointed at the property rather than at the fingerprint.
 
-**The fix is in `per_instance_metadata`.** It repacks the metadata tarball with the
-description rewritten to name the instance, and imports that. The description is
-the only field in `metadata.yaml` that is ours to choose, and it is in the
-fingerprint. Verified on the running instance by rewriting only that one field and
-importing a rootfs that had just been refused:
+**The fix is in `mkTfArtifact`.** It repacks the metadata tarball with the
+description rewritten to name the instance and its rootfs store path, and imports
+that. The description is the only field in `metadata.yaml` that is ours to
+choose, and it is in the fingerprint. Verified on the running instance by
+rewriting only that one field and importing a rootfs that had just been refused:
 
 ```
 Error: Image with same fingerprint already exists    <- stock metadata
@@ -65,19 +75,17 @@ Image imported with fingerprint: 560477927d41...      <- description names caddy
 
 Two details that matter and are easy to get wrong:
 
-* **Everything else is copied through untouched.** The tarball also carries the
-  nix store registration and the path registration, and those are what decide
-  whether the container's binaries resolve. Rewriting the tarball is not an
-  opportunity to tidy it.
+* **Everything else is copied through untouched.** Rewriting the metadata
+  tarball is not an opportunity to tidy it.
 * **`tar` is given `--sort=name`, fixed owner/group and `--mtime`.** Without those
   the archive embeds the current time and member order, so the same instance would
-  produce a different fingerprint on every reconcile and no image would ever be
+  produce a different fingerprint on every build and no image would ever be
   recognised as unchanged.
 
-`user.build-source` is still worth writing, and still worth reading back: it is a
-reliable key for finding an image, because it is set only after the alias is known
-to name one. It was never a reliable way to ask whether a *build* was already in
-the pool, and the two questions look identical in the source.
+`apply.sh` wrote `user.build-source` on the images it imported; the Tofu provider
+has no equivalent property. That is why `incus-image-gc.sh` only deletes images
+carrying that property: it can reclaim images from the old reconciler without
+ever touching one an instance currently references.
 
 ## Secrets
 
@@ -89,7 +97,7 @@ renderedSecrets = [
 ];
 ```
 
-and `apply.sh` reads `source` — which the *host* decrypts, with the host's own
+and `incus-secrets` reads `source` — which the *host* decrypts, with the host's own
 SSH identity key — and writes `ENV_NAME=<value>` into `file` inside the
 instance. The value is piped on stdin, never a command-line argument, and the
 write is diffed so a settled redeploy touches nothing.
@@ -118,7 +126,7 @@ that, both of which were learned the hard way:
 
 * **Ownership is part of the diff, not just content.** A file whose bytes are
   correct but whose mode is not is still broken, and comparing content alone
-  means apply.sh declares it settled while the consumer cannot read it.
+  means incus-secrets declares it settled while the consumer cannot read it.
 * **A restart is a request, not a result.** `secretConsumers` are restarted and
   then **checked with `systemctl is-active`**, and a failure dumps the unit's
   last journal lines into the error. Without that check this script reported
@@ -142,10 +150,11 @@ excluded from snapshots by omission: no `snapshots` block declares them, so
 none are ever taken — which is the point, for a live API token.
 
 One consequence worth knowing: `/run/secrets/*` does not exist until the host
-has been rebuilt, so a new instance with `renderedSecrets` cannot come up before
-that. `incus-secrets-<name>.path` exists for exactly this — `PathExists=` is the
-one directive that fires on activation when its condition already holds, so the
-instance reconciles itself the moment the host materialises the secret.
+has been rebuilt, so a new instance with `renderedSecrets` cannot come up
+correctly before that. `incus-secrets.service` skips instances that are not
+running, and the five-minute timer retries until the instance is up; the
+`/run/secrets` path unit fires immediately when sops materialises a rotated
+value.
 
 ## The model
 
@@ -212,11 +221,10 @@ than discovering them one at a time:
 | volumes            | `filesystem` type                    | `block` type                                  |
 | disk devices       | `path=/somewhere` mounts it          | **no `path`** — a raw block device            |
 
-`apply.sh` derives the type from the spec rather than from the image, and the
-artefact *count* is what distinguishes the two shapes at the call site: one line
-for a VM, two for a container. So `build_artifacts` must not pad a VM's output
-to match — a trailing blank line reads as a third, empty artefact, because
-`mapfile -t` on `"path\n\n"` yields `path`, `""`, `""`.
+The generator derives the type from the spec rather than from the image, and the
+artefact *count* is what distinguishes the two shapes at the call site: one file
+for a VM, two for a container. `mkTfArtifact` names the rootfs file itself, so
+there is no list of paths to pad or truncate.
 
 Two things are easy to get wrong in the details:
 
@@ -252,104 +260,52 @@ working untouched.
 ## Running it
 
 ```bash
-incus/apply.sh --all             # reconcile every instance
-incus/apply.sh caddy             # just one
-incus/apply.sh --check caddy     # build, report drift, change nothing
-incus/apply.sh --no-start caddy  # reconcile but leave it stopped
-systemctl start incus-apply-caddy.service
-journalctl -u incus-apply-caddy -f
-incus-status.service             # one-line-per-instance table
+incus/gen-tf.sh                  # build every image + write generated.tf.json
+cd incus/infra
+tofu init
+tofu plan
+tofu apply                       # first run also replaces instances onto new images
+systemctl start incus-secrets.service
+journalctl -u incus-secrets -f   # secret rendering and consumer restarts
 ```
 
-All of it needs root: `incus image import` and instance changes go through the
-Incus daemon, and the Nix store is only writable by the daemon's group.
+All of it needs root: Tofu talks to the Incus unix socket, and Nix store paths
+are only writable by the daemon's group.
 
-`incus-status.service` is the quickest way to see whether the automatic
-redeploy actually did anything:
+After a secret rotation (a rebuild that changes `/run/secrets`), the path unit
+starts `incus-secrets.service` automatically; the five-minute timer is only a
+safety net. There is no per-instance systemd unit any more, and no
+`incus-status.service` — inspect Tofu state with `tofu state list` and Incus with
+`incus list`.
 
+## Migration (one time)
+
+```bash
+incus/gen-tf.sh
+incus/import.sh
+cd incus/infra && tofu plan -out=roll.tfplan && tofu apply roll.tfplan
+systemctl start incus-secrets.service
 ```
-INSTANCE   STATE      BASE-IMAGE    ALIAS
-caddy      Running    3f2a1b0c9d4e  homelab/caddy
-forgejo    -          -             homelab/forgejo
-```
 
-## Automatic redeploy
+`incus/import.sh` adopts the live instances, volumes, project, pool, network,
+profile and forwards. Images and the server resource cannot be imported; the
+first apply creates the images and adopts the server config. Every instance is
+replaced once because its `image` becomes the new image resource's fingerprint.
 
-The host runs one `incus-apply-<name>.service` and one `.path` unit per
-instance. Any change to that instance's inputs — a hand edit, or the hourly
-`git merge --ff-only` in `nixos-auto-update` — triggers a rebuild. It is safe to
-run on every change because the work is gated on the fingerprint comparison
-above, and a settled redeploy performs **zero** Incus writes: every set is
-diffed first.
+## Redeploying after a config change
 
-`incus/apply.sh` runs from the checkout rather than the store, which is what
-makes the trigger work: **pulling the repo both updates the reconciler and
-fires it.** The only case where you must start a service by hand is the first
-deploy after installing the units, because per `systemd.path(5)` a `.path` unit
-does not trigger on activation unless the directive is `PathExists=`.
+There is no per-instance systemd unit any more. Changing an instance's Nix
+config, a shared module, or a secret does not touch Incus by itself: run
+`incus/gen-tf.sh`, review `tofu plan`, and apply. `nixos-auto-update` still
+updates the host closure and sops secrets, but it deliberately does not run
+`tofu apply` — an unattended apply can replace running instances and must stay a
+reviewed action.
 
-A failed run is retried — `Restart=on-failure`, `RestartSec=60`, five attempts
-over `StartLimitIntervalSec=2400` — because most failures here are transient
-(incusd still coming up, a pool not mounted, a store lock held by the host
-rebuild that triggered it). A genuinely broken config burns five builds and then
-stays `failed`, and an `OnFailure=` unit sends a desktop notification, because a
-redeploy that silently did not happen is the worst outcome available.
-
-**What each instance watches** is the closure of what its own build reads:
-
-| watched                                 | why                                |
-| --------------------------------------- | ---------------------------------- |
-| `nixos/flake.{nix,lock}`                | inputs, and the `mkInstance` wrapper |
-| `nixos/incus-instances.nix`              | the registry, which selects the spec |
-| `nixos/hosts/<name>/`                   | that instance's `default.nix` and `incus.nix` |
-| `nixos/modules/`                        | shared modules — unused today, but where the first one will land |
-| `incus/apply.sh`                        | the reconciler itself              |
-
-Deliberately **not** watched: `nixos/hosts/homelab/`, `nixos/hardware/`,
-`nixos/users/`. Those are the *host*, and the host does not appear in any
-instance's build closure — rebuilding every image because the host's NIC changed
-would be pure waste.
-
-Two things worth knowing:
-
-* **The watch list is generated at host build time.** A *new* file added after
-  the last `nixos-rebuild` is not watched yet. Its parent directory is, so its
-  creation is still noticed, and the next rebuild closes the gap. Adding an
-  instance means editing the registry, which is itself a rebuild.
-* **Never delete an image.** A new import repoints the alias and leaves the
-  previous image unreferenced for Incus's own GC. There is no `--reuse` here
-  precisely because it deletes an image that already carries the alias.
-* **Only tracked files can affect the image.** A `git+file://` flake is built
-  from the git tree, so an untracked file never reaches the image — Nix refuses
-  to evaluate rather than guessing. The dirty-tree warning therefore uses
-  `git status --untracked-files=no`; with the default it fired on every single
-  run over a stray file that could not possibly have mattered.
-* **`incus image import` is not idempotent.** Given content the pool already
-  holds it fails with `Image with same fingerprint already exists`, *and it does
-  not attach the alias on that path*. So the alias can go on naming a stale
-  image while the fingerprint comparison reads it and declares a wrong instance
-  up to date. Every no-op redeploy therefore takes a fast path that never
-  imports at all, and the run ends with an assertion that the alias really does
-  name the image just built — the failure mode here is silent, so it gets a
-  guard rather than a comment.
-* **`user.build-source` is a trusted record.** It is the only handle that maps a
-  build output to a fingerprint, so it is written in exactly one place: after
-  the alias provably names the right image. Writing it before resolving the
-  alias is how an image ends up carrying someone else's build path, and once it
-  has, the record lies and every later comparison inherits the lie.
-* **A `.path` unit does not fire on activation.** Per `systemd.path(5)`, only
-  `PathExists=` triggers immediately when the condition already holds. So the
-  first deploy after installing these units is an explicit
-  `systemctl start incus-apply-<name>.service`; everything after that is
-  automatic, including a plain `git pull`.
-* **The Incus client reads stdin when stdin is not a TTY, and sends it as the
-  request body.** A loop fed by `while read … done < <(jq …)` therefore hands
-  the *next* line of JSON to the server, which replies
-  `field pool not found in type api.StorageVolumePut` — naming neither the
-  command nor the cause. It only bites at two or more iterations, which is why
-  one instance passed and another did not. Every loop is now `mapfile` + `for`,
-  and every mutating call goes through `incus_run`, which redirects stdin from
-  `/dev/null` and logs its own argv.
+The first apply after the switch to Tofu replaces every instance once, because
+the image changes from a manually imported fingerprint to a resource-managed
+one. If Incus reports `Image is in use by an instance` while deleting an old
+image, the replacement was created before the old one could be removed; rerun
+`tofu apply` and it converges.
 
 ## The host's entry points
 

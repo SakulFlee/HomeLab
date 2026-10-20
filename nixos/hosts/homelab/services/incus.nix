@@ -19,6 +19,11 @@ let
   poolsMount = "${utils.escapeSystemdPath poolsPath}.mount";
 in
 {
+  # OpenTofu owns instance/image/volume/network/profile lifecycle now. The CLI
+  # is intentionally available on the host because incus/gen-tf.sh and the
+  # import runbook are operated from here, not from a workstation.
+  environment.systemPackages = [ pkgs.opentofu ];
+
   # Incus is the workload substrate. Pools are a sibling subvolume on the same
   # device as the retired k3s storage.
   virtualisation.incus = {
@@ -33,117 +38,13 @@ in
     # so expect a browser warning. Caddy fronts this properly in a later phase,
     # where it gets a real certificate and VPN-only gating.
     ui.enable = true;
-
-    preseed = {
-      # Listen on the LAN address rather than 0.0.0.0 so the API (which is
-      # root-equivalent access to this host once authenticated) is not reachable
-      # from any other interface. VPN clients can reach the same address because
-      # 192.168.178.0/24 is inside the tunnel's allowedIPs.
-      #
-      # Enabling this is what makes the web UI reachable over TCP at all -- by
-      # default incusd only serves its unix socket.
-      config."core.https_address" = "192.168.178.200:8443";
-
-      # Which browser origins may open a websocket against the API.
-      #
-      # Empty by default, and Incus then accepts *same-origin* requests only --
-      # shared/ws/upgrader.go compares the Origin header's host against the
-      # request Host, falling back to this list. The Incus CLI sends no Origin at
-      # all, so `incus webui`, `incus exec` and `incus console` against the
-      # direct address all work with this unset. That is exactly why the UI was
-      # fine locally and broken only through Caddy.
-      #
-      # Set together with `header_up Host {host}` in the Caddy vhost, and the two
-      # are belt and braces: that directive makes the Host comparison succeed,
-      # and this makes the endpoint work whatever Host arrives as. With either
-      # one missing, Terminal and Console fail with "WebSocket is closed before
-      # the connection is established" while every plain API call still succeeds.
-      #
-      # Narrow on purpose. A websocket that can drive an operation is
-      # effectively root on this host, so this names the single hostname the UI
-      # is served from and nothing more.
-      config."core.https_allowed_websocket_origin" = "https://incus.sakul-flee.de";
-
-      # One pool. There used to be two, `backup` and `persistent`, and the
-      # split between them was a COMMENT, not a mechanism.
-      #
-      # Verified on the running host before the merge: both were
-      # `driver: btrfs` with `source: /var/lib/incus/storage-pools/<name>`,
-      # on the same filesystem, with no quota and no size limit. Nothing
-      # enforced a difference. What separated them was a paragraph.
-      #
-      # The earlier version of the pool comment claimed `backup` was restic'd
-      # and `persistent` was not. Both halves were wrong: the host restic
-      # service backed up BOTH pool
-      # paths (nixos/hosts/homelab/services/backup.nix, since removed).
-      #
-      # So the split bought nothing and cost a decision for every new volume.
-      # The three volumes in `backup` (caddy-data, forgejo-data, and the empty
-      # orphan forgejo-repositories) were moved into `persistent` with
-      # `incus storage volume move`, which on btrfs within one filesystem is a
-      # subvolume snapshot: near-instant, no extra space, description and
-      # config carried over. Then `incus storage pool delete backup`.
-      #
-      # Removing a pool from this list does NOT delete it: NixOS's own
-      # `virtualisation.incus.preseed` documentation states preseed never
-      # removes entities. The pool has to be deleted by hand *after* a rebuild
-      # with this list already updated -- otherwise the next switch re-creates
-      # it empty. The reverse order (delete, then rebuild) is the trap.
-      #
-      # `persistent` therefore no longer claims anything about backups. Naming
-      # a volume after its intended retention is still useful documentation
-      # even when nothing enforces it. What must not be repeated is the
-      # converse mistake: a PGDATA copy is not a backup, and a pg_dump is.
-      # Those are separate claims, and the old text used the first to argue
-      # for the second.
-      #
-      # No VM pool yet. Incus docs warn against VMs on btrfs and the mitigation
-      # is a dir pool, added in the phase that actually provisions VMs.
-      storage_pools = [
-        {
-          name = "persistent";
-          driver = "btrfs";
-          config.source = "${poolsPath}/persistent";
-        }
-      ];
-
-      # Kept distinct from the LAN (192.168.178.0/24) so Caddy can gate on
-      # client_ip ranges without ambiguity, and distinct from the VPN range
-      # (100.64.0.0/10). NAT on so instances get egress.
-      networks = [
-        {
-          name = "incusbr0";
-          type = "bridge";
-          config = {
-            "ipv4.address" = "10.0.0.1/24";
-            "ipv4.nat" = "true";
-            "ipv6.address" = "none";
-          };
-        }
-      ];
-
-      # Preseed does not populate the default profile's devices by itself, and
-      # without a root disk every `incus launch` fails. Root disks live on
-      # 'persistent', which is now the only pool.
-      profiles = [
-        {
-          name = "default";
-          devices = {
-            root = {
-              path = "/";
-              pool = "persistent";
-              type = "disk";
-            };
-            eth0 = {
-              name = "eth0";
-              network = "incusbr0";
-              type = "nic";
-            };
-          };
-        }
-      ];
-    };
   };
+
+  # The pool, incusbr0, the default profile and the API listen address moved to
+  # OpenTofu (incus/infra, generated from nixos/incus-tf.nix). Preseed is empty
+  # on purpose: it would be a second owner of the same objects, and removing an
+  # entity from preseed never deletes it anyway. The entities already exist in
+  # Incus's database, so a boot before the first apply still finds them.
 
   # Storage pools MUST be mounted before incusd starts. If the mount is missing
   # or failed, incusd must refuse to start rather than silently create the pool

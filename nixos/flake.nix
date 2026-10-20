@@ -37,6 +37,16 @@
   outputs = { self, nixpkgs, ... }@inputs:
     let
       system = "x86_64-linux";
+      lib = nixpkgs.lib;
+      pkgs = nixpkgs.legacyPackages.${system};
+
+      # The registry, read once here and exposed below. It is the only list of
+      # instance names; the Tofu generator and incus-secrets both derive from
+      # it.
+      instances = import ./incus-instances.nix;
+      instanceKinds = lib.mapAttrs
+        (name: spec: if (spec.type or "container") == "vm" then "vm" else "container")
+        instances;
 
       # A NixOS system destined for an Incus instance: a container or a VM.
       #
@@ -174,6 +184,50 @@
             path
           ];
         };
+
+      # The two files `incus image import` needs, plus the per-instance
+      # metadata rewrite apply.sh used to do at runtime.
+      #
+      # Incus derives an image fingerprint from the METADATA tarball, and
+      # nixpkgs generates that tarball identically for every instance built
+      # from one revision. The description is the only field of ours that is
+      # in the fingerprint, so it carries the rootfs store path: two instances
+      # never collide, and a rebuild that changes the rootfs always produces a
+      # new image instead of colliding with the old one.
+      #
+      # The tarball is repacked with a fixed mtime and sorted/deterministic
+      # ownership, and into a separate directory, so the same input always
+      # yields the same fingerprint. Writing the archive into the directory
+      # being archived makes whether the archive contains itself a race; that
+      # was a real source of duplicate images under apply.sh.
+      mkTfArtifact = name: kind:
+        let
+          cfg = self.nixosConfigurations.${name}.config;
+          rootfs =
+            if kind == "vm"
+            then "${cfg.system.build.qemuImage}/nixos.qcow2"
+            else "${cfg.system.build.squashfs}/nixos-lxc-image-${system}.squashfs";
+          rootfsName = if kind == "vm" then "rootfs.qcow2" else "rootfs.squashfs";
+          metadata = "${cfg.system.build.metadata}/tarball/${cfg.image.baseName}.tar.xz";
+          description = "${name} ${baseNameOf (dirOf rootfs)}";
+        in
+        pkgs.runCommand "incus-tf-image-${name}" {
+          nativeBuildInputs = [
+            pkgs.coreutils
+            pkgs.gnugrep
+            pkgs.gnused
+            pkgs.gnutar
+            pkgs.xz
+          ];
+        } ''
+          mkdir -p work "$out"
+          tar -xJf ${metadata} -C work
+          sed -i 's|"description":"[^"]*"|"description":"${description}"|' work/metadata.yaml
+          grep -qF '"description":"${description}"' work/metadata.yaml
+          tar --format=gnu --sort=name --owner=0 --group=0 --numeric-owner \
+              --mtime=@1 -cJf "$out/metadata.tar.xz" -C work .
+          ln -s ${rootfs} "$out/${rootfsName}"
+        '';
     in
     {
       nixosConfigurations = {
@@ -249,45 +303,58 @@
       };
 
       # The Incus-level half of each instance: limits, volumes, devices. Plain
-      # data, not a NixOS config, so incus/apply.sh can read it with
+      # data, not a NixOS config, so the Tofu generator and the host's
+      # incus-secrets service can read it with
       #
       #   nix eval --json .#incusInstances.caddy
       #
       # without evaluating a whole system. Keeping it as an output (rather than
-      # parsing nixos/incus-instances.nix in shell) means the script and the
-      # host's systemd units can never disagree about what an instance is.
-      incusInstances = import ./incus-instances.nix;
+      # parsing nixos/incus-instances.nix in shell) means the generator, the
+      # secret renderer and the specs can never disagree about what an instance
+      # is.
+      incusInstances = instances;
 
-        # Which Incus project each instance lives in, so incus/apply.sh can pass
-        # the right --project per instance:
-        #
-        #   nix eval --raw .#incusInstanceProjects.forgejo
-        #
-        # Separate from incusInstances because it is keyed the same way but
-        # answers a different question, and `--all` has to consult it once per
-        # instance: apply.sh takes a single --project per invocation, so a set
-        # spanning two projects cannot be reconciled in one run -- and
-        # incus-reconcile.timer runs `--all` every fifteen minutes precisely so
-        # that nothing is left waiting on a human.
-        #
-        # An instance absent from this map is in Incus's `default` project.
-        incusInstanceProjects = import ./incus-instance-projects.nix;
+      # Which Incus project each instance lives in:
+      #
+      #   nix eval --raw .#incusInstanceProjects.forgejo
+      #
+      # The Tofu generator uses it to add `project` and to scope volumes,
+      # images and instances correctly, and incus-secrets uses it because an
+      # instance name resolves against the current project.
+      #
+      # An instance absent from this map is in Incus's `default` project.
+      incusInstanceProjects = import ./incus-instance-projects.nix;
 
-        # The shape of each Incus project this host owns, keyed by PROJECT name:
-        #
-        #   nix eval --json .#incusProjects.forgejo
-        #
-        # Presence in this map is what makes incus/apply.sh create the project,
-        # and the keys under it are applied as project config. A third output
-        # rather than a second field on incusInstanceProjects because the two
-        # answer different questions and have different keys: instances name the
-        # project they live in, and a project outlives the instances placed in
-        # it.
-        #
-        # This has to live here at all because the nixpkgs `incus` module has no
-        # `projects` option -- `storage_pools` applies to `default` only -- so
-        # without it a project exists solely because someone typed
-        # `incus project create` into a live Incus once.
-        incusProjects = import ./incus-projects.nix;
+      # The shape of each Incus project this host owns, keyed by PROJECT name:
+      #
+      #   nix eval --json .#incusProjects.forgejo
+      #
+      # The Tofu generator turns each entry into an incus_project, so a
+      # project exists because it is declared here, not because someone typed
+      # `incus project create` into a live Incus once.
+      #
+      # This has to live here at all because the nixpkgs `incus` module has no
+      # `projects` option -- `storage_pools` applies to `default` only.
+      incusProjects = import ./incus-projects.nix;
+
+      # One derivation per instance: `rootfs.squashfs` (or `rootfs.qcow2` for
+      # a VM) and the per-instance `metadata.tar.xz`. incus/gen-tf.sh builds
+      # each one with --out-link so the paths written into generated.tf.json
+      # stay alive as GC roots.
+      #
+      #   nix build .#incusTfArtifacts.caddy
+      incusTfArtifacts = lib.mapAttrs mkTfArtifact instanceKinds;
+
+      # The whole OpenTofu configuration as JSON. The generator reads the
+      # registry, the project maps and the artifact paths, so there is no
+      # second description of what an instance is:
+      #
+      #   nix eval --raw .#incusTfJson > incus/infra/generated.tf.json
+      incusTfJson = builtins.toJSON (import ./incus-tf.nix {
+        inherit lib instances;
+        instanceProjects = import ./incus-instance-projects.nix;
+        projects = import ./incus-projects.nix;
+        artifacts = self.incusTfArtifacts;
+      });
     };
 }

@@ -6,3 +6,16 @@ result-*
 
 # Scratch files from debugging the NixOS configuration.
 *.bak
+
+# Generated OpenTofu inputs, state and local provider cache. The configuration
+# itself is regenerated from the flake with incus/gen-tf.sh; the artefact
+# out-links are GC roots and must never be committed.
+incus/infra/generated.tf.json
+incus/infra/generated.tf.json.tmp
+incus/infra/.artifacts/
+incus/infra/.terraform/
+incus/infra/.terraform.lock.hcl.tmp
+incus/infra/terraform.tfstate
+incus/infra/terraform.tfstate.*
+incus/infra/.terraform.tfstate.lock.info
+incus/infra/crash.log

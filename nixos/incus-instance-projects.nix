@@ -1,12 +1,8 @@
 # Per-instance Incus project, keyed by instance name.
 #
-# Separate from incus-instances.nix on purpose, and the reason is the reconcile
-# timer. apply.sh takes ONE --project for a whole invocation, so a set of
-# instances spanning two projects cannot be reconciled in a single run -- and
-# incus-reconcile.timer runs `--all` every fifteen minutes precisely so nothing
-# is left waiting on a human. With one global project, every instance would be
-# reconciled in the last one's project, which reports the others missing and
-# recreates them as duplicates on every sweep.
+# The Tofu generator uses this to put each instance, its volumes and its image
+# in the right project, and incus-secrets uses it because Incus resolves a bare
+# instance name against the *current* project.
 #
 # An instance absent from this map is in Incus's `default` project, which is the
 # case for everything that existed before projects were introduced.

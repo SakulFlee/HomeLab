@@ -2,7 +2,7 @@
   imports = [
     ./incus-image-gc.nix
     ./incus.nix
-    ./incus-instances.nix
+    ./incus-secrets.nix
     ./ttyd.nix
   ];
 }
