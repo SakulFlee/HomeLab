@@ -184,11 +184,11 @@ in
           fsWatcherEnabled = true;
 
           # Deleted or replaced files are moved into .stversions inside the folder
-          # and kept 14 days, which is the recovery window for a mistake that
+          # and kept 7 days, which is the recovery window for a mistake that
           # Syncthing propagates before anyone notices.
           versioning = {
             type = "trashcan";
-            params.cleanoutDays = "14";
+            params.cleanoutDays = "7";
           };
         };
       } // replicatedFolders;
