@@ -21,8 +21,9 @@ in
 {
   # OpenTofu owns instance/image/volume/network/profile lifecycle now. The CLI
   # is intentionally available on the host because incus/gen-tf.sh and the
-  # import runbook are operated from here, not from a workstation.
-  environment.systemPackages = [ pkgs.opentofu ];
+  # import runbook are operated from here, not from a workstation. jq is used
+  # by incus/import.sh to derive import IDs from the generated JSON.
+  environment.systemPackages = [ pkgs.opentofu pkgs.jq ];
 
   # Incus is the workload substrate. Pools are a sibling subvolume on the same
   # device as the retired k3s storage.
