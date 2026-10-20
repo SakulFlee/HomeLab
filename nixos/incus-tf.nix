@@ -101,7 +101,10 @@ let
     declared ++ root;
 
   volumeConfig = v:
-    lib.optionalAttrs (v ? snapshots && v.snapshots ? schedule) {
+    lib.optionalAttrs (v ? size) {
+      "size" = toString v.size;
+    }
+    // lib.optionalAttrs (v ? snapshots && v.snapshots ? schedule) {
       "snapshots.schedule" = v.snapshots.schedule;
     }
     // lib.optionalAttrs (v ? snapshots && v.snapshots ? expiry) {

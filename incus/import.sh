@@ -92,8 +92,11 @@ echo "instances"
 while read -r instance; do
   project=$(jq -r --arg i "$instance" '.[$i] // ""' <<<"$instance_projects_json")
   live_project=${project:-default}
-  fingerprint=$(incus query "/1.0/instances/${instance}?project=${live_project}" \
-    | jq -r '.config["volatile.base_image"] // empty')
+  if ! instance_json=$(incus query "/1.0/instances/${instance}?project=${live_project}" 2>/dev/null); then
+    echo "  skipping $instance: not present in project $live_project; Tofu will create it"
+    continue
+  fi
+  fingerprint=$(jq -r '.config["volatile.base_image"] // empty' <<<"$instance_json")
   [[ -n $fingerprint ]] || die "cannot read volatile.base_image for $instance"
   id="${instance},image=${fingerprint}"
   [[ -n $project ]] && id="${project}/${id}"

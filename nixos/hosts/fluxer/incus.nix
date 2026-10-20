@@ -44,6 +44,10 @@ in
       name = "fluxer-data";
       type = "block";
       description = "Fluxer Docker data volumes (Postgres, SeaweedFS state, etc.)";
+      # The Docker state outgrew the default block volume, so the quota was
+      # raised to 40GB by hand. Keep it in the spec: an undeclared value would
+      # be cleared by the next Tofu apply.
+      size = "40GB";
       snapshots = {
         schedule = "@hourly";
         expiry = "7d";
