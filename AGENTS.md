@@ -63,7 +63,7 @@ could replace running guests.
    - add the destination to `renderedSecrets` in the instance's `incus.nix`;
    - add the consuming unit to `secretConsumers`.
 8. Add external exposure deliberately:
-   - HTTP: a Caddy site block or an entry in `nixos/hosts/caddy/hostnames.nix`;
+   - HTTP: a Caddy site block in `nixos/hosts/caddy/default.nix`;
    - DNS: the split-horizon records for VPN-gated names;
    - raw TCP/UDP: `networkForward`/`networkForwards` in the instance spec.
 9. Update the host's documentation.

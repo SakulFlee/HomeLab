@@ -1,21 +1,6 @@
-{ lib, pkgs, ... }:
+{ pkgs, ... }:
 
 let
-  # The names Caddy is fronting, kept in their own file so the list can be
-  # reviewed and reused without being buried in a Caddyfile.
-  hostnames = import ./hostnames.nix;
-
-  # Precomputed rather than generated inside the Caddyfile below: a Nix
-  # indented string cannot contain another `''`-literal, so a concatMapStrings
-  # with a nested one does not parse. Tabs, because that is what `caddy fmt`
-  # emits and it rewrites spaces regardless of what we hand it.
-  hostBlocks = lib.concatMapStrings
-    (h: ''${h} {
-	import still-traefik
-}
-'')
-    hostnames;
-
   # nixpkgs' caddy has no DNS providers compiled in, so `acme_dns cloudflare`
   # fails with
   #   module not registered: dns.providers.cloudflare
@@ -59,11 +44,9 @@ in
 {
   # NixOS system container for the Incus instance "caddy".
   #
-  # Front door for everything in the homelab. Right now it terminates TLS for
-  # all twenty hostnames and hands every one of them straight back to Traefik;
-  # as each app moves to Incus its block stops importing the `still-traefik`
-  # snippet and proxies to its own instance instead. See incus.nix for the
-  # container-level definition (limits, volumes, devices).
+  # Front door for everything in the homelab. It terminates TLS and proxies
+  # directly to the Incus guests below. See incus.nix for the container-level
+  # definition (limits, volumes, devices).
 
   networking.hostName = "caddy";
 
@@ -137,62 +120,13 @@ in
           acme_dns cloudflare {env.CF_API_TOKEN}
         }
 
-        # Every hostname below is currently served by Traefik inside k3s, and
-        # every one of them keeps being served by Traefik until the app itself
-        # is migrated. This is a pure cutover of the front door: TLS terminates
-        # at Caddy and the request is handed back to Traefik over the bridge.
-        #
-        # 10.0.0.1 is incusbr0's own address, and Traefik answers there because
-        # it runs hostNetwork: true and binds every host address. That is what
-        # makes this loop-free: the incus network forward DNATs
-        # 192.168.178.200:80/443 to Caddy, and that rule matches on the listen
-        # address, so traffic aimed at 10.0.0.1 is never rewritten. Verified
-        # end to end from inside this container before the forward existed:
-        #
-        #   curl --resolve forgejo.sakul-flee.de:443:10.0.0.1 \
-        #        https://forgejo.sakul-flee.de/    ->  http 200, verify 0
-        #
-        # Two things here are load-bearing and neither is guessable:
-        #
-        #   header_up Host {http.request.host}
-        #     Since Caddy v2.11.0, proxying to an https:// upstream sets the
-        #     Host header to the upstream's hostport automatically. So Traefik
-        #     received `Host: 10.0.0.1`, matched no IngressRoute, and answered
-        #     404 for all twenty names while TLS verified perfectly and Caddy
-        #     reported success. {http.request.host} rather than the documented
-        #     {hostport} opt-out, because hostport keeps an explicit :443 if a
-        #     client sends one and Traefik's host matcher would not match it.
-        #
-        #   tls_server_name {http.request.host}
-        #     Traefik turns out to route on Host and not on SNI -- a request
-        #     with no SNI at all still gets 200 -- so this is belt and braces
-        #     rather than the fix. It is here because if Traefik is ever
-        #     reconfigured to select routers by SNI, the dialled address being
-        #     an IP would silently break it.
-        (still-traefik) {
-          reverse_proxy https://10.0.0.1 {
-            header_up Host {http.request.host}
-            transport http {
-              tls
-              tls_server_name {http.request.host}
-            }
-          }
-        }
-
         # -------------------------------------------------------------------
-        # forgejo.sakul-flee.de -- CUTOVER: now served by the Incus instance
-        # The first name to leave Traefik. This used to be one entry in
-        # hostnames.nix and inherit the shared still-traefik snippet; it is now a
-        # site block of its own pointing straight at 10.0.0.101:3000.
+        # forgejo.sakul-flee.de -- served by the Incus instance
+        # This is a site block of its own, pointing straight at 10.0.0.101:3000.
         #
-        # Traefik in k3s is still running and still has this data. Nothing about k3s
-        # has been removed -- only the route in front of it changed. Rolling back is
-        # putting the name back in hostnames.nix and deleting this block.
-        #
-        # Plain http:// upstream, not https:// like still-traefik uses. The instance
-        # speaks plain HTTP inside the container and its certificate was issued for a
-        # name that never resolves there, so there is nothing to verify and nothing to
-        # trust.
+        # Plain http:// upstream. The instance speaks plain HTTP inside the
+        # container and its certificate was issued for a name that never
+        # resolves there, so there is nothing to verify and nothing to trust.
         #
         # header_up Host is required rather than cosmetic. Forgejo compares the Host
         # header against its configured DOMAIN, forgejo.sakul-flee.de, and answers 404
@@ -219,14 +153,13 @@ in
         # -------------------------------------------------------------------
         # The Incus UI
         # -------------------------------------------------------------------
-        # The one hostname here that Caddy serves itself rather than handing to
-        # Traefik, and the reason apply.sh renders a client certificate into
-        # this instance and trusts it with Incus (see incusTrust in incus.nix).
+        # The one hostname here that Caddy serves itself, and the reason
+        # incus-secrets renders a client certificate into this instance and
+        # trusts it with Incus (see incusTrust in incus.nix).
         #
-        # A separate site block, NOT another entry in hostnames.nix: those all
-        # import still-traefik. There is no catch-all site block to collide
-        # with either -- Caddy has no site block for a host it does not know, and
-        # answers those itself with a 404.
+        # There is no catch-all site block to collide with: Caddy has no site
+        # block for a host it does not know, and answers those itself with a
+        # 404.
         #
         # VPN only, and `remote_ip` rather than `client_ip`:
         #
@@ -239,9 +172,8 @@ in
         #                and with no trusted_proxies configured the gate becomes
         #                a one-header bypass.
         #
-        # The range is the WireGuard tunnel subnet, matching the
-        # `vpn-only` Traefik middleware that already gates grafana,
-        # paperless and the rest. Deliberately NOT lan-or-vpn: Caddy holds a
+        # The range is the WireGuard tunnel subnet, matching the other
+        # VPN-gated vhosts. Deliberately NOT lan-or-vpn: Caddy holds a
         # trusted client certificate, and Incus has no RBAC, so anything that
         # passes this gate is a full administrator of the host. The direct API
         # on :8443 stays reachable from the LAN for the `incus` CLI, which is
@@ -290,16 +222,12 @@ in
         # Same gate shape as incus.sakul-flee.de above: `remote_ip`, not
         # `client_ip`, because the forward is DNAT and the source is
         # unforgeable while X-Forwarded-For is not. Same /10 range, matching
-        # the WireGuard tunnel subnet and the Traefik vpn-only middleware.
+        # the WireGuard tunnel subnet.
         #
         # Plain http:// upstream: TLS terminates here and ttyd speaks plain
         # HTTP on the host. 10.0.0.1 is the host on incusbr0, so this never
-        # matches the 192.168.178.200 forward and is loop-free by the same
-        # asymmetry as still-traefik. ttyd's own basic auth (host sops secret)
-        # is the second gate behind this one.
-        #
-        # A separate site block, NOT an entry in hostnames.nix: those all
-        # import still-traefik.
+        # matches the 192.168.178.200 forward. ttyd's own basic auth (host sops
+        # secret) is the second gate behind this one.
         ttyd.sakul-flee.de {
             tls {
                 dns cloudflare {env.CF_API_TOKEN}
@@ -314,11 +242,10 @@ in
         }
 
         # -------------------------------------------------------------------
-        # wireguard-ui.sakul-flee.de -- the WireGuard web UI, VPN only
+        # wireguard-ui.sakul-flee.de, vpn.sakul-flee.de -- the WireGuard web UI, VPN only
         # -------------------------------------------------------------------
-        # A separate site block, NOT an entry in hostnames.nix: those all
-        # import still-traefik, and the name was never one of them -- it did
-        # not exist until this block.
+        # `vpn` is a backwards-compatible alias for the old name; both labels
+        # resolve to the same site and the same gate.
         #
         # Same gate shape as every other block in this file: `remote_ip`, never
         # `client_ip` (the incus forward is a DNAT and does not rewrite the
@@ -360,7 +287,7 @@ in
         # header_up Host {http.request.host} is the file-wide convention;
         # wireguard-ui does not match on Host, so here it is belt and braces
         # rather than the fix.
-        wireguard-ui.sakul-flee.de {
+        wireguard-ui.sakul-flee.de, vpn.sakul-flee.de {
             tls {
                 dns cloudflare {env.CF_API_TOKEN}
             }
@@ -392,9 +319,6 @@ in
         # 8384 is NOT forwarded at the host level; this vhost is the only route
         # to the GUI, and there is no GUI password behind it. See the instance's
         # NOTES.md.
-        #
-        # A separate site block, NOT an entry in hostnames.nix: those all import
-        # still-traefik.
         syncthing.sakul-flee.de {
             tls {
                 dns cloudflare {env.CF_API_TOKEN}
@@ -409,17 +333,14 @@ in
         }
 
         # -------------------------------------------------------------------
-        # paperless.sakul-flee.de -- CUTOVER: now served by the Incus instance
+        # paperless.sakul-flee.de -- served by the Incus instance
         # Same gate shape as syncthing above: `remote_ip`, not `client_ip`
         # (the forward is DNAT and the source is unforgeable, while
         # X-Forwarded-For is not), and the same /10 tunnel range -- paperless is
-        # VPN-only, matching the `vpn-only` Traefik middleware it used to sit
-        # behind.
+        # VPN-only.
         #
         # Plain http:// upstream: TLS terminates here and paperless (granian)
-        # speaks plain HTTP on 0.0.0.0:28981 inside the container. Traefik in
-        # k3s still runs and still holds the data; this is a pure route change
-        # in front of it, rollback is putting the name back in hostnames.nix.
+        # speaks plain HTTP on 0.0.0.0:28981 inside the container.
         #
         # header_up Host {http.request.host} is required, not cosmetic:
         # paperless derives ALLOWED_HOSTS and the redirect target from the Host
@@ -440,11 +361,9 @@ in
         }
 
         # -------------------------------------------------------------------
-        # fluxer.sakul-flee.de -- CUTOVER: now served by the Incus VM
-        # Same shape the fluxer-next test block had; fluxer-next is gone.
-        # Rolling back is putting the name back in hostnames.nix (still-traefik)
-        # and scaling the k3s deployment back up -- but VM-side writes after
-        # this point are lost on rollback.
+        # fluxer.sakul-flee.de -- served by the Incus VM
+        # Rolling back means reverting the Fluxer deployment; VM-side writes
+        # after the current point would be lost.
         fluxer.sakul-flee.de {
           reverse_proxy http://10.0.0.103:8080 {
             header_up Host {http.request.host}
@@ -492,8 +411,6 @@ in
             }
         }
         # -------------------------------------------------------------------
-
-        ${hostBlocks}
       ''} $out
       # cp from the store preserves mode 0444, which `caddy fmt --overwrite`
       # cannot write to. The build sandbox would fail with "permission denied".

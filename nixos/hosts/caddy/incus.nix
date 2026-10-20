@@ -186,19 +186,16 @@ in
   # The host's public entry points
   # ---------------------------------------------------------------------
   #
-  # This is the cutover. Until it exists, Traefik inside k3s serves :80 and
-  # :443 on the host and Caddy is a passenger; once it exists, every hostname
-  # terminates TLS at Caddy and is handed back to Traefik over the bridge.
+  # This is the public HTTP entry point. TCP 80 and 443 on the host's LAN
+  # address are DNAT'd to Caddy, which terminates TLS and proxies to the
+  # individual guests.
   #
-  # Incus implements a forward as an nftables DNAT rule, not a socket bind, so
-  # it coexists with Traefik's 0.0.0.0:80 listener. Packets aimed at
-  # listenAddress are rewritten before socket lookup; packets aimed anywhere
-  # else on the same port are not. That asymmetry is the whole reason the
-  # still-traefik catch-all in default.nix is loop-free -- it dials 10.0.0.1,
-  # which this rule does not match.
+  # Incus implements a forward as an nftables DNAT rule, not a socket bind.
+  # Packets aimed at listenAddress are rewritten before socket lookup; packets
+  # aimed anywhere else on the same port are not.
   #
-  # Rollback, effective immediately, because Traefik's listener is never
-  # released while the rule exists:
+  # Rollback is removing the forward; there is no second HTTP listener behind
+  # it:
   #
   #   incus network forward delete incusbr0 192.168.178.200
   networkForward = {

@@ -327,10 +327,10 @@ becomes reachable from outside. For `caddy` it is the public HTTP entry point:
 TCP 80 and 443 on `192.168.178.200` are DNAT'd to `10.0.0.100`, where Caddy
 terminates TLS and proxies to the individual guests.
 
-There is no k3s/Traefik listener behind Caddy any more. The old
-`still-traefik` hostnames are historical and should be removed or re-pointed;
-they are not a rollback path. The only rollback that still makes sense is
-reverting the route to a different, running backend.
+There is no k3s/Traefik listener behind Caddy any more. The former
+`still-traefik` hostnames and their snippet have been removed; there is no
+Traefik rollback path. The only rollback that still makes sense is reverting
+the route to a different, running backend.
 
 Incus implements a forward as an **nftables DNAT rule, not a socket bind**.
 Packets aimed at the forward's listen address are rewritten in

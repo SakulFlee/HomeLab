@@ -51,30 +51,25 @@ Backups use **Incus volume snapshots** (atomic, crash-consistent). The `fluxer-d
 
 Restore from snapshots via `incus storage volume snapshot restore` as needed.
 
-## Caddy cutover (when ready)
+## Caddy route
 
-**Do not change Caddy now.** Once Fluxer is confirmed working, cut over routing:
-
-1. Remove `"fluxer.sakul-flee.de"` from `nixos/hosts/caddy/hostnames.nix`
-2. Add a site block in `nixos/hosts/caddy/default.nix` pointing to the VM:
+Fluxer is served by its own Caddy site block:
 
 ```nix
-"fluxer.sakul-flee.de" = {
-  extraConfig = ''
-    reverse_proxy http://10.0.0.103:8080
-  '';
-};
+fluxer.sakul-flee.de {
+  reverse_proxy http://10.0.0.103:8080 {
+    header_up Host {http.request.host}
+  }
+}
 ```
 
-3. Rebuild and apply Caddy.
-
-Until then, `fluxer.sakul-flee.de` continues routing to Traefik/k3s as-is.
+Rebuild Caddy through `incus/gen-tf.sh` and a reviewed Tofu apply.
 
 ## Rollback
 
-- Revert Caddy changes (put hostname back in hostnames.nix, remove dedicated block). Traffic returns to k3s.
-- k8s manifests remain untouched; can scale Fluxer back up.
-- VM can be stopped; volumes remain intact for rollback.
+- Revert the Fluxer configuration/image change in Git.
+- Run `incus/gen-tf.sh`, review `tofu plan`, and apply.
+- The VM can be stopped; its data volume remains intact.
 
 ## Build/deploy
 
@@ -82,4 +77,4 @@ The flake adds:
 - `nixosConfigurations.fluxer` (kind=vm)
 - `packages.image-fluxer` (qcow2 image)
 
-Deploy via `incus/apply.sh fluxer` once registered. 
+Deploy through `incus/gen-tf.sh` and the normal Tofu workflow.
