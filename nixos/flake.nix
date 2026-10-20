@@ -181,6 +181,19 @@
               else
                 "${nixpkgs}/nixos/modules/virtualisation/lxc-container.nix"
             )
+            (
+              # /boot is not needed to run the guest, but the Incus VM image
+              # mounts the ESP by label. Under load the by-label symlink can
+              # appear after the fstab mount has already failed, which fails
+              # local-fs.target and leaves the whole VM in systemd maintenance
+              # mode -- every service, including the ones this image exists
+              # for, then never starts. Keep the mount for bootloader updates,
+              # but do not let a late ESP make the VM unbootable.
+              lib.optionalAttrs (kind == "vm") {
+                fileSystems."/boot".options =
+                  lib.mkAfter [ "nofail" "x-systemd.device-timeout=15s" ];
+              }
+            )
             path
           ];
         };

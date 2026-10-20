@@ -130,8 +130,8 @@ that, both of which were learned the hard way:
 * **A restart is a request, not a result.** `secretConsumers` are restarted and
   then **checked with `systemctl is-active`**, and a failure dumps the unit's
   last journal lines into the error. Without that check this script reported
-  `Result=success` and `ok -- Running` while Caddy was dead and all twenty
-  hostnames were refusing connections — the single most expensive bug in this
+  `Result=success` and `ok -- Running` while Caddy was dead and the hostnames
+  it fronts were refusing connections — the single most expensive bug in this
   file, and the diagnosis was one line of a `journalctl` that nothing prompted.
 
 `file`, `mode` and `group` are interpolated into a `sh -c`, so they are pattern-
@@ -237,6 +237,13 @@ Two things are easy to get wrong in the details:
   a filesystem volume is `/volumes/custom/`, a block volume is `/volumes/block/`.
   Hardcoding `custom` 404s on every block volume.
 
+VM images also mount the ESP at `/boot` by label. The `mkInstance` VM branch
+adds `nofail` and `x-systemd.device-timeout=15s` to that mount: the label can
+appear late during a busy host boot, and a failed `/boot` mount otherwise takes
+`local-fs.target` and the whole guest into systemd maintenance mode. Check
+`incus exec <vm> -- systemctl is-system-running` after a VM replacement, not
+just `incus list`.
+
 ### Why WireGuard is a VM and not a container
 
 The rule in this repo is LXC unless something needs `security.privileged`, in
@@ -263,14 +270,16 @@ working untouched.
 incus/gen-tf.sh                  # build every image + write generated.tf.json
 cd incus/infra
 tofu init
-tofu plan
-tofu apply                       # first run also replaces instances onto new images
+tofu plan -out=deploy.tfplan
+tofu apply deploy.tfplan
 systemctl start incus-secrets.service
 journalctl -u incus-secrets -f   # secret rendering and consumer restarts
+tofu plan                        # must be clean
 ```
 
 All of it needs root: Tofu talks to the Incus unix socket, and Nix store paths
-are only writable by the daemon's group.
+are only writable by the daemon's group. An image change replaces the instance;
+there is no automatic `tofu apply` in the host updater.
 
 After a secret rotation (a rebuild that changes `/run/secrets`), the path unit
 starts `incus-secrets.service` automatically; the five-minute timer is only a
@@ -278,7 +287,10 @@ safety net. There is no per-instance systemd unit any more, and no
 `incus-status.service` — inspect Tofu state with `tofu state list` and Incus with
 `incus list`.
 
-## Migration (one time)
+## Migration (historical)
+
+This repository has already been migrated. `incus/import.sh` remains as the
+disaster-recovery/adoption tool, not as part of a normal deploy.
 
 ```bash
 incus/gen-tf.sh
@@ -287,10 +299,11 @@ cd incus/infra && tofu plan -out=roll.tfplan && tofu apply roll.tfplan
 systemctl start incus-secrets.service
 ```
 
-`incus/import.sh` adopts the live instances, volumes, project, pool, network,
-profile and forwards. Images and the server resource cannot be imported; the
-first apply creates the images and adopts the server config. Every instance is
-replaced once because its `image` becomes the new image resource's fingerprint.
+`incus/import.sh` adopts existing instances, volumes, project, pool, network,
+profile and forwards. Images and the server resource cannot be imported; a
+subsequent apply creates the images and adopts the server config. Expect every
+instance to be replaced once when its `image` becomes a resource-managed
+fingerprint.
 
 ## Redeploying after a config change
 
@@ -301,39 +314,34 @@ updates the host closure and sops secrets, but it deliberately does not run
 `tofu apply` — an unattended apply can replace running instances and must stay a
 reviewed action.
 
-The first apply after the switch to Tofu replaces every instance once, because
-the image changes from a manually imported fingerprint to a resource-managed
-one. If Incus reports `Image is in use by an instance` while deleting an old
-image, the replacement was created before the old one could be removed; rerun
-`tofu apply` and it converges.
+The historical first apply replaced every instance once, because the image
+changed from a manually imported fingerprint to a resource-managed one. If
+Incus reports `Image is in use by an instance` while deleting an old image, the
+replacement was created before the old one could be removed; rerun the saved
+apply and it converges.
 
 ## The host's entry points
 
 `networkForward` in an instance's `incus.nix` is how the host's own address
-becomes reachable from outside. For `caddy` it is the whole cutover: until it
-exists, Traefik inside k3s serves `:80`/`:443` on the host and Caddy is a
-passenger; once it exists, all twenty hostnames terminate TLS at Caddy and are
-handed back to Traefik over the bridge.
+becomes reachable from outside. For `caddy` it is the public HTTP entry point:
+TCP 80 and 443 on `192.168.178.200` are DNAT'd to `10.0.0.100`, where Caddy
+terminates TLS and proxies to the individual guests.
 
-Incus implements a forward as an **nftables DNAT rule, not a socket bind**, and
-that is the entire reason this is safe to do while the incumbent is still
-running. Packets aimed at the forward's listen address are rewritten in
+There is no k3s/Traefik listener behind Caddy any more. The old
+`still-traefik` hostnames are historical and should be removed or re-pointed;
+they are not a rollback path. The only rollback that still makes sense is
+reverting the route to a different, running backend.
+
+Incus implements a forward as an **nftables DNAT rule, not a socket bind**.
+Packets aimed at the forward's listen address are rewritten in
 `PREROUTING`/`OUTPUT` before socket lookup; packets aimed anywhere else on the
-same port are not matched and still reach the old listener. Two consequences
-worth keeping:
+same port are not matched. This is why a forward can coexist with another
+listener on the host, and why Caddy dialling `10.0.0.1` does not loop back
+through the DNAT.
 
-* **Rollback is one command and takes effect immediately**, because the old
-  listener never stopped holding the port:
-  `incus network forward delete incusbr0 192.168.178.200`
-* **The catch-all in the Caddyfile is loop-free because of the same asymmetry.**
-  It dials `10.0.0.1:443`, which the rule does not match — it matches the
-  host's LAN address only. If the forward ever listened on `10.0.0.0/24` this
-  would become a loop immediately, and the failure would look like Caddy hanging
-  rather than like a routing bug.
-
-The reconciler applies it **last**, after the instance is up and its consumers
-have been restarted. Pointing a DNAT at anything but a running, serving container
-is the one way this script could take traffic down rather than hand it over.
+Apply a forward only after the target instance is running and its consumers
+have been restarted. Pointing a DNAT at a stopped or unready container produces
+a clean-looking route and a 502.
 
 ### Things the network-forward API does that you would not guess
 
@@ -416,3 +424,19 @@ must not be repeated is the converse mistake the old split invited: a
 PGDATA copy is not a backup, and a pg_dump is. A torn PGDATA copy is worse
 than no copy -- the authoritative artefact is always a `pg_dump`, and no
 pool layout changes that.
+
+## Adding and removing guests
+
+The complete checklists are in `AGENTS.md`. At this level, the important
+mechanical facts are:
+
+- Adding an instance to `nixos/incus-instances.nix` adds both its
+  `incus_instance` and its `incus_storage_volume` resources to the generated
+  configuration.
+- Removing it removes those resources too. Inspect the plan and decide
+  explicitly whether the volumes are destroyed or retained with
+  `tofu state rm` before applying.
+- A new image is built by `incus/gen-tf.sh`; Tofu replaces the instance only
+  when the image fingerprint or another immutable attribute changes.
+- External routes are separate: Caddy vhosts, DNS names and network forwards
+  must be removed deliberately, not inferred from the instance disappearing.

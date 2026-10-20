@@ -3,6 +3,12 @@
 The VPN, as an Incus **VM**. This replaces `apps/wireguard/` (wg-access-server
 in k3s), which is Docker-only.
 
+> **Lifecycle:** the instance is now owned by OpenTofu. Deploy it with
+> `incus/gen-tf.sh` plus a reviewed `tofu apply`, not with `apply.sh` or the
+> old cutover commands below. The "Before the first deploy" and "Cutover"
+> sections are historical notes from the original migration; k3s and Traefik
+> no longer exist.
+
 For why it is a VM and not a container, and for the four differences that
 `type = "vm"` implies, see `../../../incus/README.md` → *Containers and VMs*.
 
@@ -72,14 +78,14 @@ Three ways to reach the web UI, and all three are deliberate:
 None of the three is reachable from the internet: the router forwards UDP 51820
 and nothing else.
 
-The resolver is still the split-horizon CoreDNS in k3s. Deliberate: moving DNS in
-the same change as the VPN would mean debugging routing and name resolution at
-the same time. This VM is on the LAN, so it can reach it. When DNS moves too,
-these two values become the VM's own address.
+The resolver advertised to VPN clients is the split-horizon DNS instance at
+`192.168.178.200`. Clients reach it through the tunnel; the VM's macvlan NIC
+still cannot reach its own parent host directly, so this is a client-path
+address, not the VM's own resolver.
 
-The tunnel subnet stays `100.64.0.0/24` because two existing allow-lists match
-inside it — the Traefik vpn-only middleware (`100.64.0.0/10`) and Caddy's Incus
-vhost gate. Renumber the tunnel and both have to change with it.
+The tunnel subnet stays `100.64.0.0/24` because Caddy's Incus vhost gate
+matches `100.64.0.0/10`. Renumber the tunnel and the gate has to change with
+it.
 
 ## Before the first deploy
 
@@ -171,12 +177,13 @@ decision.
 directory: `./db` is relative, so a `WorkingDirectory` that is not the data
 volume produces a healthy-looking UI that has silently lost every client.
 
-**The service is down after a recreate.** Expected, and it is meant to be loud.
-The two secrets render to `/var/lib/incus-secrets/` on the **root** disk, which a
-recreate wipes; the next reconcile re-renders them and restarts the unit. They
-are deliberately not on the data volume — under the mount point they would be
-written to the root disk and then shadowed by the mount, leaving the service
-running on copies that had stopped being current.
+**The service is down after a recreate.** Check the VM boot state first:
+`incus exec wireguard -- systemctl is-system-running`. If it says
+`maintenance`, the ESP/`/boot` mount failed and `multi-user.target` never
+started; this image now marks that mount `nofail` so a late label cannot take
+the whole guest down. If the system is running but `wireguard-ui` is down, check
+that `/var/lib/wireguard-ui` is mounted and that `wireguard-data-format.service`
+succeeded. There are no rendered secrets for this instance.
 
 **The data disk did not mount.** `wireguard-data-format.service` runs on every
 boot, is a no-op once the label is there, and **refuses to guess** if it finds

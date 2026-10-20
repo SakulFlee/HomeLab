@@ -64,7 +64,7 @@ guest_read() {
   local -a pargs=()
   [[ -n $PROJECT ]] && pargs=(--project "$PROJECT")
   incus "${pargs[@]}" exec "$iname" -- \
-    sh -c "export PATH=/run/current-system/sw/bin:\$PATH; $*" 2>/dev/null || true
+    sh -c "export PATH=/run/current-system/sw/bin:\$PATH; $*" </dev/null 2>/dev/null || true
 }
 
 # A key present in secrets.yaml but not declared as sops.secrets.<name> is never
@@ -246,7 +246,7 @@ sync_incus_trust() {
 
   # Trusted already, under any name. A certificate added by hand must not get a
   # second, redundant entry.
-  if incus config trust list --format json \
+  if incus config trust list --format json </dev/null \
        | jq -e --arg c "$want_norm" 'any(.certificate | gsub("\\s"; "") == $c)' \
        >/dev/null; then
     return 0
@@ -256,7 +256,7 @@ sync_incus_trust() {
 
   # A same-named entry holding something else means the certificate rotated.
   # Remove by fingerprint, not name: `trust remove <name>` finds nothing.
-  mapfile -t stale < <(incus config trust list --format json \
+  mapfile -t stale < <(incus config trust list --format json </dev/null \
     | jq -r --arg n "$trust_name" '.[] | select(.name == $n) | .fingerprint')
 
   for fingerprint in ${stale[@]+"${stale[@]}"}; do
@@ -270,11 +270,17 @@ sync_incus_trust() {
     "$source"
 }
 
-while IFS= read -r name; do
+# Read the names into memory before iterating. A `while read ... < <(jq ...)`
+# loop feeds the loop body from that pipe, and any `incus` call that reads its
+# own stdin will consume the remaining instance names. That is exactly how
+# Forgejo was skipped silently: Caddy's guest_read calls drained the stream and
+# the next `read` returned EOF. An array cannot be consumed by a child.
+mapfile -t instance_names < <(jq -r '.instances | keys[]' "$SPECS_FILE")
+for name in "${instance_names[@]}"; do
   spec=$(jq -c --arg n "$name" '.instances[$n]' "$SPECS_FILE")
   PROJECT=$(jq -r --arg n "$name" '.projects[$n] // ""' "$SPECS_FILE")
 
-  if ! instance=$(incus query "/1.0/instances/$name$(project_qs)" 2>/dev/null); then
+  if ! instance=$(incus query "/1.0/instances/$name$(project_qs)" </dev/null 2>/dev/null); then
     warn "$name does not exist${PROJECT:+ in project $PROJECT}; skipping"
     continue
   fi
@@ -290,4 +296,4 @@ while IFS= read -r name; do
 
   render_secrets "$name" "$spec"
   sync_incus_trust "$name" "$spec"
-done < <(jq -r '.instances | keys[]' "$SPECS_FILE")
+done

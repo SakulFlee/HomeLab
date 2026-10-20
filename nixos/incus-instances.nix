@@ -3,16 +3,15 @@
 #
 # Two consumers, deliberately:
 #
-#   * nixos/flake.nix reads it to expose `incusInstances.<name>` as a flake
-#     output, so incus/apply.sh can ask the flake what an instance should look
-#     like (nix eval --json .#incusInstances.<name>) without parsing Nix in
-#     shell.
-#   * nixos/hosts/homelab/services/incus-instances.nix reads it to generate one
-#     systemd service and one systemd.paths unit per instance.
+#   * nixos/flake.nix reads it to expose `incusInstances.<name>` and to generate
+#     the OpenTofu JSON. The Tofu config and the rendered-secret specifications
+#     both derive from this one registry.
+#   * nixos/hosts/homelab/services/incus-secrets.nix reads it to render the
+#     declared secrets into the running guests.
 #
 # Because both derive from this one file, an instance cannot exist in one place
 # and not the other. Adding an entry here is the whole job; there is no second
-# list to keep in sync.
+# list to keep in sync. Lifecycle is Tofu's, not a per-instance systemd unit.
 #
 # The value of each entry is the instance's *Incus-level* definition -- the
 # things the container config cannot express: which image, how much CPU and

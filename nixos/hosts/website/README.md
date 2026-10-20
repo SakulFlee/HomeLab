@@ -48,15 +48,24 @@ anonymously succeeds. No `login`, no sops secret, nothing to rotate.
 
 ## Deploy
 
+The instance is Tofu-owned. From the homelab host:
+
 ```bash
-nix build ./nixos#nixosConfigurations.website.config.system.build.toplevel  # image must evaluate
-incus/apply.sh --check website          # build, report drift, change nothing
-incus/apply.sh website                  # or: systemctl start incus-apply-website.service
+cd /etc/nixos
+incus/gen-tf.sh
+cd incus/infra
+tofu plan -out=deploy.tfplan
+tofu apply deploy.tfplan
+systemctl start incus-secrets.service
+tofu plan   # clean
 ```
 
-Adding the instance to `incus-instances.nix` is itself a host rebuild — the
-per-instance `.service`/`.path` units are generated at host build time — so run
-`nixos-rebuild switch` on the homelab host before relying on the systemd path.
+Changing the website NixOS config changes its image fingerprint, so Tofu
+replaces the VM on the next reviewed apply. The site has no volumes; the root
+disk is disposable and podman re-pulls the image on startup.
+
+The image is pulled from `forgejo.sakul-flee.de`, so Forgejo must be healthy
+before a cold website VM can start its container.
 
 ## Verification
 
@@ -75,13 +84,15 @@ is also a check that egress and DNS work in the guest.
 
 ## Rollback
 
-1. Delete the site block for `sakul-flee.de, www.sakul-flee.de` from
-   `../caddy/default.nix` and put both names back in `hostnames.nix`. They are
-   back on `still-traefik` and therefore back to k3s immediately.
-2. Restore `apps/website/` and `clusters/homelab/apps/website.yaml` and let Flux
-   reconcile.
-3. The instance can be left in place or stopped (`autostart = false`); the site
-   has no state, so nothing is lost either way.
+There is no k3s/Flux fallback any more. A rollback is a reviewed Nix/Tofu
+change:
+
+1. Revert the website configuration or image change in git.
+2. Run `incus/gen-tf.sh`, review `tofu plan`, and apply.
+3. If the public route itself is wrong, change the `sakul-flee.de` /
+   `www.sakul-flee.de` site block in `../caddy/default.nix` and redeploy Caddy.
+
+The website has no persistent state, so a VM replacement loses nothing.
 
 ## Not carried over: matrix well-known
 

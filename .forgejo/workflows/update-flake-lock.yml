@@ -15,15 +15,15 @@ name: Update flake.lock
 #     nixosConfigurations. This instantiates each system's whole derivation
 #     graph without building anything, so a package or option that was renamed
 #     or removed upstream in *any* instance (there are ~22 here, most of which
-#     would otherwise only surface when incus/apply.sh rebuilds that image on
+#     would otherwise only surface when incus/gen-tf.sh rebuilds that image on
 #     the host) fails this run instead of the deploy.
 #   * `nix build .#nixosConfigurations.HomeLab...toplevel` for the bare-metal
 #     host. This is the one closure actually built, because it is the thing the
 #     host's auto-updater will switch to; the instances are only evaluated.
 #
 # NOTE on the runner VM: forgejo-runner is itself an instance defined by this
-# flake, so an accepted nixpkgs bump changes image-forgejo-runner and the host's
-# reconcile (incus/apply.sh) recreates that VM, wiping its /nix store (only the
+# flake, so an accepted nixpkgs bump changes image-forgejo-runner and the next
+# reviewed Tofu apply recreates that VM, wiping its /nix store (only the
 # forgejo-runner-data volume survives). Builds after a bump therefore substitute
 # from cache.nixos.org. That is expected, not a misconfiguration.
 #

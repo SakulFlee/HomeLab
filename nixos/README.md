@@ -1,5 +1,39 @@
 # NixOS Configuration
 
+This repository is the HomeLab flake. The bare-metal host is
+`nixosConfigurations.HomeLab`; every other `nixosConfigurations.<name>` is a
+guest image built for Incus. The flake root is this directory, not the
+repository root.
+
+## Hosts and Incus guests
+
+There are two different kinds of "host" here:
+
+- **The bare-metal host** is `nixos/hosts/homelab/`. It is rebuilt with
+  `nixos-rebuild`.
+- **An Incus guest** is `nixos/hosts/<name>/`. Its `default.nix` is the OS
+  inside the image; its `incus.nix` describes the container or VM that Tofu
+  creates. Adding a guest is not done with `incus` by hand, and it is not a
+  `nixos-rebuild` of the bare-metal host.
+
+The registry is `nixos/incus-instances.nix`. OpenTofu consumes the generated
+JSON from `incus/gen-tf.sh`. See `AGENTS.md` for the complete add/remove
+deployment checklists and `incus/README.md` for the image pipeline.
+
+On the homelab host:
+
+```bash
+cd /etc/nixos
+incus/gen-tf.sh
+cd incus/infra
+tofu plan -out=deploy.tfplan
+tofu apply deploy.tfplan
+systemctl start incus-secrets.service
+tofu plan
+```
+
+Do not run `tofu apply` unattended; an image change replaces running guests.
+
 ## Adding a new device
 To add a new device, first boot from and install via the official NixOS ISO.
 Run through the whole setup, create your user, parition the disks, etc.
@@ -62,7 +96,7 @@ Clean the generated configuration and initialize this repository:
 rm -f /etc/nixos/*
 cd /etc/nixos
 git init
-git remote add origin https://forgejo.sakul-flee.de/SakulFlee/NixOS-Config.git
+git remote add origin https://forgejo.sakul-flee.de/SakulFlee/HomeLab.git
 ```
 
 ### Adjustments
@@ -75,7 +109,7 @@ Check an example config for guidance.
 Finally, build and apply your configuration via:
 
 ```bash
-sudo nixos-rebuild switch --flake .#<your-chosen-hostname>
+sudo nixos-rebuild switch --flake /etc/nixos/nixos#<your-chosen-hostname>
 ```
 
 > [!NOTE]
@@ -85,7 +119,7 @@ sudo nixos-rebuild switch --flake .#<your-chosen-hostname>
 
 > [!INFO]
 > You may want to enroll your new SSH keys (`ssh-keygen`) to Forgejo and switch to SSH+GIT instead of HTTPS:  
-> `git remote set-url origin forgejo@forgejo.sakul-flee.de/SakulFlee/NixOS-Config.git`
+> `git remote set-url origin forgejo@forgejo.sakul-flee.de/SakulFlee/HomeLab.git`
 
 > [!WARNING]
 > You will also need to run a FULL Rclone sync:

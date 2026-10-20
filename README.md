@@ -1,73 +1,122 @@
 # HomeLab
 
-This setup is currently tested with [K3s](https://k3s.io) and **all** its defaults, including the storage classes.
+A NixOS homelab managed as code. The bare-metal host runs Incus; the guests are
+built as NixOS containers or VMs, and their Incus lifecycle is owned by
+OpenTofu.
 
-## StorageClasses
+This is **not** a Kubernetes/Flux repository any more. k3s and Flux have been
+removed; the remaining HTTP entry point is the `caddy` Incus instance.
 
-However, for better data security, I would recommend to **delete** the default storage class K3s introduces:
+## Layout
 
-```bash
-kubectl delete storageclass local-path
+| path | what it is |
+| --- | --- |
+| `nixos/` | the flake; host and guest NixOS configurations |
+| `nixos/hosts/homelab/` | the bare-metal host |
+| `nixos/hosts/<name>/` | one guest: `default.nix` is the OS, `incus.nix` is the Incus definition |
+| `nixos/incus-instances.nix` | the registry of guests |
+| `incus/gen-tf.sh` | builds guest images and regenerates the Tofu JSON |
+| `incus/infra/` | OpenTofu provider and static infrastructure |
+| `incus/import.sh` | one-time adoption / disaster-recovery import tool |
+| `AGENTS.md` | operating rules, including add/remove deployment checklists |
+| `incus/README.md` | image, secret, network and provider details |
+| `nixos/README.md` | host onboarding and NixOS layout |
+
+On the homelab host this repository is `/etc/nixos`, and the flake is
+`/etc/nixos/nixos`.
+
+## How a deploy works
+
+The registry and the per-host Nix files are the source of truth:
+
+```text
+nixos/incus-instances.nix
+        │
+        ├── nixos/hosts/<name>/default.nix   guest OS
+        └── nixos/hosts/<name>/incus.nix     limits, volumes, devices, secrets
+                    │
+                    ▼
+              nixos/flake.nix outputs
+                    │
+                    ▼
+              incus/gen-tf.sh
+                    │  builds images + writes generated.tf.json
+                    ▼
+              tofu plan / apply
+                    │
+                    ▼
+              Incus resources
 ```
 
-The repository will provide alternative StorageClasses:
+Secrets are the one exception: the host decrypts sops values and
+`incus-secrets.service` renders them into the guests. Tofu never holds
+plaintext secrets.
 
-| name | reclaim policy |
-| - | - |
-| local-path-persistent | Retain |
-| local-path-volatile | **Delete** |
-
-## Flux Bootstrap
-
-Once ready, deploy Flux with this repository:
+Normal deploy, run on the host:
 
 ```bash
-flux bootstrap git \
-  --url=ssh://git@github.com/SakulFlee/HomeLab.git \
-  --branch=main \
-  --private-key-file ~/.ssh/id_ed25519 \
-  --path=clusters/homelab
+cd /etc/nixos
+incus/gen-tf.sh
+cd incus/infra
+tofu plan -out=deploy.tfplan
+tofu apply deploy.tfplan
+systemctl start incus-secrets.service
+tofu plan   # must be clean
 ```
 
-This will bootstrap Flux and setup this repository as the `flux-source` for syncronization.
-When prompted to give access to the repository, type `y`.
+Do not run an unattended `tofu apply`: an image change replaces instances.
 
-The private key mentioned here isn't strictly required as the repository itself is public.
-However, the secret repository (... containing all the secrets, credentials, auth info, etc. ...) **is** private and **requires** access.
-You can also use a GitHub app, deploy key or other means, but since I am deploying from my work machine, which also uses this SSH key to access GitHub, I can just pass this on.
+## Current guests
 
-### Flux Reconciliation
+| guest | kind | role |
+| --- | --- | --- |
+| `caddy` | container | TLS and HTTP reverse proxy |
+| `dns` | container | split-horizon DNS |
+| `forgejo` | container | git forge and package registry |
+| `forgejo-runner` | VM | Forgejo Actions runner |
+| `fluxer` | VM | self-hosted chat |
+| `paperless` | container | document management, VPN-only through Caddy |
+| `syncthing` | container | replication hub |
+| `minecraft` | container | Minecraft server |
+| `hytale` | container | Hytale server |
+| `cloudflare-ddns` | container | DNS record updater |
+| `renovate` | container | dependency updates |
+| `website` | VM | public website |
+| `wireguard` | VM | VPN and WireGuard UI |
 
-After a change has been **pushed** into this repository, FluxCD will automatically detect changes about every 10 minutes.
-If you want to force a reconciliation early, run the following command:
+`forgejo` lives in its own Incus project; everything else is in `default`.
+
+## Storage
+
+There is one Incus pool, `persistent` (btrfs). Anything that must survive an
+instance replacement is declared as a volume in that instance's `incus.nix`.
+Snapshots are declared per volume, not inherited from a pool.
+
+A volume's presence in an instance spec also makes it Tofu-owned: removing the
+instance from the registry plans the volume for destruction. Read the removal
+checklist in `AGENTS.md` before removing a data-bearing guest.
+
+## Adding or removing a guest
+
+Start with the checklists in `AGENTS.md`. The short version:
+
+- **Add:** create `nixos/hosts/<name>/{default,incus}.nix`, add the registry
+  entry and `nixosConfigurations` entry, add secrets/projects/forwards as
+  needed, then `incus/gen-tf.sh` and a reviewed `tofu apply`.
+- **Remove:** remove external routes and secrets first, back up data, remove the
+  registry/config entries, inspect the plan, and explicitly decide whether the
+  volumes are destroyed or retained.
+
+## Emergency operation
+
+Use `incus` for inspection and recovery, but not as a second source of truth:
+
 ```bash
-flux reconcile kustomization flux-system --with-source
+incus list --all-projects -c n,p,s
+incus exec <name> -- systemctl --failed --no-pager
+tofu -chdir=/etc/nixos/incus/infra state list
+tofu -chdir=/etc/nixos/incus/infra plan
 ```
 
-`flux-system` is the main file handling this whole repository.
-If you just want to update a specific kustomization, simply exchange `flux-system` with the flux kustomization name of your choice!
-
-## Git Submodules
-
-`apps/pvc-explorer` pulls in the upstream [pvc-explorer](https://github.com/pvc-explorer-operator/pvc-explorer)
-repository as a git submodule, so the Helm chart, CRDs and RBAC are read straight from upstream
-at a pinned commit instead of being copied into this repository.
-
-After cloning, initialize it:
-
-```bash
-git submodule update --init
-# (or clone with: git clone --recurse-submodules <url>)
-```
-
-Without this, `apps/pvc-explorer` will fail to build locally because `vendor/` is empty.
-
-Flux only includes submodule content in its artifact when `spec.recurseSubmodules: true` is set on
-the `flux-system` GitRepository (see `clusters/homelab/flux-system/gotk-sync.yaml`).
-**That file is regenerated by `flux bootstrap`**, which drops the field unless you pass the flag —
-if it disappears, the pvc-explorer HelmRelease loses its chart. When re-bootstrapping, always run:
-
-```bash
-flux bootstrap git ... --recurse-submodules
-```
-
+If a VM reports `maintenance` from `systemctl is-system-running`, its boot
+dependencies failed; check `boot.mount` before assuming the workload is broken.
