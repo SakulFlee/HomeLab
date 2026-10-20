@@ -125,10 +125,10 @@ in
       description = "Minecraft world, plugins and server config";
 
       # The rollback for a bad world edit, a bad plugin, or a bad copy during the
-      # data load. Same @hourly/7d as every other data-bearing volume in this
+      # data load. Same @daily/7d as every other data-bearing volume in this
       # repository.
       snapshots = {
-        schedule = "@hourly";
+        schedule = "@daily";
         expiry = "7d";
       };
     }
@@ -143,7 +143,7 @@ in
       # two independent copies, which for a game world is not paranoia so much
       # as the price of it being the one thing here nobody can regenerate.
       snapshots = {
-        schedule = "@hourly";
+        schedule = "@daily";
         expiry = "7d";
       };
     }

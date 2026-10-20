@@ -23,7 +23,7 @@ let
 
     # ---------------------------------------------------------------
     # Data-bearing volumes, one per thing that must outlive the container.
-    # All on `persistent` with the same @hourly/7d snapshot policy as forgejo
+    # All on `persistent` with the same @daily/7d snapshot policy as forgejo
     # and syncthing; the notes under each entry say what the snapshot is the
     # rollback FOR.
     # ---------------------------------------------------------------
@@ -79,7 +79,7 @@ in
       # the rollback for the index: it is derived data, so the dump does not
       # cover it.
       snapshots = {
-        schedule = "@hourly";
+        schedule = "@daily";
         expiry = "7d";
       };
     }
@@ -95,7 +95,7 @@ in
       # volume root itself because the hub cannot; default.nix pins the loader's
       # uid/gid and carries a tmpfiles rule that replants the marker.
       snapshots = {
-        schedule = "@hourly";
+        schedule = "@daily";
         expiry = "7d";
       };
     }
@@ -109,7 +109,7 @@ in
       # the data here comes from k3s and dies when k3s is torn down; this is
       # what remains, so daily snapshots are the recovery window.
       snapshots = {
-        schedule = "@hourly";
+        schedule = "@daily";
         expiry = "7d";
       };
     }

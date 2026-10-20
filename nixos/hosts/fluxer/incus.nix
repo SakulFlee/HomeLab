@@ -49,7 +49,7 @@ in
       # be cleared by the next Tofu apply.
       size = "40GB";
       snapshots = {
-        schedule = "@hourly";
+        schedule = "@daily";
         expiry = "7d";
       };
     }

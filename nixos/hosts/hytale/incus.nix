@@ -95,7 +95,7 @@ let
     # A whole volume for one ~1.3 kB file, which looks absurd until you look at
     # what the other two options actually cost:
     #
-    #   * On hytale-data it would land inside the hourly btrfs snapshots, so a
+    #   * On hytale-data it would land inside the scheduled btrfs snapshots, so a
     #     day of snapshots would each hold a live copy of a refresh token for a
     #     game account. caddy-secrets solves exactly this by having no
     #     `snapshots` block at all, and the omission there is the point.
@@ -150,46 +150,9 @@ in
   # merged into it). Retention is declared per volume rather than inherited,
   # which is the lesson that merge left behind.
   #
-  # @hourly with a 24-hour window, which is shorter than the 7d the rest of the
-  # host uses. A btrfs snapshot copies nothing: it costs only the extents
-  # written AFTER it was taken, so total bytes retained is governed by the
-  # RETENTION WINDOW and not by the interval -- @hourly/7d holds exactly as many
-  # bytes of deltas as @daily/7d does, and simply resolves them seven times
-  # finer. Hourly only costs more if the window is lengthened, which is not what
-  # this change does.
-  #
-  # This volume is nonetheless the cheapest possible hourly citizen, measured on
-  # the live deployment before the migration:
-  #
-  #   Assets.zip + jar + .aot.config + Licenses   ~3.6 GB   written ONCE, at
-  #                                                            download, never
-  #                                                            touched again
-  #   chunks/*.region.bin                          178 MB   15 whole-file blobs
-  #                                                            of 12-32 MB, last
-  #                                                            written Aug 26-30
-  #   resources/ + players/ JSON                   220 kB   rewritten constantly
-  #
-  # So the hot-write set is ~220 kB and the 178 MB of region blobs is cold,
-  # which puts an hourly tier at a few MB a day. 24 hours of expiry keeps that
-  # bounded and leaves the durable history to the daily archive that goes
-  # off-box to Dendra -- the snapshots are the intra-day undo, not the backup.
-  #
-  # `24H` and not `24h`: Incus's duration grammar is S M H d w m y, where H is
-  # uppercase HOURS and lowercase m is MONTHS. apply.sh validates this field
-  # against exactly that grammar before writing anything, so a lowercase h is
-  # rejected with
-  #
-  #   snapshots.expiry '24h', which is not a duration expression
-  #
-  # and `7d` is the shape the older volumes use. Caught by running the
-  # validator's own regex rather than by reading it.
-  #
-  # An earlier version of this comment claimed minecraft-data was a
-  # counterexample that must stay @daily, on the grounds that Paper rewrites
-  # region files continuously and that is the shape which makes hourly
-  # snapshots expensive. That conflated interval with window: it is the window
-  # that sets the cost, so minecraft-data moved to @hourly/7d with everything
-  # else and pays the same bytes it already did.
+  # Daily snapshots with a 7-day window, matching the other data volumes. The
+  # durable archive still goes off-box to Dendra; these snapshots are the local
+  # rollback layer, not the backup.
   volumes = [
     {
       pool = "persistent";
@@ -197,8 +160,8 @@ in
       description = "Hytale assets, server jar, universe (worlds/players), mods and config";
 
       snapshots = {
-        schedule = "@hourly";
-        expiry = "24H";
+        schedule = "@daily";
+        expiry = "7d";
       };
     }
     {
@@ -214,8 +177,8 @@ in
       # before each run means a misfire costs an hour of archives rather than
       # the whole retention window.
       snapshots = {
-        schedule = "@hourly";
-        expiry = "24H";
+        schedule = "@daily";
+        expiry = "7d";
       };
     }
     {
