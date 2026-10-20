@@ -79,7 +79,7 @@ Removing an entry from `nixos/incus-instances.nix` removes the generated
 `incus_instance` **and its `incus_storage_volume` resources**. That is a real
 destroy, not a detach.
 
-1. Remove external exposure first: Caddy block/hostname, DNS record, network
+1. Remove external exposure first: Caddy site block, DNS record, network
    forward, and any secrets declarations.
 2. Back up or snapshot every volume that matters and verify the backup.
 3. Remove the instance from `nixos/incus-instances.nix`.
