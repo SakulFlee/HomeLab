@@ -22,6 +22,11 @@ let
   # low and it writes into a directory that does not exist.
   dataPath = "${cfg.stateDir}/data";
 
+  # Generated repository archives are a cache, not data. They live on their own
+  # unsnapshotted volume so a daily forgejo-data snapshot cannot retain the
+  # archive cache that Forgejo's cron.archive_cleanup has already deleted.
+  archivePath = "${cfg.stateDir}/repo-archive";
+
   # The primary key Forgejo signs commits with. A constant in both this config
   # and the restored database; if they ever disagree the selftest below fails
   # loudly instead of silently producing unsigned commits. See the GPG section.
@@ -283,7 +288,7 @@ in
   # transport walks the repositories underneath without complaint and only
   # Forgejo's own writes fail.
   systemd.services.forgejo-data-dir = {
-    description = "Hand APP_DATA_PATH to forgejo -- Incus creates it 0711 root:root";
+    description = "Hand Forgejo data and archive-cache mounts to forgejo";
     wantedBy = [ "multi-user.target" ];
     after = [ "local-fs.target" ];
     before = [
@@ -296,9 +301,10 @@ in
       # 0750, matching what the `git` user's group grant is documented to rely
       # on: r-x for group forgejo is exactly traverse, which is all the
       # transport identity needs, and nothing more -- custom/conf stays 0700.
-      ExecStart = lib.getExe' pkgs.coreutils "install"
-        + " -d -m 0750 -o forgejo -g forgejo "
-        + dataPath;
+      ExecStart = [
+        (lib.getExe' pkgs.coreutils "install" + " -d -m 0750 -o forgejo -g forgejo " + dataPath)
+        (lib.getExe' pkgs.coreutils "install" + " -d -m 0750 -o forgejo -g forgejo " + archivePath)
+      ];
     };
   };
 
@@ -504,6 +510,13 @@ in
         RUN_USER = "forgejo";
         RUN_MODE = "prod";
         WORK_PATH = cfg.stateDir;
+      };
+
+      # Override the default repo-archive directory under APP_DATA_PATH. This
+      # is the unsnapshotted cache volume; the source repositories, LFS,
+      # packages and attachments stay on forgejo-data.
+      "repo-archive" = {
+        PATH = archivePath;
       };
 
       server = {

@@ -25,6 +25,13 @@ let
       path = "/var/lib/forgejo/data";
     };
 
+    repo-archive = {
+      type = "disk";
+      pool = "persistent";
+      source = "forgejo-repo-archive";
+      path = "/var/lib/forgejo/repo-archive";
+    };
+
     postgres = {
       type = "disk";
       pool = "persistent";
@@ -48,7 +55,7 @@ in
 
   volumes = [
     {
-      # ONE volume for everything Forgejo stores, mounted at its APP_DATA_PATH.
+      # One volume for all durable Forgejo state, mounted at APP_DATA_PATH.
       #
       # This started as three -- repositories, lfs, postgres -- and grew to six
       # when the k3s PV turned out to hold attachments, packages and avatars as
@@ -69,6 +76,9 @@ in
       # all resolve inside it with no further configuration, which is the same
       # layout the k3s PV had. The restore is `cp -a` of that PV's contents into
       # this volume, minus the directories Forgejo regenerates.
+      #
+      # Generated repository archives are the exception: they are a cache, not
+      # durable state, and live on the unsnapshotted volume below.
       #
       # On `persistent` with everything else. There used to be a second pool
       # named `backup`; that name was a convention, not a mechanism (see
@@ -91,13 +101,27 @@ in
       # matches how this data actually changes and costs an eighth as much.
       #
       # Not 30d: the rollback target for a bad push is the state a few hours
-      # ago, and Forgejo's repositories are also replicated by Syncthing -- so
-      # the long tail here is duplicating a copy that exists elsewhere rather
-      # than protecting something unique. Raise it if that stops being true.
+      # ago. This is the local rollback only; there is no off-box Forgejo copy,
+      # so raise the window if a longer local history becomes valuable.
       snapshots = {
         schedule = "@daily";
         expiry = "7d";
       };
+    }
+    {
+      # Generated ZIP/TAR/bundle cache for repository downloads. This is not
+      # source data: it is rebuilt from the repositories on demand, and Forgejo
+      # already prunes it through cron.archive_cleanup.
+      #
+      # It must NOT live on forgejo-data. A daily snapshot of that volume would
+      # retain every archive generated during the day even after Forgejo's
+      # cleanup deletes the live file. That produced 42G of cache in a single
+      # forgejo-data snapshot and 257G across six, while the live cache was 4.6G.
+      #
+      # No `snapshots` block: this volume is intentionally unsnapshotted.
+      pool = "persistent";
+      name = "forgejo-repo-archive";
+      description = "Generated repository archive cache -- intentionally unsnapshotted";
     }
     {
       # Separate from the above because it is a mount for a running database, not

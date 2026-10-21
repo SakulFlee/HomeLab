@@ -203,12 +203,25 @@ at all rather than about whose files these are.
 
 ## Rollback, and what it is not
 
-Both data volumes carry a snapshot policy in `incus.nix`:
+The durable data volumes carry a snapshot policy in `incus.nix`:
 
 | volume | pool | schedule | expiry |
 | --- | --- | --- | --- |
 | `forgejo-data` | `persistent` | `@daily` | `7d` |
 | `forgejo-postgres` | `persistent` | `@daily` | `7d` |
+| `forgejo-repo-archive` | `persistent` | none | never |
+
+`forgejo-repo-archive` holds Forgejo's generated repository ZIP/TAR/bundle
+cache, configured through `[repo-archive] PATH` in `default.nix`. It is not
+source data: Forgejo regenerates it on demand and its own
+`cron.archive_cleanup` removes entries older than 24h at midnight.
+
+It is deliberately unsnapshotted. When the archive cache lived under
+`forgejo-data`, a daily snapshot retained every archive generated that day even
+after Forgejo's cleanup deleted the live copy. One snapshot held 42G of cache;
+six held 257G apparent, while the live cache was 4.6G. Keeping the cache on its
+own volume means snapshots only track repositories, LFS, packages, attachments
+and other durable state.
 
 It lives on the volume's own entry rather than in a list with the other backup
 settings, because that is what makes it travel: when Minecraft finishes moving
