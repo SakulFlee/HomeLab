@@ -9,8 +9,8 @@ front of it).
   see "Why a forward and not a vhost" below.
 - Volumes: `minecraft-data` at `/var/lib/minecraft` (world, plugins, config) and
   `minecraft-backups` at `/var/lib/minecraft/backups` (daily archives, the only
-  thing the Syncthing hub replicates). Both on `persistent`, `@hourly`/`7d`
-  snapshots.
+  thing the Syncthing hub replicates). Both on `persistent`; only
+  `minecraft-data` is snapshotted (`@daily`/`7d`).
 - Backups: `minecraft-backup.timer`, 04:00 daily, archives the whole data
   directory.
 - Minecraft version: pinned to **26.3** in `default.nix`, on `openjdk25`. Not a
@@ -339,7 +339,7 @@ Notes:
   nothing behind.
 - **Wipe the generated world first.** Before the load this volume holds a world
   Paper generated on its own first boot. `rm -rf` it, or you keep whichever
-  `level.dat` wins. The volume is snapshotted `@hourly`/`7d`, so the generated
+  `level.dat` wins. The volume is snapshotted `@daily`/`7d`, so the generated
   world is recoverable if it turns out to matter (it does not).
 - **`server.properties` comes across from the PVC**, including
   `max-world-size=29999984` and `level-seed=`. That is the intent -- the live
@@ -372,10 +372,17 @@ the other migrations did.
 
 ## Backups
 
-Two independent copies, deliberately:
+Two independent copies, each with a different job:
 
-1. **btrfs snapshots** on both volumes, `@hourly`/`7d` -- the local rollback.
-2. **Syncthing** to Dendra -- the off-box copy, archives only.
+1. **btrfs snapshots on `minecraft-data`**, `@daily`/`7d` -- the local rollback
+   for a bad world edit, plugin or copy.
+2. **Syncthing** to Dendra -- the off-box copy of the daily archives in
+   `minecraft-backups`.
+
+`minecraft-backups` is deliberately **not** snapshotted. The archives are
+immutable, already replicated off-box, and the live world has its own snapshot
+rollback; snapshotting the archive volume only retains a second, growing copy of
+the same files.
 
 A verified archive is 3.0 GB and takes ~75s, of which the server is down for the
 duration.

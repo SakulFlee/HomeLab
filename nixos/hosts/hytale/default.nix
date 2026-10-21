@@ -523,7 +523,7 @@ in
   #
   # `-credentials-path` rather than relying on the default, which is
   # `$CWD/.hytale-downloader-credentials.json`. The default would put the token
-  # on hytale-data, where the hourly btrfs snapshots would each hold a copy of
+  # on hytale-data, where the daily btrfs snapshots would each hold a copy of
   # it; pointing it at hytale-secrets is the whole reason that volume exists.
   #
   # `-download-path` writes a zip and does NOT extract it, despite the name and
@@ -776,7 +776,7 @@ in
       #   Server/logs/2026-10-13_03-12-40_server.log
       #
       # one file per session, complete, unwrapped, and on hytale-data where the
-      # hourly btrfs snapshots cover it. Verified on the deployed server: the
+      # daily btrfs snapshots cover it. Verified on the deployed server: the
       # current session's file is 362 KB and contains Universe ready!, Listening
       # on /0.0.0.0:5520 and Authentication successful! Mode: OAUTH_DEVICE --
       # the same content the console shows, without the JLine "> " prompt
@@ -853,8 +853,9 @@ in
   #
   # Nothing is stopped for this. The archives are immutable once written and the
   # prune only looks at names and mtimes, so there is no consistency requirement
-  # and no reason to interrupt a running server. The hourly btrfs snapshots on
-  # hytale-backups bound what a misfire here can cost.
+  # and no reason to interrupt a running server. hytale-backups is deliberately
+  # not snapshotted; the sendonly peer retains pruned archives, so a misfire
+  # here is recoverable from Dendra without a second snapshot tier.
   #
   # It also ASKS for one, through the tmux console, and that is the part this
   # unit exists for. See backupFrequencyMinutes for why the server's own

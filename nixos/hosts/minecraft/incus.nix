@@ -137,15 +137,12 @@ in
       name = "minecraft-backups";
       description = "World backup archives -- the only volume the Syncthing hub replicates";
 
-      # Redundant with the archives themselves by design. The snapshot is the
-      # local rollback (an archive written by a tar that raced something); the
-      # peer is the off-box copy. There are
-      # two independent copies, which for a game world is not paranoia so much
-      # as the price of it being the one thing here nobody can regenerate.
-      snapshots = {
-        schedule = "@daily";
-        expiry = "7d";
-      };
+      # Deliberately NOT snapshotted. The archives are immutable and already
+      # replicated off-box by Syncthing, while the live world has its own
+      # @daily/7d rollback on minecraft-data. Snapshotting this volume only
+      # duplicates immutable archives: every new daily archive changes the
+      # volume, so each snapshot retains another growing copy of the archive
+      # set with no additional restore capability.
     }
   ];
 

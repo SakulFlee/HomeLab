@@ -14,7 +14,9 @@ an off-box copy. It replaced the k3s HelmRelease that used to live in
   `192.168.178.0/24` but not `10.0.0.0/24`, which is why the forward exists.
 - Volumes: `syncthing-config` at `/var/lib/syncthing` (config, TLS identity,
   index) and `syncthing-data` at `/data` (the synced files). Both on
-  `persistent`, `@hourly`/`7d` snapshots.
+  `persistent`. `syncthing-config` uses `@daily`/`7d` snapshots;
+  `syncthing-data` has no automatic snapshots and keeps one explicit manual
+  baseline instead.
 
 ## Edit the Nix, not the WebUI
 
@@ -123,8 +125,14 @@ replicate. Until then, a producer's volume can be attached by hand.
 
 ## Backup posture
 
-The snapshots are the rollback; the Syncthing peer is the off-box
-copy. There is no third tier: the host restic service that used to walk
+`syncthing-config` snapshots are the rollback for the device identity. For
+`syncthing-data`, the local version history is `.stversions` and the off-box
+copy is the Syncthing peer itself. Automatic snapshots are deliberately absent:
+this tree changes constantly and is large enough that a daily tier retained
+every superseded `.stversions` entry for a week, producing a multi-terabyte
+Btrfs snapshot tree. A single explicit baseline snapshot is kept instead.
+
+There is no third tier: the host restic service that used to walk
 `/var/lib/incus/storage-pools/persistent` has been retired
 (`nixos/hosts/homelab/services/backup.nix` is gone), along with the old
 k3s Syncthing that replicated the restic repository itself off-box. The Incus

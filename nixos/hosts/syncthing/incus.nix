@@ -124,22 +124,20 @@ in
       };
     }
     {
-      # The synced files. Snapshotted on the same policy as every other
-      # data-bearing volume: that snapshot is the rollback for a bad delete or
-      # overwrite a peer propagated before anyone noticed. The off-box copy is
-      # the peer itself, which is the whole point of Syncthing.
+      # The synced files. Deliberately NOT automatically snapshotted: the
+      # off-box copy is the peer itself, and `.stversions` holds the local
+      # version history. This tree changes constantly and is large enough that
+      # a daily snapshot tier retained every superseded `.stversions` and file
+      # version for a week, producing a multi-terabyte Btrfs snapshot tree.
       #
+      # There is one explicit manual baseline snapshot instead. It is not
+      # rotated; recreate it deliberately when a new rollback point is wanted.
       # This sits on `persistent` like everything else, so restic's pool-wide
-      # walk does capture it; nothing excludes it. Restic is simply not what this
-      # data is meant to rely on. See NOTES.md.
+      # walk does capture it; restic is simply not what this data relies on.
+      # See NOTES.md.
       pool = "persistent";
       name = "syncthing-data";
       description = "Synced data -- the folders shared with peers";
-
-      snapshots = {
-        schedule = "@daily";
-        expiry = "7d";
-      };
     }
   ];
 

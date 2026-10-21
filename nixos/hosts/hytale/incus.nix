@@ -169,17 +169,12 @@ in
       name = "hytale-backups";
       description = "Hytale's own universe archives -- the only volume the Syncthing hub replicates";
 
-      # Hourly here for a different reason than the volume above. The archives
-      # are immutable once written, so the snapshots are nearly free; what they
-      # buy is a bound on the blast radius of hytale-backup.service, which is
-      # the one unit in this instance that DELETES anything
-      # (`find backups -name '*.zip' -mtime +7 -delete`). A snapshot taken
-      # before each run means a misfire costs an hour of archives rather than
-      # the whole retention window.
-      snapshots = {
-        schedule = "@daily";
-        expiry = "7d";
-      };
+      # Deliberately NOT snapshotted. The archives are immutable and already
+      # replicated off-box by Syncthing, while the live universe has its own
+      # @daily/7d rollback on hytale-data. A local prune never reaches the
+      # sendonly peer, so a misfire in hytale-backup.service is still
+      # recoverable from Dendra without retaining a second, growing copy of
+      # every archive in Btrfs snapshots.
     }
     {
       # No `snapshots` block, and the omission is the point: this volume holds a

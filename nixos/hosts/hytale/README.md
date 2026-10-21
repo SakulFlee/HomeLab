@@ -18,7 +18,8 @@ off the host. See "Verified" at the bottom for that evidence.
   tmux console and then prunes by age, 7-day window.
 - Console: `tmux attach -t hytale` -- stdin is the only admin channel Hytale
   has, and auth certificates expire about hourly.
-- Snapshots: `@hourly`/`24H` on the two data volumes.
+- Snapshots: `@daily`/`7d` on `hytale-data` only. `hytale-backups` and
+  `hytale-secrets` are deliberately unsnapshotted.
 
 > **DHCP is live on `incusbr0`**, so every instance here pins a static address.
 > `.116` was chosen after checking the live instances with
@@ -209,7 +210,7 @@ is `../syncthing/NOTES.md` ("Replication standard") and the list is
 | folder is `sendonly`, no versioning | derived in `../syncthing/default.nix` |
 
 The downloader's OAuth credentials are on `hytale-secrets`, which has **no
-`snapshots` block**, and that is the point -- a day of hourly snapshots would
+`snapshots` block**, and that is the point -- a day of snapshots would
 each otherwise hold a copy of a refresh token for a game account.
 
 They are deliberately **not** a `renderedSecrets` entry either, and this is the
@@ -420,8 +421,8 @@ Notes:
   `Token refresh scheduled in 3300 seconds`.
 - `auth.enc` is mode `0600` in the PVC and `chown -R` does not change modes, so
   it arrives with the right one.
-- The volume is `@hourly`/`24H`, so a bad load is recoverable by rolling the
-  snapshot back rather than by re-copying.
+- The volume is snapshotted `@daily`/`7d`, so a bad load is recoverable by
+  rolling the snapshot back rather than by re-copying.
 
 ## Updates: `/update apply` does nothing here
 
@@ -481,14 +482,10 @@ nothing.
 
 ## Snapshots
 
-`@hourly`/`24H` on `hytale-data` and `hytale-backups`. Every other data-bearing
-volume on the host is `@hourly`/`7d`, so the interval is the same everywhere and
-the only thing particular to Hytale is the shorter window.
+`@daily`/`7d` on `hytale-data` only.
 
 A btrfs snapshot copies nothing: it costs only the extents written **after** it
-was taken, so **the retention window sets the cost, not the interval** --
-`@hourly`/`7d` holds exactly as many bytes of deltas as `@daily`/`7d` and
-resolves them seven times finer. This
+was taken, so **the retention window sets the cost, not the interval**. This
 volume is the good case, measured on the live deployment before migrating:
 
 | | size | write behaviour |
@@ -497,20 +494,14 @@ volume is the good case, measured on the live deployment before migrating:
 | `chunks/*.region.bin` | 178 MB | 15 whole-file blobs of 12-32 MB, last written Aug 26-30 |
 | `resources/` + `players/` JSON | ~220 kB | rewritten constantly |
 
-So the hot-write set is ~220 kB and the 178 MB of region blobs is cold, which
-puts an hourly tier at a few MB a day rather than 178 MB a day.
+So the hot-write set is ~220 kB and the 178 MB of region blobs is cold.
 
-`minecraft-data` is the volume everyone expects to be expensive here, because
-Paper rewrites region files continuously while players are online. It moved to
-`@hourly`/`7d` with everything else, and pays the same bytes it already did --
-interval is not the thing that costs. An earlier version of this file exempted it
-on the opposite reasoning, which was wrong for the same reason.
-
-`hytale-backups` is snapshotted hourly for a different reason. The archives are
-immutable, so the snapshots are nearly free; what they buy is a bound on the
-blast radius of `hytale-backup.service`, which is the one unit here that
-**deletes** anything. A snapshot taken before each run means a misfire costs an
-hour of archives rather than the whole retention window.
+`hytale-backups` is deliberately **not** snapshotted. Its archives are
+immutable, already replicated off-box by Syncthing, and the live universe has
+its own snapshot rollback on `hytale-data`. A local prune never deletes from the
+sendonly peer, so a misfire in `hytale-backup.service` is still recoverable from
+Dendra without keeping a second, growing copy of every archive in Btrfs
+snapshots.
 
 ## Verified and not verified
 
