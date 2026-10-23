@@ -97,8 +97,8 @@ carries it. Read it from the daemon's log if you need it:
 incus exec forgejo-runner -- journalctl -u forgejo-runner -o cat | grep -m1 'runner:'
 ```
 
-The old k3s runner is still registered in Forgejo, still carrying
-these same three labels. Its credentials are no longer in this
+The old k3s runner is still registered in Forgejo, still carrying the
+three Docker labels it used. Its credentials are no longer in this
 repository, so it cannot start — but it is offline and harmless, and
 deleting it in the UI would lose the k3s-era job history.
 
@@ -224,14 +224,24 @@ the guest firewall would add noise, not safety.
 
 ## Labels and job images
 
-Three labels, all naming the same image, so nothing that runs on
-`default`, `ubuntu-latest` or `ubuntu-24.04` has to change:
+Five labels. Three are Docker labels naming the same image, so nothing that
+runs on `default`, `ubuntu-latest` or `ubuntu-24.04` has to change:
 
 ```
 default:docker://ghcr.io/catthehacker/ubuntu:act-24.04
 ubuntu-latest:docker://ghcr.io/catthehacker/ubuntu:act-24.04
 ubuntu-24.04:docker://ghcr.io/catthehacker/ubuntu:act-24.04
+nix:host
+docker:host
 ```
+
+`nix:host` and `docker:host` are the host executor: the job runs in a shell
+forked from the daemon on the VM, not in a container. `nix` is for the
+NixOS-Config flake-lock update; `docker` is for image builds, which need the
+VM's Docker daemon because buildah cannot run in an unprivileged job
+container (it needs `CAP_SYS_ADMIN` or a user namespace, and the Docker
+executor grants neither). Host-executor jobs inherit the daemon's PATH, so
+`docker` is listed there explicitly.
 
 **Why this image and not `node:22-bookworm`.** The k3s podspec ran
 `node:22-bookworm`, and that was the first choice here too: it carries
@@ -269,21 +279,21 @@ both images: keep `default` on the full Ubuntu and put a
 
 ## The security boundary
 
-What a job can do: pull images, run containers, and reach the internet
-through the VM's NAT. What it cannot do, by configuration:
+What a *container* job can do: pull images, run containers, and reach the
+internet through the VM's NAT. What it cannot do, by configuration:
 
 * **mount host paths** — `container.valid_volumes: []` means no volume
   or bind mount a workflow declares is honoured; the job fails instead.
   The k3s podspec had the same posture (no volumes, no service-account
   token). Widen with care; `valid_volumes: [ "**" ]` allows any mount.
 * **reach the Docker socket** — `container.docker_host: "-"`, so job
-  containers get no `/var/run/docker.sock`. A workflow that needs
-  Docker (a `docker build`, a compose stack) asks the runner, and the
-  runner runs it as a *sibling* container; the socket stays inside the
-  VM.
-* **run privileged** — `container.privileged: false`. A workflow that
-  genuinely needs Docker-in-Docker needs this set to `true`; that is
-  the one knob that weakens the boundary, so it is off by default.
+  containers get no `/var/run/docker.sock`. An image build uses the
+  `docker:host` label instead; it runs on the VM, where the daemon is
+  already reachable.
+* **run privileged** — `container.privileged: false`. Buildah needs
+  `CAP_SYS_ADMIN` (or a user namespace) and therefore cannot run in one of
+  these containers; that is why builds moved to `docker:host` rather than
+  weakening this default.
 
 The daemon itself runs as the `forgejo-runner` user (in the `docker`
 group — it needs the socket, and the containers it creates run as root
@@ -291,6 +301,13 @@ inside their own namespaces regardless of the runner's uid), with
 `NoNewPrivileges`, `PrivateTmp`, `ProtectSystem=strict` and a single
 `ReadWritePaths` — the data volume. The k3s deployment ran the runner
 as root because the pod needed the socket; a VM can do better.
+
+Host-executor jobs (`nix`, `docker`) are the deliberate exception. They run
+as `forgejo-runner` directly on the VM, so they can use the Docker socket,
+read the data volume (including the generated `config.yaml`, which holds
+the runner token), and are not subject to `valid_volumes` or
+`docker_host: "-"`. Those labels are for trusted repositories only; ordinary
+jobs stay on the `docker://` labels.
 
 ## Capacity and timeouts
 
@@ -370,7 +387,7 @@ Deploy and verify:
    the instance and the instance was fine; it has no view of the
    guest's systemd.
 6. In the Forgejo UI (Site Admin → Actions → Runners), confirm the
-   runner is online with the three labels. Its name is whatever was
+   runner is online with all five labels. Its name is whatever was
    chosen at creation — nothing in this repository records it.
 7. Submit a workflow that runs on `ubuntu-latest` and watch it execute
    here: `incus exec forgejo-runner -- journalctl -u forgejo-runner -f`
@@ -396,7 +413,7 @@ incus exec forgejo-runner -- docker ps  # job containers, while a job runs
 The runner declares itself at every start, so the fastest check that
 the credentials still work is the daemon's own log: a line reading
 `runner: <name>, with version: v13.2.0, with labels:
-[default ubuntu-latest ubuntu-24.04], ephemeral: false, declared
+[default ubuntu-latest ubuntu-24.04 nix docker], ephemeral: false, declared
 successfully` followed by `[poller] launched`.
 
 ## Disk sizing

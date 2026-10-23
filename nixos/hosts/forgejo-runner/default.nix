@@ -66,11 +66,17 @@ let
   # host configuration -- work that wants a persistent store and native
   # compilation, not an ephemeral container. See the PATH set on the daemon
   # below (git and Node are mandatory: actions/checkout is a JS action).
+  #
+  # `docker:host` is the same host executor for image builds. Buildah needs
+  # CAP_SYS_ADMIN (or a user namespace) and cannot run in an unprivileged
+  # job container, so a workflow that builds an image runs here and uses the
+  # VM's own Docker daemon. The ordinary `docker://` labels stay unprivileged.
   runnerLabels = [
     "default:docker://${jobImage}"
     "ubuntu-latest:docker://${jobImage}"
     "ubuntu-24.04:docker://${jobImage}"
     "nix:host"
+    "docker:host"
   ];
 in
 {
@@ -378,6 +384,7 @@ runner:
     - "ubuntu-latest:docker://${jobImage}"
     - "ubuntu-24.04:docker://${jobImage}"
     - "nix:host"
+    - "docker:host"
 cache:
   enabled: true
   dir: /var/lib/forgejo-runner/home/cache
@@ -400,10 +407,9 @@ container:
   # paths -- the same posture the k3s podspec had (no volumes, no
   # service-account token). Widen with care; '**' allows any mount.
   valid_volumes: []
-  # Do not hand the docker socket to job containers. A job that needs
-  # Docker (a docker build, a compose stack) asks the runner, and the
-  # runner runs it as a sibling container -- the socket stays inside
-  # the VM.
+  # Do not hand the docker socket to job containers. An image build uses
+  # the `docker:host` label above and runs on the VM, where Docker is
+  # already available; the socket stays inside the VM.
   docker_host: "-"
   force_pull: false
   force_rebuild: false
@@ -453,12 +459,13 @@ EOF
     wants = [ "network-online.target" ];
 
     # A NixOS unit's PATH is coreutils/findutils/grep/sed/systemd and
-    # nothing else. Host-executor jobs (`runs-on: nix`) fork a shell from
-    # this process and inherit its environment, so everything a job needs
-    # has to be here: nix and git for the work itself, and -- easy to miss
-    # -- nodejs, because actions/checkout and any other JS action are run
-    # with a NodeJS that will NOT be installed for you. nodejs here is what
-    # keeps `actions/checkout` from failing on the host executor.
+    # nothing else. Host-executor jobs (`runs-on: nix` or `docker`) fork a
+    # shell from this process and inherit its environment, so everything a
+    # job needs has to be here: nix and git for the work itself, docker for
+    # the image-build label, and -- easy to miss -- nodejs, because
+    # actions/checkout and any other JS action are run with a NodeJS that
+    # will NOT be installed for you. nodejs here is what keeps
+    # `actions/checkout` from failing on the host executor.
     path = with pkgs; [
       bash
       coreutils
@@ -475,6 +482,7 @@ EOF
       cacert
       openssh
       jq
+      docker
     ];
 
     serviceConfig = {
