@@ -179,6 +179,11 @@ in
       pool = "persistent";
       name = "forgejo-runner-data";
       description = "Runner state: actions cache, job workspaces, rendered secrets and the generated config (holds the runner token) -- not replicated off-box";
+
+      # The actions cache outgrew the default block volume, so the quota was
+      # raised to 30GiB by hand. Keep it in the spec: an undeclared value would
+      # be cleared by the next Tofu apply.
+      size = "30GiB";
     }
   ];
 
