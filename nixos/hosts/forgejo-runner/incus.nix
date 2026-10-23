@@ -75,7 +75,7 @@ in
   # disk again. Adjustable live with `incus config set`.
   limits = {
     memory = "8GiB";
-    cpu = "4";
+    cpu = "12";
   };
 
   # The root disk, sized. `limits.memory` and `limits.cpu` cap what the
