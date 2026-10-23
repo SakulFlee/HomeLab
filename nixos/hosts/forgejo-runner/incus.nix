@@ -74,7 +74,7 @@ in
   # `min-free`/`max-free` in default.nix keep the store from filling the
   # disk again. Adjustable live with `incus config set`.
   limits = {
-    memory = "8GiB";
+    memory = "12GiB";
     cpu = "12";
   };
 
