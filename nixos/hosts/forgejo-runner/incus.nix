@@ -180,10 +180,22 @@ in
       name = "forgejo-runner-data";
       description = "Runner state: actions cache, job workspaces, rendered secrets and the generated config (holds the runner token) -- not replicated off-box";
 
-      # The actions cache outgrew the default block volume, so the quota was
-      # raised to 30GiB by hand. Keep it in the spec: an undeclared value would
-      # be cleared by the next Tofu apply.
-      size = "30GiB";
+      # The actions cache is the dominant consumer, and it has no size-based
+      # eviction: Forgejo's runner GC only drops entries that are unused for
+      # 7 days, older than 30 days, or incomplete for 5 minutes (see
+      # NOTES.md, "Cache growth and the guard"). The quota was raised from
+      # the default to 30GiB by hand once already, then filled again on
+      # 2026-10-24 when a burst of Orbital PR jobs saved multi-gigabyte
+      # sccache entries. 60GiB is the next step, not the steady-state answer:
+      # at the observed 12-15GiB/day it buys only a few days, so the guest's
+      # cache guard (default.nix) wipes the artifact cache before the volume
+      # can fill. Raise this to 120GiB (roughly the 7-day high-water mark) or
+      # lower SCCACHE_CACHE_SIZE in the workflows if the guard starts firing
+      # often.
+      #
+      # Keep the value in the spec: an undeclared size would be cleared by
+      # the next Tofu apply.
+      size = "60GiB";
     }
   ];
 

@@ -337,6 +337,40 @@ which is the VM, and the VM accepts packets addressed to its own
 address regardless of which interface they arrive on — the same
 hairpin the WireGuard VM's routing relies on.
 
+## Cache growth and the guard
+
+There are two caches, and they are not the same thing:
+
+* `$HOME/.cache/act` is the per-job checkout cache: bare repositories for
+  actions fetched from `data.forgejo.org`, with a worktree created per job.
+  It has no automatic GC, but it is small.
+* `/var/lib/forgejo-runner/home/cache` is the artifact cache served by the
+  runner's embedded cache server for `actions/cache`. Its contents are the
+  multi-gigabyte archives the workflows save (sccache, cargo registry).
+  `bolt.db` is only the index; the `cache/` subdirectory holds the blobs.
+
+The runner's GC (`act/artifactcache/caches.go` in v13.2.0) is age-based, not
+size-based. It removes incomplete uploads unused for 5 minutes, entries
+unused for 7 days, entries created more than 30 days ago, and older
+duplicates of the same key+version (keeping the newest). It runs at most
+once per hour. There is no total cap or LRU, so a workflow that creates a
+new key per `Cargo.lock` can outrun the 7-day retention.
+
+That is what happened on 2026-10-24: the data volume was 100% full, the
+journal showed `no space left on device` on cache writes, and the next job
+failed in "Set up job" because `git worktree add` could not write its
+checkout. The cache held 28 GiB of 30 GiB. Wiping only the artifact cache
+(`home/cache/cache` and `home/cache/bolt.db`) while the runner is stopped is
+safe: it is regenerable, and no secret, config or workspace is touched.
+
+`forgejo-runner-cache-guard` (`default.nix`) is the safety valve. Every 15
+minutes it checks free space on the data volume; below 10 GiB it stops the
+runner, refuses to proceed if the stop did not take, removes the artifact
+cache blobs and index, and starts the runner again. It is a last resort, not
+a substitute for sizing: at 60 GiB it will likely fire every few days at the
+current churn. Raise the volume or lower `SCCACHE_CACHE_SIZE` in the
+Orbital workflows to make it rare.
+
 ## Cutover from k3s
 
 The two deployments poll **different Forgejos**, so they cannot
@@ -418,42 +452,37 @@ successfully` followed by `[poller] launched`.
 
 ## Disk sizing
 
-The root disk is **40 GiB**, set in `default.nix` by overriding
-`system.build.qemuImage` and passing `additionalSpace = "40G"` to
-`make-disk-image.nix`.
-
-It is not `virtualisation.diskSize`, which looks like exactly the
-right knob and does nothing here. That option is declared as
-`either (enum ["auto"]) ints.positive` in
-`virtualisation/disk-size-option.nix`, so an integer is valid — but
-`qemu-vm.nix` only uses it for the disk of the VM it starts to *run
-a build* in. The image itself comes from `incus-virtual-machine.nix`,
-which calls `make-disk-image.nix` directly and passes neither
-`diskSize` nor `additionalSpace`. So the image took that function's
-defaults: `diskSize = "auto"` (computed as
-`requiredFilesystemSpace + additionalSpace`) and
-`additionalSpace ? "512M"`. That 512 MB, plus the closure, is where
-the original 10 GiB came from.
-
-10 GiB was not enough, and the arithmetic is worth keeping: `/` and
-`/nix/store` are the same partition here, so the disk carries the
-NixOS closure (~2.5 G) *and* the Docker image store. Measured on the
-first real job, with one 5.06 GB CI image pulled:
-
-| | used | free | |
-|---|---|---|---|
-| at rest | 7.3 G | 1.9 G | 80% |
-| in a job | 8.8 G | **360 M** | **97%** |
-
-The label image (`ghcr.io/catthehacker/ubuntu:act-24.04`) unpacks to
-roughly 2.2 GB, so a workflow that does *not* pin its own image would
-have failed to pull with ENOSPC as soon as a large CI image was also
-present.
-
-Incus cannot widen it afterwards: `incus config set <vm>
-limits.disk.size` is rejected as an unknown key, so the size has to
-be baked into the image. The qcow2 stays sparse, so 40 GiB costs
+The **root disk** is **80 GiB**, declared as `rootDiskSize` in `incus.nix`
+and applied by `incus/apply.sh` as an override on the `root` disk device. It
+is not baked into the image: the image is assembled inside a 128 MB VM
+(`make-disk-image.nix` passes qemu no `-m`), and a 45 GiB ext4's metadata
+does not fit, so the build panics before `cptofs` finishes. The guest grows
+its partition and filesystem into whatever disk Incus gives it
+(`autoResize` / `growPartition`). The qcow2 stays sparse, so the size costs
 nothing on the host while unused.
+
+`incus config set <vm> limits.disk.size` is not the knob: Incus sizes a VM's
+root disk through the `root` disk device's `size` key, and `apply.sh`
+overrides `root` onto this instance alone (the shared `default` profile
+cannot carry a runner-sized disk). Growing a VM disk is one-way; the guest
+needs a restart to claim it.
+
+The **data volume** `forgejo-runner-data` is **60 GiB** on `persistent`
+(`incus.nix`). It is a raw block device the guest formats and mounts at
+`/var/lib/forgejo-runner` (`disk.nix`). It holds the runner's state, the
+actions cache and job workspaces. The filesystem is grown at boot by
+`forgejo-runner-data-resize` after the volume is enlarged. 60 GiB is a first
+step, not the steady-state size: at the observed 12-15 GiB/day of cache
+growth it buys only a few days, and the cache guard above wipes the artifact
+cache when free space falls below 10 GiB. Raise the volume to 120 GiB
+(roughly the 7-day high-water mark) or lower `SCCACHE_CACHE_SIZE` in the
+workflows if the guard fires often.
+
+The original image was 10 GiB and the first real job filled it: `/` and
+`/nix/store` share the partition, and the Docker image store is on the root
+disk. With one 5.06 GB CI image pulled, the disk sat at 97% and 360 MB free.
+That history is why the root disk is sized explicitly and the Docker prune
+runs daily.
 
 ## Known rough edges
 

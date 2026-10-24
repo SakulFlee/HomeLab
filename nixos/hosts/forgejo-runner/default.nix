@@ -501,6 +501,12 @@ EOF
       Restart = "on-failure";
       RestartSec = "5s";
 
+      # The daemon drains jobs for up to `shutdown_timeout` (3m) on TERM.
+      # systemd's default stop timeout is 90s, so without this an explicit
+      # stop (a deploy, or the cache guard below) would SIGKILL the daemon
+      # halfway through that drain.
+      TimeoutStopSec = "4min";
+
       # Hardening. The daemon talks to two things: the Docker socket
       # (connect only -- a read-only /var does not prevent that, it is
       # a socket, not a write) and Forgejo over the network. Everything
@@ -562,6 +568,91 @@ EOF
       OnCalendar = "daily";
       Persistent = true;
       RandomizedDelaySec = "30m";
+    };
+  };
+
+  # ---------------------------------------------------------------------
+  # Cache pressure guard
+  # ---------------------------------------------------------------------
+  # The artifact cache (`cache.dir` above) is separate from the per-job
+  # action checkout cache (`$HOME/.cache/act`) and has no size-based
+  # eviction. forgejo-runner v13's GC only removes entries that are
+  # incomplete for 5 minutes, unused for 7 days, or older than 30 days
+  # (act/artifactcache/caches.go), and it runs at most hourly. A burst of
+  # workflows with distinct Cargo.lock hashes can therefore create more
+  # multi-gigabyte sccache entries than a small volume can hold. When the
+  # data volume fills, the next job dies in "Set up job" because
+  # `git worktree add` cannot write its checkout into
+  # /var/lib/forgejo-runner/home/workspace.
+  #
+  # This is the safety valve, not the cache policy. When free space on the
+  # data volume drops below 10 GiB, stop the daemon (it drains jobs up to
+  # shutdown_timeout), remove the cache server's content-addressed blobs and
+  # its BoltDB index, and start it again. Both are regenerable; secrets,
+  # config.yaml, and job workspaces are untouched. The guard refuses to
+  # delete anything if the daemon did not actually stop, so it can never
+  # pull the cache out from under a running job.
+  systemd.services.forgejo-runner-cache-guard = {
+    description = "Wipe the Forgejo runner artifact cache when the data volume is nearly full";
+
+    # If the data volume is not mounted, /var/lib/forgejo-runner is the
+    # volatile root disk; there is no cache here to protect and wiping it
+    # would be pointless.
+    unitConfig.RequiresMountsFor = [ "/var/lib/forgejo-runner" ];
+
+    serviceConfig = {
+      Type = "oneshot";
+
+      # `systemctl stop` can legitimately take the runner's full stop
+      # timeout (4min, set above), then the wipe and start have to fit.
+      TimeoutStartSec = "6min";
+    };
+
+    script = ''
+      set -eu
+
+      runner=forgejo-runner.service
+      cache=/var/lib/forgejo-runner/home/cache
+      threshold=$((10 * 1024 * 1024 * 1024))
+
+      df=${pkgs.coreutils}/bin/df
+      tail=${pkgs.coreutils}/bin/tail
+      rm=${pkgs.coreutils}/bin/rm
+      systemctl=${pkgs.systemd}/bin/systemctl
+      logger=${pkgs.util-linux}/bin/logger
+
+      # Never start a runner that was deliberately stopped.
+      "$systemctl" is-active --quiet "$runner" || exit 0
+
+      # `avail` is the space a non-root writer (the daemon) can use.
+      avail=$("$df" --output=avail -B1 /var/lib/forgejo-runner | "$tail" -n 1)
+      [ "$avail" -lt "$threshold" ] || exit 0
+
+      "$logger" -t forgejo-runner-cache-guard \
+        "data volume has $avail bytes free; wiping the artifact cache"
+
+      # stop is explicit, so Restart=on-failure does not fight it.
+      "$systemctl" stop "$runner" || true
+      if "$systemctl" is-active --quiet "$runner"; then
+        "$logger" -t forgejo-runner-cache-guard -p user.err \
+          "runner did not stop; refusing to wipe the cache"
+        exit 1
+      fi
+
+      "$rm" -rf "$cache/cache" "$cache/bolt.db"
+      "$systemctl" start "$runner"
+
+      "$logger" -t forgejo-runner-cache-guard \
+        "artifact cache wiped; runner restarted"
+    '';
+  };
+
+  systemd.timers.forgejo-runner-cache-guard = {
+    description = "Check the Forgejo runner data volume for cache pressure";
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnCalendar = "*:0/15";
+      Persistent = true;
     };
   };
 }

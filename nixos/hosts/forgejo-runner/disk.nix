@@ -204,6 +204,48 @@ in
     '';
   };
 
+  # Grow the filesystem into a volume that Incus has enlarged. The volume is
+  # a raw block device, so Incus's `size` only changes the device; ext4 does
+  # not notice until `resize2fs` runs. This is idempotent (a filesystem that
+  # already fills its device is left alone) and online: ext4 supports
+  # resizing while mounted.
+  #
+  # It runs after the mount and before the daemon, so the daemon does not
+  # start writing the cache while the filesystem is being resized. If the
+  # resize fails -- for example because the filesystem needs a check after
+  # an unclean shutdown -- the unit logs and exits successfully; the runner
+  # still starts with the old size, and the next clean boot retries.
+  systemd.services.forgejo-runner-data-resize = {
+    description = "Grow the forgejo-runner data filesystem if its block device was enlarged";
+
+    wantedBy = [ "multi-user.target" ];
+    before = [ "forgejo-runner.service" ];
+
+    # Pulls in the mount unit (and through it the format unit). Without this
+    # the service could run against the root disk if the data volume is
+    # missing, which is the exact failure mode the mount arrangement exists
+    # to prevent.
+    unitConfig.RequiresMountsFor = [ "/var/lib/forgejo-runner" ];
+
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+    };
+
+    script = ''
+      set -eu
+
+      resize2fs=${pkgs.e2fsprogs}/sbin/resize2fs
+      findmnt=${pkgs.util-linux}/bin/findmnt
+      logger=${pkgs.util-linux}/bin/logger
+
+      device=$("$findmnt" -n -o SOURCE /var/lib/forgejo-runner)
+      "$resize2fs" "$device" || \
+        "$logger" -t forgejo-runner-data-resize -p user.err \
+          "resize2fs failed for $device; the filesystem was left as it was"
+    '';
+  };
+
   systemd.mounts = [
     {
       what = "/dev/disk/by-label/${label}";
