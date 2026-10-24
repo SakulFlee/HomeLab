@@ -15,7 +15,8 @@ WireGuard VPN through Caddy.
 - **Authentication**: the Caddy VPN gate plus OpenCode HTTP basic auth
   (`opencode` / `opencode_server_password`).
 - **Limits**: 4 GiB RAM, 2 CPU.
-- **Provider**: OpenRouter, via `OPENROUTER_API_KEY` rendered from sops.
+- **Provider**: OpenCode Go, via `OPENCODE_API_KEY` rendered from sops. Models
+  are selected as `opencode-go/<model-id>`.
 
 ## Volumes
 
@@ -34,7 +35,7 @@ The host renders three values into `/var/lib/incus-secrets` inside the guest:
 | sops key | rendered file | consumer |
 | --- | --- | --- |
 | `opencode_server_password` | `opencode-server-env` | systemd EnvironmentFile |
-| `opencode_openrouter_api_key` | `opencode-openrouter-env` | systemd EnvironmentFile |
+| `opencode_go_api_key` | `opencode-go-env` | systemd EnvironmentFile |
 | `opencode_forgejo_token` | `forgejo-token` (0440, group `opencode`) | git credential helper |
 
 The Forgejo token is a dedicated access token with repository read/write. It is

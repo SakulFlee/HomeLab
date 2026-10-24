@@ -69,7 +69,7 @@ in
 
   environment.etc."opencode/opencode.json".text = builtins.toJSON {
     "$schema" = "https://opencode.ai/config.json";
-    provider.openrouter.options.apiKey = "{env:OPENROUTER_API_KEY}";
+    provider."opencode-go".options.apiKey = "{env:OPENCODE_API_KEY}";
   };
 
   systemd.services.opencode = {
@@ -101,7 +101,7 @@ in
       ExecStart = "${pkgs.opencode}/bin/opencode web --hostname 0.0.0.0 --port 4096";
       EnvironmentFile = [
         "/var/lib/incus-secrets/opencode-server-env"
-        "/var/lib/incus-secrets/opencode-openrouter-env"
+        "/var/lib/incus-secrets/opencode-go-env"
       ];
       Restart = "always";
       RestartSec = 5;

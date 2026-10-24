@@ -56,9 +56,9 @@ in
       source = "/run/secrets/opencode_server_password";
     }
     {
-      file = "opencode-openrouter-env";
-      env = "OPENROUTER_API_KEY";
-      source = "/run/secrets/opencode_openrouter_api_key";
+      file = "opencode-go-env";
+      env = "OPENCODE_API_KEY";
+      source = "/run/secrets/opencode_go_api_key";
     }
     {
       format = "raw";
