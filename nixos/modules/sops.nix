@@ -164,6 +164,10 @@
   sops.secrets.renovate_token = {};
   sops.secrets.renovate_github_com_token = {};
 
+  sops.secrets.opencode_server_password = {};
+  sops.secrets.opencode_openrouter_api_key = {};
+  sops.secrets.opencode_forgejo_token = {};
+
   # No sops.secrets for the wireguard VM's web UI, and that is a decision rather
   # than an omission.
   #

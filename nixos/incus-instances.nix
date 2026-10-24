@@ -38,6 +38,7 @@
   # the Syncthing hub (see hosts/syncthing/NOTES.md and replicated-volumes.nix).
   # VPN-only, behind Caddy.
   paperless = import ./hosts/paperless/incus.nix;
+  opencode = import ./hosts/opencode/incus.nix;
 
   # Minecraft. A container, and the first instance whose public entry point is
   # not HTTP: the Java protocol is a raw TCP stream, so it gets an

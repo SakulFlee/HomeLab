@@ -78,6 +78,7 @@ instance, so expect a short interruption when that is applied.
 | `forgejo-runner` | VM | Forgejo Actions runner |
 | `fluxer` | VM | self-hosted chat |
 | `paperless` | container | document management, VPN-only through Caddy |
+| `opencode` | container | headless OpenCode server and web UI, VPN-only through Caddy |
 | `syncthing` | container | replication hub |
 | `minecraft` | container | Minecraft server |
 | `hytale` | container | Hytale server |

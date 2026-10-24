@@ -360,6 +360,20 @@ in
             }
         }
 
+        opencode.sakul-flee.de {
+            tls {
+                dns cloudflare {env.CF_API_TOKEN}
+            }
+
+            @notvpn not remote_ip 100.64.0.0/10
+            respond @notvpn "OpenCode is reachable over the VPN only.\n" 403
+
+            reverse_proxy http://10.0.0.117:4096 {
+                header_up Host {http.request.host}
+                flush_interval -1
+            }
+        }
+
         # -------------------------------------------------------------------
         # fluxer.sakul-flee.de -- served by the Incus VM
         # Rolling back means reverting the Fluxer deployment; VM-side writes

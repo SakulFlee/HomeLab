@@ -271,6 +271,7 @@
         # Paperless, VPN-only behind Caddy. No networkForward -- the vhost
         # cutover stays a separate hand-off.
         paperless = mkInstance { path = ./hosts/paperless; };
+        opencode = mkInstance { path = ./hosts/opencode; };
         # Minecraft. A container: a JVM and a jar, no kernel of its own and no
         # device to pass through. Its 25565/tcp forward is the cutover -- there
         # is no Caddy vhost, because the Minecraft protocol is not HTTP.
@@ -303,6 +304,7 @@
         image-forgejo = self.nixosConfigurations.forgejo.config.system.build.squashfs;
         image-syncthing = self.nixosConfigurations.syncthing.config.system.build.squashfs;
         image-paperless = self.nixosConfigurations.paperless.config.system.build.squashfs;
+        image-opencode = self.nixosConfigurations.opencode.config.system.build.squashfs;
         image-minecraft = self.nixosConfigurations.minecraft.config.system.build.squashfs;
         image-hytale = self.nixosConfigurations.hytale.config.system.build.squashfs;
         image-cloudflare-ddns = self.nixosConfigurations.cloudflare-ddns.config.system.build.squashfs;

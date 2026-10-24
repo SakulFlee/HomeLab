@@ -18,6 +18,7 @@ let
   # Keep in lockstep with the Caddy VPN-gated vhosts.
   vpnOnlyNames = [
     "incus"
+    "opencode"
     "paperless"
     "syncthing"
     "vpn"
