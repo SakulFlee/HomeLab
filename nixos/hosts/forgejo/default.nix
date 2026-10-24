@@ -603,6 +603,9 @@ in
         # so the URI is the supported way to supply one.
         SECRET_KEY_URI = "file:${cfg.customDir}/conf/secret_key";
         INTERNAL_TOKEN_URI = "file:${cfg.customDir}/conf/internal_token";
+
+        # Enforce 2FA to be used globally for all users.
+        GLOBAL_TWO_FACTOR_REQUIREMENT = "all";
       };
 
       oauth2 = {
