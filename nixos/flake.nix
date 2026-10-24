@@ -32,6 +32,8 @@
     # stays on the 26.05 pin; only services.paperless.package pulls from here.
     nixpkgs-paperless.url = "github:NixOS/nixpkgs/e7439b6b14ad3cc35d05608ebca9bce01a25f5f8";
 
+    nixpkgs-opencode.url = "github:NixOS/nixpkgs/3ec636362e1816bc2f0888fa0fa2c69f1bc9e504";
+
   };
 
   outputs = { self, nixpkgs, ... }@inputs:

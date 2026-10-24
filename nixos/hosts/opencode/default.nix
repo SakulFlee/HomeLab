@@ -1,5 +1,13 @@
-{ config, pkgs, ... }:
+{
+  config,
+  inputs,
+  pkgs,
+  ...
+}:
 let
+  opencodePackage =
+    inputs.nixpkgs-opencode.legacyPackages.${pkgs.stdenv.hostPlatform.system}.opencode;
+
   forgejoUser = "sakulflee";
 
   gitCredentialHelper = pkgs.writeShellApplication {
@@ -26,7 +34,7 @@ in
   services.openssh.enable = false;
 
   environment.systemPackages = with pkgs; [
-    opencode
+    opencodePackage
     git
     gitCredentialHelper
     curl
@@ -98,7 +106,7 @@ in
       User = "opencode";
       Group = "opencode";
       WorkingDirectory = "/srv/workspace";
-      ExecStart = "${pkgs.opencode}/bin/opencode web --hostname 0.0.0.0 --port 4096";
+      ExecStart = "${opencodePackage}/bin/opencode serve --hostname 0.0.0.0 --port 4096";
       EnvironmentFile = [
         "/var/lib/incus-secrets/opencode-server-env"
         "/var/lib/incus-secrets/opencode-go-env"
