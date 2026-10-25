@@ -234,9 +234,10 @@ how a volume stops being snapshotted. That direction was the one that had a bug
 in it: the API read was originally skipped when the spec declared nothing to
 set, which is exactly backwards, because a spec that says nothing is the case
 where the volume may carry a schedule that has to be cleared. `forgejo-secrets`
-and `forgejo-runner-data` have no `snapshots` block and must stay unscheduled —
-a snapshot of a live API token or a runner cache is a liability, and both are
-rewritten from the host's own secrets on every reconcile anyway.
+has no `snapshots` block and must stay unscheduled — a snapshot of a live API
+token is a liability, and it is rewritten from the host's own secrets on
+every reconcile anyway. (`forgejo-runner-data` no longer exists; the runner
+is a single root disk now.)
 
 ### What a snapshot actually is
 

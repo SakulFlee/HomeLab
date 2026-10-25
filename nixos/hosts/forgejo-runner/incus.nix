@@ -3,8 +3,8 @@
 # This file describes the VM, not the software inside it. Anything
 # NixOS can configure belongs in default.nix, which is what gets
 # built into the image; what is left is the handful of facts only
-# Incus knows: how much CPU and RAM, where writable data lives,
-# and which network device the guest gets.
+# Incus knows: how much CPU and RAM, the root disk size, and which
+# network device the guest gets.
 #
 # Read at build time by incus/apply.sh through the `incusInstances`
 # flake output. See ../../../incus-instances.nix for the list.
@@ -37,19 +37,6 @@ let
       network = "incusbr0";
       hwaddr = "00:16:3e:00:00:12";
     };
-
-    # A VM's extra disk is a raw block device, so this volume is
-    # `block` and the guest mounts it itself. incus/apply.sh
-    # defaults a VM's volumes to block and strips `path` from disk
-    # devices for VMs; `type` is spelled out anyway because this
-    # is the one place the difference actually bites.
-    #
-    # No `path`: a VM has no filesystem view of an attached disk.
-    runner-data = {
-      type = "disk";
-      pool = "persistent";
-      source = "forgejo-runner-data";
-    };
   };
 in
 {
@@ -78,18 +65,22 @@ in
     cpu = "12";
   };
 
-  # The root disk, sized. `limits.memory` and `limits.cpu` cap what the
-  # instance may use; this is how much it is *given*.
+  # The root disk, sized. This is the VM's only disk: the NixOS closure
+  # (/nix/store), the Docker image store, a running job's writable layer,
+  # the runner's state, the artifact cache and the job workspaces all
+  # share it.
   #
-  # 40 GiB, because the root disk has to hold the NixOS closure, the
-  # Docker image store and a running job's writable layer at once. On the
-  # first real job, with one 5.06 GB CI image pulled:
+  # 100 GiB is sized for the artifact cache, not for the OS. The Orbital
+  # CI workflows save multi-gigabyte sccache/cargo entries under keys that
+  # change with Cargo.lock; at the observed 12-15 GiB/day, 100 GiB is
+  # roughly the seven-day retention window. The cache guard in default.nix
+  # wipes the artifact cache when free space drops below 10 GiB, so the
+  # disk cannot fill and break job setup.
   #
-  #   at rest    7.3 G used   1.9 G free   80%
-  #   in a job   8.8 G used   360 M free   97%
-  #
-  # 40 GiB is the closure, several 5 GB CI images, and concurrent job
-  # layers, with room to spare.
+  # The host-side Nix builds moved to the dedicated host runner on the
+  # HomeLab host (nixos/hosts/homelab/services/forgejo-nix-runner.nix),
+  # which uses the host's own store. That is why this disk no longer carries
+  # the ROCm/llama.cpp closure the old 80 GiB root disk had to hold.
   #
   # WHY A FIELD HERE AND NOT A BIGGER IMAGE. The image could be built
   # bigger -- make-disk-image.nix's `additionalSpace` does exactly that --
@@ -97,107 +88,27 @@ in
   # `pkgs.vmTools.runInLinuxVM` whose `vm-run` script passes qemu no `-m`,
   # so it gets qemu's 128 MB default and the guest sees 100 MB. A 45 GiB
   # ext4's metadata does not fit in that, and the guest kernel panics
-  # ("deadlocked on memory") before cptofs finishes. full.nix explains
-  # this at length; the short version is that the image must stay small
-  # and the capacity has to come from here.
+  # ("deadlocked on memory") before cptofs finishes.
   #
   # It also would not be needed. incus-virtual-machine.nix sets
-  # `autoResize = true` and `boot.growPartition = true`, so the guest
-  # grows its partition and filesystem to fill whatever disk Incus gives
-  # it. The live instance shows it: a 4.86 GiB image, a 10 GiB disk, and
-  # a 9.7 GiB `nixos` partition. Incus decides the size; the guest claims
-  # it.
+  # `autoResize = true` and `boot.growPartition = true`, so the guest grows
+  # its partition and filesystem to fill whatever disk Incus gives it.
+  # Incus decides the size; the guest claims it.
   #
-  # `incus config set <vm> limits.disk.size` is NOT the way, and its
-  # rejection is what makes this field look necessary. Incus sizes a VM's
-  # root disk through the `root` disk device's own `size` key, which is what
-  # apply.sh sets; `limits.disk.*` is a different thing and the CLI rejects
-  # it on a VM.
+  # `incus config set <vm> limits.disk.size` is NOT the way: Incus sizes a
+  # VM's root disk through the `root` disk device's own `size` key, and
+  # apply.sh overrides `root` onto this instance alone, because the shared
+  # `default` profile cannot carry a runner-sized disk.
   #
-  # It is not in `devices`, and apply.sh does not reconcile it there on
-  # purpose: sync_devices reconciles by remove-then-add, because a device's
-  # type cannot be changed in place, and doing that to `root` would destroy
-  # the instance's root disk. It applies this with an in-place write instead.
-  #
-  # That write is an `override`, not a `set`, and the reason is worth keeping
-  # in mind: `root` is inherited from the `default` profile, and Incus refuses
-  # to modify a profile device on a single instance ("Override device or
-  # modify profile instead"). The profile cannot carry the size -- `default`
-  # is shared with caddy, forgejo and wireguard, which would all inherit a
-  # runner-sized disk. So apply.sh overrides `root` onto this instance alone.
-  # The consequence: from here this instance's root disk no longer follows
-  # the profile. If `default`'s root ever changes pool, this one will not.
-  #
-  # Verified on this host, both directions: the override is accepted while
-  # `root` is still inherited, a plain `set` is accepted afterwards, and
-  # repeating the override is refused ("The device already exists").
-  #
-  # Two consequences worth knowing before changing the number:
-  #
-  #   * Growing a VM's disk is one-way. Incus will not shrink a VM root
-  #     disk, so this only ever goes up. Lowering it here will not give
-  #     the space back.
-  #   * The guest needs a restart to claim a larger disk, because
-  #     `autoResize`/`growPartition` run at boot. Growing a running VM
-  #     therefore leaves the extra space invisible to `df` until the
-  #     next reboot.
-  #
-  # One more, observed rather than predicted: growing the disk renumbered
-  # the guest's virtio disks, so the root filesystem moved from `sda2` to
-  # `sdb2` and the data volume took over `sda`. disk.nix finds its disk by
-  # LABEL rather than by name precisely so that this is a non-event, and it
-  # was -- but it is why nothing in this guest may assume `sda`.
-  # Raised from 40 GiB when host-executor jobs landed. The 40 GiB
-  # reasoning above still holds for the Docker side; what changed is that
-  # the store now also carries a cold build of the NixOS-Config host
-  # configuration, whose ROCm/llama.cpp closure is large and is NOT fully
-  # substitutable from cache.nixos.org. One-way, as noted above.
-  rootDiskSize = "80GiB";
+  # Growing is one-way: Incus will not shrink a VM root disk, and the guest
+  # needs a restart to claim a larger one because `autoResize`/
+  # `growPartition` run at boot.
+  rootDiskSize = "100GiB";
 
-  # The runner's writable state, on `persistent` and
-  # deliberately excluded from off-box replication, for two reasons that are
-  # the same
-  # reason stated twice:
-  #
-  #   * the generated config.yaml lands here, and it holds the
-  #     runner token. A backed-up copy of a live credential is a
-  #     liability, and nothing here is irreplaceable -- apply.sh
-  #     and the generator unit rewrite both the secrets and the
-  #     config from the host's sops store on demand (the caddy
-  #     secrets volume is on this pool for exactly this reason).
-  #   * the job workspaces and the actions cache are live, mutable
-  #     data whose loss costs a cache miss and a re-checkout, not
-  #     anything anyone would miss.
-  #
-  # What is NOT here and why: Docker's own image store
-  # (/var/lib/docker) is on the root disk. Images are re-pullable
-  # by definition, so losing them to a re-create costs one re-pull
-  # per label, and keeping them off the volume keeps the volume's
-  # contents to the things that are actually state.
-  volumes = [
-    {
-      pool = "persistent";
-      name = "forgejo-runner-data";
-      description = "Runner state: actions cache, job workspaces, rendered secrets and the generated config (holds the runner token) -- not replicated off-box";
-
-      # The actions cache is the dominant consumer, and it has no size-based
-      # eviction: Forgejo's runner GC only drops entries that are unused for
-      # 7 days, older than 30 days, or incomplete for 5 minutes (see
-      # NOTES.md, "Cache growth and the guard"). The quota was raised from
-      # the default to 30GiB by hand once already, then filled again on
-      # 2026-10-24 when a burst of Orbital PR jobs saved multi-gigabyte
-      # sccache entries. 60GiB is the next step, not the steady-state answer:
-      # at the observed 12-15GiB/day it buys only a few days, so the guest's
-      # cache guard (default.nix) wipes the artifact cache before the volume
-      # can fill. Raise this to 120GiB (roughly the 7-day high-water mark) or
-      # lower SCCACHE_CACHE_SIZE in the workflows if the guard starts firing
-      # often.
-      #
-      # Keep the value in the spec: an undeclared size would be cleared by
-      # the next Tofu apply.
-      size = "120GiB";
-    }
-  ];
+  # No extra volumes. The runner's state, artifact cache and workspaces
+  # live on the single root disk. They are regenerable: a re-create loses
+  # them, the host re-renders the secrets, and the first jobs are cold.
+  # That is the trade for not carrying a second disk.
 
   devices = devices;
 
@@ -215,9 +126,11 @@ in
   # in, and a re-create loses nothing (see NOTES.md,
   # "Registration").
   #
-  # `dir` is on the data volume, so the secrets survive a
-  # re-create like everything else the runner needs. The default
-  # mode (0400, root:root) is right here: the only reader is the
+  # `dir` is on the single root disk. A re-create loses it, but that
+  # is deliberate: the host re-renders both values from sops on the
+  # next `incus-secrets` run, and the runner's registration is
+  # persistent (see NOTES.md, "Registration"). The default mode
+  # (0400, root:root) is right here: the only reader is the
   # generator unit, which runs as root and embeds both values into
   # the config.yaml the daemon reads. The daemon itself never
   # opens these files.

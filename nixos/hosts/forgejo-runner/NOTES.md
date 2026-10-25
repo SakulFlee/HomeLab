@@ -5,9 +5,10 @@ specifically the parts that are not obvious from the Nix. The Nix
 explains what is configured; this explains why, and what was
 verified to find out.
 
-Read `default.nix` for the guest, `disk.nix` for the data volume,
-and `incus.nix` for the Incus half (limits, volumes, devices,
-rendered secrets).
+Read `default.nix` for the guest and `incus.nix` for the Incus half
+(limits, the single root disk, the network device and the rendered
+secrets). There is no data volume any more; the runner's state, cache
+and workspaces live on the root disk.
 
 ---
 
@@ -61,8 +62,9 @@ That shape is what makes this work on an immutable image. The
 credentials are rendered into the instance by `apply.sh` (from the
 host's sops store) and embedded into a generated `config.yaml` by
 `forgejo-runner-config.service`; they are never baked into the image,
-and a re-create loses nothing because the volume they land on survives
-one. The registration-token flow the nixpkgs `services.gitea-actions-runner`
+and a re-create loses nothing because the host re-renders them from
+sops. The cache and workspaces are lost on a re-create, but they are
+regenerable. The registration-token flow the nixpkgs `services.gitea-actions-runner`
 module uses would be the wrong shape here: its token is single-use,
 its registration state lives in the guest's StateDirectory (the root
 disk, which a re-create replaces), and re-registering after a re-create
@@ -114,7 +116,7 @@ against anything stored at registration time. Two consequences:
   generated config, means an image change and a re-create. They are
   declarative, not hand-editable: `apply.sh` rewrites `config.yaml`
   from the template whenever the rendered secrets change, so an edit
-  to the file on the volume would not survive the next reconcile.
+  to the file on the root disk would not survive the next reconcile.
 * The last daemon to declare wins. During the cutover (below), do not
   run the k3s runner and this VM against the same Forgejo: two
   daemons with one uuid each declare their own labels and steal each
@@ -124,42 +126,33 @@ against anything stored at registration time. Two consequences:
 
 | where | contents | survives a re-create? |
 | --- | --- | --- |
-| root disk | the NixOS system, dockerd's image store (`/var/lib/docker`) | **no** — disposable by design |
-| `forgejo-runner-data` volume (`persistent` pool) | `config.yaml` (holds the token), `secrets/` (rendered), the actions cache, job workspaces | **yes** |
+| root disk | the NixOS system, `/nix/store`, dockerd's image store (`/var/lib/docker`), the runner's `config.yaml` and rendered secrets, the actions cache and job workspaces | **no** — all of it is regenerable |
 
-Docker's image store is deliberately on the root disk. Images are
-re-pullable by definition, so losing them to a re-create costs one
-re-pull per label, and keeping them off the volume keeps the volume's
-contents to the things that are actually state. The daily
-`forgejo-runner-prune.timer` (`docker image prune --all --force`)
-bounds the root disk's growth for the same reason the host runs a
-weekly `crictl` prune for k3s.
+The root disk is **100 GiB**, declared as `rootDiskSize` in `incus.nix`
+and applied as the `root` disk device's size. It is deliberately not baked
+into the image: the image is assembled inside a 128 MB VM (qemu's default;
+`make-disk-image.nix` passes no `-m`) and a 45 GiB ext4's metadata does
+not fit, so the guest panics before the build finishes. The guest grows its
+partition and filesystem into whatever disk Incus gives it
+(`autoResize`/`growPartition`), so the image stays small and the capacity
+comes from Incus.
 
-The root disk is 40 GiB, and Incus is what grants it — see
-`rootDiskSize` in `incus.nix`. It is deliberately not baked into the
-image, because the image is assembled inside a 128 MB VM (qemu's
-default; `make-disk-image.nix` passes no `-m`) and a 45 GiB ext4's
-metadata does not fit in that, so the guest kernel panics before the
-build finishes. The guest grows its filesystem into whatever disk
-Incus gives it at boot, so a small image and a large disk are not in
-tension. Growing the disk renumbers the guest's virtio devices, which
-is why `disk.nix` identifies its volume by label.
+The artifact cache is the dominant consumer. The Orbital workflows save
+multi-gigabyte sccache/cargo entries under keys that change with
+`Cargo.lock`; at the observed 12-15 GiB/day, 100 GiB is roughly the
+seven-day retention window. The cache guard in `default.nix` wipes the
+cache when free space drops below 10 GiB.
 
-The volume is on `persistent`, which is **not** restic'd, for the
-same reason the caddy secrets volume is: `config.yaml` holds the
-runner token, and a backed-up copy of a live credential is a
-liability. Nothing on this volume is irreplaceable — the secrets and
-the config are both regenerable from the host's sops store.
+A re-create replaces the root disk, so the cache, workspaces, Docker images
+and the rendered secrets are all lost. That is acceptable: the host
+re-renders the secrets from sops, the runner reconnects with its persistent
+uuid/token, and the first jobs rebuild their caches. There is no data volume
+to preserve.
 
-The volume is a **block** device (a VM gets raw block, not a bind
-mount) that the guest formats itself, exactly like the WireGuard VM's
-data disk: `disk.nix` formats it once (only when the label is absent,
-refusing to guess when more than one blank disk is attached) and
-mounts it at `/var/lib/forgejo-runner`. If the disk is absent or the
-mount fails, the generator unit cannot run (`requiresMountsFor`), the
-daemon (`Requires` the generator) stays down, and nothing runs
-against the root disk — the silent-failure mode the wireguard
-arrangement was built to prevent.
+Docker's image store is on the same disk. Images are re-pullable by
+definition; the daily `forgejo-runner-prune.timer` now prunes unused
+images, stopped containers, unused volumes and build cache to keep that
+side bounded.
 
 ## The generated config
 
@@ -224,24 +217,28 @@ the guest firewall would add noise, not safety.
 
 ## Labels and job images
 
-Five labels. Three are Docker labels naming the same image, so nothing that
+Four labels. Three are Docker labels naming the same image, so nothing that
 runs on `default`, `ubuntu-latest` or `ubuntu-24.04` has to change:
 
 ```
 default:docker://ghcr.io/catthehacker/ubuntu:act-24.04
 ubuntu-latest:docker://ghcr.io/catthehacker/ubuntu:act-24.04
 ubuntu-24.04:docker://ghcr.io/catthehacker/ubuntu:act-24.04
-nix:host
 docker:host
 ```
 
-`nix:host` and `docker:host` are the host executor: the job runs in a shell
-forked from the daemon on the VM, not in a container. `nix` is for the
-NixOS-Config flake-lock update; `docker` is for image builds, which need the
+`docker:host` is the host executor: the job runs in a shell forked from the
+daemon on the VM, not in a container. It is for image builds, which need the
 VM's Docker daemon because buildah cannot run in an unprivileged job
 container (it needs `CAP_SYS_ADMIN` or a user namespace, and the Docker
-executor grants neither). Host-executor jobs inherit the daemon's PATH, so
-`docker` is listed there explicitly.
+executor grants neither).
+
+The `nix` label deliberately does not exist here. The NixOS-Config
+flake-lock gate builds the host configuration on a dedicated host runner
+on the HomeLab host (`nixos/hosts/homelab/services/forgejo-nix-runner.nix`)
+with the host's own Nix store; keeping it out of this VM is what allows the
+VM to be a single 100 GiB disk instead of carrying the ROCm/llama.cpp
+closure.
 
 **Why this image and not `node:22-bookworm`.** The k3s podspec ran
 `node:22-bookworm`, and that was the first choice here too: it carries
@@ -299,25 +296,23 @@ The daemon itself runs as the `forgejo-runner` user (in the `docker`
 group — it needs the socket, and the containers it creates run as root
 inside their own namespaces regardless of the runner's uid), with
 `NoNewPrivileges`, `PrivateTmp`, `ProtectSystem=strict` and a single
-`ReadWritePaths` — the data volume. The k3s deployment ran the runner
+`ReadWritePaths` — the root disk. The k3s deployment ran the runner
 as root because the pod needed the socket; a VM can do better.
 
-Host-executor jobs (`nix`, `docker`) are the deliberate exception. They run
+Host-executor jobs (`docker`) are the deliberate exception. They run
 as `forgejo-runner` directly on the VM, so they can use the Docker socket,
-read the data volume (including the generated `config.yaml`, which holds
+read the root disk (including the generated `config.yaml`, which holds
 the runner token), and are not subject to `valid_volumes` or
-`docker_host: "-"`. Those labels are for trusted repositories only; ordinary
+`docker_host: "-"`. That label is for trusted repositories only; ordinary
 jobs stay on the `docker://` labels.
 
 ## Capacity and timeouts
 
-Parity with the k3s values, so behaviour does not change with the
-platform: `capacity: 4` concurrent jobs, `timeout: 4h`,
+The config declares `capacity: 2` concurrent jobs, `timeout: 4h`, and
 `shutdown_timeout: 3m` (the daemon drains running jobs within this on
-TERM). The VM's own limits are 4 cpu and 8 GiB — the k3s deployment's
-worst case was four concurrent pods limited to 1 cpu and 4 GiB each,
-plus the runner; this is that ceiling with room for dockerd and the
-images a build pulls in. It is a cap, not a reservation.
+TERM). The VM's limits are 12 CPU and 12 GiB (`incus.nix`); the Nix
+host-build closure moved to the host runner, so that memory is for Docker
+jobs, dockerd and the artifact cache. It is a cap, not a reservation.
 
 The host has **16 cores and 30 GiB**, of which roughly 16 GiB is
 available with everything else running. That leaves real room to raise
@@ -330,8 +325,9 @@ The actions cache is enabled (`cache.enabled: true`, the k3s
 deployment had it too): workflows that use the
 `actions/cache` action are given a one-time `ACTIONS_CACHE_URL`
 pointing at a proxy the runner spawns, which talks to the cache
-server over a shared secret. The cache directory lives on the volume,
-so cached artefacts survive a re-create. The proxy's host address is
+server over a shared secret. The cache directory lives on the root disk,
+which is re-created, so cached artefacts do not survive that. The proxy's
+host address is
 auto-detected; job containers reach it through their bridge's gateway,
 which is the VM, and the VM accepts packets addressed to its own
 address regardless of which interface they arrive on — the same
@@ -356,20 +352,66 @@ duplicates of the same key+version (keeping the newest). It runs at most
 once per hour. There is no total cap or LRU, so a workflow that creates a
 new key per `Cargo.lock` can outrun the 7-day retention.
 
-That is what happened on 2026-10-24: the data volume was 100% full, the
-journal showed `no space left on device` on cache writes, and the next job
-failed in "Set up job" because `git worktree add` could not write its
-checkout. The cache held 28 GiB of 30 GiB. Wiping only the artifact cache
+That is what happened on 2026-10-24: the then-separate data volume was 100%
+full, the journal showed `no space left on device` on cache writes, and the
+next job failed in "Set up job" because `git worktree add` could not write
+its checkout. The cache held 28 GiB of 30 GiB. Wiping only the artifact cache
 (`home/cache/cache` and `home/cache/bolt.db`) while the runner is stopped is
 safe: it is regenerable, and no secret, config or workspace is touched.
 
 `forgejo-runner-cache-guard` (`default.nix`) is the safety valve. Every 15
-minutes it checks free space on the data volume; below 10 GiB it stops the
+minutes it checks free space on the root disk; below 10 GiB it stops the
 runner, refuses to proceed if the stop did not take, removes the artifact
 cache blobs and index, and starts the runner again. It is a last resort, not
-a substitute for sizing: at 60 GiB it will likely fire every few days at the
-current churn. Raise the volume or lower `SCCACHE_CACHE_SIZE` in the
-Orbital workflows to make it rare.
+a substitute for sizing: at 100 GiB it will likely fire roughly every five
+to seven days at the current churn. Raising the disk later is one-way.
+Lowering `SCCACHE_CACHE_SIZE` is not the lever here -- it shifts the cost
+into `target/` and slows builds; fewer unique cache keys would help, but the
+guard is what keeps the disk from filling in the meantime.
+
+## Host Nix runner
+
+The NixOS-Config flake-lock gate no longer runs in this VM. It runs on a
+separate Forgejo runner on the HomeLab host, defined in
+`nixos/hosts/homelab/services/forgejo-nix-runner.nix`. It declares only
+`nix-rebuild:host`, has capacity 1, has the artifact cache disabled, and
+uses the host's own Nix store. The workflow in NixOS-Config uses
+`runs-on: nix-rebuild`.
+
+The service starts only when `/var/lib/forgejo-nix-runner/.runner` exists.
+That file is created once, by the runner user, from a Forgejo registration
+token:
+
+1. Site Admin → Actions → Runners → Create new runner. Name it
+   `host-nix-rebuild`, label it `nix-rebuild:host`, and copy the
+   registration token.
+2. After the host has switched to this configuration:
+   ```bash
+   sudo -u forgejo-nix-runner sh -c '
+     cd /var/lib/forgejo-nix-runner &&
+     HOME=/var/lib/forgejo-nix-runner/home \
+       /run/current-system/sw/bin/forgejo-runner register \
+       --no-interactive \
+       --instance http://10.0.0.101:3000 \
+       --token <TOKEN> \
+       --name host-nix-rebuild \
+       --labels nix-rebuild:host'
+   sudo systemctl start forgejo-nix-runner
+   ```
+3. Confirm the Forgejo UI shows the runner online with only `nix-rebuild`.
+   The first flake-lock run should now land on the host.
+
+The `.runner` file holds the uuid and token. It lives under a `0750` state
+directory, is not in the repository, and must not be copied into a backup
+that is not protected like a credential. The host's daily `nix.gc`
+(`nixos/modules/gc.nix`) collects the unrooted Dendra build outputs.
+
+**Security.** A host-executor job runs its shell steps as
+`forgejo-nix-runner` on the host. The label limits which jobs this runner
+picks up, but Forgejo labels are not repository-scoped: any workflow that
+can request `nix-rebuild` can run here. Keep it to trusted repositories and
+protect workflow files; the VM remains the isolation boundary for Orbital
+PRs.
 
 ## Cutover from k3s
 
@@ -392,8 +434,12 @@ Deploy and verify:
    fails when `system.build.toplevel` is forced, which is to say at build time.
    See the notes in this file's sibling, `default.nix`, for the two real
    instances of it.
-2. Deploy: `incus/apply.sh forgejo-runner` (or
-   `systemctl start incus-apply-forgejo-runner.service`).
+2. Deploy with Tofu: `incus/gen-tf.sh`, then
+   `tofu -chdir=incus/infra plan -out=deploy.tfplan` and
+   `tofu -chdir=incus/infra apply deploy.tfplan`. The image change replaces
+   the instance with the 100 GiB root disk; the data volume is gone, so the
+   cache and workspaces start cold. The host auto-updater blocks volume
+   deletion, so this plan must be reviewed and applied manually.
 3. `docker.service` exists in the guest. `forgejo-runner.service`
    *Requires* it and the daemon exits if the socket is not reachable,
    so a missing dockerd shows up as a runner that never declares
@@ -409,20 +455,15 @@ Deploy and verify:
    ```
    A bare `systemctl is-active forgejo-runner` proves the daemon
    started, not that it can work.
-5. `/var/lib/forgejo-runner` is a **mountpoint**:
-   `incus exec forgejo-runner -- findmnt /var/lib/forgejo-runner`.
-   data disk was formatted with the label `forgejo-runner-data`,
-   which is 19 characters; ext4 caps labels at 16, so `mkfs.ext4`
-   truncated it to `forgejo-runner-d` with a warning and exited 0.
-   The mount's `what` then named a label that did not exist, so
-   systemd never created the mount unit at all — not inactive,
-   *not-found* — and the daemon died on `result 'dependency'`.
-   `apply.sh` had reported success throughout, because it reconciles
-   the instance and the instance was fine; it has no view of the
-   guest's systemd.
-6. In the Forgejo UI (Site Admin → Actions → Runners), confirm the
-   runner is online with all five labels. Its name is whatever was
-   chosen at creation — nothing in this repository records it.
+5. The root disk is the only disk and has grown to 100 GiB:
+   `incus exec forgejo-runner -- df -h /` and
+   `incus exec forgejo-runner -- lsblk`. There is no
+   `/var/lib/forgejo-runner` mount to check; the runner's state is a normal
+   directory on `/`.
+6. In the Forgejo UI (Site Admin → Actions → Runners), confirm the VM
+   runner is online with the four labels (`default`, `ubuntu-latest`,
+   `ubuntu-24.04`, `docker`). The host Nix runner is a separate entry with
+   only `nix-rebuild`.
 7. Submit a workflow that runs on `ubuntu-latest` and watch it execute
    here: `incus exec forgejo-runner -- journalctl -u forgejo-runner -f`
    shows the job being fetched, the image pulled and the container
@@ -432,29 +473,45 @@ If the runner does not come up, the two places to look first:
 `journalctl -u forgejo-runner-config` (the generator — it fails by
 design until the secrets are rendered, and again on any syntax error
 in the template) and `incus exec forgejo-runner -- ls -la
-/var/lib/forgejo-runner` (the volume mounted, the secrets rendered,
-the config present at `0400 forgejo-runner`).
+/var/lib/forgejo-runner` (the root disk, the secrets rendered, the config
+present at `0400 forgejo-runner`).
 
 ## Verification
 
 ```bash
-incus/apply.sh --check forgejo-runner   # build, report drift, change nothing
-incus-status.service                    # the one-line-per-instance table
 incus exec forgejo-runner -- systemctl status forgejo-runner
 incus exec forgejo-runner -- docker ps  # job containers, while a job runs
+incus exec forgejo-runner -- df -h /
+tofu -chdir=incus/infra plan            # must be clean
 ```
 
 The runner declares itself at every start, so the fastest check that
 the credentials still work is the daemon's own log: a line reading
 `runner: <name>, with version: v13.2.0, with labels:
-[default ubuntu-latest ubuntu-24.04 nix docker], ephemeral: false, declared
+[default ubuntu-latest ubuntu-24.04 docker], ephemeral: false, declared
 successfully` followed by `[poller] launched`.
 
 ## Disk sizing
 
-The **root disk** is **80 GiB**, declared as `rootDiskSize` in `incus.nix`
-and applied by `incus/apply.sh` as an override on the `root` disk device. It
-is not baked into the image: the image is assembled inside a 128 MB VM
+The VM has a single **100 GiB** root disk, declared as `rootDiskSize` in
+`incus.nix` and applied as the `root` disk device's size. It holds the NixOS
+closure, `/nix/store`, the Docker image store, the runner's state, the
+artifact cache and the job workspaces.
+
+The size is driven by the artifact cache, not the OS. The Orbital workflows
+save multi-gigabyte sccache/cargo entries under keys that change with
+`Cargo.lock`; at the observed 12-15 GiB/day, 100 GiB is roughly the
+seven-day retention window. The cache guard in `default.nix` wipes the
+artifact cache when free space drops below 10 GiB, so a burst cannot fill
+the disk and break job setup.
+
+The host-side Nix builds (the NixOS-Config flake-lock gate) no longer run
+here. They run on a dedicated host runner on the HomeLab host
+(`nixos/hosts/homelab/services/forgejo-nix-runner.nix`) with the host's own
+Nix store. That is why this disk does not need to carry the ROCm/llama.cpp
+closure; the VM only builds its own system and runs the Docker jobs.
+
+The image itself stays small: it is assembled inside a 128 MB VM
 (`make-disk-image.nix` passes qemu no `-m`), and a 45 GiB ext4's metadata
 does not fit, so the build panics before `cptofs` finishes. The guest grows
 its partition and filesystem into whatever disk Incus gives it
@@ -465,18 +522,8 @@ nothing on the host while unused.
 root disk through the `root` disk device's `size` key, and `apply.sh`
 overrides `root` onto this instance alone (the shared `default` profile
 cannot carry a runner-sized disk). Growing a VM disk is one-way; the guest
-needs a restart to claim it.
-
-The **data volume** `forgejo-runner-data` is **60 GiB** on `persistent`
-(`incus.nix`). It is a raw block device the guest formats and mounts at
-`/var/lib/forgejo-runner` (`disk.nix`). It holds the runner's state, the
-actions cache and job workspaces. The filesystem is grown at boot by
-`forgejo-runner-data-resize` after the volume is enlarged. 60 GiB is a first
-step, not the steady-state size: at the observed 12-15 GiB/day of cache
-growth it buys only a few days, and the cache guard above wipes the artifact
-cache when free space falls below 10 GiB. Raise the volume to 120 GiB
-(roughly the 7-day high-water mark) or lower `SCCACHE_CACHE_SIZE` in the
-workflows if the guard fires often.
+needs a restart to claim it. There is no second disk and no data volume to
+resize.
 
 The original image was 10 GiB and the first real job filled it: `/` and
 `/nix/store` share the partition, and the Docker image store is on the root
@@ -487,22 +534,25 @@ runs daily.
 ## Known rough edges
 
 * **The first job to run failed, and the reason was not visible in
-  any unit's status.** `$HOME` was the volume's mount point, which is
-  `root:root 0755` because that is what a filesystem root should be.
-  The generator created `cache/` and `workspace/` as the runner, so
-  those worked; act creates `$HOME/.cache/act/ff/<sha>` itself and
-  could not. The lesson is the shape of it: the generator only creates
-  the directories it knows about, so any write the daemon makes
-  *implicitly* under `$HOME` is invisible to it. Fixed by moving the
-  runner's home to a subdirectory the generator owns — see
-  `default.nix`, "The runner's account".
-* **A re-create re-pulls every job image.** The image store is on the
-  root disk by design (see "What lives where"), so the first job after
-  a re-create pays one pull per label. The cache on the volume makes
-  that the only cold-start cost.
-* **`docker image prune --all` removes unused images daily**, so a
-  label that has not run for a day re-pulls on its next job. That is
-  the trade for a bounded root disk. It was weekly until the first
-  real job: with one 5.06 GB CI image the root disk sat at 97% and
-  360 MB free, which is not enough to pull the 2.2 GB label image
-  alongside it.
+  any unit's status.** `$HOME` was the data volume's mount point (then a
+  separate disk), which is `root:root 0755` because that is what a
+  filesystem root should be. The generator created `cache/` and
+  `workspace/` as the runner, so those worked; act creates
+  `$HOME/.cache/act/ff/<sha>` itself and could not. The lesson is the shape
+  of it: the generator only creates the directories it knows about, so any
+  write the daemon makes *implicitly* under `$HOME` is invisible to it.
+  Fixed by moving the runner's home to a subdirectory the generator owns —
+  see `default.nix`, "The runner's account".
+* **A re-create re-pulls every job image and loses the artifact cache.**
+  The image store and the cache are on the same disposable root disk, so the
+  first job after a re-create pays one pull per label and starts with a cold
+  cache. The secrets and config are re-rendered, so there is no
+  re-registration.
+* **The daily Docker prune removes unused images, containers, volumes and
+  build cache**, so a label that has not run for a day re-pulls on its next
+  job. That is the trade for a bounded single disk. The artifact cache has
+  its own guard and a 10 GiB-free threshold.
+* **The Nix rebuild job is on the host, not this VM.** The VM declares no
+  `nix` label; the host runner on the HomeLab host has only `nix-rebuild`.
+  Keep that label out of untrusted repositories, because a host-executor job
+  runs its shell steps on the host.

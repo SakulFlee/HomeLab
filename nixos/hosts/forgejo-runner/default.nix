@@ -12,7 +12,7 @@
 # the jobs are as isolated from the host as Docker makes them.
 #
 # See incus.nix for the Incus half and ../../../incus/README.md for the
-# instance model (immutable image, disposable root disk, volumes).
+# instance model (immutable image, disposable single root disk).
 { config, lib, pkgs, ... }:
 
 let
@@ -47,7 +47,7 @@ let
   #
   # Measured: 0.54 GiB compressed over 6 layers, against node:22-bookworm's
   # 0.38 GiB over 8. Docker stores layers uncompressed, so on disk it is
-  # roughly 2.2 GiB against 1.4 GiB -- paid once per VM, and pruned weekly by
+  # roughly 2.2 GiB against 1.4 GiB -- paid once per VM, and pruned daily by
   # forgejo-runner-prune.timer.
   #
   # Third-party image: it is not a Forgejo or GitHub base, it is the image the
@@ -60,12 +60,11 @@ let
   # and they are declared to the instance at every daemon start (the
   # runner's Declare RPC), so the last daemon to start wins -- see
   # NOTES.md, "Labels".
-  # `nix:host` is the host executor: jobs with `runs-on: nix` run directly
-  # in a shell inside this VM, where Nix already lives. Used by the
-  # flake-lock updater in NixOS-Config, which needs a real build of the
-  # host configuration -- work that wants a persistent store and native
-  # compilation, not an ephemeral container. See the PATH set on the daemon
-  # below (git and Node are mandatory: actions/checkout is a JS action).
+  # The Nix rebuild executor is NOT here any more. The NixOS-Config
+  # flake-lock gate builds the host configuration on a dedicated host
+  # runner on the HomeLab host that uses the host's own Nix store. This VM
+  # declares no `nix` label, so a stray `runs-on: nix` job cannot land in
+  # the runner VM and grow its root disk with a ROCm/llama.cpp closure.
   #
   # `docker:host` is the same host executor for image builds. Buildah needs
   # CAP_SYS_ADMIN (or a user namespace) and cannot run in an unprivileged
@@ -75,7 +74,6 @@ let
     "default:docker://${jobImage}"
     "ubuntu-latest:docker://${jobImage}"
     "ubuntu-24.04:docker://${jobImage}"
-    "nix:host"
     "docker:host"
   ];
 in
@@ -83,67 +81,31 @@ in
   # ---------------------------------------------------------------------
   # The disk image: deliberately NOT enlarged here
   # ---------------------------------------------------------------------
-  # The root disk has to hold three things at once: the NixOS closure
-  # (/nix/store is NOT a separate filesystem here -- it is the same
-  # partition as /), the Docker image store, and a running job's
-  # writable layer. Measured on the first real job, with one
-  # 5.06 GB CI image pulled:
+  # The single root disk has to hold the NixOS closure (/nix/store is not a
+  # separate filesystem here), the Docker image store, a running job's
+  # writable layer, and the runner's state, artifact cache and workspaces.
+  # The artifact cache is the largest and least predictable consumer; the
+  # cache guard below is what keeps it from filling the disk.
   #
-  #   at rest    7.3 G used   1.9 G free   80%
-  #   in a job   8.8 G used   360 M free   97%
+  # The answer is a single 100 GiB root disk, and Incus is what applies it --
+  # see `rootDiskSize` in incus.nix. The host-side Nix builds moved to the
+  # dedicated host runner, so this disk no longer carries the ROCm/llama.cpp
+  # closure.
   #
-  # which is not enough headroom to be useful. The label image itself
-  # (ghcr.io/catthehacker/ubuntu:act-24.04) unpacks to roughly 2.2 GB,
-  # so a workflow that does NOT pin its own image would fail to pull
-  # with ENOSPC the moment a large CI image is also present.
-  #
-  # The answer is 40 GiB of root disk, and Incus is what applies it --
-  # see `rootDiskSize` in incus.nix, which incus/apply.sh turns into a
-  # `size` on the instance's `root` disk device. Not this file, for two
-  # measured reasons.
-  #
-  #   1. A bigger image does not survive its own build. The obvious knob
-  #      is make-disk-image.nix's `additionalSpace`, and it does build a
-  #      40 GiB image -- into a build that cannot finish. That function
-  #      assembles the image inside a VM from `pkgs.vmTools.runInLinuxVM`,
-  #      and the `vm-run` script it generates passes qemu no `-m` at all
-  #      (only `-smp`), so the VM gets qemu's built-in 128 MB default and
-  #      the guest sees 100 MB. make-disk-image.nix's own
-  #      `memSize ? 1024` is handed on as `inherit memSize` and then never
-  #      read by anything, so it is inert -- setting it changes nothing.
-  #      With `additionalSpace = "40G"` the guest dies with
-  #
-  #        Out of memory and no killable processes...
-  #        Kernel panic - not syncing: System is deadlocked on memory
-  #
-  #      which takes `cptofs` down with it, after which
-  #      make-disk-image.nix prints "ERROR: cptofs failed. diskSize might
-  #      be too small for closure." That string is emitted on *any*
-  #      cptofs failure (line 632); it is a guess, not a diagnosis, and
-  #      the disk was never too small. The same derivation at
-  #      make-disk-image's default `additionalSpace` ("512M", a 4.86 GiB
-  #      image) builds fine in that same 128 MB VM -- the closure fits
-  #      and a 45 GiB ext4's metadata does not.
-  #
-  #   2. A bigger image is redundant. incus-virtual-machine.nix already
-  #      sets `fileSystems."/".autoResize = true` and `boot.growPartition
-  #      = true`, so the guest grows its partition and filesystem to
-  #      fill whatever disk Incus hands it. The live instance is the
-  #      proof: a 4.86 GiB image, a 10 GiB disk from Incus, and a 9.7 GiB
-  #      `nixos` partition. A large ext4 baked into the image buys
-  #      nothing.
-  #
-  # `virtualisation.diskSize` is the knob that looks right and is not:
-  # disk-size-option.nix declares it as `either (enum ["auto"])
-  # ints.positive` -- an integer is valid -- but qemu-vm.nix uses it only
-  # for the disk of the VM it starts to RUN a build in (DISK_SIZE_MB),
-  # never for the image.
+  # Why the image itself stays small, and why the size is not baked in:
+  # make-disk-image.nix assembles the image inside a VM from
+  # `pkgs.vmTools.runInLinuxVM`, whose `vm-run` script passes qemu no `-m`,
+  # so the guest gets qemu's 128 MB default and a 45 GiB ext4's metadata
+  # does not fit -- the guest panics before cptofs finishes. The same
+  # derivation at the default additionalSpace builds fine. A bigger image is
+  # also redundant: incus-virtual-machine.nix sets `autoResize` and
+  # `boot.growPartition`, so the guest grows into whatever disk Incus gives
+  # it. `virtualisation.diskSize` is not the knob; qemu-vm.nix uses it only
+  # for the disk of the VM it starts to run a build in.
   #
   # So there is no override of `system.build.qemuImage` here at all.
   # incus-virtual-machine.nix's own call stands; capacity is Incus's to
   # grant, and the guest's job to claim.
-
-  imports = [ ./disk.nix ];
 
   networking.hostName = "forgejo-runner";
 
@@ -219,12 +181,13 @@ in
     group = "forgejo-runner";
     description = "Forgejo Actions runner";
 
-    # Home is a directory INSIDE the data volume, not the volume's mount point.
+    # Home is a directory inside /var/lib/forgejo-runner, not that directory
+    # itself.
     #
-    # The mount point is root:root 0755, which is correct for a filesystem
-    # root -- and it is also the runner's home if set here directly, which
-    # means the daemon cannot create anything in it. That is not hypothetical:
-    # the first job to run died with
+    # /var/lib/forgejo-runner is root:root 0755, which is correct for the
+    # runner's state root -- and it is also the runner's home if set here
+    # directly, which means the daemon cannot create anything in it. That is
+    # not hypothetical: the first job to run died with
     #
     #   unable to init git repo at /var/lib/forgejo-runner/.cache/act/ff/<sha>:
     #   fatal: cannot mkdir ...: Permission denied
@@ -236,15 +199,15 @@ in
     # class, and the reason the home is a subdirectory the generator owns
     # rather than a parent it happens to have write access to.
     #
-    # A subdirectory rather than chowning the mount point, because the mount
-    # point is the parent of `secrets/` -- root:root 0711, holding the 0400
-    # files only the generator reads. Letting the daemon's own uid own that
-    # parent would let it rename or replace the secrets directory. Not a leak,
-    # but a way for the runner to break its own configuration.
+    # A subdirectory rather than chowning the parent, because the parent is
+    # the parent of `secrets/` -- root:root 0711, holding the 0400 files only
+    # the generator reads. Letting the daemon's own uid own that parent would
+    # let it rename or replace the secrets directory. Not a leak, but a way
+    # for the runner to break its own configuration.
     #
-    # createHome = false because the directory lives on the volume, and the
-    # generator unit creates it after the mount; NixOS's activation would
-    # otherwise create it on the root disk where the mount would hide it.
+    # createHome = false because the generator unit creates the directory
+    # explicitly; NixOS's activation would otherwise create it as a plain
+    # directory before the generator has set the ownership and mode.
     home = "/var/lib/forgejo-runner/home";
     createHome = false;
 
@@ -254,40 +217,37 @@ in
   environment.systemPackages = [ pkgs.forgejo-runner ];
 
   # ---------------------------------------------------------------------
-  # Nix, now that this VM also builds things
+  # Nix, for the VM's own system
   # ---------------------------------------------------------------------
-  # Host-executor jobs build the NixOS-Config host configuration in this
-  # VM's own store, so the settings a plain runner never needed matter now.
+  # The host configuration is no longer built here; the dedicated host
+  # runner has that job. Nix remains installed for the VM's own system and
+  # for the Docker host executor, so the flake settings stay.
   nix.settings.experimental-features = [
     "nix-command"
     "flakes"
   ];
 
-  # The VM is capped at 4 cpu / 8 GiB (incus.nix). Nix defaults max-jobs to
-  # the core count and runs four derivations at once, which is how a heavy
-  # closure (the ROCm/llama.cpp side of that config) turns the memory cap
-  # into an OOM. Two jobs is the ceiling that keeps a build from taking the
-  # VM down; the work is daily and unattended, so slow-but-finishing wins.
+  # Two jobs is enough for the VM's own system rebuilds. The heavy
+  # NixOS-Config/ROCm closure no longer builds here; it moved to the host
+  # runner. Keeping max-jobs low also leaves CPU and memory for the Docker
+  # jobs that are the VM's actual workload.
   nix.settings.max-jobs = 2;
 
-  # Keep the store from refilling the 80 GiB disk. The per-input gate builds
-  # a fresh host closure for every input it accepts, and those results are
-  # unrooted, so without this they accumulate exactly as they did to cause
-  # the ENOSPC. Nix now collects garbage lazily, mid-build, once free space
-  # drops below `min-free`, down to `max-free` -- reclaiming the previous
-  # input's closure while keeping the paths the current build still shares.
-  nix.settings.min-free = "15G";
-  nix.settings.max-free = "20G";
+  # The VM's store only holds this system and the Docker-side runner's
+  # packages, so the free-space thresholds can be much smaller than the
+  # 15G/20G the host-build era needed. The cache guard is what protects the
+  # shared 100 GiB disk; this only keeps Nix from accumulating old system
+  # generations.
+  nix.settings.min-free = "5G";
+  nix.settings.max-free = "10G";
 
-  # Bound the store. Without this the first cold build of the host config
-  # plus every daily delta accumulates until the 80 GiB root disk is full.
-  # Mirrors the host's own intent (hosts/homelab) but with a longer window,
-  # because here the store is the build cache and throwing away a week of
-  # it re-compiles the parts cache.nixos.org does not carry.
+  # Daily, not weekly: the VM is re-created often enough that a weekly GC
+  # would let old generations accumulate across the artifacts and cache that
+  # share this disk. The host's own daily GC covers its store.
   nix.gc = {
     automatic = true;
-    dates = "weekly";
-    options = "--delete-older-than 10d";
+    dates = "daily";
+    options = "--delete-older-than 3d";
   };
   nix.settings.auto-optimise-store = true;
 
@@ -313,16 +273,9 @@ in
 
     wantedBy = [ "multi-user.target" ];
 
-    # The secrets, the config and the daemon's state all live on the
-    # data volume. systemd's RequiresMountsFor= pulls in the .mount unit (and,
-    # through it, the format unit), so this cannot run against the root disk
-    # -- the failure mode it prevents is a config.yaml written to the volatile
-    # root disk and lost on the next re-create.
-    #
-    # This is the systemd directive, reached through `unitConfig`, because
-    # NixOS has no `services.*.requiresMountsFor` option of its own -- nixpkgs
-    # spells it the same way in swap.nix, alsa.nix and security/wrappers.
-    unitConfig.RequiresMountsFor = [ "/var/lib/forgejo-runner" ];
+    # The secrets, the config and the daemon's state live on the single
+    # root disk. There is no data volume to wait for; the generator's own
+    # `install -d` creates the directories after boot.
 
     serviceConfig = {
       Type = "oneshot";
@@ -347,7 +300,7 @@ in
       # nothing here enumerates and which cost the first job until it was
       # created. One `install -d` for the parent is enough -- the other two
       # are then inside a directory the runner owns -- but they are named
-      # explicitly anyway so a fresh volume has them with the right mode
+      # explicitly anyway so a fresh root disk has them with the right mode
       # rather than whatever the daemon's umask leaves.
       install -d -o forgejo-runner -g forgejo-runner -m 0750 \
         /var/lib/forgejo-runner/home
@@ -369,8 +322,8 @@ log:
 runner:
   # Where the registration result would be stored. Unused in this
   # design -- the daemon takes its connection from server.connections
-  # below -- but kept so a stray forgejo-runner register lands on the
-  # volume instead of the root disk.
+  # below -- but kept so a stray forgejo-runner register lands in the
+  # runner's home directory rather than an arbitrary CWD.
   file: .runner
   capacity: 2
   envs:
@@ -383,7 +336,6 @@ runner:
     - "default:docker://${jobImage}"
     - "ubuntu-latest:docker://${jobImage}"
     - "ubuntu-24.04:docker://${jobImage}"
-    - "nix:host"
     - "docker:host"
 cache:
   enabled: true
@@ -398,9 +350,10 @@ container:
   # Extra docker run options, as one string. Empty: no job gets more
   # than the defaults below.
   options: ""
-  # Job workspaces, on the data volume rather than the root disk: a
-  # checkout plus its build artefacts can be large, and the volume is
-  # where anything that should outlive a re-create lives.
+  # Job workspaces, on the shared root disk. A checkout plus its build
+  # artefacts can be large; the cache guard and the daily Docker prune are
+  # what keep the disk from filling. Workspaces do not survive a re-create,
+  # which is fine because they are regenerable.
   workdir_parent: /var/lib/forgejo-runner/home/workspace
   # The security boundary for what a job container may mount: nothing.
   # A workflow that declares volumes fails rather than reading host
@@ -413,10 +366,10 @@ container:
   docker_host: "-"
   force_pull: false
   force_rebuild: false
-# Host-executor jobs (the nix:host label) run in a shell forked from
-# the daemon, directly on this VM. Their workspace goes on the data
-# volume rather than the disposable root disk, so a checkout and the
-# build artefacts it produces survive a re-create.
+# Host-executor jobs (the docker:host label) run in a shell forked from
+# the daemon, directly on this VM. Their workspace is on the same root disk;
+# the cache guard and the Docker prune bound it. The Nix rebuild job moved to
+# the host runner, so this executor no longer carries a Nix store.
 host:
   workdir_parent: /var/lib/forgejo-runner/home/workspace
 server:
@@ -459,13 +412,12 @@ EOF
     wants = [ "network-online.target" ];
 
     # A NixOS unit's PATH is coreutils/findutils/grep/sed/systemd and
-    # nothing else. Host-executor jobs (`runs-on: nix` or `docker`) fork a
-    # shell from this process and inherit its environment, so everything a
-    # job needs has to be here: nix and git for the work itself, docker for
-    # the image-build label, and -- easy to miss -- nodejs, because
-    # actions/checkout and any other JS action are run with a NodeJS that
-    # will NOT be installed for you. nodejs here is what keeps
-    # `actions/checkout` from failing on the host executor.
+    # nothing else. The `docker:host` executor forks a shell from this
+    # process and inherits its environment, so everything that job needs has
+    # to be here: git and docker for the work, and -- easy to miss -- nodejs,
+    # because actions/checkout and any other JS action are run with a NodeJS
+    # that will NOT be installed for you. `nix` is deliberately absent: the
+    # Nix rebuild job moved to the host runner.
     path = with pkgs; [
       bash
       coreutils
@@ -476,7 +428,6 @@ EOF
       gzip
       xz
       git
-      nix
       nodejs
       curl
       cacert
@@ -527,44 +478,42 @@ EOF
   };
 
   # ---------------------------------------------------------------------
-  # Image hygiene
+  # Docker hygiene
   # ---------------------------------------------------------------------
-  # Every job pulls its label's image, and pulled images are never
-  # deleted by Docker. Without this, /var/lib/docker on the root disk
-  # grows without bound -- the same reason the host runs a weekly
-  # crictl prune for k3s (see hosts/homelab/services/k3s.nix). Weekly
-  # rather than more often: a pruned image is re-pulled by the next job,
-  # so pruning mid-day only moves bytes.
+  # Every job pulls its label's image, and Docker never deletes images,
+  # stopped containers, unused volumes or build cache on its own. On the
+  # single 100 GiB disk those leftovers have to be bounded explicitly. The
+  # image prune is the expensive one -- a pruned image is re-pulled by the
+  # next job -- so it runs once a day, after the runner so it does not race
+  # an in-flight pull. Container/volume/builder prune are cheap and safe:
+  # they only remove objects nothing is using.
   systemd.services.forgejo-runner-prune = {
-    description = "Prune unused Docker images left by finished jobs";
+    description = "Prune unused Docker images, containers, volumes and build cache";
 
     serviceConfig = {
       Type = "oneshot";
-      # Docker's own client, by store path: a NixOS
-      # service gets a PATH of coreutils and little else, so the daemon has to
-      # be named in full rather than left to PATH.
-      ExecStart = "${pkgs.docker}/bin/docker image prune --all --force";
     };
 
-    # After the daemon so a prune never runs while a job is pulling;
-    # `docker image prune --all` skips images in use by a container, but
-    # an image being pulled is not in use yet.
+    script = ''
+      set -eu
+      docker=${pkgs.docker}/bin/docker
+
+      "$docker" container prune --force
+      "$docker" volume prune --all --force
+      "$docker" image prune --all --force
+      "$docker" builder prune --all --force
+    '';
+
     after = [ "forgejo-runner.service" ];
   };
 
   systemd.timers.forgejo-runner-prune = {
-    description = "Daily prune of unused Docker images";
+    description = "Daily prune of unused Docker data";
     wantedBy = [ "timers.target" ];
     timerConfig = {
-      # Daily, not weekly. A prune exists to stop unused images filling
-      # the disk, and being wrong about the interval is asymmetric: too
-      # long and a job cannot pull the image it needs, too short and a job
-      # re-pulls an image it used yesterday. Weekly was sized for a disk
-      # with room to spare; measured on the first real job, with one
-      # 5.06 GB CI image pulled, the root disk was at 97% and 360 MB free.
-      # `docker image prune --all` skips images a container is using, so a
-      # daily prune costs a re-pull only for an image unused for a day --
-      # which is precisely the case where reclaiming the space is the point.
+      # Daily, not weekly: the image prune costs a re-pull only for an image
+      # unused for a day, and that is exactly the case where reclaiming the
+      # space matters. The container/volume/builder prunes are cheap.
       OnCalendar = "daily";
       Persistent = true;
       RandomizedDelaySec = "30m";
@@ -580,25 +529,20 @@ EOF
   # incomplete for 5 minutes, unused for 7 days, or older than 30 days
   # (act/artifactcache/caches.go), and it runs at most hourly. A burst of
   # workflows with distinct Cargo.lock hashes can therefore create more
-  # multi-gigabyte sccache entries than a small volume can hold. When the
-  # data volume fills, the next job dies in "Set up job" because
-  # `git worktree add` cannot write its checkout into
+  # multi-gigabyte sccache entries than the disk can hold. When the root
+  # disk fills, the next job dies in "Set up job" because `git worktree
+  # add` cannot write its checkout into
   # /var/lib/forgejo-runner/home/workspace.
   #
   # This is the safety valve, not the cache policy. When free space on the
-  # data volume drops below 10 GiB, stop the daemon (it drains jobs up to
+  # root disk drops below 10 GiB, stop the daemon (it drains jobs up to
   # shutdown_timeout), remove the cache server's content-addressed blobs and
   # its BoltDB index, and start it again. Both are regenerable; secrets,
   # config.yaml, and job workspaces are untouched. The guard refuses to
   # delete anything if the daemon did not actually stop, so it can never
   # pull the cache out from under a running job.
   systemd.services.forgejo-runner-cache-guard = {
-    description = "Wipe the Forgejo runner artifact cache when the data volume is nearly full";
-
-    # If the data volume is not mounted, /var/lib/forgejo-runner is the
-    # volatile root disk; there is no cache here to protect and wiping it
-    # would be pointless.
-    unitConfig.RequiresMountsFor = [ "/var/lib/forgejo-runner" ];
+    description = "Wipe the Forgejo runner artifact cache when the root disk is nearly full";
 
     serviceConfig = {
       Type = "oneshot";
@@ -629,7 +573,7 @@ EOF
       [ "$avail" -lt "$threshold" ] || exit 0
 
       "$logger" -t forgejo-runner-cache-guard \
-        "data volume has $avail bytes free; wiping the artifact cache"
+        "root disk has $avail bytes free; wiping the artifact cache"
 
       # stop is explicit, so Restart=on-failure does not fight it.
       "$systemctl" stop "$runner" || true
@@ -648,7 +592,7 @@ EOF
   };
 
   systemd.timers.forgejo-runner-cache-guard = {
-    description = "Check the Forgejo runner data volume for cache pressure";
+    description = "Check the Forgejo runner root disk for cache pressure";
     wantedBy = [ "timers.target" ];
     timerConfig = {
       OnCalendar = "*:0/15";

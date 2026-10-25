@@ -981,9 +981,9 @@ ensure_volumes() {
     # moving out of k3s, its volume entry carries its own policy and there is no
     # global list anyone has to remember to update.
     #
-    # Omitting the key means never scheduled, which is what keeps
-    # forgejo-runner-data -- a runner token and a cache -- out of it without a
-    # special case anywhere.
+    # Omitting the key means never scheduled, which is what keeps volumes
+    # holding live credentials or disposable caches out of snapshots without
+    # a special case anywhere.
     #
     #   snapshots.schedule  a cron expression, a comma-separated list of Incus
     #                       aliases (@hourly @daily @midnight @weekly @monthly

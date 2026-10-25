@@ -1,5 +1,11 @@
 { ... }: {
-  # Weekly, not daily.
+  # Daily, not weekly.
+  #
+  # The host is now also the Nix builder for the NixOS-Config flake-lock
+  # gate. That job builds a fresh Dendra closure daily with `--no-link`; the
+  # outputs are unrooted, but they are large. A weekly 7-day window would
+  # hold a week of them. Daily/3d matches the NixOS-Config host's own policy
+  # and keeps the shared store bounded.
   #
   # Two separate knobs, and it is worth being precise about which does what,
   # because the obvious reading of the option below is wrong:
@@ -21,7 +27,7 @@
   # nix-collect-garbage deletes everything unreachable on every run.
   #
   # Retention therefore equals the interval, which is the point of running
-  # weekly: the window you keep is the window between sweeps.
+  # daily: the window you keep is the window between sweeps.
   #
   # `-d` is deliberately gone. It means "delete ALL old generations", which if
   # it took effect would make any age threshold meaningless, and its
@@ -30,7 +36,7 @@
   # deleted". One flag, one meaning, nothing to reason about.
   nix.gc = {
     automatic = true;
-    dates = "weekly";
-    options = "--delete-older-than 7d";
+    dates = "daily";
+    options = "--delete-older-than 3d";
   };
 }
