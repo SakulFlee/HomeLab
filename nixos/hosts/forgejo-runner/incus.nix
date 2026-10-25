@@ -195,7 +195,7 @@ in
       #
       # Keep the value in the spec: an undeclared size would be cleared by
       # the next Tofu apply.
-      size = "60GiB";
+      size = "120GiB";
     }
   ];
 
