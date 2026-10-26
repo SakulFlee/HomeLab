@@ -68,7 +68,7 @@ in
         job_level: info
       runner:
         # The connection comes from server.connections below. The file is kept
-        # only so a stray `forgejo-runner register` lands inside the state
+        # only so a stray forgejo-runner register lands inside the state
         # directory; no .runner file exists after this generator runs.
         file: .runner
         capacity: 1
