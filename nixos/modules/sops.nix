@@ -103,6 +103,28 @@
   sops.secrets.forgejo_runner_uuid = {};
   sops.secrets.forgejo_runner_token = {};
 
+  # The host Nix runner's persistent identity, separate from the VM runner.
+  # The config generator reads these, writes a 0400 config.yaml with
+  # server.connections, and removes the manual .runner file. The restart
+  # order matters: the generator must rewrite the config before the daemon
+  # starts against it.
+  sops.secrets.forgejo_nix_runner_uuid = {
+    owner = "forgejo-nix-runner";
+    mode = "0400";
+    restartUnits = [
+      "forgejo-nix-runner-config.service"
+      "forgejo-nix-runner.service"
+    ];
+  };
+  sops.secrets.forgejo_nix_runner_token = {
+    owner = "forgejo-nix-runner";
+    mode = "0400";
+    restartUnits = [
+      "forgejo-nix-runner-config.service"
+      "forgejo-nix-runner.service"
+    ];
+  };
+
   # Fluxer secrets (from upstream .env + k8s secret mapping)
   sops.secrets.fluxer_postgres_password = {};
   sops.secrets.fluxer_search_api_key = {};

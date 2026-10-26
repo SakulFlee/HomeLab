@@ -378,33 +378,25 @@ separate Forgejo runner on the HomeLab host, defined in
 uses the host's own Nix store. The workflow in NixOS-Config uses
 `runs-on: nix-rebuild`.
 
-The service starts only when `/var/lib/forgejo-nix-runner/.runner` exists.
-That file is created once, by the runner user, from a Forgejo registration
-token:
+The runner's uuid and token are in HomeLab's `nixos/secrets.yaml` as
+`forgejo_nix_runner_uuid` and `forgejo_nix_runner_token`. The
+`forgejo-nix-runner-config` oneshot reads those sops secrets and writes
+`/var/lib/forgejo-nix-runner/config.yaml` (`0400 forgejo-nix-runner`) with
+`server.connections`; it also removes any manual `.runner` file, because
+`FromRegistration()` refuses to combine a `.runner` file with
+`server.connections`. The daemon starts after the generator.
 
-1. Site Admin → Actions → Runners → Create new runner. Name it
-   `host-nix-rebuild`, label it `nix-rebuild:host`, and copy the
-   registration token.
-2. After the host has switched to this configuration:
-   ```bash
-   sudo -u forgejo-nix-runner sh -c '
-     cd /var/lib/forgejo-nix-runner &&
-     HOME=/var/lib/forgejo-nix-runner/home \
-       /run/current-system/sw/bin/forgejo-runner register \
-       --no-interactive \
-       --instance http://10.0.0.101:3000 \
-       --token <TOKEN> \
-       --name host-nix-rebuild \
-       --labels nix-rebuild:host'
-   sudo systemctl start forgejo-nix-runner
-   ```
-3. Confirm the Forgejo UI shows the runner online with only `nix-rebuild`.
-   The first flake-lock run should now land on the host.
+The token is not shown in the Forgejo UI after runner creation. The initial
+values came from the one-time `.runner` file written by
+`forgejo-runner register`; they are now the sops secrets. If the runner is
+deleted and recreated, update both sops values and let the host rebuild.
+There is no one-time manual registration command any more.
 
-The `.runner` file holds the uuid and token. It lives under a `0750` state
-directory, is not in the repository, and must not be copied into a backup
-that is not protected like a credential. The host's daily `nix.gc`
-(`nixos/modules/gc.nix`) collects the unrooted Dendra build outputs.
+The sops secrets are owned by `forgejo-nix-runner`, mode `0400`; the config
+generator (root) reads `/run/secrets` and writes the config the daemon
+reads. Their `restartUnits` restart the generator and the daemon on
+rotation. The host's daily `nix.gc` (`nixos/modules/gc.nix`) collects the
+unrooted Dendra build outputs.
 
 **Security.** A host-executor job runs its shell steps as
 `forgejo-nix-runner` on the host. The label limits which jobs this runner
