@@ -55,7 +55,7 @@ let
       folders = [ folderName ] ++ (map replicatedFolderId replicatedVolumes);
     };
     Phone = {
-      id = "XEHPA3V-IRL2YWY-NWZLQBD-BGQPA6M-6YMLMJ6-TWTLL4S-DQ4SWEH-LOCV2QU";
+      id = "OKWFZ4I-IQBJHO5-LKPGDYY-E7OMWIW-KHN7H4E-4WJWP6F-Q64BLAU-KWSR6QJ";
       folders = [ folderName ];
     };
     Tablet = {
