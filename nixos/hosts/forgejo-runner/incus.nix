@@ -62,7 +62,7 @@ in
   # disk again. Adjustable live with `incus config set`.
   limits = {
     memory = "12GiB";
-    cpu = "12";
+    cpu = "4";
   };
 
   # The root disk, sized. This is the VM's only disk: the NixOS closure
