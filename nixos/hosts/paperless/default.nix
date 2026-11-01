@@ -14,8 +14,24 @@
 # 26.05. See nixos/flake.nix for the pin and its rationale.
 { lib, pkgs, inputs, ... }:
 let
+  # 3.3.0 with one local fix. Tika's multipart endpoint (/tika/form/text) 500s
+  # on some OpenDocument files -- a bug that is still open upstream as
+  # TIKA-4110 and still reproducible with this instance's Tika 2.9.3. Paperless
+  # already carries the intended workaround (retry the same bytes against
+  # /tika/text, which parses them fine), but it only catches
+  # httpx.HTTPStatusError. tika-client 1.0 -- which paperless 3.3.0 itself
+  # requires -- wraps that in its own HttpStatusError, so the fallback never
+  # fired and the failure surfaced with an empty message. The patch matches on
+  # the status code instead of the exception class; see tika-fallback.patch.
+  # Re-check on every paperless bump: if upstream fixes the except clause (or
+  # Tika fixes TIKA-4110), drop the patch.
   paperlessPackage =
-    inputs.nixpkgs-paperless.legacyPackages.x86_64-linux.paperless-ngx;
+    (inputs.nixpkgs-paperless.legacyPackages.x86_64-linux.paperless-ngx).overrideAttrs
+      (old: {
+        postPatch = (old.postPatch or "") + ''
+          patch -p1 < ${./tika-fallback.patch}
+        '';
+      });
 in
 {
   networking.hostName = "paperless";
