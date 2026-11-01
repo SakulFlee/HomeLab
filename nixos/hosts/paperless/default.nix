@@ -14,6 +14,10 @@
 # 26.05. See nixos/flake.nix for the pin and its rationale.
 { lib, pkgs, inputs, ... }:
 let
+  # The pinned nixos-unstable rev, used for the paperless package (3.3.0) and
+  # for gotenberg below.
+  paperlessPkgs = inputs.nixpkgs-paperless.legacyPackages.x86_64-linux;
+
   # 3.3.0 with one local fix. Tika's multipart endpoint (/tika/form/text) 500s
   # on some OpenDocument files -- a bug that is still open upstream as
   # TIKA-4110 and still reproducible with this instance's Tika 2.9.3. Paperless
@@ -26,7 +30,7 @@ let
   # Re-check on every paperless bump: if upstream fixes the except clause (or
   # Tika fixes TIKA-4110), drop the patch.
   paperlessPackage =
-    (inputs.nixpkgs-paperless.legacyPackages.x86_64-linux.paperless-ngx).overrideAttrs
+    (paperlessPkgs.paperless-ngx).overrideAttrs
       (old: {
         postPatch = (old.postPatch or "") + ''
           patch -p1 < ${./tika-fallback.patch}
@@ -235,6 +239,32 @@ in
       # first view.
       PAPERLESS_THUMBNAIL_DIR = "/var/lib/paperless/media/documents/thumbnails";
     };
+  };
+
+  # ---------------------------------------------------------------------------
+  # Gotenberg from the paperless pin, not from 26.05
+  # ---------------------------------------------------------------------------
+  #
+  # `configureTika` above enables gotenberg, and the 26.05 module would take
+  # its package from 26.05: gotenberg 8.34.0 still paired with the classic
+  # `unoconv`. Paperless always asks gotenberg for `updateIndexes=false`
+  # (route.update_indexes(update_indexes=False) in the Tika parser, so authored
+  # auto-date fields are not refreshed), and gotenberg passes that to its
+  # converter as `--disable-update-indexes` -- a flag only gotenberg's own
+  # unoconverter fork understands. 26.05's unoconv answers
+  # "option --disable-update-indexes not recognized" and exits 255, which
+  # surfaces as "Error while converting document to PDF: " for EVERY
+  # Office/ODF upload, not just one file.
+  #
+  # The paperless pin ships gotenberg 8.36.0 packaged against that unoconverter
+  # instead, so take gotenberg from there. Its LibreOffice must come from the
+  # same pin as well: the unoconverter's wrapper is built against that exact
+  # LibreOffice's python/UNO, and using it against 26.05's LibreOffice would
+  # both mismatch the UNO client and pull a second LibreOffice closure into the
+  # image.
+  services.gotenberg = {
+    package = paperlessPkgs.gotenberg;
+    libreoffice.package = paperlessPkgs.libreoffice;
   };
 
   # ---------------------------------------------------------------------------

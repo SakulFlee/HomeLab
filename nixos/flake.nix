@@ -25,11 +25,13 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # A pinned nixos-unstable rev, for paperless-ngx 3.3.0 alone. nixos-26.05
-    # ships 2.20.15, which is older than the data given to the paperless
-    # instance and schema migrations only run forwards -- the same trap Forgejo
-    # documented above, mirrored by hosts/paperless/default.nix. Everything else
-    # stays on the 26.05 pin; only services.paperless.package pulls from here.
+    # A pinned nixos-unstable rev, for paperless-ngx 3.3.0 and its gotenberg.
+    # nixos-26.05 ships paperless 2.20.15, which is older than the data given
+    # to the paperless instance and schema migrations only run forwards -- the
+    # same trap Forgejo documented above, mirrored by hosts/paperless/default.nix.
+    # Its gotenberg is taken from here too because 26.05's packaging pairs
+    # gotenberg with an unoconv that rejects a flag paperless always sends (see
+    # that file). Everything else stays on the 26.05 pin.
     nixpkgs-paperless.url = "github:NixOS/nixpkgs/e7439b6b14ad3cc35d05608ebca9bce01a25f5f8";
 
     nixpkgs-opencode.url = "github:NixOS/nixpkgs/3ec636362e1816bc2f0888fa0fa2c69f1bc9e504";
