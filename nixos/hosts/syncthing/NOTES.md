@@ -84,12 +84,12 @@ kernel, so the budget is set once on the host in
 exceeded, Syncthing logs a failure and silently falls back to periodic rescans
 rather than erroring.
 
-## Replication standard (for producers: Paperless and later)
+## Replication standard (for producers: Minecraft, Hytale and later)
 
 This is the contract another instance follows to have its data replicated by
-this hub. The generator that consumes it is not wired yet -- it lands with the
-first producer, so that nothing dead ships before there is something to
-replicate. Until then, a producer's volume can be attached by hand.
+this hub. The list in `nixos/replicated-volumes.nix` is read by two consumers:
+`hosts/syncthing/incus.nix` mounts each volume read-only, and
+`hosts/syncthing/default.nix` declares the sendonly folder over it.
 
 1. **Store the data in a named Incus custom volume on the `persistent` pool.**
    Not a bind mount, not a path on the instance's root disk. The volume is what

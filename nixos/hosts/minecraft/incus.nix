@@ -1,6 +1,6 @@
 # Incus-level definition of the "minecraft" instance.
 #
-# this is the container, not the software inside it -- the volume list, the
+# This is the container, not the software inside it -- the volume list, the
 # device map, the limits, the forward.
 #
 # Two things make this instance different from the ones before it:
@@ -68,8 +68,7 @@ let
     # Archiving first and replicating the archives makes the replicated set small,
     # immutable and append-only.
     #
-    # The nesting is the same one  already does (media volume inside the
-    # data volume), so it is a shape this host has
+    # Nesting one volume inside another is a shape this host has already
     # verified rather than a new one.
     backups = {
       type = "disk";

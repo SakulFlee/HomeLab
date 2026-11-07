@@ -250,9 +250,9 @@ in
   # Same posture as every other instance, and here it is load-bearing rather
   # than tidy: the 25565 forward in ./incus.nix DNATs into this container, and a
   # guest firewall would be re-filtering traffic the host has already decided to
-  # admit. The forward IS the gate, exactly as Caddy's VPN gate is for. (The nixpkgs module's `openFirewall` option would open the port
-  # here instead; it is moot with the firewall disabled, which is why this file
-  # does not set it.)
+  # admit. The forward IS the gate. (The nixpkgs module's `openFirewall` option
+  # would open the port here instead; it is moot with the firewall disabled,
+  # which is why this file does not set it.)
   networking.firewall.enable = false;
 
   # The router, same as the other instances. Not optional: the fetch unit below
@@ -263,7 +263,7 @@ in
   services.openssh.enable = false;
 
   # curl, to reach the server's own log over the API at verification time, and
-  # to talk to the /syncthing instances by hand from in here.
+  # to talk to the syncthing instance by hand from in here.
   environment.systemPackages = [ pkgs.curl ];
 
   # -------------------------------------------------------------------------
@@ -274,8 +274,8 @@ in
   # from k3s has to land owned by a known uid, because the k3s pod's files are
   # owned by whatever uid its image chose and copying them in preserves that.
   # Deciding the target number here means the load is a chown to 988 rather than
-  # a question about what NixOS happened to allocate. 987 is ; 996 is
-  # qbittorrent.
+  # a question about what NixOS happened to allocate, and 988 is clear of
+  # qbittorrent (996).
   #
   # A home directory is deliberately not created: there is nothing to put in it,
   # and `install -d` below owns the only directory the service writes to.
@@ -293,8 +293,8 @@ in
   #
   # Incus creates a disk device's mount point as 0711 root:root, which is
   # correct for its purposes and useless to a service that has to write there.
-  # This is the same fix forgejo and  needed for the same reason, and
-  # `install -d` rather than a tmpfiles rule for the reason  gives:
+  # This is the same fix forgejo needed for the same reason, and `install -d`
+  # rather than a tmpfiles rule for the same reason:
   # tmpfiles runs independently of (and, in the general case, before) the rest
   # of activation, whereas this is ordered explicitly ahead of everything that
   # writes to the volume.
@@ -538,8 +538,8 @@ in
       # replicated. This is step 5 of the contract in ../syncthing/NOTES.md, and
       # the only part of that contract that is this instance's job.
       #
-      # A directory, not a file, which is what  does and what
-      # Syncthing has historically created. The systemd.tmpfiles rule at the
+      # A directory, not a file: that is the shape Syncthing expects and has
+      # historically created. The systemd.tmpfiles rule at the
       # bottom of this file owns 988 numerically; here the directory is simply
       # created by the account that owns it, which is the same uid by
       # construction rather than by agreement.
@@ -776,8 +776,8 @@ in
   # Declared here as well as written by minecraft-config.service, and the reason
   # is ordering rather than redundancy: tmpfiles rules are sorted by path, so
   # this one is created before the units that write into the volume, and it
-  # survives the volume being mounted empty. It is the same rule 
-  # carries, in the same shape, for the same reason.
+  # survives the volume being mounted empty. It is the same rule every
+  # data-bearing instance carries, in the same shape, for the same reason.
   #
   # `d` and not `f`, so a Syncthing folder works whether it expects a directory
   # or a file here.

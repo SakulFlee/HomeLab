@@ -198,8 +198,8 @@ the same reasoning as `minecraft-backups`, and for the same reasons:
   server's writes for it.
 - An archive is one immutable zip, written once, after `flushAll()`.
 
-This is the third producer in the scheme `paperless` established; the contract
-is `../syncthing/NOTES.md` ("Replication standard") and the list is
+This is the third producer in the replication scheme; the contract is
+`../syncthing/NOTES.md` ("Replication standard") and the list is
 `nixos/replicated-volumes.nix`. This instance's obligations:
 
 | obligation | where |

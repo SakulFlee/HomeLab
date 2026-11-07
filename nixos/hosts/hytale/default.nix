@@ -197,9 +197,9 @@ in
   # The service account
   # -------------------------------------------------------------------------
   #
-  # uid/gid 989, pinned, sitting between  (987) and minecraft (988) and
-  # clear of qbittorrent (996). The number matters for one reason: the data load
-  # from k3s has to land owned by a known uid, because the PVC's files are owned
+  # uid/gid 989, pinned, just above minecraft (988) and clear of qbittorrent
+  # (996). The number matters for one reason: the data load from k3s has to land
+  # owned by a known uid, because the PVC's files are owned
   # by whatever uid the old image chose and copying them in preserves that.
   # Deciding the target number here makes the load a chown to 989 rather than a
   # question about what NixOS happened to allocate.
@@ -237,8 +237,8 @@ in
   #
   # Incus creates a disk device's mount point as 0711 root:root, which is right
   # for its purposes and useless to a service that has to write there. Same fix
-  # forgejo,  and minecraft needed for the same reason, and `install -d`
-  # rather than a tmpfiles rule for the reason  gives: tmpfiles runs
+  # forgejo and minecraft needed for the same reason, and `install -d`
+  # rather than a tmpfiles rule for the same reason: tmpfiles runs
   # independently of (and in the general case before) the rest of activation,
   # whereas this is ordered explicitly ahead of everything that writes.
   #

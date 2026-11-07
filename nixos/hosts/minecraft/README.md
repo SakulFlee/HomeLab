@@ -97,8 +97,8 @@ That is a deliberate choice, not a limitation:
 - An archive is one immutable file per day. Small, append-only, and
   self-consistent by construction.
 
-This instance is the second producer in the scheme `paperless` established; the
-contract is `../syncthing/NOTES.md` ("Replication standard") and the list is
+This instance is the second producer in the replication scheme; the contract is
+`../syncthing/NOTES.md` ("Replication standard") and the list is
 `nixos/replicated-volumes.nix`. The producer's obligations, all of which
 `minecraft-config.service` and `minecraft-backup.service` meet:
 
