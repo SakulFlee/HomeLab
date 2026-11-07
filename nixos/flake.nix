@@ -25,17 +25,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    # A pinned nixos-unstable rev, for paperless-ngx 3.3.0 and its gotenberg.
-    # nixos-26.05 ships paperless 2.20.15, which is older than the data given
-    # to the paperless instance and schema migrations only run forwards -- the
-    # same trap Forgejo documented above, mirrored by hosts/paperless/default.nix.
-    # Its gotenberg is taken from here too because 26.05's packaging pairs
-    # gotenberg with an unoconv that rejects a flag paperless always sends (see
-    # that file). Everything else stays on the 26.05 pin.
-    nixpkgs-paperless.url = "github:NixOS/nixpkgs/e7439b6b14ad3cc35d05608ebca9bce01a25f5f8";
-
     nixpkgs-opencode.url = "github:NixOS/nixpkgs/3ec636362e1816bc2f0888fa0fa2c69f1bc9e504";
-
   };
 
   outputs = { self, nixpkgs, ... }@inputs:
@@ -272,9 +262,7 @@
         # The Syncthing replication hub. A container: one static Go binary, no
         # kernel of its own required.
         syncthing = mkInstance { path = ./hosts/syncthing; };
-        # Paperless, VPN-only behind Caddy. No networkForward -- the vhost
-        # cutover stays a separate hand-off.
-        paperless = mkInstance { path = ./hosts/paperless; };
+        # OpenCode coding agent
         opencode = mkInstance { path = ./hosts/opencode; };
         # Minecraft. A container: a JVM and a jar, no kernel of its own and no
         # device to pass through. Its 25565/tcp forward is the cutover -- there
@@ -307,7 +295,6 @@
         image-dns = self.nixosConfigurations.dns.config.system.build.squashfs;
         image-forgejo = self.nixosConfigurations.forgejo.config.system.build.squashfs;
         image-syncthing = self.nixosConfigurations.syncthing.config.system.build.squashfs;
-        image-paperless = self.nixosConfigurations.paperless.config.system.build.squashfs;
         image-opencode = self.nixosConfigurations.opencode.config.system.build.squashfs;
         image-minecraft = self.nixosConfigurations.minecraft.config.system.build.squashfs;
         image-hytale = self.nixosConfigurations.hytale.config.system.build.squashfs;

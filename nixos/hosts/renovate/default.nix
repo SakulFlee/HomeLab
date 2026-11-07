@@ -299,12 +299,6 @@ in
     # root:root is right for it: systemd reads the file as root before dropping
     # to the renovate user, and the values appear in neither the unit file nor
     # `systemctl show -p Environment`.
-    #
-    # It is `EnvironmentFile` inside serviceConfig rather than a top-level
-    # `environmentFile` because there is no such option for a generic unit --
-    # services.caddy and services.paperless each define their own, and the only
-    # spelling that reaches an arbitrary service is the systemd directive.
-
     serviceConfig = {
       EnvironmentFile = [
         "${secretsDir}/renovate-token-env"

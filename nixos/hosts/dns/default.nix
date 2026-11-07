@@ -19,7 +19,6 @@ let
   vpnOnlyNames = [
     "incus"
     "opencode"
-    "paperless"
     "syncthing"
     "vpn"
     "ttyd"

@@ -32,4 +32,4 @@
 # flushes its own resources to disk before zipping them. That is why this one can
 # be produced with zero downtime while minecraft-backups cannot -- see
 # hosts/hytale/default.nix for the evidence and hosts/hytale/README.md.
-[ "paperless-media" "minecraft-backups" "hytale-backups" ]
+[ "minecraft-backups" "hytale-backups" ]

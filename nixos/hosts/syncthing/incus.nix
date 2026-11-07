@@ -70,7 +70,6 @@ let
   #
   #   hub instance started        02:29:37
   #   minecraft-backups created   02:31:26     <- two minutes too late
-  #   /proc/self/mounts           only paperless-media
   #
   # `required = false` is what makes this quiet: a missing volume is a legitimate
   # ordering state, not an error, so nothing is logged and no unit fails.
@@ -78,10 +77,6 @@ let
   # THE RULE: after adding a producer, RESTART the hub --
   # `incus restart syncthing` -- or the new volume is never replicated. Reconcile
   # alone is not enough, and the folder will look fine in the WebUI.
-  #
-  # paperless-media only ever worked because the hub happened to be restarted
-  # after its volume existed. Every producer added to a hub that is already up
-  # needs this.
   replicatedDevices = builtins.listToAttrs (builtins.map (name: {
     name = name;
     value = {

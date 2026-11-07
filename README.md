@@ -9,18 +9,18 @@ removed; the remaining HTTP entry point is the `caddy` Incus instance.
 
 ## Layout
 
-| path | what it is |
-| --- | --- |
-| `nixos/` | the flake; host and guest NixOS configurations |
-| `nixos/hosts/homelab/` | the bare-metal host |
-| `nixos/hosts/<name>/` | one guest: `default.nix` is the OS, `incus.nix` is the Incus definition |
-| `nixos/incus-instances.nix` | the registry of guests |
-| `incus/gen-tf.sh` | builds guest images and regenerates the Tofu JSON |
-| `incus/infra/` | OpenTofu provider and static infrastructure |
-| `incus/import.sh` | one-time adoption / disaster-recovery import tool |
-| `AGENTS.md` | operating rules, including add/remove deployment checklists |
-| `incus/README.md` | image, secret, network and provider details |
-| `nixos/README.md` | host onboarding and NixOS layout |
+| path                        | what it is                                                              |
+| --------------------------- | ----------------------------------------------------------------------- |
+| `nixos/`                    | the flake; host and guest NixOS configurations                          |
+| `nixos/hosts/homelab/`      | the bare-metal host                                                     |
+| `nixos/hosts/<name>/`       | one guest: `default.nix` is the OS, `incus.nix` is the Incus definition |
+| `nixos/incus-instances.nix` | the registry of guests                                                  |
+| `incus/gen-tf.sh`           | builds guest images and regenerates the Tofu JSON                       |
+| `incus/infra/`              | OpenTofu provider and static infrastructure                             |
+| `incus/import.sh`           | one-time adoption / disaster-recovery import tool                       |
+| `AGENTS.md`                 | operating rules, including add/remove deployment checklists             |
+| `incus/README.md`           | image, secret, network and provider details                             |
+| `nixos/README.md`           | host onboarding and NixOS layout                                        |
 
 On the homelab host this repository is `/etc/nixos`, and the flake is
 `/etc/nixos/nixos`.
@@ -70,22 +70,21 @@ instance, so expect a short interruption when that is applied.
 
 ## Current guests
 
-| guest | kind | role |
-| --- | --- | --- |
-| `caddy` | container | TLS and HTTP reverse proxy |
-| `dns` | container | split-horizon DNS |
-| `forgejo` | container | git forge and package registry |
-| `forgejo-runner` | VM | Forgejo Actions runner |
-| `fluxer` | VM | self-hosted chat |
-| `paperless` | container | document management, VPN-only through Caddy |
-| `opencode` | container | headless OpenCode server and web UI, VPN-only through Caddy |
-| `syncthing` | container | replication hub |
-| `minecraft` | container | Minecraft server |
-| `hytale` | container | Hytale server |
-| `cloudflare-ddns` | container | DNS record updater |
-| `renovate` | container | dependency updates |
-| `website` | VM | public website |
-| `wireguard` | VM | VPN and WireGuard UI |
+| guest             | kind      | role                                                        |
+| ----------------- | --------- | ----------------------------------------------------------- |
+| `caddy`           | container | TLS and HTTP reverse proxy                                  |
+| `dns`             | container | split-horizon DNS                                           |
+| `forgejo`         | container | git forge and package registry                              |
+| `forgejo-runner`  | VM        | Forgejo Actions runner                                      |
+| `fluxer`          | VM        | self-hosted chat                                            |
+| `opencode`        | container | headless OpenCode server and web UI, VPN-only through Caddy |
+| `syncthing`       | container | replication hub                                             |
+| `minecraft`       | container | Minecraft server                                            |
+| `hytale`          | container | Hytale server                                               |
+| `cloudflare-ddns` | container | DNS record updater                                          |
+| `renovate`        | container | dependency updates                                          |
+| `website`         | VM        | public website                                              |
+| `wireguard`       | VM        | VPN and WireGuard UI                                        |
 
 `forgejo` lives in its own Incus project; everything else is in `default`.
 

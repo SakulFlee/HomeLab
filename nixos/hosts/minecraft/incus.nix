@@ -1,6 +1,5 @@
 # Incus-level definition of the "minecraft" instance.
 #
-# See ../paperless/incus.nix for what belongs in this file versus default.nix:
 # this is the container, not the software inside it -- the volume list, the
 # device map, the limits, the forward.
 #
@@ -69,8 +68,8 @@ let
     # Archiving first and replicating the archives makes the replicated set small,
     # immutable and append-only.
     #
-    # The nesting is the same one paperless already does (media volume inside the
-    # data volume, see ../paperless/incus.nix), so it is a shape this host has
+    # The nesting is the same one  already does (media volume inside the
+    # data volume), so it is a shape this host has
     # verified rather than a new one.
     backups = {
       type = "disk";
