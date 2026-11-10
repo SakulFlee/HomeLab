@@ -7,6 +7,10 @@
     # as opposed to the read-only "incus" group.
     extraGroups = [ "networkmanager" "wheel" "video" "render" "uinput" "i2c" "incus-admin" ];
     shell = pkgs.zsh;
+
+    openssh.authorizedKeys.keys = [
+      "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIImnWUykSX10iZYDF4g0bqy/uOXppRwWodtmg3iYBfBS sakulflee@nixos"
+    ];
   };
 
   programs.git = {
