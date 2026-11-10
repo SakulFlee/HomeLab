@@ -40,7 +40,7 @@ let
   # the host's forwarded 192.168.178.200:22000, not the other way round.
   peers = {
     Dendra = {
-      id = "CE73BZP-A3YF252-42C5OL6-K7KIN3M-MUA7M5A-IRG2WAR-DF3MPKD-SAFPZAJ";
+      id = "GMQ3EOU-32GILHF-UBRDVFT-QIRF2MP-GMECRHR-B77C3FM-SFYWI57-BSPFIQG";
       # An introducer is trusted to introduce other devices and folders to this
       # server, accepted without a manual WebUI accept. That is power, so it
       # belongs to the admin's own device only; a peer gets it by deliberate
