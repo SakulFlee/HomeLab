@@ -1,0 +1,73 @@
+{
+	email dev@sakul-flee.de
+	acme_dns cloudflare {env.CF_API_TOKEN}
+}
+
+# Admin services are reachable from the LAN and the WireGuard tunnel only.
+# The source address is the real client because admin DNS names are not
+# Cloudflare-proxied.
+(vpn_only) {
+	@notvpn not remote_ip 100.64.0.0/10 192.168.178.0/24
+	respond @notvpn "This service is reachable over the LAN or VPN only.\n" 403
+}
+
+# ---------------------------------------------------------------------------
+# Public services
+# ---------------------------------------------------------------------------
+
+forgejo.sakul-flee.de, code.sakul-flee.de, ci.sakul-flee.de, git.sakul-flee.de, issues.sakul-flee.de, pr.sakul-flee.de {
+	reverse_proxy forgejo:3000 {
+		header_up Host {http.request.host}
+	}
+}
+
+fluxer.sakul-flee.de {
+	reverse_proxy fluxer-edge:8080 {
+		header_up Host {http.request.host}
+	}
+}
+
+sakul-flee.de, www.sakul-flee.de {
+	reverse_proxy website:80 {
+		header_up Host {http.request.host}
+	}
+}
+
+# ---------------------------------------------------------------------------
+# Admin services (LAN/VPN only)
+# ---------------------------------------------------------------------------
+
+opencode.sakul-flee.de {
+	import vpn_only
+
+	reverse_proxy opencode:4096 {
+		header_up Host {http.request.host}
+		flush_interval -1
+	}
+}
+
+syncthing.sakul-flee.de {
+	import vpn_only
+
+	reverse_proxy syncthing:8384 {
+		header_up Host {http.request.host}
+	}
+}
+
+vpn.sakul-flee.de, wireguard-ui.sakul-flee.de {
+	import vpn_only
+
+	# wg-easy runs with host networking, so reach the host address rather
+	# than a container name.
+	reverse_proxy http://192.168.178.200:51821 {
+		header_up Host {http.request.host}
+	}
+}
+
+dockge.sakul-flee.de {
+	import vpn_only
+
+	reverse_proxy dockge:5001 {
+		header_up Host {http.request.host}
+	}
+}

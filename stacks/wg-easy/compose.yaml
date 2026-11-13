@@ -1,0 +1,38 @@
+name: wg-easy
+
+services:
+  wg-easy:
+    image: ghcr.io/wg-easy/wg-easy:15
+    container_name: wg-easy
+    restart: unless-stopped
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    sysctls:
+      net.ipv4.ip_forward: "1"
+      net.ipv4.conf.all.src_valid_mark: "1"
+    env_file:
+      - path: /run/homelab/secrets/wg-easy.env
+        required: false
+    environment:
+      HOST: 0.0.0.0
+      PORT: "51821"
+      WG_HOST: vpn.sakul-flee.de
+      WG_PORT: "51820"
+      WG_DEFAULT_ADDRESS: 100.64.0.x
+      WG_DEFAULT_DNS: 192.168.178.200
+      WG_ALLOWED_IPS: 0.0.0.0/0,::/0
+      WG_PERSISTENT_KEEPALIVE: "25"
+      WG_MTU: "1420"
+      # Full-tunnel NAT. The host NIC is eno1 on the current hardware.
+      WG_POST_UP: >-
+        iptables -t nat -A POSTROUTING -s 100.64.0.0/24 -o eno1 -j MASQUERADE;
+        iptables -A FORWARD -i wg0 -j ACCEPT;
+        iptables -A FORWARD -o wg0 -j ACCEPT
+      WG_POST_DOWN: >-
+        iptables -t nat -D POSTROUTING -s 100.64.0.0/24 -o eno1 -j MASQUERADE;
+        iptables -D FORWARD -i wg0 -j ACCEPT;
+        iptables -D FORWARD -o wg0 -j ACCEPT
+    volumes:
+      - /srv/docker/wg-easy:/etc/wireguard

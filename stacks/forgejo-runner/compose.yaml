@@ -1,0 +1,21 @@
+name: forgejo-runner
+
+services:
+  runner:
+    image: code.forgejo.org/forgejo/runner:13
+    container_name: forgejo-runner
+    restart: unless-stopped
+    user: "0:0"
+    command: ["daemon", "--config", "/config.yaml"]
+    environment:
+      DOCKER_HOST: unix:///var/run/docker.sock
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /srv/docker/forgejo-runner:/data
+      - /run/homelab/secrets/forgejo-runner/config.yaml:/config.yaml:ro
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true

@@ -1,0 +1,24 @@
+name: hytale
+
+services:
+  hytale:
+    build:
+      context: .
+    image: homelab/hytale:local
+    container_name: hytale
+    restart: unless-stopped
+    user: "989:989"
+    stop_grace_period: 5m
+    mem_limit: 8g
+    ports:
+      - "5520:5520/udp"
+    volumes:
+      - /srv/docker/hytale/data:/data
+      - /srv/docker/hytale/secrets:/secrets
+      # Must exist before the container starts. It is the machine id that
+      # auth.enc was encrypted under; losing it costs a device-code login.
+      - /srv/docker/hytale/machine-id:/etc/machine-id:ro
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535

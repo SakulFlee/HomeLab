@@ -1,0 +1,28 @@
+name: renovate
+
+services:
+  renovate:
+    image: renovate/renovate:44-full
+    container_name: renovate
+    restart: "no"
+    profiles: ["renovate"]
+    env_file:
+      - path: /run/homelab/secrets/renovate.env
+        required: false
+    environment:
+      RENOVATE_PLATFORM: forgejo
+      RENOVATE_ENDPOINT: https://forgejo.sakul-flee.de/api/v1
+      RENOVATE_AUTODISCOVER: "true"
+      RENOVATE_CLONE_SUBMODULES: "true"
+      RENOVATE_ALLOWED_UNSAFE_EXECUTIONS: gradleWrapper
+      LOG_LEVEL: info
+      RENOVATE_BASE_DIR: /data
+      RENOVATE_CACHE_DIR: /data/cache
+    volumes:
+      - /srv/docker/renovate:/data
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true

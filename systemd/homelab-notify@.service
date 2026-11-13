@@ -1,0 +1,7 @@
+[Unit]
+Description=Notify about a failed HomeLab unit (%i)
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/homelab/notify.env
+ExecStart=/opt/homelab/scripts/notify-failure.sh %i

@@ -1,0 +1,21 @@
+name: cloudflare-ddns
+
+services:
+  cloudflare-ddns:
+    image: favonia/cloudflare-ddns:1
+    container_name: cloudflare-ddns
+    restart: unless-stopped
+    env_file:
+      - path: /run/homelab/secrets/cloudflare-ddns.env
+        required: false
+    environment:
+      DOMAINS: "sakul-flee.de,wg.sakul-flee.de"
+      PROXIED: "false"
+      IP6_PROVIDER: "none"
+      TTL: "120"
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true

@@ -1,0 +1,14 @@
+[Unit]
+Description=Run Renovate once against Forgejo
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+OnFailure=homelab-notify@%n.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/homelab
+EnvironmentFile=-/etc/homelab/notify.env
+ExecStart=/opt/homelab/scripts/renovate.sh
+TimeoutStartSec=4h
+Nice=10

@@ -1,0 +1,26 @@
+name: minecraft
+
+services:
+  minecraft:
+    image: eclipse-temurin:25-jre
+    container_name: minecraft
+    restart: unless-stopped
+    working_dir: /data
+    command: >
+      java
+      -Xms1G
+      -Xmx2G
+      -XX:+UseG1GC
+      -XX:MaxGCPauseMillis=200
+      -XX:+ParallelRefProcEnabled
+      -XX:+DisableExplicitGC
+      -jar server.jar nogui
+    user: "988:988"
+    stop_grace_period: 5m
+    mem_limit: 3g
+    stdin_open: true
+    tty: true
+    ports:
+      - "25565:25565"
+    volumes:
+      - /srv/docker/minecraft:/data

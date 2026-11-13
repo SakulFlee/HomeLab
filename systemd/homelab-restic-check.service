@@ -1,0 +1,13 @@
+[Unit]
+Description=Verify the local restic repository
+OnFailure=homelab-notify@%n.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/homelab
+EnvironmentFile=-/etc/homelab/notify.env
+ExecStart=/opt/homelab/scripts/restic-check.sh
+TimeoutStartSec=12h
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7

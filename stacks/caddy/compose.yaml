@@ -1,0 +1,29 @@
+name: caddy
+
+services:
+  caddy:
+    build:
+      context: .
+    image: homelab/caddy:local
+    container_name: caddy
+    restart: unless-stopped
+    entrypoint:
+      - /bin/sh
+      - -c
+      - |
+        export CF_API_TOKEN="$$(cat /run/secrets/cloudflare_api_token)"
+        exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - /srv/docker/caddy:/data
+      - /run/homelab/secrets:/run/secrets:ro
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true

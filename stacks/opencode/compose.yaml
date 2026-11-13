@@ -1,0 +1,34 @@
+name: opencode
+
+services:
+  opencode:
+    image: ghcr.io/anomalyco/opencode:2.1.1
+    container_name: opencode
+    restart: unless-stopped
+    user: "990:990"
+    working_dir: /srv/workspace
+    command: ["serve", "--hostname", "0.0.0.0", "--port", "4096"]
+    env_file:
+      - path: /run/homelab/secrets/opencode.env
+        required: false
+    environment:
+      HOME: /var/lib/opencode
+      XDG_CONFIG_HOME: /var/lib/opencode/.config
+      XDG_DATA_HOME: /var/lib/opencode/.local/share
+      XDG_STATE_HOME: /var/lib/opencode/.local/state
+      XDG_CACHE_HOME: /var/lib/opencode/.cache
+      XDG_RUNTIME_DIR: /tmp/opencode
+      OPENCODE_CONFIG: /etc/opencode/opencode.json
+      OPENCODE_DISABLE_AUTOUPDATE: "1"
+      OPENCODE_SERVER_USERNAME: opencode
+      BROWSER: /bin/true
+    volumes:
+      - /srv/docker/opencode/home:/var/lib/opencode
+      - /srv/docker/opencode/workspace:/srv/workspace
+      - ./opencode.json:/etc/opencode/opencode.json:ro
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true

@@ -1,0 +1,24 @@
+name: syncthing
+
+services:
+  syncthing:
+    image: syncthing/syncthing:2
+    container_name: syncthing
+    restart: unless-stopped
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+      STGUIADDRESS: "0.0.0.0:8384"
+    volumes:
+      - /srv/docker/syncthing/config:/var/syncthing
+      - /srv/docker/syncthing/data:/data
+    ports:
+      - "192.168.178.200:8384:8384"
+      - "22000:22000/tcp"
+      - "22000:22000/udp"
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true

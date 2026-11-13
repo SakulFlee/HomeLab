@@ -1,0 +1,11 @@
+[Unit]
+Description=Weekly restic verification
+
+[Timer]
+OnCalendar=Sun *-*-* 04:30:00
+RandomizedDelaySec=20min
+Persistent=true
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target

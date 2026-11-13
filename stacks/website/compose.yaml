@@ -1,0 +1,14 @@
+name: website
+
+services:
+  website:
+    image: forgejo.sakul-flee.de/sakulflee/website:latest
+    container_name: website
+    restart: unless-stopped
+    pull_policy: always
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true

@@ -1,0 +1,37 @@
+# Keep Fluxer's upstream compose files vendored and only override what the
+# homelab host needs: bind-mounted data and the shared proxy network.
+services:
+  edge:
+    container_name: fluxer-edge
+    networks:
+      fluxer:
+      proxy:
+    volumes: !override
+      - ./vendor/Caddyfile:/etc/caddy/Caddyfile:ro
+      - /srv/docker/fluxer/edge-data:/data
+      - /srv/docker/fluxer/edge-config:/config
+
+  postgres:
+    container_name: fluxer-postgres
+    volumes: !override
+      - /srv/docker/fluxer/postgres-data:/var/lib/postgresql/data
+
+  valkey:
+    volumes: !override
+      - /srv/docker/fluxer/valkey-data:/data
+
+  nats:
+    volumes: !override
+      - /srv/docker/fluxer/nats-data:/data
+
+  meilisearch:
+    volumes: !override
+      - /srv/docker/fluxer/meilisearch-data:/meili_data
+
+  seaweedfs:
+    volumes: !override
+      - /srv/docker/fluxer/seaweedfs-data:/data
+
+networks:
+  proxy:
+    external: true

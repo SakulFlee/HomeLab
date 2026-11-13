@@ -1,124 +1,74 @@
-# HomeLab
+# HomeLab v2
 
-A NixOS homelab managed as code. The bare-metal host runs Incus; the guests are
-built as NixOS containers or VMs, and their Incus lifecycle is owned by
-OpenTofu.
+Debian 13 + Docker Compose homelab. This branch (`v2`) is the replacement for
+the NixOS + Incus configuration on `main`.
 
-This is **not** a Kubernetes/Flux repository any more. k3s and Flux have been
-removed; the remaining HTTP entry point is the `caddy` Incus instance.
+The full migration plan is in [PLAN.md](PLAN.md).
 
 ## Layout
 
-| path                        | what it is                                                              |
-| --------------------------- | ----------------------------------------------------------------------- |
-| `nixos/`                    | the flake; host and guest NixOS configurations                          |
-| `nixos/hosts/homelab/`      | the bare-metal host                                                     |
-| `nixos/hosts/<name>/`       | one guest: `default.nix` is the OS, `incus.nix` is the Incus definition |
-| `nixos/incus-instances.nix` | the registry of guests                                                  |
-| `incus/gen-tf.sh`           | builds guest images and regenerates the Tofu JSON                       |
-| `incus/infra/`              | OpenTofu provider and static infrastructure                             |
-| `incus/import.sh`           | one-time adoption / disaster-recovery import tool                       |
-| `AGENTS.md`                 | operating rules, including add/remove deployment checklists             |
-| `incus/README.md`           | image, secret, network and provider details                             |
-| `nixos/README.md`           | host onboarding and NixOS layout                                        |
+| path | purpose |
+| --- | --- |
+| `stacks/` | one Docker Compose stack per service |
+| `scripts/` | host bootstrap, deploy, backup, restore and secret rendering |
+| `systemd/` | host units and timers |
+| `secrets/secrets.yaml` | sops-encrypted secrets |
+| `docs/` | operational notes and runbooks |
 
-On the homelab host this repository is `/etc/nixos`, and the flake is
-`/etc/nixos/nixos`.
+Service data lives on bind mounts under `/srv/docker/<service>`. Backups live on
+the SATA SSD under `/srv/backup`.
 
-## How a deploy works
+## Host
 
-The registry and the per-host Nix files are the source of truth:
+- Debian 13, btrfs, NVMe for OS/live data, SATA SSD for backups.
+- Host SSH: `2222`.
+- Forgejo Git SSH: `22`.
+- LUKS root with dropbear-initramfs remote unlock on `2222` during initramfs.
 
-```text
-nixos/incus-instances.nix
-        │
-        ├── nixos/hosts/<name>/default.nix   guest OS
-        └── nixos/hosts/<name>/incus.nix     limits, volumes, devices, secrets
-                    │
-                    ▼
-              nixos/flake.nix outputs
-                    │
-                    ▼
-              incus/gen-tf.sh
-                    │  builds images + writes generated.tf.json
-                    ▼
-              tofu plan / apply
-                    │
-                    ▼
-              Incus resources
-```
+## First setup
 
-Secrets are the one exception: the host decrypts sops values and
-`incus-secrets.service` renders them into the guests. Tofu never holds
-plaintext secrets.
-
-Normal deploy, run on the host:
+On a fresh Debian 13 host:
 
 ```bash
-cd /etc/nixos
-incus/gen-tf.sh
-cd incus/infra
-tofu plan -out=deploy.tfplan
-tofu apply deploy.tfplan
-systemctl start incus-secrets.service
-tofu plan   # must be clean
+sudo apt-get update
+sudo apt-get install -y git
+sudo git clone ssh://forgejo@forgejo.sakul-flee.de/SakulFlee/HomeLab.git /opt/homelab
+sudo git -C /opt/homelab checkout v2
+sudo /opt/homelab/scripts/bootstrap.sh
 ```
 
-The host updater can apply safe plans automatically after a host rebuild.
-Destructive plans are blocked for manual review; an image change replaces the
-instance, so expect a short interruption when that is applied.
-
-## Current guests
-
-| guest             | kind      | role                                                        |
-| ----------------- | --------- | ----------------------------------------------------------- |
-| `caddy`           | container | TLS and HTTP reverse proxy                                  |
-| `dns`             | container | split-horizon DNS                                           |
-| `forgejo`         | container | git forge and package registry                              |
-| `forgejo-runner`  | VM        | Forgejo Actions runner                                      |
-| `fluxer`          | VM        | self-hosted chat                                            |
-| `opencode`        | container | headless OpenCode server and web UI, VPN-only through Caddy |
-| `syncthing`       | container | replication hub                                             |
-| `minecraft`       | container | Minecraft server                                            |
-| `hytale`          | container | Hytale server                                               |
-| `cloudflare-ddns` | container | DNS record updater                                          |
-| `renovate`        | container | dependency updates                                          |
-| `website`         | VM        | public website                                              |
-| `wireguard`       | VM        | VPN and WireGuard UI                                        |
-
-`forgejo` lives in its own Incus project; everything else is in `default`.
-
-## Storage
-
-There is one Incus pool, `persistent` (btrfs). Anything that must survive an
-instance replacement is declared as a volume in that instance's `incus.nix`.
-Snapshots are declared per volume, not inherited from a pool.
-
-A volume's presence in an instance spec also makes it Tofu-owned: removing the
-instance from the registry plans the volume for destruction. Read the removal
-checklist in `AGENTS.md` before removing a data-bearing guest.
-
-## Adding or removing a guest
-
-Start with the checklists in `AGENTS.md`. The short version:
-
-- **Add:** create `nixos/hosts/<name>/{default,incus}.nix`, add the registry
-  entry and `nixosConfigurations` entry, add secrets/projects/forwards as
-  needed, then `incus/gen-tf.sh` and a reviewed `tofu apply`.
-- **Remove:** remove external routes and secrets first, back up data, remove the
-  registry/config entries, inspect the plan, and explicitly decide whether the
-  volumes are destroyed or retained.
-
-## Emergency operation
-
-Use `incus` for inspection and recovery, but not as a second source of truth:
+Then restore data and run:
 
 ```bash
-incus list --all-projects -c n,p,s
-incus exec <name> -- systemctl --failed --no-pager
-tofu -chdir=/etc/nixos/incus/infra state list
-tofu -chdir=/etc/nixos/incus/infra plan
+sudo /opt/homelab/scripts/render-secrets.sh
+sudo /opt/homelab/scripts/deploy.sh --force
 ```
 
-If a VM reports `maintenance` from `systemctl is-system-running`, its boot
-dependencies failed; check `boot.mount` before assuming the workload is broken.
+## Normal operation
+
+```bash
+sudo /opt/homelab/scripts/deploy.sh      # pull, validate, deploy, health-check
+sudo /opt/homelab/scripts/backup.sh      # dumps + restic + repo snapshot
+sudo /opt/homelab/scripts/restic-copy.sh # copy to Dendra when reachable
+```
+
+Timers run these automatically after the host has been verified.
+
+## Secrets
+
+Secrets are encrypted with sops/age in `secrets/secrets.yaml`. The host's age
+key is derived from `/etc/ssh/ssh_host_ed25519_key` unless a dedicated age key
+is configured. Keep a copy of the age key offline.
+
+## Migration
+
+See [PLAN.md](PLAN.md) for the full migration, cutover and restore runbook. The
+short version:
+
+1. Back up Forgejo, Fluxer, Minecraft and Hytale to Dendra.
+2. Stage the new stacks on the laptop.
+3. Install Debian 13 on the homelab NVMe.
+4. Restore the bind-mounted data to `/srv/docker`.
+5. Start the stacks, verify, then format the SATA disk as `/srv/backup`.
+6. Enable deploy/backup timers.
+7. Merge `v2` into `main` after a stable period.

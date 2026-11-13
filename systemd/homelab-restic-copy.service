@@ -1,0 +1,15 @@
+[Unit]
+Description=Copy the local restic repository to Dendra
+After=network-online.target
+Wants=network-online.target
+OnFailure=homelab-notify@%n.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/homelab
+EnvironmentFile=-/etc/homelab/notify.env
+ExecStart=/opt/homelab/scripts/restic-copy.sh
+TimeoutStartSec=6h
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7

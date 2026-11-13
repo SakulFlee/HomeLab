@@ -9,7 +9,7 @@ creation_rules:
   # the next re-encrypt would have quietly dropped five recipients and locked
   # those keys out. So the list below is the file's actual recipient set, copied
   # from its sops.age block, and it must stay that way.
-  - path_regex: nixos/secrets\.yaml$
+  - path_regex: secrets/secrets\.yaml$
     key_groups:
       - age:
           - age1gsqf94w28l0rv8khatmwtx0tnakvafj7m0xrtl92axl6ecte5qgqxreytu

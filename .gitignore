@@ -20,3 +20,8 @@ incus/infra/terraform.tfstate.*
 incus/infra/.terraform.tfstate.lock.info
 incus/infra/*.tfplan
 incus/infra/crash.log
+
+# v2 runtime files. Secrets are rendered under /run/homelab, not committed.
+stacks/*/.env
+stacks/fluxer/.env
+secrets/plain/

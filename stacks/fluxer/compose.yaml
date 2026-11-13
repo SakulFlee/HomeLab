@@ -1,0 +1,4 @@
+include:
+  - path: vendor/docker-compose.yml
+  - path: vendor/docker-compose.proxy.yml
+  - path: compose.override.yaml
