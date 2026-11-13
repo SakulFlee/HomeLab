@@ -188,11 +188,13 @@ sudo docker compose -f stacks/hytale/compose.yaml down
 Extract the filesystem volumes:
 
 ```bash
-sudo tar -xf /srv/migration/forgejo-data.tar -C /srv/docker/forgejo/data
-sudo tar -xf /srv/migration/minecraft-data.tar -C /srv/docker/minecraft
-sudo tar -xf /srv/migration/hytale-data.tar -C /srv/docker/hytale/data
-sudo tar -xf /srv/migration/hytale-secrets.tar -C /srv/docker/hytale/secrets
-sudo tar -xf /srv/migration/hytale-backups.tar -C /srv/docker/hytale/data/Server/backups
+# Incus exports wrap the payload in backup/volume/. Strip those two
+# components so the volume contents land directly in the target directory.
+sudo tar -xf /srv/migration/forgejo-data.tar --strip-components=2 -C /srv/docker/forgejo/data
+sudo tar -xf /srv/migration/minecraft-data.tar --strip-components=2 -C /srv/docker/minecraft
+sudo tar -xf /srv/migration/hytale-data.tar --strip-components=2 -C /srv/docker/hytale/data
+sudo tar -xf /srv/migration/hytale-secrets.tar --strip-components=2 -C /srv/docker/hytale/secrets
+sudo tar -xf /srv/migration/hytale-backups.tar --strip-components=2 -C /srv/docker/hytale/data/Server/backups
 ```
 
 Fix ownership:
