@@ -39,14 +39,16 @@ services:
       FORGEJO__server__APP_DATA_PATH: /data
       FORGEJO__server__SSH_DOMAIN: forgejo.sakul-flee.de
       FORGEJO__server__SSH_PORT: "22"
-      FORGEJO__server__SSH_LISTEN_PORT: "22"
-      # Use the image's OpenSSH daemon, not Forgejo's built-in SSH server. The
-      # OpenSSH daemon reads the preserved /data/ssh/ssh_host_* keys as root, so
-      # existing known_hosts entries stay valid. Forgejo writes its users' keys
-      # to git's authorized_keys file.
-      FORGEJO__server__START_SSH_SERVER: "false"
+      FORGEJO__server__SSH_LISTEN_PORT: "2222"
+      # Built-in SSH server: it does not need an operating-system account, so
+      # the old forgejo@ clone URLs and the preserved host keys both survive.
+      # The keys live outside /data/ssh because the image resets that directory
+      # to root ownership at startup, and the gitea process runs as git (1000).
+      FORGEJO__server__START_SSH_SERVER: "true"
       FORGEJO__server__DISABLE_SSH: "false"
-      FORGEJO__server__SSH_CREATE_AUTHORIZED_KEYS_FILE: "true"
+      FORGEJO__server__SSH_USER: forgejo
+      FORGEJO__server__SSH_SERVER_HOST_KEYS: /data/gitea-ssh/ssh_host_ed25519_key,/data/gitea-ssh/ssh_host_rsa_key
+      FORGEJO__server__SSH_CREATE_AUTHORIZED_KEYS_FILE: "false"
       FORGEJO__server__LFS_START_SERVER: "true"
       FORGEJO__server__LFS_JWT_SECRET_URI: file:/run/secrets/forgejo_lfs_secret
       FORGEJO__server__REVERSE_PROXY_TRUSTED_PROXIES: "172.16.0.0/12"
@@ -92,9 +94,10 @@ services:
       - /srv/docker/forgejo/data:/data
       - /srv/docker/forgejo/custom:/data/gitea
       - /srv/docker/forgejo/archive:/data/repo-archive
+      - /srv/docker/forgejo/ssh-keys:/data/gitea-ssh:ro
 
     ports:
-      - "${FORGEJO_SSH_HOST_PORT:-22}:22"
+      - "${FORGEJO_SSH_HOST_PORT:-22}:2222"
       - "127.0.0.1:3000:3000"
 
     networks:
