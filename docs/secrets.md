@@ -44,9 +44,14 @@ Put the resulting `$2y$...` value in `wg_easy_password_hash`.
 The plaintext is stored in sops so it can be recovered later:
 
 ```bash
-SOPS_AGE_KEY_FILE=/etc/sops/age/keys.txt \
-  sops -d --extract '["wg_easy_password"]' secrets/secrets.yaml
+/opt/homelab/scripts/sops.sh \
+  -d --extract '["wg_easy_password"]' /opt/homelab/secrets/secrets.yaml
 ```
+
+The wrapper exists because plain `sudo sops` looks in
+`/root/.config/sops/age/keys.txt`, while this host keeps the identity at
+`/etc/sops/age/keys.txt`. `render-secrets.sh` already knows that path; the
+wrapper makes manual commands behave the same way.
 
 Use it to log in to `vpn.sakul-flee.de`; wg-easy consumes the bcrypt hash, not
 the plaintext.
