@@ -23,6 +23,20 @@ install -d -m 0700 -o 70 -g 70 "${LIVE_DATA_DIR}/forgejo/postgres"
 install -d -m 0755 -o 988 -g 988 "${LIVE_DATA_DIR}/minecraft"
 install -d -m 0755 -o 989 -g 989 "${LIVE_DATA_DIR}/hytale/data"
 install -d -m 0700 -o 989 -g 989 "${LIVE_DATA_DIR}/hytale/secrets"
+
+# Hytale's auth.enc is encrypted with a key derived from /etc/machine-id. The
+# file must exist before Docker starts, or Docker creates a directory at the
+# bind-mount path and the container cannot start. During a real migration,
+# overwrite this with the old /var/lib/hytale/.machine-id.
+hytale_mid="${LIVE_DATA_DIR}/hytale/machine-id"
+if [[ -d "${hytale_mid}" ]]; then
+  rmdir "${hytale_mid}" 2>/dev/null \
+    || die "${hytale_mid} is a non-empty directory; remove it before continuing"
+fi
+if [[ ! -f "${hytale_mid}" ]]; then
+  tr -d '-' < /proc/sys/kernel/random/uuid > "${hytale_mid}"
+  chmod 0444 "${hytale_mid}"
+fi
 install -d -m 0700 -o 990 -g 990 "${LIVE_DATA_DIR}/opencode/home"
 install -d -m 0755 -o 990 -g 990 "${LIVE_DATA_DIR}/opencode/workspace"
 install -d -m 0700 -o 1000 -g 1000 "${LIVE_DATA_DIR}/syncthing/config"

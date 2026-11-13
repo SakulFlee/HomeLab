@@ -60,6 +60,11 @@ sudo env \
   /opt/homelab/scripts/deploy.sh --force
 ```
 
+If you have not copied the Hytale payload yet, leave `hytale` out of
+`DEPLOY_STACKS`; its entrypoint deliberately refuses to start without
+`Server/HytaleServer.jar` and `Assets.zip`. The machine-id file itself is created
+by `prepare-data.sh`.
+
 Then check each stack:
 
 ```bash

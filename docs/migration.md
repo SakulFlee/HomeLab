@@ -106,8 +106,16 @@ incus storage volume export persistent hytale-backups /srv/backup/hytale-backups
 incus storage volume export persistent hytale-secrets /srv/backup/hytale-secrets.tar
 ```
 
-Keep `.machine-id` and `Server/auth.enc` together with the data. If the new
-container gets a different machine id, the server will need one
+Keep `.machine-id` and `Server/auth.enc` together with the data. On the new
+host, copy the old `/var/lib/hytale/.machine-id` to:
+
+```text
+/srv/docker/hytale/machine-id
+```
+
+Do this before starting the Hytale container. If the file is missing, Docker
+creates a directory at that bind-mount path and the container refuses to start.
+If the new container gets a different machine id, the server will need one
 `/auth login device`.
 
 ## 6. Host keys and secrets
