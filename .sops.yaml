@@ -43,3 +43,5 @@ creation_rules:
           # different NixOS installation (operator, 2026-10-16), not on this
           # machine, so it is kept in the rule to not lock that installation out.
           - age1ync76d63pk4gc74exrhpxr5fjdg7923rltcvlrwdjhqdll72ffrqa4dq6h
+          # Cindry / Laptop / NEW 
+          - age1y0532ccgzsqvc8tpg4uxxddersxe5jf3wsd5ggdt0ggv0kcheuqqzz09hg
