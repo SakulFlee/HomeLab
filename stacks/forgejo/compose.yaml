@@ -111,7 +111,11 @@ services:
     secrets:
       - forgejo_db_password
     volumes:
-      - /srv/docker/forgejo/postgres:/var/lib/postgresql/data
+      # PostgreSQL 18+ expects the mount at /var/lib/postgresql, not at
+      # /var/lib/postgresql/data. The image then puts the cluster in a
+      # major-version-specific subdirectory, which is what makes pg_upgrade
+      # work without crossing a mount boundary.
+      - /srv/docker/forgejo/postgres:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U forgejo -d forgejo"]
       interval: 10s

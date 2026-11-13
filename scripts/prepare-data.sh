@@ -15,7 +15,8 @@ install -d -m 0755 "${LIVE_DATA_DIR}"
 install -d -m 0750 -o 1000 -g 1000 "${LIVE_DATA_DIR}/forgejo/data"
 install -d -m 0750 -o 1000 -g 1000 "${LIVE_DATA_DIR}/forgejo/custom"
 install -d -m 0750 -o 1000 -g 1000 "${LIVE_DATA_DIR}/forgejo/archive"
-# postgres:18-alpine runs as UID/GID 70.
+# postgres:18-alpine runs as UID/GID 70. PostgreSQL 18+ mounts the parent
+# directory; the image creates the major-version subdirectory itself.
 install -d -m 0700 -o 70 -g 70 "${LIVE_DATA_DIR}/forgejo/postgres"
 
 # Minecraft UID 988, Hytale UID 989, OpenCode UID 990, Syncthing UID 1000.
