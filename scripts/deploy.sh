@@ -73,6 +73,12 @@ fi
 # remote image to pull.
 while read -r stack; do
   [[ -n "${stack}" ]] || continue
+  case "${stack}" in
+    caddy|hytale)
+      log "skipping pull for build-only stack ${stack}"
+      continue
+      ;;
+  esac
   log "pulling ${stack}"
   if ! compose "${stack}" pull; then
     log "WARN: pull failed for ${stack}; continuing with local images"
