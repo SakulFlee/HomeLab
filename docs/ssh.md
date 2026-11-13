@@ -25,8 +25,13 @@ environment:
   FORGEJO__server__SSH_CREATE_AUTHORIZED_KEYS_FILE: "false"
 ```
 
-The old `/data/ssh` host keys are preserved. After the first start, compare the
-fingerprint with the old host:
+The old `/data/ssh` host keys are preserved. Forgejo's default built-in SSH
+host keys are `ssh/gitea.rsa` and `ssh/gogs.rsa` relative to `APP_DATA_PATH`. If
+the old volume uses different filenames, set
+`FORGEJO__server__SSH_SERVER_HOST_KEYS` in `stacks/forgejo/compose.yaml` to the
+comma-separated list of existing files.
+
+After the first start, compare the fingerprint with the old host:
 
 ```bash
 ssh-keyscan -p 22 forgejo.sakul-flee.de

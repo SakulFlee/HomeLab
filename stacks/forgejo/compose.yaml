@@ -33,12 +33,19 @@ services:
       FORGEJO__server__PROTOCOL: http
       FORGEJO__server__HTTP_ADDR: 0.0.0.0
       FORGEJO__server__HTTP_PORT: "3000"
+      # The old volume is mounted at /data and already has the git/, lfs/,
+      # attachments/, avatars/ and packages/ layout. Docker's default is
+      # /data/gitea, which would send those paths one level too deep.
+      FORGEJO__server__APP_DATA_PATH: /data
       FORGEJO__server__SSH_DOMAIN: forgejo.sakul-flee.de
       FORGEJO__server__SSH_PORT: "22"
       FORGEJO__server__SSH_LISTEN_PORT: "2222"
       FORGEJO__server__START_SSH_SERVER: "true"
       FORGEJO__server__DISABLE_SSH: "false"
       FORGEJO__server__SSH_CREATE_AUTHORIZED_KEYS_FILE: "false"
+      # Forgejo's default built-in SSH host keys are ssh/gitea.rsa and
+      # ssh/gogs.rsa under APP_DATA_PATH. The old /data/ssh directory is
+      # preserved. If its filenames differ, set SSH_SERVER_HOST_KEYS here.
       FORGEJO__server__LFS_START_SERVER: "true"
       FORGEJO__server__LFS_JWT_SECRET_URI: file:/run/secrets/forgejo_lfs_secret
       FORGEJO__server__REVERSE_PROXY_TRUSTED_PROXIES: "172.16.0.0/12"

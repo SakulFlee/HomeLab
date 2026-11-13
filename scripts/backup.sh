@@ -105,6 +105,9 @@ restic backup \
   --exclude="${LIVE_DATA_DIR}/fluxer/valkey-data" \
   --exclude="${LIVE_DATA_DIR}/minecraft/backups" \
   --exclude="${LIVE_DATA_DIR}/hytale/data/Server/logs" \
+  --exclude="${LIVE_DATA_DIR}/forgejo-runner" \
+  --exclude="${LIVE_DATA_DIR}/renovate" \
+  --exclude="${LIVE_DATA_DIR}/syncthing/data" \
   "${LIVE_DATA_DIR}" "${dump_dir}"
 
 find "${dump_dir}" -maxdepth 1 -type f -mtime +14 -print -delete || true
