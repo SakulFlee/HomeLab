@@ -36,8 +36,17 @@ Assuming the Incus export was extracted as described in `incus-export.md`:
 2. Make sure the data is in place and owned correctly:
 
    ```bash
+   sudo mkdir -p /srv/docker/forgejo/ssh-keys
+   sudo cp /srv/docker/forgejo/data/ssh/ssh_host_ed25519_key \
+           /srv/docker/forgejo/data/ssh/ssh_host_ed25519_key.pub \
+           /srv/docker/forgejo/data/ssh/ssh_host_rsa_key \
+           /srv/docker/forgejo/data/ssh/ssh_host_rsa_key.pub \
+           /srv/docker/forgejo/ssh-keys/
    sudo chown -R 1000:1000 /srv/docker/forgejo/data
    sudo chown -R 1000:1000 /srv/docker/forgejo/custom
+   sudo chown -R 1000:1000 /srv/docker/forgejo/ssh-keys
+   sudo chmod 0600 /srv/docker/forgejo/ssh-keys/ssh_host_*_key
+   sudo chmod 0644 /srv/docker/forgejo/ssh-keys/ssh_host_*_key.pub
    ```
 
    If you copied the old `custom` directory, remove its `app.ini`; v2

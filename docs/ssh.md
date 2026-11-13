@@ -21,17 +21,19 @@ ports:
 environment:
   FORGEJO__server__SSH_PORT: "22"
   FORGEJO__server__SSH_LISTEN_PORT: "2222"
+  FORGEJO__server__SSH_USER: forgejo
   FORGEJO__server__START_SSH_SERVER: "true"
+  FORGEJO__server__SSH_SERVER_HOST_KEYS: /data/gitea-ssh/ssh_host_ed25519_key,/data/gitea-ssh/ssh_host_rsa_key
   FORGEJO__server__SSH_CREATE_AUTHORIZED_KEYS_FILE: "false"
 ```
 
-The old `/data/ssh` host keys are preserved. Forgejo's default built-in SSH
-host keys are `ssh/gitea.rsa` and `ssh/gogs.rsa` relative to `APP_DATA_PATH`. If
-the old volume uses different filenames, set
-`FORGEJO__server__SSH_SERVER_HOST_KEYS` in `stacks/forgejo/compose.yaml` to the
-comma-separated list of existing files.
+The old OpenSSH host keys from `/data/ssh` are copied to
+`/srv/docker/forgejo/ssh-keys` and mounted at `/data/gitea-ssh` read-only.
+They live outside `/data/ssh` because the image resets that directory's
+ownership at startup, and Forgejo's built-in SSH server runs as UID 1000.
 
-After the first start, compare the fingerprint with the old host:
+The built-in server uses `forgejo` as the SSH username, matching the existing
+clone URLs. After the first start, compare the fingerprint with the old host:
 
 ```bash
 ssh-keyscan -p 22 forgejo.sakul-flee.de
