@@ -12,7 +12,8 @@ These keys are new and must be added before `render-secrets.sh` will run:
 | key | purpose | suggested value |
 | --- | --- | --- |
 | `forgejo_db_password` | Forgejo's PostgreSQL role password | `openssl rand -base64 32` |
-| `wg_easy_password_hash` | wg-easy admin password | bcrypt hash, see below |
+| `wg_easy_password` | retrievable plaintext wg-easy admin password | generated |
+| `wg_easy_password_hash` | what wg-easy actually consumes | bcrypt hash of `wg_easy_password`, see below |
 | `restic_password` | local restic repository | `openssl rand -base64 32` |
 | `restic_dendra_password` | Dendra restic repository | a different `openssl rand -base64 32` |
 
@@ -38,11 +39,30 @@ htpasswd -bnBC 10 "" 'your-password' | tr -d ':\n'
 
 Put the resulting `$2y$...` value in `wg_easy_password_hash`.
 
+## Retrieving the wg-easy password
+
+The plaintext is stored in sops so it can be recovered later:
+
+```bash
+SOPS_AGE_KEY_FILE=/etc/sops/age/keys.txt \
+  sops -d --extract '["wg_easy_password"]' secrets/secrets.yaml
+```
+
+Use it to log in to `vpn.sakul-flee.de`; wg-easy consumes the bcrypt hash, not
+the plaintext.
+
 ## Age key
 
 The host's age identity is expected at `/etc/sops/age/keys.txt`. The current
 NixOS host derives its key from `/etc/ssh/ssh_host_ed25519_key`; copy that key or
 create a dedicated age key before wiping.
+
+If you only have an SSH key and no age key file, derive the age identity with
+`ssh-to-age`:
+
+```bash
+SOPS_AGE_KEY="$(ssh-to-age -private-key -i ~/.ssh/id_ed25519)" sops -d secrets/secrets.yaml
+```
 
 Keep the age key and both restic passwords offline. Without them, the encrypted
 secrets and backups cannot be recovered.
