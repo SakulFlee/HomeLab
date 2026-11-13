@@ -3,6 +3,9 @@
 This is the concrete version of `PLAN.md` phase 0/1. Run the export commands on
 the current NixOS host as root, with the relevant services stopped.
 
+The Incus-volume-specific export commands are in
+[`incus-export.md`](incus-export.md).
+
 ## 1. Stop writers
 
 ```bash
