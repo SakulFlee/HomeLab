@@ -61,9 +61,9 @@ fi
 if stack_exists fluxer; then
   if docker inspect -f '{{.State.Running}}' fluxer-postgres >/dev/null 2>&1; then
     log "dumping fluxer postgres"
-    fluxer_pw="$(grep -m1 '^POSTGRES_PASSWORD=' "${RUNTIME_SECRETS_DIR}/fluxer.env" | cut -d= -f2-)"
-    if ! docker exec -e "PGPASSWORD=${fluxer_pw}" fluxer-postgres \
-        pg_dump -Fc -U fluxer -d fluxer > "${dump_dir}/fluxer-${stamp}.dump"; then
+    if ! docker exec fluxer-postgres sh -c \
+        'PGPASSWORD="$POSTGRES_PASSWORD" pg_dump -Fc -U fluxer -d fluxer' \
+        > "${dump_dir}/fluxer-${stamp}.dump"; then
       die "fluxer pg_dump failed"
     fi
     log "wrote ${dump_dir}/fluxer-${stamp}.dump"

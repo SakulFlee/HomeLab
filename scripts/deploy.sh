@@ -18,6 +18,11 @@ fi
 
 cd "${REPO_ROOT}"
 
+if ! docker network inspect proxy >/dev/null 2>&1; then
+  log "creating external Docker network proxy"
+  docker network create proxy >/dev/null
+fi
+
 exec 9>/run/lock/homelab-deploy.lock
 if ! flock -n 9; then
   log "another deploy is already running; skipping"
