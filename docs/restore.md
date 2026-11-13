@@ -24,32 +24,51 @@ to preserve ownership.
 
 ## Forgejo
 
-1. Stop Forgejo:
+Assuming the Incus export was extracted as described in `incus-export.md`:
+
+1. Stop the whole stack:
 
    ```bash
    cd /opt/homelab/stacks/forgejo
-   sudo docker compose stop forgejo
+   sudo docker compose down
    ```
 
-2. Restore the data tree and the `custom` directory:
+2. Make sure the data is in place and owned correctly:
 
    ```bash
-   sudo rsync -aHAX --numeric-ids /srv/restore/srv/docker/forgejo/data/ /srv/docker/forgejo/data/
-   sudo rsync -aHAX --numeric-ids /srv/restore/srv/docker/forgejo/custom/ /srv/docker/forgejo/custom/
+   sudo chown -R 1000:1000 /srv/docker/forgejo/data
+   sudo chown -R 1000:1000 /srv/docker/forgejo/custom
    ```
 
-3. Restore PostgreSQL from the dump:
+   If you copied the old `custom` directory, remove its `app.ini`; v2
+   generates it from the environment:
 
    ```bash
-   cd /opt/homelab/stacks/forgejo
+   sudo rm -f /srv/docker/forgejo/custom/conf/app.ini
+   ```
+
+3. Start only the database, then restore the dump:
+
+   ```bash
    sudo docker compose up -d db
-   sudo docker compose exec -T db dropdb -U forgejo --if-exists forgejo
-   sudo docker compose exec -T db createdb -U forgejo forgejo
-   sudo docker compose exec -T db pg_restore -U forgejo -d forgejo --clean --if-exists \
-     < /srv/restore/srv/backup/dumps/forgejo-YYYYMMDDTHHMMSSZ.dump
+   # wait for "database system is ready to accept connections"
+   sudo docker compose exec -T db sh -c \
+     'PGPASSWORD="$(cat /run/secrets/forgejo_db_password)" dropdb -U forgejo --if-exists forgejo'
+   sudo docker compose exec -T db sh -c \
+     'PGPASSWORD="$(cat /run/secrets/forgejo_db_password)" createdb -U forgejo forgejo'
+   sudo docker compose exec -T db sh -c \
+     'PGPASSWORD="$(cat /run/secrets/forgejo_db_password)" pg_restore -U forgejo -d forgejo --clean --if-exists --no-owner --no-acl' \
+     < /srv/migration/forgejo.dump
    ```
 
-4. Start Forgejo and verify login, repositories, LFS, and SSH push.
+4. Start Forgejo:
+
+   ```bash
+   sudo docker compose up -d
+   sudo docker compose logs -f forgejo
+   ```
+
+5. Verify login, repositories, LFS and SSH push.
 
 ## Fluxer
 
@@ -57,27 +76,36 @@ to preserve ownership.
 
    ```bash
    cd /opt/homelab/stacks/fluxer
-   sudo docker compose down
+   sudo docker compose --env-file /run/homelab/secrets/fluxer.env -f compose.yaml down
    ```
 
-2. Restore the bind-mounted volumes:
+2. Restore the SeaweedFS media volume:
 
    ```bash
-   sudo rsync -aHAX --numeric-ids /srv/restore/srv/docker/fluxer/ /srv/docker/fluxer/
+   sudo rsync -aHAX --numeric-ids \
+     /tmp/fluxer-volumes/fluxer_seaweedfs-data/ \
+     /srv/docker/fluxer/seaweedfs-data/
    ```
 
-3. Start Postgres first, restore the dump, then start the rest:
+3. Start Postgres only, restore the dump, then start the rest:
 
    ```bash
-   sudo docker compose up -d postgres
-   sudo docker compose exec -T postgres dropdb -U fluxer --if-exists fluxer
-   sudo docker compose exec -T postgres createdb -U fluxer fluxer
-   sudo docker compose exec -T postgres pg_restore -U fluxer -d fluxer --clean --if-exists \
-     < /srv/restore/srv/backup/dumps/fluxer-YYYYMMDDTHHMMSSZ.dump
-   sudo docker compose up -d
+   sudo docker compose --env-file /run/homelab/secrets/fluxer.env -f compose.yaml up -d postgres
+   # wait for the healthcheck
+   sudo docker compose --env-file /run/homelab/secrets/fluxer.env -f compose.yaml \
+     exec -T postgres sh -c \
+     'PGPASSWORD="$POSTGRES_PASSWORD" dropdb -U fluxer --if-exists fluxer'
+   sudo docker compose --env-file /run/homelab/secrets/fluxer.env -f compose.yaml \
+     exec -T postgres sh -c \
+     'PGPASSWORD="$POSTGRES_PASSWORD" createdb -U fluxer fluxer'
+   sudo docker compose --env-file /run/homelab/secrets/fluxer.env -f compose.yaml \
+     exec -T postgres sh -c \
+     'PGPASSWORD="$POSTGRES_PASSWORD" pg_restore -U fluxer -d fluxer --clean --if-exists --no-owner --no-acl' \
+     < /srv/migration/fluxer.dump
+   sudo docker compose --env-file /run/homelab/secrets/fluxer.env -f compose.yaml up -d
    ```
 
-4. Verify login, messages, media, and LiveKit.
+4. Verify login, messages, media and LiveKit.
 
 ## Minecraft
 
