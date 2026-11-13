@@ -3,6 +3,12 @@
 Run this on the homelab host as root. The goal is to get application-level dumps
 plus the volume roots onto the laptop, not to copy live database directories.
 
+Incus volume exports include snapshots by default. Use `--volume-only` so the
+daily snapshots do not multiply the transfer. Use `--compression none` for the
+large local tars; the repositories and game data are already mostly compressed.
+The export wraps the payload in `backup/volume/`, which the restore commands
+strip with `--strip-components=2`.
+
 Create a staging directory:
 
 ```bash
@@ -41,7 +47,7 @@ Forgejo lives in the `forgejo` Incus project.
 incus exec forgejo -- sudo -u postgres \
   pg_dump -Fc forgejo > /srv/backup/migration/forgejo.dump
 
-incus --project forgejo storage volume export \
+incus --project forgejo storage volume export --volume-only --compression none \
   persistent forgejo-data /srv/backup/migration/forgejo-data.tar
 
 incus file pull -r forgejo/var/lib/forgejo/custom \
@@ -70,10 +76,10 @@ reference material.
 ## 3. Minecraft
 
 ```bash
-incus storage volume export persistent minecraft-data \
+incus storage volume export --volume-only --compression none persistent minecraft-data \
   /srv/backup/migration/minecraft-data.tar
 
-incus storage volume export persistent minecraft-backups \
+incus storage volume export --volume-only --compression none persistent minecraft-backups \
   /srv/backup/migration/minecraft-backups.tar
 ```
 
@@ -83,13 +89,13 @@ The data volume contains the world, plugins, `server.properties`,
 ## 4. Hytale
 
 ```bash
-incus storage volume export persistent hytale-data \
+incus storage volume export --volume-only --compression none persistent hytale-data \
   /srv/backup/migration/hytale-data.tar
 
-incus storage volume export persistent hytale-backups \
+incus storage volume export --volume-only --compression none persistent hytale-backups \
   /srv/backup/migration/hytale-backups.tar
 
-incus storage volume export persistent hytale-secrets \
+incus storage volume export --volume-only --compression none persistent hytale-secrets \
   /srv/backup/migration/hytale-secrets.tar
 ```
 
