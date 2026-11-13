@@ -18,6 +18,14 @@ services:
       # Must exist before the container starts. It is the machine id that
       # auth.enc was encrypted under; losing it costs a device-code login.
       - /srv/docker/hytale/machine-id:/etc/machine-id:ro
+    healthcheck:
+      # A bound UDP socket is not proof that the server is authenticated, but it
+      # is a real liveness check: the Hytale JVM only opens 5520 after startup.
+      test: ["CMD-SHELL", "ss -lun | grep -q ':5520 '"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 180s
     ulimits:
       nofile:
         soft: 65535

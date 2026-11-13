@@ -7,6 +7,7 @@ RUN apt-get update \
       coreutils \
       curl \
       findutils \
+      iproute2 \
       procps \
       tmux \
       unzip \
