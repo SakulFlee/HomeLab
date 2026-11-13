@@ -61,6 +61,14 @@ compose_args() {
   local dir="${STACKS_DIR}/${stack}"
 
   case "${stack}" in
+    fluxer)
+      # Compose `include` does not merge the proxy overlay's service
+      # environment reliably, so use the files explicitly.
+      printf '%s\n' \
+        -f "${dir}/vendor/docker-compose.yml" \
+        -f "${dir}/vendor/docker-compose.proxy.yml" \
+        -f "${dir}/compose.override.yaml"
+      ;;
     *)
       printf '%s\n' -f "${dir}/compose.yaml"
       ;;

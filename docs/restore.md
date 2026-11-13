@@ -76,7 +76,7 @@ Assuming the Incus export was extracted as described in `incus-export.md`:
 
    ```bash
    cd /opt/homelab/stacks/fluxer
-   sudo docker compose --env-file /run/homelab/secrets/fluxer.env -f compose.yaml down
+   sudo ./compose.sh down
    ```
 
 2. Restore the SeaweedFS media volume:
@@ -90,19 +90,16 @@ Assuming the Incus export was extracted as described in `incus-export.md`:
 3. Start Postgres only, restore the dump, then start the rest:
 
    ```bash
-   sudo docker compose --env-file /run/homelab/secrets/fluxer.env -f compose.yaml up -d postgres
+   sudo ./compose.sh up -d postgres
    # wait for the healthcheck
-   sudo docker compose --env-file /run/homelab/secrets/fluxer.env -f compose.yaml \
-     exec -T postgres sh -c \
+   sudo ./compose.sh exec -T postgres sh -c \
      'PGPASSWORD="$POSTGRES_PASSWORD" dropdb -U fluxer --if-exists fluxer'
-   sudo docker compose --env-file /run/homelab/secrets/fluxer.env -f compose.yaml \
-     exec -T postgres sh -c \
+   sudo ./compose.sh exec -T postgres sh -c \
      'PGPASSWORD="$POSTGRES_PASSWORD" createdb -U fluxer fluxer'
-   sudo docker compose --env-file /run/homelab/secrets/fluxer.env -f compose.yaml \
-     exec -T postgres sh -c \
+   sudo ./compose.sh exec -T postgres sh -c \
      'PGPASSWORD="$POSTGRES_PASSWORD" pg_restore -U fluxer -d fluxer --clean --if-exists --no-owner --no-acl' \
      < /srv/migration/fluxer.dump
-   sudo docker compose --env-file /run/homelab/secrets/fluxer.env -f compose.yaml up -d
+   sudo ./compose.sh up -d
    ```
 
 4. Verify login, messages, media and LiveKit.
