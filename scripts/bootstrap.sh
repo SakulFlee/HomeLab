@@ -117,6 +117,7 @@ if compgen -G "${REPO_ROOT}/systemd/*.path" >/dev/null; then
   install -m 0644 "${REPO_ROOT}"/systemd/*.path /etc/systemd/system/
 fi
 chmod 0755 "${REPO_ROOT}"/scripts/*.sh || true
+"${REPO_ROOT}/scripts/prepare-data.sh"
 systemctl daemon-reload
 
 log "enabling base services"

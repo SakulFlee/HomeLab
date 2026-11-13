@@ -346,11 +346,14 @@ Caddy:
 │   └── wg-easy/
 ├── scripts/
 │   ├── bootstrap.sh
+│   ├── prepare-data.sh
 │   ├── deploy.sh
 │   ├── backup.sh
 │   ├── restic-copy.sh
+│   ├── restic-check.sh
 │   ├── restore.sh
 │   ├── healthcheck.sh
+│   ├── renovate.sh
 │   └── render-secrets.sh
 ├── secrets/
 │   └── secrets.yaml
