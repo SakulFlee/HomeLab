@@ -111,6 +111,8 @@ umask 077
   printf 'FLUXER_PUBLIC_PORT=443\n'
   printf 'FLUXER_CADDY_SITE_ADDRESS=fluxer.sakul-flee.de\n'
   printf 'FLUXER_EDGE_BIND=127.0.0.1:8080\n'
+  printf 'FLUXER_LIVEKIT_TCP_PORT=%s\n' "${FLUXER_LIVEKIT_TCP_PORT:-7881}"
+  printf 'FLUXER_LIVEKIT_UDP_PORT=%s\n' "${FLUXER_LIVEKIT_UDP_PORT:-7882}"
   printf 'LIVEKIT_API_KEY=fluxer\n'
   printf 'POSTGRES_PASSWORD=%s\n' "$(jq -j --arg k fluxer_postgres_password '.[$k]' "${tmp}")"
   printf 'MEILI_MASTER_KEY=%s\n' "$(jq -j --arg k fluxer_search_api_key '.[$k]' "${tmp}")"

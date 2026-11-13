@@ -93,7 +93,7 @@ services:
       - /srv/docker/forgejo/archive:/data/repo-archive
 
     ports:
-      - "22:2222"
+      - "${FORGEJO_SSH_HOST_PORT:-22}:2222"
       - "127.0.0.1:3000:3000"
 
     networks:

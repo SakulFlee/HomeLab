@@ -6,7 +6,7 @@ services:
     container_name: dockge
     restart: unless-stopped
     ports:
-      - "192.168.178.200:5001:5001"
+      - "${LAN_IP:-192.168.178.200}:5001:5001"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /opt/homelab/stacks:/opt/stacks

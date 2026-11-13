@@ -3,7 +3,7 @@
     # upstream resolvers.
     template IN A {
         match "^(opencode|syncthing|vpn|wireguard-ui|dockge)\.sakul-flee\.de\.$"
-        answer "{{ .Name }} 60 IN A 192.168.178.200"
+        answer "{{ .Name }} 60 IN A {$LAN_IP}"
         fallthrough
     }
 

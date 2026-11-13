@@ -6,8 +6,10 @@ services:
     container_name: coredns
     restart: unless-stopped
     command: ["-conf", "/etc/coredns/Corefile"]
+    environment:
+      LAN_IP: ${LAN_IP:-192.168.178.200}
     volumes:
       - ./Corefile:/etc/coredns/Corefile:ro
     ports:
-      - "192.168.178.200:53:53/tcp"
-      - "192.168.178.200:53:53/udp"
+      - "${LAN_IP:-192.168.178.200}:53:53/tcp"
+      - "${LAN_IP:-192.168.178.200}:53:53/udp"

@@ -91,6 +91,12 @@ ordered_stacks=(
   caddy
 )
 
+# Staging can restrict the set, e.g.
+#   DEPLOY_STACKS="forgejo minecraft hytale fluxer" scripts/deploy.sh --force
+if [[ -n "${DEPLOY_STACKS:-}" ]]; then
+  read -r -a ordered_stacks <<< "${DEPLOY_STACKS}"
+fi
+
 for stack in "${ordered_stacks[@]}"; do
   stack_exists "${stack}" || continue
   log "applying ${stack}"
@@ -100,9 +106,11 @@ for stack in "${ordered_stacks[@]}"; do
   fi
 done
 
-if ! "${SCRIPT_DIR}/healthcheck.sh"; then
-  notify "Deploy health check failed" "Review the host logs" critical
-  exit 1
+if [[ "${SKIP_HEALTHCHECK:-0}" != "1" ]]; then
+  if ! "${SCRIPT_DIR}/healthcheck.sh"; then
+    notify "Deploy health check failed" "Review the host logs" critical
+    exit 1
+  fi
 fi
 
 notify "Deploy complete" "All stacks applied and healthy" default

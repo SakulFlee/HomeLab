@@ -59,7 +59,7 @@ vpn.sakul-flee.de, wireguard-ui.sakul-flee.de {
 
 	# wg-easy runs with host networking, so reach the host address rather
 	# than a container name.
-	reverse_proxy http://192.168.178.200:51821 {
+	reverse_proxy http://{$HOMELAB_LAN_IP}:51821 {
 		header_up Host {http.request.host}
 	}
 }

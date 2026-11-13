@@ -11,7 +11,7 @@ services:
     stop_grace_period: 5m
     mem_limit: 8g
     ports:
-      - "5520:5520/udp"
+      - "${HYTALE_PORT:-5520}:5520/udp"
     volumes:
       - /srv/docker/hytale/data:/data
       - /srv/docker/hytale/secrets:/secrets
