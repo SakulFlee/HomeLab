@@ -25,3 +25,6 @@ incus/infra/crash.log
 stacks/*/.env
 stacks/fluxer/.env
 secrets/plain/
+
+# Fluxer merged compose scratch
+stacks/fluxer/compose.yaml.tmp

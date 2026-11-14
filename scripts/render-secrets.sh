@@ -122,6 +122,12 @@ umask 077
   printf 'FLUXER_CADDY_SITE_ADDRESS=fluxer.sakul-flee.de\n'
   printf 'FLUXER_EDGE_BIND=127.0.0.1:8080\n'
   printf 'FLUXER_EDGE_SITE_ADDRESS=:8080\n'
+  # Optional upstream variables. Declaring them empty prevents Compose from
+  # warning about unset values in the upstream interpolation expressions.
+  printf 'FLUXER_API_NODE_HEAP_MB=\n'
+  printf 'FLUXER_API_NODE_OPTIONS=\n'
+  printf 'FLUXER_WORKER_NODE_HEAP_MB=\n'
+  printf 'FLUXER_WORKER_NODE_OPTIONS=\n'
   printf 'FLUXER_LIVEKIT_TCP_PORT=%s\n' "${FLUXER_LIVEKIT_TCP_PORT:-7881}"
   printf 'FLUXER_LIVEKIT_UDP_PORT=%s\n' "${FLUXER_LIVEKIT_UDP_PORT:-7882}"
   printf 'LIVEKIT_API_KEY=fluxer\n'
