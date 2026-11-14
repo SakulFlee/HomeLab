@@ -47,6 +47,10 @@ services:
       FORGEJO__server__START_SSH_SERVER: "true"
       FORGEJO__server__DISABLE_SSH: "false"
       FORGEJO__server__SSH_USER: forgejo
+      # SSH_USER only controls the username advertised in clone URLs. The
+      # built-in SSH server authenticates against this separate setting, which
+      # defaults to "git".
+      FORGEJO__server__BUILTIN_SSH_SERVER_USER: forgejo
       FORGEJO__server__SSH_SERVER_HOST_KEYS: /data/gitea-ssh/ssh_host_ed25519_key,/data/gitea-ssh/ssh_host_rsa_key
       FORGEJO__server__SSH_CREATE_AUTHORIZED_KEYS_FILE: "false"
       FORGEJO__server__LFS_START_SERVER: "true"
