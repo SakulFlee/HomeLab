@@ -266,7 +266,8 @@ for stack in coredns dockge syncthing; do
 done
 
 write_stack_env caddy \
-  printf 'LAN_IP=%s\nHTTP_PORT=%s\nHTTPS_PORT=%s\n' \
-  "${LAN_IP:-192.168.178.200}" "${HTTP_PORT:-80}" "${HTTPS_PORT:-443}"
+  printf 'LAN_IP=%s\nHTTP_PORT=%s\nHTTPS_PORT=%s\nACME_CA=%s\n' \
+  "${LAN_IP:-192.168.178.200}" "${HTTP_PORT:-80}" "${HTTPS_PORT:-443}" \
+  "${ACME_CA:-https://acme-v02.api.letsencrypt.org/directory}"
 
 log "secret rendering complete under ${RUNTIME_SECRETS_DIR}"

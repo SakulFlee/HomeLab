@@ -1,6 +1,9 @@
 {
 	email dev@sakul-flee.de
 	acme_dns cloudflare {env.CF_API_TOKEN}
+	# Override with ACME_CA in /etc/homelab/host.env to use the Let's Encrypt
+	# staging directory while validating DNS and routing.
+	acme_ca {$ACME_CA}
 }
 
 # Admin services are reachable from the LAN and the WireGuard tunnel only.

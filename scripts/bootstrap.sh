@@ -87,6 +87,10 @@ FLUXER_LIVEKIT_UDP_PORT=7882
 # Optional staging policy:
 # DEPLOY_STACKS="forgejo fluxer minecraft hytale coredns dockge syncthing website"
 # SKIP_HEALTHCHECK=1
+
+# Caddy ACME directory. Uncomment to use Let's Encrypt staging while
+# validating DNS and port forwards, then remove for production certs.
+# ACME_CA=https://acme-staging-v02.api.letsencrypt.org/directory
 HOSTENV
   chmod 0600 /etc/homelab/host.env
 fi

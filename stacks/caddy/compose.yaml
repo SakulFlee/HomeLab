@@ -19,6 +19,7 @@ services:
       - "${HTTPS_PORT:-443}:443/udp"
     environment:
       HOMELAB_LAN_IP: ${LAN_IP:-192.168.178.200}
+      ACME_CA: ${ACME_CA:-https://acme-v02.api.letsencrypt.org/directory}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - /srv/docker/caddy:/data
