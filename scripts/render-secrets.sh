@@ -121,6 +121,7 @@ umask 077
   printf 'FLUXER_PUBLIC_PORT=443\n'
   printf 'FLUXER_CADDY_SITE_ADDRESS=fluxer.sakul-flee.de\n'
   printf 'FLUXER_EDGE_BIND=127.0.0.1:8080\n'
+  printf 'FLUXER_EDGE_SITE_ADDRESS=:8080\n'
   printf 'FLUXER_LIVEKIT_TCP_PORT=%s\n' "${FLUXER_LIVEKIT_TCP_PORT:-7881}"
   printf 'FLUXER_LIVEKIT_UDP_PORT=%s\n' "${FLUXER_LIVEKIT_UDP_PORT:-7882}"
   printf 'LIVEKIT_API_KEY=fluxer\n'
@@ -222,5 +223,44 @@ server:
 EOF
 install -m 0400 -o root -g root "${runner_dir}/config.yaml.tmp" "${runner_dir}/config.yaml"
 rm -f "${runner_dir}/config.yaml.tmp"
+
+# Local, gitignored Compose .env files. These make Dockge/Start and manual
+# `docker compose` in a stack directory use the same host-specific values as
+# deploy.sh. They are never committed.
+env_group=root
+if getent group docker >/dev/null 2>&1; then
+  env_group=docker
+fi
+
+write_stack_env() {
+  local stack="$1"
+  shift
+  local file="${REPO_ROOT}/stacks/${stack}/.env"
+  "$@" > "${file}.tmp"
+  install -m 0640 -o root -g "${env_group}" "${file}.tmp" "${file}"
+  rm -f "${file}.tmp"
+}
+
+# Fluxer has a complete secret environment.
+install -m 0640 -o root -g "${env_group}" "${fluxer_env}" \
+  "${REPO_ROOT}/stacks/fluxer/.env"
+
+write_stack_env forgejo \
+  printf 'FORGEJO_SSH_HOST_PORT=%s\n' "${FORGEJO_SSH_HOST_PORT:-22}"
+
+write_stack_env minecraft \
+  printf 'MINECRAFT_PORT=%s\n' "${MINECRAFT_PORT:-25565}"
+
+write_stack_env hytale \
+  printf 'HYTALE_PORT=%s\n' "${HYTALE_PORT:-5520}"
+
+for stack in coredns dockge syncthing; do
+  write_stack_env "${stack}" \
+    printf 'LAN_IP=%s\n' "${LAN_IP:-192.168.178.200}"
+done
+
+write_stack_env caddy \
+  printf 'LAN_IP=%s\nHTTP_PORT=%s\nHTTPS_PORT=%s\n' \
+  "${LAN_IP:-192.168.178.200}" "${HTTP_PORT:-80}" "${HTTPS_PORT:-443}"
 
 log "secret rendering complete under ${RUNTIME_SECRETS_DIR}"

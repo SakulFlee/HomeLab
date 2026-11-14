@@ -39,6 +39,14 @@ htpasswd -bnBC 10 "" 'your-password' | tr -d ':\n'
 
 Put the resulting `$2y$...` value in `wg_easy_password_hash`.
 
+## Local Compose `.env` files
+
+`render-secrets.sh` also writes gitignored `.env` files into the stack
+directories. They contain the host-specific ports plus, for Fluxer, the full
+upstream interpolation set. They exist so Dockge and manual `docker compose`
+commands work without a giant `env VAR=...` command. They are local-only and
+must never be committed.
+
 ## Retrieving the wg-easy password
 
 The plaintext is stored in sops so it can be recovered later:
