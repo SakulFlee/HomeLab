@@ -2,7 +2,10 @@ name: wg-easy
 
 services:
   wg-easy:
-    image: ghcr.io/wg-easy/wg-easy:15
+    # v15 is a rewrite with a different configuration model (setup wizard,
+    # wg0.json import, most env vars moved into the UI). This stack is written
+    # for the v14 configuration, so stay on 14 until that migration is planned.
+    image: ghcr.io/wg-easy/wg-easy:14
     container_name: wg-easy
     restart: unless-stopped
     network_mode: host
