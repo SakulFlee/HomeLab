@@ -25,9 +25,13 @@ creation_rules:
           - age16n3ufazps5tru37l4wny0sh4f7em63j22yuhlahhfhxu5kz2ufdsmer7mw
           # HomeLab (User)
           - age1suydyah5q07jdn7xrpt853pzt9ua3ygd7yuu4pys8g0caq2v6dhsmvwcwg
-          # HomeLab (Workstation) -- dedicated age identity, private half in
-          # ~/.config/sops/age/keys.txt on the machine that edits this file
+          # HomeLab (Workstation) -- dedicated age identity
           # (age1gd3xy...; key created 2026-10-16, enrolled per operator).
+          # NOTE 2026-11-15: its private half was overwritten on Dendra by an
+          # accidental `age-keygen -o ~/.config/sops/age/keys.txt` on 2026-11-13.
+          # Dendra decrypts with the converted ~/.ssh/id_ed25519 identity
+          # (age1extq... below) again. Keep this line only if an older machine
+          # still holds that key.
           # This machine can also decrypt via the sops-nix-managed
           # ~/.ssh/id_ed25519 (age1extq... above) with
           # SOPS_AGE_KEY="$(ssh-to-age -private-key < ~/.ssh/id_ed25519)", so
@@ -45,3 +49,6 @@ creation_rules:
           - age1ync76d63pk4gc74exrhpxr5fjdg7923rltcvlrwdjhqdll72ffrqa4dq6h
           # Cindry / Laptop / NEW 
           - age1y0532ccgzsqvc8tpg4uxxddersxe5jf3wsd5ggdt0ggv0kcheuqqzz09hg
+          # HomeLab (Debian host, 2026-11-15) -- dedicated age identity at
+          # /etc/sops/age/keys.txt on the reinstalled host.
+          - age183h7vtcvjdrgqxmmlav9k7vwh54datymapk0ckcx3r4jgetjrdcqzfxhdp
