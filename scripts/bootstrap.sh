@@ -181,6 +181,9 @@ for net in 192.168.178.0/24 100.64.0.0/10; do
   ufw allow from "${net}" to any port 4096 proto tcp comment 'OpenCode'
   ufw allow from "${net}" to any port 8384 proto tcp comment 'Syncthing'
 done
+# Caddy runs in a bridge network and reaches wg-easy (host networking) via the
+# host's LAN address, so the source is the Docker bridge, not the LAN.
+ufw allow from 172.16.0.0/12 to any port 51821 proto tcp comment 'wg-easy from Caddy'
 ufw --force enable
 
 if [[ ! -s /etc/sops/age/keys.txt ]]; then
