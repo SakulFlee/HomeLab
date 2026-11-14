@@ -9,9 +9,9 @@ services:
     cap_add:
       - NET_ADMIN
       - SYS_MODULE
-    sysctls:
-      net.ipv4.ip_forward: "1"
-      net.ipv4.conf.all.src_valid_mark: "1"
+    # ip_forward and src_valid_mark are host sysctls (see
+    # /etc/sysctl.d/90-homelab.conf). Docker refuses to set sysctls in the
+    # host network namespace, so they cannot live here.
     env_file:
       - path: /run/homelab/secrets/wg-easy.env
         required: false

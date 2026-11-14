@@ -6,7 +6,7 @@ services:
     container_name: forgejo-runner
     restart: unless-stopped
     user: "0:0"
-    command: ["daemon", "--config", "/config.yaml"]
+    command: ["/bin/forgejo-runner", "daemon", "--config", "/config.yaml"]
     environment:
       DOCKER_HOST: unix:///var/run/docker.sock
     volumes:

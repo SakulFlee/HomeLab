@@ -123,6 +123,9 @@ UNIT
 log "writing sysctl settings"
 cat >/etc/sysctl.d/90-homelab.conf <<'SYSCTL'
 net.ipv4.ip_forward = 1
+# Required by wg-easy's fwmark routing. It cannot be set from the container
+# because Docker rejects sysctls in the host network namespace.
+net.ipv4.conf.all.src_valid_mark = 1
 fs.inotify.max_user_watches = 524288
 fs.inotify.max_user_instances = 1024
 SYSCTL
