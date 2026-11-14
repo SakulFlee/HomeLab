@@ -72,6 +72,24 @@ install -d -m 0700 /var/lib/homelab
 install -d -m 0700 /run/homelab/secrets
 install -d -m 0700 /etc/sops/age
 install -d -m 0700 /etc/homelab
+if [[ ! -f /etc/homelab/host.env ]]; then
+  cat >/etc/homelab/host.env <<'HOSTENV'
+# Non-secret host-specific settings. Override per-host or for staging.
+LAN_IP=192.168.178.200
+FORGEJO_SSH_HOST_PORT=22
+MINECRAFT_PORT=25565
+HYTALE_PORT=5520
+HTTP_PORT=80
+HTTPS_PORT=443
+FLUXER_LIVEKIT_TCP_PORT=7881
+FLUXER_LIVEKIT_UDP_PORT=7882
+
+# Optional staging policy:
+# DEPLOY_STACKS="forgejo fluxer minecraft hytale coredns dockge syncthing website"
+# SKIP_HEALTHCHECK=1
+HOSTENV
+  chmod 0600 /etc/homelab/host.env
+fi
 cat >/etc/tmpfiles.d/homelab.conf <<'TMPFILES'
 d /run/homelab 0700 root root -
 d /run/homelab/secrets 0700 root root -

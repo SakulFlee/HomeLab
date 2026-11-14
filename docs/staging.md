@@ -24,41 +24,45 @@ production; for a quick test, export `LIVE_DATA_DIR` to another directory.
 Add the new sops keys from `docs/secrets.md` and place the age key where sops can
 find it.
 
-## Staging ports
+## Staging host config
 
-The laptop is not the homelab, so change the host bindings:
+Do not pass `env VAR=...` on every command. Write the host-specific settings
+once. On the laptop:
 
 ```bash
-export LAN_IP=127.0.0.1
-export FORGEJO_SSH_HOST_PORT=2200
-export HTTP_PORT=8080
-export HTTPS_PORT=8443
-export MINECRAFT_PORT=25566
-export HYTALE_PORT=5521
-export FLUXER_LIVEKIT_TCP_PORT=7883
-export FLUXER_LIVEKIT_UDP_PORT=7884
+sudo install -d -m 0700 /etc/homelab
+sudo tee /etc/homelab/host.env >/dev/null <<'EOF'
+LAN_IP=127.0.0.1
+FORGEJO_SSH_HOST_PORT=2200
+HTTP_PORT=8080
+HTTPS_PORT=8443
+MINECRAFT_PORT=25566
+HYTALE_PORT=5521
+FLUXER_LIVEKIT_TCP_PORT=7883
+FLUXER_LIVEKIT_UDP_PORT=7884
+
+DEPLOY_STACKS="forgejo fluxer minecraft hytale coredns dockge syncthing website"
+SKIP_HEALTHCHECK=1
+EOF
 ```
 
 `LAN_IP` changes CoreDNS, Dockge, Syncthing and Caddy's host-LAN target.
-`FORGEJO_SSH_HOST_PORT` avoids the laptop's own sshd on 22.
+`FORGEJO_SSH_HOST_PORT` avoids the laptop's own sshd on 22. On production,
+`bootstrap.sh` writes `/etc/homelab/host.env` with the real values and does not
+set `DEPLOY_STACKS` or `SKIP_HEALTHCHECK`.
 
 ## Start only what you need
 
-Do not start CoreDNS (port 53), wg-easy (host networking) or Caddy on the laptop
-unless you know the ports and DNS names are safe to use there.
+Do not start Caddy on the laptop unless you know the ACME names are safe to
+request. wg-easy also expects the production NIC.
 
 ```bash
 sudo /opt/homelab/scripts/prepare-data.sh
 sudo /opt/homelab/scripts/render-secrets.sh
-sudo env \
-  LAN_IP="$LAN_IP" \
-  FORGEJO_SSH_HOST_PORT="$FORGEJO_SSH_HOST_PORT" \
-  MINECRAFT_PORT="$MINECRAFT_PORT" \
-  HYTALE_PORT="$HYTALE_PORT" \
-  DEPLOY_STACKS="forgejo fluxer minecraft hytale" \
-  SKIP_HEALTHCHECK=1 \
-  /opt/homelab/scripts/deploy.sh --force
+sudo /opt/homelab/scripts/deploy.sh --force
 ```
+
+To change the active set, edit `DEPLOY_STACKS` in `/etc/homelab/host.env`.
 
 If you have not copied the Hytale payload yet, leave `hytale` out of
 `DEPLOY_STACKS`; its entrypoint deliberately refuses to start without

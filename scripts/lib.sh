@@ -11,6 +11,17 @@ BACKUP_DIR="${BACKUP_DIR:-/srv/backup}"
 LIVE_DATA_DIR="${LIVE_DATA_DIR:-/srv/docker}"
 DEPLOY_BRANCH="${DEPLOY_BRANCH:-v2}"
 
+# Host-specific, non-secret settings: bind addresses, host port mappings and
+# optional deploy policy. Production uses /etc/homelab/host.env; staging can
+# point HOMELAB_ENV_FILE at a different file.
+HOST_ENV_FILE="${HOMELAB_ENV_FILE:-/etc/homelab/host.env}"
+if [[ -r "${HOST_ENV_FILE}" ]]; then
+  set -a
+  # shellcheck disable=SC1090
+  source "${HOST_ENV_FILE}"
+  set +a
+fi
+
 log() {
   printf '%s %s\n' "$(date -Is)" "$*" >&2
 }
