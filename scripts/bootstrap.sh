@@ -127,8 +127,11 @@ net.ipv4.ip_forward = 1
 # because Docker rejects sysctls in the host network namespace.
 net.ipv4.conf.all.src_valid_mark = 1
 # Publish exactly one IPv6 address through DDNS. Privacy addresses rotate and
-# would make the AAAA record churn every few minutes.
+# would make the AAAA record churn every few minutes. The per-interface value
+# overrides 'all', so both are set.
 net.ipv6.conf.all.use_tempaddr = 0
+net.ipv6.conf.default.use_tempaddr = 0
+net.ipv6.conf.eno1.use_tempaddr = 0
 fs.inotify.max_user_watches = 524288
 fs.inotify.max_user_instances = 1024
 SYSCTL
