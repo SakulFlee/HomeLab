@@ -117,6 +117,14 @@ for stack in "${ordered_stacks[@]}"; do
   fi
 done
 
+# Dockge derives a stack's state from every container in the project, so a
+# finished one-shot init container makes the whole stack read as "exited" even
+# though every long-running service is healthy. Fluxer's seaweedfs-init has
+# done its job once the stack is up, so drop the container.
+if stack_exists fluxer; then
+  compose fluxer rm -f seaweedfs-init >/dev/null 2>&1 || true
+fi
+
 if [[ "${SKIP_HEALTHCHECK:-0}" != "1" ]]; then
   if ! "${SCRIPT_DIR}/healthcheck.sh"; then
     notify "Deploy health check failed" "Review the host logs" critical
