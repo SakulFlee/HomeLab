@@ -32,7 +32,10 @@ services:
       # record cloudflare-ddns keeps pointing at the WAN address.
       INIT_HOST: wg.sakul-flee.de
       INIT_PORT: "51820"
-      INIT_DNS: 192.168.178.200
+      # Homelab resolver first (split-horizon names), public resolver as a
+      # fallback so a dead CoreDNS degrades to "internal names fail" instead of
+      # taking all name resolution down with it.
+      INIT_DNS: 192.168.178.200,9.9.9.9
       # Keep the tunnel subnet: Caddy's VPN-only gate matches 100.64.0.0/10.
       INIT_IPV4_CIDR: 100.64.0.0/24
       INIT_IPV6_CIDR: fd42:1::/64

@@ -183,12 +183,10 @@ rm -f "${runner_env}.tmp"
 
 wg_env="${RUNTIME_SECRETS_DIR}/wg-easy.env"
 {
-  # v15 ignores PASSWORD_HASH; the plaintext is used only for the one-time
-  # INIT_* setup on first start. Group 1 needs username, password, host, port;
-  # host and port are provided by the compose file.
+  # v15 ignores PASSWORD_HASH and treats its presence as an unmigrated v14
+  # configuration, so only the one-time INIT_* values are written here.
   printf 'INIT_USERNAME=%s\n' "admin"
   printf 'INIT_PASSWORD=%s\n' "$(jq_env wg_easy_password)"
-  printf 'PASSWORD_HASH=%s\n' "$(jq_env wg_easy_password_hash)"
 } > "${wg_env}.tmp"
 install -m 0400 -o root -g root "${wg_env}.tmp" "${wg_env}"
 rm -f "${wg_env}.tmp"
