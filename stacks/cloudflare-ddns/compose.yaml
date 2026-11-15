@@ -5,17 +5,22 @@ services:
     image: favonia/cloudflare-ddns:1
     container_name: cloudflare-ddns
     restart: unless-stopped
+    # Host networking is required by IP6_PROVIDER=local: inside a bridge
+    # network the container only sees its own addresses, not the host's.
+    network_mode: host
     env_file:
       - path: /run/homelab/secrets/cloudflare-ddns.env
         required: false
     environment:
-      DOMAINS: "sakul-flee.de,wg.sakul-flee.de"
+      # DOMAINS manages both A and AAAA. Only the apex gets an AAAA for now:
+      # the host has a public IPv6 and a router pinhole for 443, but no
+      # pinhole has been verified for the WireGuard UDP port, so wg. stays
+      # IPv4-only to keep client configs working.
+      DOMAINS: "sakul-flee.de"
+      IP4_DOMAINS: "wg.sakul-flee.de"
       PROXIED: "false"
-      IP6_PROVIDER: "none"
+      # 'local' reads the address that would be used to reach Cloudflare.
+      # Temporary privacy addresses are disabled in /etc/sysctl.d so this is
+      # the stable, MAC-derived address.
+      IP6_PROVIDER: "local"
       TTL: "120"
-    networks:
-      - proxy
-
-networks:
-  proxy:
-    external: true
