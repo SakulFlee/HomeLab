@@ -24,6 +24,11 @@ services:
       # supply X-Forwarded-* metadata.
       TRUSTED_PROXIES: "172.16.0.0/12"
 
+      # The firewall/NAT templates use this as the outbound interface. It
+      # defaults to eth0, which does not exist on this host, so the generated
+      # MASQUERADE rules would never match.
+      DEFAULT_INTERFACE: eno1
+
       # First-start setup. Group 1 (username/password/host/port) comes from the
       # rendered env file; the rest is not secret.
       INIT_ENABLED: "true"
