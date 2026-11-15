@@ -55,6 +55,8 @@ done
 for dir in caddy dockge wg-easy forgejo-runner cloudflare-ddns; do
   install -d -m 0755 "${LIVE_DATA_DIR}/${dir}"
 done
-install -d -m 0755 -o 1000 -g 1000 "${LIVE_DATA_DIR}/renovate"
+# Renovate's image runs as uid 12021 with gid 0, so hardcoding the image uid
+# would break on an image bump. Group root plus g+w lets it write.
+install -d -m 2770 -o 1000 -g 0 "${LIVE_DATA_DIR}/renovate"
 
 log "data directories prepared under ${LIVE_DATA_DIR}"
