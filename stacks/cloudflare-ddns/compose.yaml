@@ -17,10 +17,7 @@ services:
       # pinhole has been verified for the WireGuard UDP port, so wg. stays
       # IPv4-only to keep client configs working.
       DOMAINS: "sakul-flee.de"
-      # Explicit A records for the game names. Without them they inherit the
-      # apex AAAA through the wildcard CNAME, and game clients that prefer IPv6
-      # would try an address with no router pinhole for 25565 or 5520.
-      IP4_DOMAINS: "wg.sakul-flee.de,minecraft.sakul-flee.de,hytale.sakul-flee.de"
+      IP4_DOMAINS: "wg.sakul-flee.de"
       PROXIED: "false"
       # 'local' reads the address that would be used to reach Cloudflare.
       # Temporary privacy addresses are disabled in /etc/sysctl.d so this is
