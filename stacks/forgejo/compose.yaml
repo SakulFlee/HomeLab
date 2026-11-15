@@ -37,6 +37,13 @@ services:
       # attachments/, avatars/ and packages/ layout. Docker's default is
       # /data/gitea, which would send those paths one level too deep.
       FORGEJO__server__APP_DATA_PATH: /data
+      # The image template hardcodes these under WORK_PATH (/data/gitea, the
+      # custom mount). Point them back at the restored volume.
+      FORGEJO__picture__AVATAR_UPLOAD_PATH: /data/avatars
+      FORGEJO__picture__REPOSITORY_AVATAR_UPLOAD_PATH: /data/repo-avatars
+      FORGEJO__attachment__PATH: /data/attachments
+      FORGEJO__lfs__PATH: /data/lfs
+      FORGEJO__indexer__ISSUE_INDEXER_PATH: /data/indexers/issues.bleve
       FORGEJO__server__SSH_DOMAIN: forgejo.sakul-flee.de
       FORGEJO__server__SSH_PORT: "22"
       FORGEJO__server__SSH_LISTEN_PORT: "2222"
