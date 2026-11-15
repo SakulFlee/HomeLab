@@ -184,6 +184,12 @@ done
 # Caddy runs in a bridge network and reaches wg-easy (host networking) via the
 # host's LAN address, so the source is the Docker bridge, not the LAN.
 ufw allow from 172.16.0.0/12 to any port 51821 proto tcp comment 'wg-easy from Caddy'
+# wg0 is created by wg-easy after ufw starts, and wg-easy writes its forwarding
+# rules with iptables-legacy. ufw's policy lives in nftables, so without this
+# route rule every NEW forwarded connection from a VPN client is dropped --
+# ICMP still passes because ufw accepts it in ufw-before-forward, which makes
+# the failure look like a routing problem.
+ufw route allow in on wg0 comment 'WireGuard clients'
 ufw --force enable
 
 if [[ ! -s /etc/sops/age/keys.txt ]]; then

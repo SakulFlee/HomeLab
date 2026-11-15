@@ -136,6 +136,18 @@ started.
 
 ## Known sharp edges
 
+- **`ufw` and wg-easy use different iptables backends.** ufw and Docker write
+  nftables rules; wg-easy adds its MASQUERADE and `-i wg0 -j ACCEPT` rules with
+  `iptables-legacy`. The legacy ACCEPT does not override ufw's nft
+  `FORWARD` policy, so forwarded VPN traffic is dropped unless ufw has
+  `ufw route allow in on wg0`. Ping still works in that state, because
+  `ufw-before-forward` accepts ICMP, which makes it look like a routing fault.
+  Inspect both with `iptables -S` and `iptables-legacy -S`.
+- **The public names do not resolve locally.** `forgejo.sakul-flee.de` and the
+  admin names are Cloudflare-proxied, and the router has no hairpin NAT, so the
+  host and LAN clients need CoreDNS (`192.168.178.200`) or an `/etc/hosts`
+  entry pointing the name at the LAN address. Without it, Docker pulls from the
+  Forgejo registry and `deploy.sh`'s `git fetch` time out.
 - **`incus-secrets` must not read its loop's stdin.** Guest reads and direct
   `incus` calls need `</dev/null`; the instance list is held in an array. A
   `while read ... < <(jq ...)` loop can be drained by an `incus exec` and skip
