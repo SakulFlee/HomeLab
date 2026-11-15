@@ -21,7 +21,10 @@ services:
     environment:
       HOST: 0.0.0.0
       PORT: "51821"
-      WG_HOST: vpn.sakul-flee.de
+      # vpn.sakul-flee.de is the Cloudflare-proxied UI name; WireGuard is UDP
+      # and cannot traverse the proxy. wg.sakul-flee.de is DNS-only and is the
+      # record cloudflare-ddns keeps pointing at the WAN address.
+      WG_HOST: wg.sakul-flee.de
       WG_PORT: "51820"
       WG_DEFAULT_ADDRESS: 100.64.0.x
       WG_DEFAULT_DNS: 192.168.178.200
