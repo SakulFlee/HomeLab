@@ -64,6 +64,7 @@ required_keys=(
   renovate_token
   renovate_github_com_token
 
+  wg_easy_password
   wg_easy_password_hash
 
   restic_password
@@ -182,6 +183,11 @@ rm -f "${runner_env}.tmp"
 
 wg_env="${RUNTIME_SECRETS_DIR}/wg-easy.env"
 {
+  # v15 ignores PASSWORD_HASH; the plaintext is used only for the one-time
+  # INIT_* setup on first start. Group 1 needs username, password, host, port;
+  # host and port are provided by the compose file.
+  printf 'INIT_USERNAME=%s\n' "admin"
+  printf 'INIT_PASSWORD=%s\n' "$(jq_env wg_easy_password)"
   printf 'PASSWORD_HASH=%s\n' "$(jq_env wg_easy_password_hash)"
 } > "${wg_env}.tmp"
 install -m 0400 -o root -g root "${wg_env}.tmp" "${wg_env}"

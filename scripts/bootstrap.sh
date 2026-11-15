@@ -126,6 +126,9 @@ net.ipv4.ip_forward = 1
 # Required by wg-easy's fwmark routing. It cannot be set from the container
 # because Docker rejects sysctls in the host network namespace.
 net.ipv4.conf.all.src_valid_mark = 1
+# wg-easy 15 hands out IPv6 tunnel addresses and expects to route them.
+net.ipv6.conf.all.forwarding = 1
+net.ipv6.conf.default.forwarding = 1
 # Publish exactly one IPv6 address through DDNS. Privacy addresses rotate and
 # would make the AAAA record churn every few minutes. The per-interface value
 # overrides 'all', so both are set.
