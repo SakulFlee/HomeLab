@@ -20,6 +20,11 @@ services:
     environment:
       HOST: 0.0.0.0
       PORT: "51821"
+      # The UI is normally reached as https://vpn.sakul-flee.de through Caddy.
+      # Plain HTTP is also allowed so the LAN address works when the split-
+      # horizon name is not resolvable (browser DoH etc.). Port 51821 is
+      # restricted by ufw to the LAN, the VPN and the Docker bridge.
+      INSECURE: "true"
       # The UI is reached through Caddy, which is the only client we trust to
       # supply X-Forwarded-* metadata.
       TRUSTED_PROXIES: "172.16.0.0/12"
