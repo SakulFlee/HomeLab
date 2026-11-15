@@ -49,13 +49,11 @@ if ! ssh -o BatchMode=yes -o ConnectTimeout=5 "${DENDRA_HOST}" true >/dev/null 2
   exit 0
 fi
 
+# Copy from the live repository. An earlier version preferred the read-only
+# btrfs snapshot in repo-snapshots/, but restic needs to create a lock even in
+# the source repository, which a read-only subvolume rejects ("read-only file
+# system") and it retries for minutes before failing.
 source_repo="${RESTIC_REPOSITORY}"
-latest_snapshot="$(find "${BACKUP_DIR}/repo-snapshots" -mindepth 1 -maxdepth 1 -type d \
-  -name 'restic-*' -printf '%p\n' 2>/dev/null | sort | tail -n 1 || true)"
-if [[ -n "${latest_snapshot}" ]]; then
-  source_repo="${latest_snapshot}"
-  log "copying from repository snapshot ${source_repo}"
-fi
 
 if ! restic -r "${DENDRA_REPO}" --password-file "${DENDRA_PASSWORD_FILE}" cat config >/dev/null 2>&1; then
   log "initializing Dendra restic repository ${DENDRA_REPO}"
