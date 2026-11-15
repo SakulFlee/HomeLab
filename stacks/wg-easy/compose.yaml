@@ -28,7 +28,10 @@ services:
       WG_PORT: "51820"
       WG_DEFAULT_ADDRESS: 100.64.0.x
       WG_DEFAULT_DNS: 192.168.178.200
-      WG_ALLOWED_IPS: 0.0.0.0/0,::/0
+      # IPv4 only on purpose: wg0 has no IPv6 address, IPv6 forwarding is off
+      # and there is no NAT66. Advertising ::/0 sends all IPv6 into a tunnel
+      # that cannot carry it, which blackholes every dual-stack destination.
+      WG_ALLOWED_IPS: 0.0.0.0/0
       WG_PERSISTENT_KEEPALIVE: "25"
       WG_MTU: "1420"
       # Full-tunnel NAT. The host NIC is eno1 on the current hardware.
