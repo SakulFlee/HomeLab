@@ -296,14 +296,16 @@ notify_tmp="$(mktemp /etc/homelab/.notify.XXXXXX)"
 install -m 0600 -o root -g root "${notify_tmp}" "${notify_env}"
 rm -f "${notify_tmp}"
 
-# ntfy access control: one user with read-write access to the alert topic.
-ntfy_auth="${RUNTIME_SECRETS_DIR}/ntfy-auth.db"
+# ntfy access control. ntfy 2.38 stores users in SQLite and provisions them
+# declaratively; env_file passes the bcrypt hash through without Compose
+# trying to interpolate its '$' characters.
+ntfy_env="${RUNTIME_SECRETS_DIR}/ntfy.env"
 ntfy_user="$(jq_raw ntfy_user)"
 {
-  printf '%s:%s\n' "${ntfy_user}" "$(jq_raw ntfy_password_hash)"
-  printf '%s:homelab:rw\n' "${ntfy_user}"
-} > "${ntfy_auth}.tmp"
-install -m 0400 -o root -g root "${ntfy_auth}.tmp" "${ntfy_auth}"
-rm -f "${ntfy_auth}.tmp"
+  printf 'NTFY_AUTH_USERS=%s:%s:user\n' "${ntfy_user}" "$(jq_raw ntfy_password_hash)"
+  printf 'NTFY_AUTH_ACCESS=%s:homelab:rw\n' "${ntfy_user}"
+} > "${ntfy_env}.tmp"
+install -m 0400 -o root -g root "${ntfy_env}.tmp" "${ntfy_env}"
+rm -f "${ntfy_env}.tmp"
 
 log "secret rendering complete under ${RUNTIME_SECRETS_DIR}"

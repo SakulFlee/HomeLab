@@ -8,18 +8,22 @@ services:
     container_name: ntfy
     restart: unless-stopped
     command: serve
+    # ntfy 2.38 keeps users in a SQLite database, not a text file, and can
+    # provision them declaratively. env_file is used because the bcrypt hash
+    # contains '$', which Compose would otherwise try to interpolate.
+    env_file:
+      - path: /run/homelab/secrets/ntfy.env
+        required: true
     environment:
       NTFY_BASE_URL: https://ntfy.sakul-flee.de
       NTFY_BEHIND_PROXY: "true"
       NTFY_LISTEN_HTTP: ":80"
       NTFY_CACHE_FILE: /var/cache/ntfy/cache.db
-      # One user, read-write on the "homelab" topic, anonymous denied.
-      NTFY_AUTH_FILE: /etc/ntfy/auth.db
+      NTFY_AUTH_FILE: /var/cache/ntfy/auth.db
       NTFY_AUTH_DEFAULT_ACCESS: deny-all
       NTFY_ENABLE_SIGNUP: "false"
     volumes:
       - /srv/docker/ntfy:/var/cache/ntfy
-      - /run/homelab/secrets/ntfy-auth.db:/etc/ntfy/auth.db:ro
     networks:
       - proxy
 
