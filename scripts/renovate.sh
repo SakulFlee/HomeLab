@@ -13,4 +13,5 @@ stack_exists renovate || die "renovate stack is missing"
 
 "${SCRIPT_DIR}/render-secrets.sh"
 compose renovate --profile renovate run --rm renovate
-notify "Renovate run complete" "Renovate finished at $(date -Is)" default
+# No success notification: this runs hourly, and a failed run is already
+# reported by the unit's OnFailure handler.
