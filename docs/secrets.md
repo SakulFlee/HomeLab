@@ -4,10 +4,10 @@ Secrets live in `secrets/secrets.yaml`, encrypted with sops/age. The host
 renders file-based secrets into `/run/homelab/secrets`; nothing plaintext is
 committed.
 
-## New keys for v2
+## Keys the renderer requires
 
-The existing Forgejo, Fluxer, OpenCode, Renovate and runner values carry over.
-These keys are new and must be added before `render-secrets.sh` will run:
+The Forgejo, Fluxer, OpenCode, Renovate and runner values were carried over from
+the NixOS host. These keys must exist before `render-secrets.sh` will run:
 
 | key | purpose | suggested value |
 | --- | --- | --- |
@@ -16,6 +16,18 @@ These keys are new and must be added before `render-secrets.sh` will run:
 | `wg_easy_password_hash` | what wg-easy actually consumes | bcrypt hash of `wg_easy_password`, see below |
 | `restic_password` | local restic repository | `openssl rand -base64 32` |
 | `restic_dendra_password` | Dendra restic repository | a different `openssl rand -base64 32` |
+
+Optional, and skipped when absent:
+
+| key | purpose |
+| --- | --- |
+| `ntfy_url` | ntfy topic for failure alerts |
+| `fluxer_webhook_url` | Fluxer channel webhook, Discord-style payload |
+| `healthchecks_pull_url` | dead-man's switch for the daily backup chain |
+| `healthchecks_check_url` | dead-man's switch for the weekly restic check |
+
+`render-secrets.sh` writes these into `/etc/homelab/notify.env` (0600 root),
+which every notifying unit loads through `EnvironmentFile=`.
 
 ## Add a key
 
@@ -66,16 +78,23 @@ the plaintext.
 
 ## Age key
 
-The host's age identity is expected at `/etc/sops/age/keys.txt`. The current
-NixOS host derives its key from `/etc/ssh/ssh_host_ed25519_key`; copy that key or
-create a dedicated age key before wiping.
+The host's age identity is a dedicated key at `/etc/sops/age/keys.txt`, created
+with `age-keygen`; its public half is enrolled in `.sops.yaml`. It is not derived
+from the SSH host key, so it survives an SSH rekey.
 
-If you only have an SSH key and no age key file, derive the age identity with
-`ssh-to-age`:
+Dendra can decrypt the same file with the identity in
+`~/.config/sops/age/keys.txt`. That key is the root of trust for everything else:
+the restic passwords, the wg-easy password, the notification endpoints and every
+service secret.
 
-```bash
-SOPS_AGE_KEY="$(ssh-to-age -private-key -i ~/.ssh/id_ed25519)" sops -d secrets/secrets.yaml
-```
+Keep the age key, both restic repository passwords and the LUKS recovery
+passphrase offline (KeePass or paper). Without them the encrypted secrets and
+the backups cannot be recovered.
 
-Keep the age key and both restic passwords offline. Without them, the encrypted
-secrets and backups cannot be recovered.
+## Forgejo SECRET_KEY
+
+`forgejo_secret_key` decrypts 2FA secrets and other encrypted columns in the
+Forgejo database. Never regenerate it on an existing database: a new key is
+accepted silently, then every 2FA-enabled account is refused with "this instance
+requires two-factor authentication", including API tokens. The original value is
+in `forgejo-custom/conf/app.ini` inside the migration export.

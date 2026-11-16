@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shared helpers for the v2 host scripts. Source this file; do not execute it.
+# Shared helpers for the host scripts. Source this file; do not execute it.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -9,7 +9,7 @@ RUNTIME_SECRETS_DIR="${RUNTIME_SECRETS_DIR:-/run/homelab/secrets}"
 STATE_DIR="${STATE_DIR:-/var/lib/homelab}"
 BACKUP_DIR="${BACKUP_DIR:-/srv/backup}"
 LIVE_DATA_DIR="${LIVE_DATA_DIR:-/srv/docker}"
-DEPLOY_BRANCH="${DEPLOY_BRANCH:-v2}"
+DEPLOY_BRANCH="${DEPLOY_BRANCH:-main}"
 
 # Host-specific, non-secret settings: bind addresses, host port mappings and
 # optional deploy policy. Production uses /etc/homelab/host.env; staging can

@@ -1,3 +1,7 @@
+> **Historical.** This documents exporting data from the retired Incus host.
+> It is kept for provenance and is not current operating documentation; see
+> [operations.md](operations.md).
+
 # Exporting the Incus data
 
 Run this on the homelab host as root. The goal is to get application-level dumps

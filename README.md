@@ -1,43 +1,57 @@
-# HomeLab v2
+# HomeLab
 
-Debian 13 + Docker Compose homelab. This branch (`v2`) is the replacement for
-the NixOS + Incus configuration on `main`.
+Debian 13 + Docker Compose homelab. `main` is the current deployment.
 
-The full migration plan is in [PLAN.md](PLAN.md).
+The `nixos/` and `incus/` trees are the retired NixOS + Incus configuration.
+They are kept for reference only and are not deployed anywhere any more.
 
 ## Layout
 
 | path | purpose |
 | --- | --- |
 | `stacks/` | one Docker Compose stack per service |
-| `scripts/` | host bootstrap, deploy, backup, restore and secret rendering |
+| `scripts/` | bootstrap, deploy, backup, restore and secret rendering |
 | `systemd/` | host units and timers |
-| `secrets/secrets.yaml` | sops-encrypted secrets |
+| `secrets/secrets.yaml` | sops/age encrypted secrets |
 | `docs/` | operational notes and runbooks |
 
-Service data lives on bind mounts under `/srv/docker/<service>`. Backups live on
-the SATA SSD under `/srv/backup`.
+Service data lives on bind mounts under `/srv/docker/<service>`. The restic
+repository lives on the SATA SSD under `/srv/backup`. The repository is checked
+out at `/opt/homelab` on the host; `deploy.sh` runs as root from there.
 
 ## Host
 
-- Debian 13, btrfs, NVMe for OS/live data, SATA SSD for backups.
-- Host SSH: `2222`.
-- Forgejo Git SSH: `22`.
-- LUKS root with dropbear-initramfs remote unlock on `2222` during initramfs.
+- Debian 13, btrfs root inside LUKS, unencrypted `/boot`.
+- NVMe: OS and live data (`/srv/docker`). SATA: LUKS + btrfs, `/srv/backup`.
+- Host SSH `2222`. Initramfs dropbear `2223` (unlocks the root disk). Forgejo
+  Git SSH `22`.
+- Public services behind Caddy (`80`/`443`, Let's Encrypt via DNS-01).
+- WireGuard through wg-easy: `51820/udp`, UI on `51821`, tunnel `100.64.0.0/24`
+  plus `fd42:1::/64`.
+- Split-horizon DNS on `192.168.178.200` (CoreDNS) for the admin names.
+
+### Services
+
+| stack | reachable at |
+| --- | --- |
+| Forgejo | `forgejo.sakul-flee.de`, SSH `forgejo@…:22` |
+| Fluxer | `fluxer.sakul-flee.de` |
+| Website | `sakul-flee.de` |
+| Minecraft | `minecraft.sakul-flee.de:25565` |
+| Hytale | `hytale.sakul-flee.de:5520/udp` |
+| Admin (LAN/VPN only) | `dockge.`, `vpn.`, `syncthing.`, `opencode.` |
 
 ## First setup
 
 On a fresh Debian 13 host:
 
 ```bash
-sudo apt-get update
-sudo apt-get install -y git
+sudo apt-get update && sudo apt-get install -y git
 sudo git clone ssh://forgejo@forgejo.sakul-flee.de/SakulFlee/HomeLab.git /opt/homelab
-sudo git -C /opt/homelab checkout v2
 sudo /opt/homelab/scripts/bootstrap.sh
 ```
 
-Then restore data and run:
+Place the sops age identity at `/etc/sops/age/keys.txt`, then:
 
 ```bash
 sudo /opt/homelab/scripts/render-secrets.sh
@@ -47,28 +61,34 @@ sudo /opt/homelab/scripts/deploy.sh --force
 ## Normal operation
 
 ```bash
-sudo /opt/homelab/scripts/deploy.sh      # pull, validate, deploy, health-check
-sudo /opt/homelab/scripts/backup.sh      # dumps + restic + repo snapshot
-sudo /opt/homelab/scripts/restic-copy.sh # copy to Dendra when reachable
+sudo /opt/homelab/scripts/deploy.sh     # pull, validate, deploy, health-check
+sudo /opt/homelab/scripts/backup.sh     # dumps + restic + repo snapshot
 ```
 
-Timers run these automatically after the host has been verified.
+`deploy.sh` is also driven by `homelab-deploy.timer` every 30 minutes. Push to
+`main` instead of rsyncing files: when the checkout is ahead of the remote, the
+timer treats that as a deploy and re-applies every stack on each run.
+
+The off-box copy is pulled *from* Dendra, not pushed by the homelab. See
+[docs/operations.md](docs/operations.md).
 
 ## Secrets
 
-Secrets are encrypted with sops/age in `secrets/secrets.yaml`. The host's age
-key is derived from `/etc/ssh/ssh_host_ed25519_key` unless a dedicated age key
-is configured. Keep a copy of the age key offline.
+Everything is encrypted with sops/age in `secrets/secrets.yaml`. The host keeps
+its identity at `/etc/sops/age/keys.txt`; `scripts/sops.sh` is a wrapper that
+uses it. Store the age key and the restic repository passwords offline.
 
-## Migration
+**The Forgejo `SECRET_KEY` must never be regenerated on an existing database.**
+It decrypts 2FA secrets and other encrypted rows; rotating it silently breaks
+every account that has 2FA enabled.
 
-See [PLAN.md](PLAN.md) for the full migration, cutover and restore runbook. The
-short version:
+## Documentation
 
-1. Back up Forgejo, Fluxer, Minecraft and Hytale to Dendra.
-2. Stage the new stacks on the laptop.
-3. Install Debian 13 on the homelab NVMe.
-4. Restore the bind-mounted data to `/srv/docker`.
-5. Start the stacks, verify, then format the SATA disk as `/srv/backup`.
-6. Enable deploy/backup timers.
-7. Merge `v2` into `main` after a stable period.
+- [docs/operations.md](docs/operations.md) — deployment, backups, alerting,
+  VPN/DNS, and the known sharp edges. Start here.
+- [docs/ssh.md](docs/ssh.md) — host SSH, Forgejo SSH and initramfs unlock.
+- [docs/secrets.md](docs/secrets.md) — sops layout and how to read a value.
+- [docs/restore.md](docs/restore.md) — restoring and inspecting backups.
+- [docs/staging.md](docs/staging.md) — running the stacks off-production.
+- `PLAN.md`, `docs/migration.md`, `docs/incus-export.md` — the historical
+  migration from NixOS + Incus. Kept for provenance, no longer current.

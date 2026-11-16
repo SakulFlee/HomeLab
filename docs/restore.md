@@ -1,7 +1,16 @@
 # Restore runbook
 
-The local restic repository is `/srv/backup/restic`. The off-box copy is on
-Dendra at `/srv/restic/homelab`, copied with `restic copy`.
+The local restic repository is `/srv/backup/restic` (password
+`/run/homelab/secrets/restic-password`). The off-box copy is on Dendra at
+`/mnt/ssd/Backup/HomeLab/Restic` (password `~/.config/restic/dendra-password`).
+
+Dendra pulls the copy itself every 30 minutes over a read-only sftp key; the
+homelab cannot reach Dendra. To restore from the copy, run restic on Dendra:
+
+```bash
+restic -r /mnt/ssd/Backup/HomeLab/Restic --password-file ~/.config/restic/dendra-password \
+  snapshots
+```
 
 Always restore into a staging directory or a stopped stack first. Do not restore
 a live PostgreSQL data directory over a running database.
@@ -24,7 +33,8 @@ to preserve ownership.
 
 ## Forgejo
 
-Assuming the Incus export was extracted as described in `incus-export.md`:
+Assuming the data is already below `/srv/docker/forgejo` (either restored in
+the migration or from a restic snapshot):
 
 1. Stop the whole stack:
 
@@ -49,7 +59,7 @@ Assuming the Incus export was extracted as described in `incus-export.md`:
    sudo chmod 0644 /srv/docker/forgejo/ssh-keys/ssh_host_*_key.pub
    ```
 
-   If you copied the old `custom` directory, remove its `app.ini`; v2
+   If you copied the old `custom` directory, remove its `app.ini`; the stack
    generates it from the environment:
 
    ```bash

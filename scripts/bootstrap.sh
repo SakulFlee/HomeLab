@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Prepare a fresh Debian 13 host for the v2 Docker stack.
+# Prepare a fresh Debian 13 host for the Docker stack.
 #
 # Idempotent where possible. It does not write secrets, restore data, or start
 # application stacks.

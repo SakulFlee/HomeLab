@@ -14,7 +14,7 @@ sudo systemctl enable --now docker
 
 ```bash
 sudo git clone ssh://forgejo@forgejo.sakul-flee.de/SakulFlee/HomeLab.git /opt/homelab
-sudo git -C /opt/homelab checkout v2
+sudo git -C /opt/homelab checkout main
 ```
 
 Restore copies of the data into `/srv/docker` with the ownership produced by

@@ -1,3 +1,7 @@
+> **Historical.** This documents the cutover from NixOS + Incus to the
+> Debian + Docker host. It is kept for provenance and is not current operating
+> documentation; see [operations.md](operations.md).
+
 # Migration checklist
 
 This is the concrete version of `PLAN.md` phase 0/1. Run the export commands on
