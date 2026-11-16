@@ -2,7 +2,7 @@ name: coredns
 
 services:
   coredns:
-    image: coredns/coredns:1.12.1
+    image: coredns/coredns:1.15.0
     container_name: coredns
     restart: unless-stopped
     command: ["-conf", "/etc/coredns/Corefile"]
