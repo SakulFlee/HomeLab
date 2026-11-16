@@ -67,6 +67,9 @@ required_keys=(
   wg_easy_password
   wg_easy_password_hash
 
+  ntfy_user
+  ntfy_password_hash
+
   restic_password
   restic_dendra_password
 )
@@ -110,6 +113,11 @@ env_escape() {
 }
 jq_env() {
   jq -j --arg k "$1" '.[$k]' "${tmp}" | env_escape
+}
+
+# Raw value for files that are not Compose env files.
+jq_raw() {
+  jq -r --arg k "$1" '.[$k]' "${tmp}"
 }
 
 # Fluxer's upstream compose expects a .env file. Keep it root-only; Compose is
@@ -279,7 +287,7 @@ write_stack_env caddy \
 notify_env=/etc/homelab/notify.env
 notify_tmp="$(mktemp /etc/homelab/.notify.XXXXXX)"
 {
-  for key in ntfy_url fluxer_webhook_url healthchecks_check_url healthchecks_pull_url; do
+  for key in ntfy_url ntfy_fallback_url ntfy_user ntfy_password fluxer_webhook_url healthchecks_check_url healthchecks_pull_url; do
     if jq -e --arg k "${key}" 'has($k) and (.[$k] != "")' "${tmp}" >/dev/null 2>&1; then
       printf '%s=%s\n' "${key^^}" "$(jq -r --arg k "${key}" '.[$k]' "${tmp}")"
     fi
@@ -287,5 +295,15 @@ notify_tmp="$(mktemp /etc/homelab/.notify.XXXXXX)"
 } > "${notify_tmp}"
 install -m 0600 -o root -g root "${notify_tmp}" "${notify_env}"
 rm -f "${notify_tmp}"
+
+# ntfy access control: one user with read-write access to the alert topic.
+ntfy_auth="${RUNTIME_SECRETS_DIR}/ntfy-auth.db"
+ntfy_user="$(jq_raw ntfy_user)"
+{
+  printf '%s:%s\n' "${ntfy_user}" "$(jq_raw ntfy_password_hash)"
+  printf '%s:homelab:rw\n' "${ntfy_user}"
+} > "${ntfy_auth}.tmp"
+install -m 0400 -o root -g root "${ntfy_auth}.tmp" "${ntfy_auth}"
+rm -f "${ntfy_auth}.tmp"
 
 log "secret rendering complete under ${RUNTIME_SECRETS_DIR}"

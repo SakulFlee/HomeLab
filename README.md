@@ -40,6 +40,7 @@ out at `/opt/homelab` on the host; `deploy.sh` runs as root from there.
 | Minecraft | `minecraft.sakul-flee.de:25565` |
 | Hytale | `hytale.sakul-flee.de:5520/udp` |
 | Admin (LAN/VPN only) | `dockge.`, `vpn.`, `syncthing.`, `opencode.` |
+| ntfy (self-hosted relay) | `ntfy.sakul-flee.de`, authenticated |
 
 ## First setup
 

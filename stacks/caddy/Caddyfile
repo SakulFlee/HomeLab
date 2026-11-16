@@ -74,3 +74,9 @@ dockge.sakul-flee.de {
 		header_up Host {http.request.host}
 	}
 }
+
+# Self-hosted notification relay. Public on purpose: it must be reachable from
+# phones outside the LAN/VPN. ntfy enforces its own authentication.
+ntfy.sakul-flee.de {
+	reverse_proxy ntfy:80
+}

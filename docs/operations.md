@@ -81,9 +81,17 @@ See [restore.md](restore.md) for the full procedure.
 
 | channel | what | configured in |
 | --- | --- | --- |
-| ntfy | any failed unit on either machine | sops `ntfy_url` -> `NTFY_URL` |
+| ntfy (self-hosted) | any failed unit on either machine | sops `ntfy_url`, `ntfy_user`, `ntfy_password` |
+| ntfy.sh (hosted) | same message, always sent as well | sops `ntfy_fallback_url` |
 | Fluxer webhook | same events, posted to a channel | sops `fluxer_webhook_url` |
 | Healthchecks.io | dead-man's switch: pings stop when the chain stops | sops `healthchecks_pull_url`, `healthchecks_check_url` |
+
+`notify()` posts to both ntfy endpoints unconditionally: the self-hosted one
+carries credentials and the hosted topic is anonymous. Both are sent because a
+relay running on the homelab cannot report the homelab itself being down. The
+self-hosted instance lives in `stacks/ntfy` with `NTFY_AUTH_DEFAULT_ACCESS=deny-all`
+and one user with read-write access to the `homelab` topic; subscribe to it with
+that user in the ntfy app (`https://ntfy.sakul-flee.de`).
 
 - The pull pings Healthchecks only when a **new snapshot** arrives, so a failing
   homelab backup or a broken connection shows up as a missing ping rather than

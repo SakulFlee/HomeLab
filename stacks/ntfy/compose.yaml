@@ -1,0 +1,28 @@
+name: ntfy
+
+services:
+  ntfy:
+    # Self-hosted notification relay. The hosted ntfy.sh topic stays configured
+    # as a fallback, because this container cannot report a homelab outage.
+    image: binwiederhier/ntfy:v2
+    container_name: ntfy
+    restart: unless-stopped
+    command: serve
+    environment:
+      NTFY_BASE_URL: https://ntfy.sakul-flee.de
+      NTFY_BEHIND_PROXY: "true"
+      NTFY_LISTEN_HTTP: ":80"
+      NTFY_CACHE_FILE: /var/cache/ntfy/cache.db
+      # One user, read-write on the "homelab" topic, anonymous denied.
+      NTFY_AUTH_FILE: /etc/ntfy/auth.db
+      NTFY_AUTH_DEFAULT_ACCESS: deny-all
+      NTFY_ENABLE_SIGNUP: "false"
+    volumes:
+      - /srv/docker/ntfy:/var/cache/ntfy
+      - /run/homelab/secrets/ntfy-auth.db:/etc/ntfy/auth.db:ro
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true

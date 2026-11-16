@@ -47,12 +47,23 @@ ensure_runtime_dirs() {
 notify() {
   local title="$1" message="$2" priority="${3:-default}"
   log "${title}: ${message}"
-  if [[ -n "${NTFY_URL:-}" ]] && command -v curl >/dev/null 2>&1; then
-    curl -fsS -m 10 \
-      -H "Title: ${title}" \
-      -H "Priority: ${priority}" \
-      -d "${message}" \
-      "${NTFY_URL}" >/dev/null 2>&1 || true
+  if command -v curl >/dev/null 2>&1; then
+    # Self-hosted first, with credentials, then the hosted fallback. Both are
+    # always sent: the self-hosted relay cannot report its own host being down.
+    if [[ -n "${NTFY_URL:-}" ]]; then
+      local -a auth=()
+      if [[ -n "${NTFY_USER:-}" ]]; then
+        auth=(-u "${NTFY_USER}:${NTFY_PASSWORD:-}")
+      fi
+      curl -fsS -m 10 "${auth[@]}" \
+        -H "Title: ${title}" -H "Priority: ${priority}" \
+        -d "${message}" "${NTFY_URL}" >/dev/null 2>&1 || true
+    fi
+    if [[ -n "${NTFY_FALLBACK_URL:-}" ]]; then
+      curl -fsS -m 10 \
+        -H "Title: ${title}" -H "Priority: ${priority}" \
+        -d "${message}" "${NTFY_FALLBACK_URL}" >/dev/null 2>&1 || true
+    fi
   fi
   # Fluxer webhooks accept Discord-style payloads.
   if [[ -n "${FLUXER_WEBHOOK_URL:-}" ]] && command -v curl >/dev/null 2>&1; then

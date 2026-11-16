@@ -50,6 +50,7 @@ if (( ! FORCE && ! changed )); then
   exit 0
 fi
 
+"${SCRIPT_DIR}/prepare-data.sh" >/dev/null
 "${SCRIPT_DIR}/render-secrets.sh"
 
 # Validate before changing anything.
@@ -99,6 +100,7 @@ ordered_stacks=(
   syncthing
   website
   forgejo-runner
+  ntfy
   caddy
 )
 
