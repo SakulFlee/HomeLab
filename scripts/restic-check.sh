@@ -17,4 +17,6 @@ export RESTIC_PASSWORD_FILE="${RESTIC_PASSWORD_FILE:-${RUNTIME_SECRETS_DIR}/rest
 subset="${RESTIC_CHECK_SUBSET:-10%}"
 log "checking ${RESTIC_REPOSITORY} with read-data-subset=${subset}"
 restic check --read-data-subset="${subset}"
+# Dead-man's-switch: the weekly check pings on success only.
+ping_healthchecks "${HEALTHCHECKS_CHECK_URL:-}"
 notify "Backup verification passed" "restic check completed with subset ${subset}" default

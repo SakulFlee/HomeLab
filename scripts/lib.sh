@@ -54,6 +54,22 @@ notify() {
       -d "${message}" \
       "${NTFY_URL}" >/dev/null 2>&1 || true
   fi
+  # Fluxer webhooks accept Discord-style payloads.
+  if [[ -n "${FLUXER_WEBHOOK_URL:-}" ]] && command -v curl >/dev/null 2>&1; then
+    jq -n --arg c "${title}: ${message}" '{content: $c}' \
+      | curl -fsS -m 10 -H 'Content-Type: application/json' -d @- \
+          "${FLUXER_WEBHOOK_URL}" >/dev/null 2>&1 || true
+  fi
+}
+
+# Dead-man's-switch ping (healthchecks.io style). Called only on success: the
+# missing ping, not an error report, is what raises the alert.
+ping_healthchecks() {
+  local url="${1:-}"
+  if [[ -n "${url}" ]] && command -v curl >/dev/null 2>&1; then
+    curl -fsS -m 10 "${url%/}" >/dev/null 2>&1 || true
+  fi
+  return 0
 }
 
 stack_exists() {

@@ -274,4 +274,18 @@ write_stack_env caddy \
   "${LAN_IP:-192.168.178.200}" "${HTTP_PORT:-80}" "${HTTPS_PORT:-443}" \
   "${ACME_CA:-https://acme-v02.api.letsencrypt.org/directory}"
 
+# Optional notification endpoints. Missing keys simply disable that channel;
+# none of them is required for the host to operate.
+notify_env=/etc/homelab/notify.env
+notify_tmp="$(mktemp /etc/homelab/.notify.XXXXXX)"
+{
+  for key in ntfy_url fluxer_webhook_url healthchecks_check_url healthchecks_pull_url; do
+    if jq -e --arg k "${key}" 'has($k) and (.[$k] != "")' "${tmp}" >/dev/null 2>&1; then
+      printf '%s=%s\n' "${key^^}" "$(jq -r --arg k "${key}" '.[$k]' "${tmp}")"
+    fi
+  done
+} > "${notify_tmp}"
+install -m 0600 -o root -g root "${notify_tmp}" "${notify_env}"
+rm -f "${notify_tmp}"
+
 log "secret rendering complete under ${RUNTIME_SECRETS_DIR}"
