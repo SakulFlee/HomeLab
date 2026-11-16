@@ -89,7 +89,7 @@ send_deploy_log() {
   local rc=$?
   sleep 0.2
   local body
-  body="$(tail -c 3000 "${DEPLOY_LOG}" 2>/dev/null || true)"
+  body="$(printf '[tail of deploy output]\n%s' "$(tail -c 2900 "${DEPLOY_LOG}" 2>/dev/null || true)")"
   if (( rc == 0 )); then
     notify_local "Deploy ok" "${body}" default
   else

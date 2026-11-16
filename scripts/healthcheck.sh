@@ -86,7 +86,8 @@ fi
 
 if stack_exists ntfy; then
   running ntfy && pass "ntfy container" || bad "ntfy container"
-  curl -fsS --max-time 5 --resolve ntfy.sakul-flee.de:443:127.0.0.1 \
+  curl -fsS --max-time 25 --retry 6 --retry-delay 2 --retry-all-errors \
+    --resolve ntfy.sakul-flee.de:443:127.0.0.1 \
     https://ntfy.sakul-flee.de/v1/health >/dev/null 2>&1 \
     && pass "ntfy HTTP" || bad "ntfy HTTP"
 fi

@@ -12,7 +12,9 @@ services:
       - -c
       - |
         export CF_API_TOKEN="$$(cat /run/secrets/cloudflare_api_token)"
-        exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
+        # --watch reloads when the bind-mounted Caddyfile changes; without it
+        # compose does not recreate the container and new sites never load.
+        exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile --watch
     ports:
       - "${HTTP_PORT:-80}:80"
       - "${HTTPS_PORT:-443}:443"
