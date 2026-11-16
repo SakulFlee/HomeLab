@@ -49,7 +49,19 @@ if git fetch origin "${DEPLOY_BRANCH}" --quiet; then
     log "already at ${current}"
   fi
 else
+  # A failed fetch (network, Forgejo down, dubious ownership) used to exit 0
+  # and look like a successful no-op deploy, which hid a stale checkout for
+  # hours. Report it, throttled to once per hour so a long outage does not
+  # notify on every timer tick.
   log "WARN: git fetch failed; not deploying"
+  stamp="${STATE_DIR}/deploy-fetch-failed.last"
+  now="$(date +%s)"
+  last="$(cat "${stamp}" 2>/dev/null || echo 0)"
+  if (( now - last >= 3600 )); then
+    notify "Deploy fetch failed" "git fetch failed on $(hostname); deploy skipped" high
+    install -d -m 0755 "${STATE_DIR}"
+    printf '%s\n' "${now}" > "${stamp}"
+  fi
   exit 0
 fi
 
