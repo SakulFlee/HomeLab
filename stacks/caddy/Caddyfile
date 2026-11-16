@@ -80,3 +80,16 @@ dockge.sakul-flee.de {
 ntfy.sakul-flee.de {
 	reverse_proxy ntfy:80
 }
+
+# Catch-all for unknown names. The proxied wildcard sends every subdomain to
+# this origin, so without a matching site Caddy aborts the TLS handshake and
+# Cloudflare reports 525. A wildcard certificate plus a plain 404 makes a typo
+# obvious instead of looking like an outage. Explicit sites above win.
+*.sakul-flee.de {
+	respond "No such site." 404
+}
+
+# Frequent typo for the notification relay.
+nfty.sakul-flee.de {
+	redir https://ntfy.sakul-flee.de{uri} permanent
+}

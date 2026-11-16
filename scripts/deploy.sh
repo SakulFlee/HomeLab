@@ -77,7 +77,7 @@ fi
 # buffered the previous version, which is how a new stack was pulled but never
 # applied. Re-exec once so the new code runs, keeping the pending flag.
 if (( changed )) && [[ "${HOMELAB_DEPLOY_REEXEC:-0}" != "1" ]]; then
-  export HOMELAB_DEPLOY_REEXEC=1 HOMELAB_DEPLOY_PENDING=1
+  export HOMELAB_DEPLOY_REEXEC=1 HOMELAB_DEPLOY_PENDING=1 HOMELAB_DEPLOY_FROM="${current}"
   exec "$0" "$@"
 fi
 
@@ -101,39 +101,6 @@ trap send_deploy_log EXIT
 
 "${SCRIPT_DIR}/prepare-data.sh" >/dev/null
 "${SCRIPT_DIR}/render-secrets.sh"
-
-# Validate before changing anything.
-while read -r stack; do
-  [[ -n "${stack}" ]] || continue
-  log "validating ${stack}"
-  compose "${stack}" config -q || die "invalid compose configuration: ${stack}"
-done < <(stack_names)
-
-# Local rollback point. /srv/docker is expected to be a btrfs subvolume.
-if command -v btrfs >/dev/null 2>&1 && btrfs subvolume show /srv/docker >/dev/null 2>&1; then
-  install -d -m 0755 /srv/snapshots
-  snap="/srv/snapshots/deploy-$(date +%Y%m%dT%H%M%S)"
-  btrfs subvolume snapshot -r /srv/docker "${snap}"
-  log "created rollback snapshot ${snap}"
-else
-  log "WARN: /srv/docker is not a btrfs subvolume; skipping deploy snapshot"
-fi
-
-# Pull first, but do not abort the whole deploy if a build-only stack has no
-# remote image to pull.
-while read -r stack; do
-  [[ -n "${stack}" ]] || continue
-  case "${stack}" in
-    caddy|hytale)
-      log "skipping pull for build-only stack ${stack}"
-      continue
-      ;;
-  esac
-  log "pulling ${stack}"
-  if ! compose "${stack}" pull; then
-    log "WARN: pull failed for ${stack}; continuing with local images"
-  fi
-done < <(stack_names)
 
 # Start in dependency order. Caddy is last so its upstreams exist first.
 ordered_stacks=(
@@ -159,8 +126,69 @@ if [[ -n "${DEPLOY_STACKS:-}" ]]; then
   read -r -a ordered_stacks <<< "${DEPLOY_STACKS}"
 fi
 
+# Work out what actually changed. Re-applying every stack on a one-line script
+# edit restarts Fluxer, Caddy and Hytale for nothing.
+deploy_from="${HOMELAB_DEPLOY_FROM:-}"
+changed_files=""
+apply_all=0
+if (( FORCE )) || [[ -z "${deploy_from}" ]]; then
+  apply_all=1
+else
+  changed_files="$(git diff --name-only "${deploy_from}" HEAD || true)"
+  # These change the rendered environment of every stack, so everything that
+  # consumes secrets has to be recreated.
+  if grep -qE '^(secrets/secrets\.yaml|scripts/render-secrets\.sh)$' <<< "${changed_files}"; then
+    apply_all=1
+  fi
+fi
+
+selected=()
 for stack in "${ordered_stacks[@]}"; do
   stack_exists "${stack}" || continue
+  if (( apply_all )) || grep -q "^stacks/${stack}/" <<< "${changed_files}"; then
+    selected+=("${stack}")
+  fi
+done
+
+if ((${#selected[@]} == 0)); then
+  log "no stack changes; nothing to apply"
+  notify "Deploy complete" "No stack changes in $(git rev-parse --short HEAD)" default
+  exit 0
+fi
+log "stacks to apply: ${selected[*]}"
+
+# Validate before changing anything.
+for stack in "${selected[@]}"; do
+  log "validating ${stack}"
+  compose "${stack}" config -q || die "invalid compose configuration: ${stack}"
+done
+
+# Local rollback point. /srv/docker is expected to be a btrfs subvolume.
+if command -v btrfs >/dev/null 2>&1 && btrfs subvolume show /srv/docker >/dev/null 2>&1; then
+  install -d -m 0755 /srv/snapshots
+  snap="/srv/snapshots/deploy-$(date +%Y%m%dT%H%M%S)"
+  btrfs subvolume snapshot -r /srv/docker "${snap}"
+  log "created rollback snapshot ${snap}"
+else
+  log "WARN: /srv/docker is not a btrfs subvolume; skipping deploy snapshot"
+fi
+
+# Pull first, but do not abort the whole deploy if a build-only stack has no
+# remote image to pull.
+for stack in "${selected[@]}"; do
+  case "${stack}" in
+    caddy|hytale)
+      log "skipping pull for build-only stack ${stack}"
+      continue
+      ;;
+  esac
+  log "pulling ${stack}"
+  if ! compose "${stack}" pull; then
+    log "WARN: pull failed for ${stack}; continuing with local images"
+  fi
+done
+
+for stack in "${selected[@]}"; do
   log "applying ${stack}"
   if ! compose "${stack}" up -d --build --remove-orphans --wait; then
     notify "Deploy failed" "Stack ${stack} failed to start" critical

@@ -28,10 +28,13 @@ git push origin main
 ```
 
 `homelab-deploy.timer` runs `deploy.sh` every 30 minutes. It fetches `main`,
-renders secrets, validates every compose file, takes a btrfs snapshot of
-`/srv/docker` under `/srv/snapshots`, pulls images, applies each stack with
-`--build --wait`, then runs `healthcheck.sh`. A failure sends a notification
-and stops before the next stack.
+renders secrets, then works out which stacks actually changed since the
+previous commit (`git diff --name-only`) and applies only those. A change to
+`secrets/secrets.yaml` or `render-secrets.sh` recreates every stack, because the
+rendered environment changes. Before applying it takes a btrfs snapshot of
+`/srv/docker` under `/srv/snapshots`, pulls images, applies each selected stack
+with `--build --wait`, then runs `healthcheck.sh`. A failure sends a
+notification and stops before the next stack. `--force` applies everything.
 
 Do not rsync the repository onto the host. If the checkout is ahead of
 `origin/main`, every timer run re-applies all stacks.
@@ -108,6 +111,10 @@ that user in the ntfy app (`https://ntfy.sakul-flee.de`).
   `remote_ip` gate for the LAN and the WireGuard range.
 - The router has no hairpin NAT, so the host maps the public names to
   `127.0.0.1` in `/etc/hosts` for its own `git fetch` and registry pulls.
+- `*.sakul-flee.de` is a proxied wildcard, so every subdomain reaches Caddy.
+  A wildcard certificate plus a `respond 404` site makes a typo obvious;
+  without it Caddy aborts the TLS handshake and Cloudflare reports 525.
+  `nfty.sakul-flee.de` redirects to the correctly spelled ntfy name.
 - LAN clients need CoreDNS (`192.168.178.200`) to get the split-horizon answers;
   with the router's DNS the admin names resolve to Cloudflare and return 403.
 - IPv6: the apex has an AAAA (DDNS), the game names are CNAMEs to it and
