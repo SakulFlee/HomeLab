@@ -18,6 +18,14 @@ fi
 
 cd "${REPO_ROOT}"
 
+# deploy.sh runs as root while /opt/homelab is owned by the operator, so git
+# refuses with "dubious ownership" unless safe.directory is configured. Export
+# the override for every git call in this script instead of relying on a
+# hand-added entry in root's ~/.gitconfig, which is easy to lose.
+export GIT_CONFIG_COUNT=1
+export GIT_CONFIG_KEY_0=safe.directory
+export GIT_CONFIG_VALUE_0="${REPO_ROOT}"
+
 if ! docker network inspect proxy >/dev/null 2>&1; then
   log "creating external Docker network proxy"
   docker network create proxy >/dev/null
