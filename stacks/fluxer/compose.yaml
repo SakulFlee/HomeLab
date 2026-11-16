@@ -2366,7 +2366,7 @@ services:
         - /dev/null
         - http://127.0.0.1:8333/healthz
       timeout: ${FLUXER_HEALTHCHECK_TIMEOUT:-5s}
-    image: ${FLUXER_SEAWEEDFS_IMAGE:-chrislusf/seaweedfs:4.47}
+    image: ${FLUXER_SEAWEEDFS_IMAGE:-chrislusf/seaweedfs:4.54}
     networks:
       fluxer: null
     restart: ${FLUXER_RESTART_POLICY:-unless-stopped}
@@ -2420,7 +2420,7 @@ services:
       FLUXER_S3_BUCKET_UPLOADS: ${FLUXER_S3_BUCKET_UPLOADS:-fluxer-uploads}
       FLUXER_S3_SECRET_KEY: ${FLUXER_S3_SECRET_KEY:?set FLUXER_S3_SECRET_KEY in .env}
       FLUXER_SEAWEEDFS_INIT_ATTEMPTS: ${FLUXER_SEAWEEDFS_INIT_ATTEMPTS:-60}
-    image: ${FLUXER_SEAWEEDFS_IMAGE:-chrislusf/seaweedfs:4.47}
+    image: ${FLUXER_SEAWEEDFS_IMAGE:-chrislusf/seaweedfs:4.54}
     networks:
       fluxer: null
     restart: "no"
