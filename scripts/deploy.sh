@@ -45,6 +45,9 @@ if git fetch origin "${DEPLOY_BRANCH}" --quiet; then
     log "fast-forwarding ${current} -> ${target}"
     git merge --ff-only "origin/${DEPLOY_BRANCH}" || die "cannot fast-forward; local changes or divergence"
     changed=1
+  elif [[ "${HOMELAB_DEPLOY_PENDING:-0}" == "1" ]]; then
+    # Set by the re-exec below: the merge happened in the previous process.
+    changed=1
   else
     log "already at ${current}"
   fi
@@ -69,6 +72,32 @@ if (( ! FORCE && ! changed )); then
   log "no new commits; nothing to deploy (use --force to re-apply)"
   exit 0
 fi
+
+# A merge can replace this script while it is running; the shell may have
+# buffered the previous version, which is how a new stack was pulled but never
+# applied. Re-exec once so the new code runs, keeping the pending flag.
+if (( changed )) && [[ "${HOMELAB_DEPLOY_REEXEC:-0}" != "1" ]]; then
+  export HOMELAB_DEPLOY_REEXEC=1 HOMELAB_DEPLOY_PENDING=1
+  exec "$0" "$@"
+fi
+
+# Mirror the rest of the run to the self-hosted relay. Only actual deploys get
+# here, so no-op timer runs stay quiet.
+DEPLOY_LOG="$(mktemp /tmp/homelab-deploy.XXXXXX)"
+exec > >(tee -a "${DEPLOY_LOG}") 2>&1
+send_deploy_log() {
+  local rc=$?
+  sleep 0.2
+  local body
+  body="$(tail -c 3000 "${DEPLOY_LOG}" 2>/dev/null || true)"
+  if (( rc == 0 )); then
+    notify_local "Deploy ok" "${body}" default
+  else
+    notify_local "Deploy FAILED" "${body}" high
+  fi
+  rm -f "${DEPLOY_LOG}"
+}
+trap send_deploy_log EXIT
 
 "${SCRIPT_DIR}/prepare-data.sh" >/dev/null
 "${SCRIPT_DIR}/render-secrets.sh"

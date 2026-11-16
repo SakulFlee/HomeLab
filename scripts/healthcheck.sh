@@ -84,15 +84,16 @@ if stack_exists caddy; then
   running caddy && pass "caddy container" || bad "caddy container"
 fi
 
-if ((fail)); then
-  exit 1
-fi
-
-log "all checks passed"
-
 if stack_exists ntfy; then
   running ntfy && pass "ntfy container" || bad "ntfy container"
   curl -fsS --max-time 5 --resolve ntfy.sakul-flee.de:443:127.0.0.1 \
     https://ntfy.sakul-flee.de/v1/health >/dev/null 2>&1 \
     && pass "ntfy HTTP" || bad "ntfy HTTP"
 fi
+
+if ((fail)); then
+  exit 1
+fi
+
+log "all checks passed"
+

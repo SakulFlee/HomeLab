@@ -22,6 +22,17 @@ if [[ -r "${HOST_ENV_FILE}" ]]; then
   set +a
 fi
 
+# Notification endpoints, rendered from sops by render-secrets.sh. systemd also
+# injects them through EnvironmentFile=, but sourcing them here makes manual
+# script runs behave the same way.
+NOTIFY_ENV_FILE="${NOTIFY_ENV_FILE:-/etc/homelab/notify.env}"
+if [[ -r "${NOTIFY_ENV_FILE}" ]]; then
+  set -a
+  # shellcheck disable=SC1090
+  source "${NOTIFY_ENV_FILE}"
+  set +a
+fi
+
 log() {
   printf '%s %s\n' "$(date -Is)" "$*" >&2
 }
@@ -70,6 +81,22 @@ notify() {
     jq -n --arg c "${title}: ${message}" '{content: $c}' \
       | curl -fsS -m 10 -H 'Content-Type: application/json' -d @- \
           "${FLUXER_WEBHOOK_URL}" >/dev/null 2>&1 || true
+  fi
+}
+
+# Post to the self-hosted relay only. Used for verbose output (deploy logs)
+# that is only useful while the homelab is up.
+notify_local() {
+  local title="$1" message="$2" priority="${3:-default}"
+  log "${title}: ${message}"
+  if [[ -n "${NTFY_URL:-}" ]] && command -v curl >/dev/null 2>&1; then
+    local -a auth=()
+    if [[ -n "${NTFY_USER:-}" ]]; then
+      auth=(-u "${NTFY_USER}:${NTFY_PASSWORD:-}")
+    fi
+    curl -fsS -m 10 "${auth[@]}" \
+      -H "Title: ${title}" -H "Priority: ${priority}" \
+      -d "${message}" "${NTFY_URL}" >/dev/null 2>&1 || true
   fi
 }
 
