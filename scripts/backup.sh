@@ -95,6 +95,9 @@ if stack_exists hytale && [[ "$(docker inspect -f '{{.State.Running}}' hytale 2>
 fi
 
 log "backing up ${LIVE_DATA_DIR} and ${dump_dir}"
+# Syncthing only mirrors data that already exists on the source devices, and
+# its folders live on the config volume (HOME=/var/syncthing), not under data/.
+# The whole tree is excluded rather than just syncthing/data.
 restic backup \
   --tag homelab \
   --exclude="${LIVE_DATA_DIR}/forgejo/archive" \
@@ -107,7 +110,7 @@ restic backup \
   --exclude="${LIVE_DATA_DIR}/hytale/data/Server/logs" \
   --exclude="${LIVE_DATA_DIR}/forgejo-runner" \
   --exclude="${LIVE_DATA_DIR}/renovate" \
-  --exclude="${LIVE_DATA_DIR}/syncthing/data" \
+  --exclude="${LIVE_DATA_DIR}/syncthing" \
   "${LIVE_DATA_DIR}" "${dump_dir}"
 
 find "${dump_dir}" -maxdepth 1 -type f -mtime +14 -print -delete || true
