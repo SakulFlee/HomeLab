@@ -96,5 +96,11 @@ the backups cannot be recovered.
 `forgejo_secret_key` decrypts 2FA secrets and other encrypted columns in the
 Forgejo database. Never regenerate it on an existing database: a new key is
 accepted silently, then every 2FA-enabled account is refused with "this instance
-requires two-factor authentication", including API tokens. The original value is
-in `forgejo-custom/conf/app.ini` inside the migration export.
+requires two-factor authentication", including API tokens. Action secrets
+encrypted with it also break: Forgejo panics on `FetchTask` with
+`assignment to entry in nil map`, so every Actions job stays queued while the
+runner looks online and idle.
+
+The old host stored it as `SECRET_KEY_URI=file:/var/lib/forgejo/custom/conf/secret_key`,
+so the key is the content of `forgejo-custom/conf/secret_key` in the migration
+export, not the URI string and not the `app.ini` value.

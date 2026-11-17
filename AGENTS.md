@@ -85,7 +85,10 @@ of data directories. Inspecting and reversible changes are fine.
 - **Forgejo `SECRET_KEY` must never be regenerated.** It decrypts 2FA secrets
   and other encrypted rows. A new key makes every 2FA account fail with
   "enable two-factor authentication", and the error also blocks API tokens.
-  Restore the original value from `forgejo-custom/conf/app.ini` in the backup.
+  The old host set `SECRET_KEY_URI=file:.../custom/conf/secret_key`, so the key
+  is the **content of that file**, never the URI string. Grepping `^SECRET_KEY`
+  in the old `app.ini` matches the URI and yields a 44-character value that
+  looks plausible and is wrong.
 - **Forgejo's built-in SSH user is `BUILTIN_SSH_SERVER_USER`, not `SSH_USER`.**
   `SSH_USER` only changes the username advertised in clone URLs; the server
   authenticates against the other setting (default `git`). Clone URLs use
