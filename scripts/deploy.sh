@@ -131,14 +131,18 @@ fi
 deploy_from="${HOMELAB_DEPLOY_FROM:-}"
 changed_files=""
 apply_all=0
+recreate=0
 if (( FORCE )) || [[ -z "${deploy_from}" ]]; then
   apply_all=1
+  recreate=1
 else
   changed_files="$(git diff --name-only "${deploy_from}" HEAD || true)"
-  # These change the rendered environment of every stack, so everything that
-  # consumes secrets has to be recreated.
+  # Rendered secrets are bind-mounted files: Compose sees no configuration
+  # change and leaves the container running with the old file. A secrets change
+  # therefore has to force-recreate every stack that consumes them.
   if grep -qE '^(secrets/secrets\.yaml|scripts/render-secrets\.sh)$' <<< "${changed_files}"; then
     apply_all=1
+    recreate=1
   fi
 fi
 
@@ -190,7 +194,11 @@ done
 
 for stack in "${selected[@]}"; do
   log "applying ${stack}"
-  if ! compose "${stack}" up -d --build --remove-orphans --wait; then
+  up_args=(-d --build --remove-orphans --wait)
+  if (( recreate )); then
+    up_args+=(--force-recreate)
+  fi
+  if ! compose "${stack}" up "${up_args[@]}"; then
     notify "Deploy failed" "Stack ${stack} failed to start" critical
     exit 1
   fi
