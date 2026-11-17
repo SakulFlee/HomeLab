@@ -148,3 +148,22 @@ common symptoms:
 
 `PLAN.md`, `docs/migration.md` and `docs/incus-export.md` describe the retired
 NixOS + Incus host and the cutover to this one.
+
+## Forgejo runner
+
+`stacks/forgejo-runner` runs the Forgejo runner with the host's Docker socket
+mounted, and `docker_host: "automount"` in the rendered config passes that
+socket into job containers. Workflows can therefore build images with the
+Docker CLI without a separate DinD setup.
+
+The security consequence is the important half: **any workflow in any
+repository the runner serves can run containers as root on the host** (mount
+`/`, publish ports, read every secret the host can read). Actions must only be
+enabled on repositories whose workflows are trusted — a single-user instance is
+fine, an instance with external contributors is not. If that ever changes, the
+alternatives are a dedicated runner for untrusted repositories, a rootless
+runner, or a build service outside the host.
+
+Labels are declared at registration and refreshed when the runner restarts:
+`default`, `ubuntu-latest`, `ubuntu-24.04` and `docker`, all backed by
+`ghcr.io/catthehacker/ubuntu:act-24.04`.

@@ -223,6 +223,7 @@ runner:
     - "default:docker://ghcr.io/catthehacker/ubuntu:act-24.04"
     - "ubuntu-latest:docker://ghcr.io/catthehacker/ubuntu:act-24.04"
     - "ubuntu-24.04:docker://ghcr.io/catthehacker/ubuntu:act-24.04"
+    - "docker:docker://ghcr.io/catthehacker/ubuntu:act-24.04"
 cache:
   enabled: true
   dir: /data/cache
@@ -234,7 +235,7 @@ container:
   network: "proxy"
   privileged: false
   valid_volumes: []
-  docker_host: "-"
+  docker_host: "automount"
   workdir_parent: /data/workspace
 server:
   connections:
