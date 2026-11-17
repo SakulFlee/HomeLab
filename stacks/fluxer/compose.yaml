@@ -1586,7 +1586,7 @@ services:
         - /dev/null
         - http://127.0.0.1:7700/health
       timeout: ${FLUXER_HEALTHCHECK_TIMEOUT:-5s}
-    image: ${FLUXER_MEILISEARCH_IMAGE:-getmeili/meilisearch:v1.53}
+    image: ${FLUXER_MEILISEARCH_IMAGE:-getmeili/meilisearch:v1.57}
     networks:
       fluxer: null
     restart: ${FLUXER_RESTART_POLICY:-unless-stopped}
