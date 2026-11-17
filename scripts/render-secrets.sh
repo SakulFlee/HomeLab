@@ -227,7 +227,11 @@ cache:
   enabled: true
   dir: /data/cache
 container:
-  network: ""
+  # Job containers must reach Forgejo by its compose name. On the default
+  # bridge that name does not resolve, so checkout fails with "could not
+  # connect to server". The proxy network is where forgejo, caddy and the
+  # other stacks are attached.
+  network: "proxy"
   privileged: false
   valid_volumes: []
   docker_host: "-"
