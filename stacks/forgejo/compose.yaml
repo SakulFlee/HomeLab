@@ -93,6 +93,10 @@ services:
       FORGEJO__admin__SEND_NOTIFICATION_EMAIL_ON_NEW_USER: "true"
       FORGEJO__admin__DISABLE_REGULAR_ORG_CREATION: "true"
 
+      FORGEJO__repository__ENABLE_PUSH_CREATE_USER: "true"
+      FORGEJO__repository__ENABLE_PUSH_CREATE_ORG: "true"
+      FORGEJO__repository__DEFAULT_PUSH_CREATE_PRIVATE: "false"
+
     secrets:
       - forgejo_db_password
       - forgejo_secret_key
