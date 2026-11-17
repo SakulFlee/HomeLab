@@ -1317,7 +1317,7 @@ services:
         - /dev/null
         - http://127.0.0.1:7880/
       timeout: ${FLUXER_HEALTHCHECK_TIMEOUT:-5s}
-    image: ${FLUXER_LIVEKIT_IMAGE:-livekit/livekit-server:v1.12.0}
+    image: ${FLUXER_LIVEKIT_IMAGE:-livekit/livekit-server:v1.13.11}
     networks:
       fluxer: null
     ports:
