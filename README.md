@@ -2,8 +2,8 @@
 
 Debian 13 + Docker Compose homelab. `main` is the current deployment.
 
-The `nixos/` and `incus/` trees are the retired NixOS + Incus configuration.
-They are kept for reference only and are not deployed anywhere any more.
+This repository used to describe a NixOS + Incus host. Those trees were removed;
+`git log -- nixos incus` still has them if the history is ever needed.
 
 ## Layout
 
@@ -91,5 +91,3 @@ every account that has 2FA enabled.
 - [docs/secrets.md](docs/secrets.md) — sops layout and how to read a value.
 - [docs/restore.md](docs/restore.md) — restoring and inspecting backups.
 - [docs/staging.md](docs/staging.md) — running the stacks off-production.
-- `PLAN.md`, `docs/migration.md`, `docs/incus-export.md` — the historical
-  migration from NixOS + Incus. Kept for provenance, no longer current.

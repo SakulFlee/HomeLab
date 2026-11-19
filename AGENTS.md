@@ -1,9 +1,7 @@
 # Agent Notes
 
 This repository is a Debian 13 + Docker Compose homelab. On the host it is
-checked out at `/opt/homelab` and `deploy.sh` runs as root from there. The
-`nixos/` and `incus/` trees are the retired NixOS + Incus deployment; they are
-kept for reference and are not deployed.
+checked out at `/opt/homelab` and `deploy.sh` runs as root from there.
 
 ## What owns what
 
@@ -144,6 +142,8 @@ restic -r /mnt/ssd/Backup/HomeLab/Restic --password-file ~/.config/restic/dendra
 
 ## Legacy
 
-`nixos/`, `incus/`, `PLAN.md`, `docs/migration.md` and `docs/incus-export.md`
-document the retired NixOS + Incus host. They are history; do not run
-`nixos-rebuild`, `tofu`, `incus` or `gen-tf.sh` from this repository any more.
+The repository described a NixOS + Incus host until November 2026. `nixos/`,
+`incus/`, `PLAN.md` and the migration docs were deleted; `git log -- nixos
+incus` and the commits before their removal still contain them. None of it is
+deployed, and nothing on the host runs `nix`, `nixos-rebuild`, `incus`, `tofu`
+or `gen-tf.sh` any more.

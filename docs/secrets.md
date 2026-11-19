@@ -7,7 +7,7 @@ committed.
 ## Keys the renderer requires
 
 The Forgejo, Fluxer, OpenCode, Renovate and runner values were carried over from
-the NixOS host. These keys must exist before `render-secrets.sh` will run:
+the previous host. These keys must exist before `render-secrets.sh` will run:
 
 | key | purpose | suggested value |
 | --- | --- | --- |

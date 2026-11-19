@@ -146,8 +146,9 @@ common symptoms:
 
 ## Legacy
 
-`PLAN.md`, `docs/migration.md` and `docs/incus-export.md` describe the retired
-NixOS + Incus host and the cutover to this one.
+The NixOS + Incus trees (`nixos/`, `incus/`, `PLAN.md` and the migration docs)
+were removed in November 2026. Earlier commits still contain them; nothing from
+them runs on the host.
 
 ## Forgejo runner
 
@@ -167,6 +168,7 @@ runner, or a build service outside the host.
 Labels are declared at registration and refreshed when the runner restarts:
 `default`, `ubuntu-latest`, `ubuntu-24.04` and `docker`, all backed by
 `ghcr.io/catthehacker/ubuntu:act-24.04`.
+
 How many jobs run in parallel is `FORGEJO_RUNNER_CAPACITY` from
 `/etc/homelab/host.env` (default 2), rendered into the config's `capacity`. It
 is a sizing decision, not a secret, so it is not in sops. To change it:
