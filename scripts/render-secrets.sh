@@ -206,6 +206,12 @@ cloudflare_ddns_env="${RUNTIME_SECRETS_DIR}/cloudflare-ddns.env"
 install -m 0400 -o root -g root "${cloudflare_ddns_env}.tmp" "${cloudflare_ddns_env}"
 rm -f "${cloudflare_ddns_env}.tmp"
 
+# Concurrency is a host setting, not a secret: it depends on cores and RAM.
+# Set FORGEJO_RUNNER_CAPACITY in /etc/homelab/host.env to change it.
+runner_capacity="${FORGEJO_RUNNER_CAPACITY:-2}"
+[[ "${runner_capacity}" =~ ^[0-9]+$ ]] \
+  || die "FORGEJO_RUNNER_CAPACITY must be a whole number, got '${runner_capacity}'"
+
 runner_dir="${RUNTIME_SECRETS_DIR}/forgejo-runner"
 install -d -m 0700 "${runner_dir}"
 runner_uuid="$(jq -j --arg k forgejo_runner_uuid '.[$k]' "${tmp}")"
@@ -216,7 +222,7 @@ log:
   job_level: info
 runner:
   file: /data/.runner
-  capacity: 2
+  capacity: ${runner_capacity}
   timeout: 4h
   shutdown_timeout: 3m
   labels:

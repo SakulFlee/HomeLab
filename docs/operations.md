@@ -167,3 +167,19 @@ runner, or a build service outside the host.
 Labels are declared at registration and refreshed when the runner restarts:
 `default`, `ubuntu-latest`, `ubuntu-24.04` and `docker`, all backed by
 `ghcr.io/catthehacker/ubuntu:act-24.04`.
+How many jobs run in parallel is `FORGEJO_RUNNER_CAPACITY` from
+`/etc/homelab/host.env` (default 2), rendered into the config's `capacity`. It
+is a sizing decision, not a secret, so it is not in sops. To change it:
+
+```bash
+sudo sed -i 's/^FORGEJO_RUNNER_CAPACITY=.*/FORGEJO_RUNNER_CAPACITY=4/' /etc/homelab/host.env
+sudo /opt/homelab/scripts/render-secrets.sh
+sudo docker restart forgejo-runner
+```
+
+The restart is required, not optional: `/run/homelab/secrets/forgejo-runner/config.yaml`
+is a bind mount, so the running process keeps the copy it opened at container
+start. `deploy.sh` re-renders the file on every run but a `host.env`-only change
+selects no stack, so it would apply nothing. Each slot is a full job container
+plus whatever `docker build` starts inside it; on 16 cores / 30 GB, 4 is
+comfortable.

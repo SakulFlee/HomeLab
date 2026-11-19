@@ -10,7 +10,7 @@ kept for reference and are not deployed.
 | layer | owner |
 | --- | --- |
 | host OS, packages, firewall, users | Debian on the host, provisioned by `scripts/bootstrap.sh` |
-| host-specific settings (ports, bind IPs) | `/etc/homelab/host.env` on the host |
+| host-specific settings (ports, bind IPs, runner capacity) | `/etc/homelab/host.env` on the host |
 | services | `stacks/<name>/compose.yaml` |
 | deploy, backup, restore, secrets | `scripts/` |
 | timers and units | `systemd/` |

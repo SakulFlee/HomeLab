@@ -84,6 +84,9 @@ HTTPS_PORT=443
 FLUXER_LIVEKIT_TCP_PORT=7881
 FLUXER_LIVEKIT_UDP_PORT=7882
 
+# Forgejo runner concurrency (parallel jobs). Raise it with cores and RAM.
+FORGEJO_RUNNER_CAPACITY=2
+
 # Optional staging policy:
 # DEPLOY_STACKS="forgejo fluxer minecraft hytale coredns dockge syncthing website"
 # SKIP_HEALTHCHECK=1
