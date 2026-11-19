@@ -63,7 +63,16 @@ Dendra   Sun     check         restic check --read-data-subset=10%
   search/NATS/Valkey data, Minecraft's own backups, Hytale logs, the runner,
   Renovate, and the whole Syncthing tree.
 - Retention: `--keep-daily 14 --keep-weekly 8 --keep-monthly 12` on both
-  repositories. Because keep-daily keeps one snapshot per day, a same-day
+  repositories.
+- Dendra's copy sits on the btrfs RAID1 array:
+  `/mnt/btrfs-raid1/backups/homelab/restic`. The pull, prune and check scripts
+  live in `~/.local/bin/homelab-restic-{common,pull,prune,check}.sh` there and
+  take the path from `common.sh`, which is sourced by all three — the earlier
+  layout hardcoded it in each script and they drifted apart.
+- `/mnt/btrfs-raid1` is an `x-systemd.automount` (5 minute idle timeout).
+  `require_repo` in `common.sh` triggers the mount and then checks that the
+  path resolves to that mountpoint, so a mount failure aborts the pull instead
+  of letting restic create a mirror on Dendra's root filesystem. Because keep-daily keeps one snapshot per day, a same-day
   manual backup supersedes the nightly one.
 - The Dendra copy is pulled by Dendra, using a dedicated key restricted to
   read-only sftp (`command="internal-sftp -R",restrict`). The homelab has no

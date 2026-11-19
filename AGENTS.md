@@ -64,9 +64,11 @@ sudo /opt/homelab/scripts/restic-check.sh  # weekly verification
 - Local repo: `/srv/backup/restic`, password in sops (`restic_password`),
   daily at 02:01 via `homelab-backup.timer`.
 - Off-box copy: **Dendra pulls** it every 30 minutes
-  (`sftp:homelab:/srv/backup/restic` -> `/mnt/ssd/Backup/HomeLab/Restic`,
-  password `restic_dendra_password`). The homelab has no credential that can
-  reach Dendra.
+  (`sftp:homelab:/srv/backup/restic` ->
+  `/mnt/btrfs-raid1/backups/homelab/restic`, password
+  `restic_dendra_password`). The homelab has no credential that can reach
+  Dendra. Dendra's side lives in `~/.local/bin/homelab-restic-*.sh`, with the
+  repository path defined once in `common.sh`.
 - `restic copy` never deletes on the destination; Dendra runs its own
   `forget --prune`.
 - Retention is `--keep-daily 14 --keep-weekly 8 --keep-monthly 12` on both.
@@ -137,7 +139,7 @@ For the backup chain:
 ```bash
 sudo restic -r /srv/backup/restic --password-file /run/homelab/secrets/restic-password snapshots
 # on Dendra:
-restic -r /mnt/ssd/Backup/HomeLab/Restic --password-file ~/.config/restic/dendra-password snapshots
+restic -r /mnt/btrfs-raid1/backups/homelab/restic --password-file ~/.config/restic/dendra-password snapshots
 ```
 
 ## Legacy

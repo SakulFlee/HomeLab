@@ -2,13 +2,14 @@
 
 The local restic repository is `/srv/backup/restic` (password
 `/run/homelab/secrets/restic-password`). The off-box copy is on Dendra at
-`/mnt/ssd/Backup/HomeLab/Restic` (password `~/.config/restic/dendra-password`).
+`/mnt/btrfs-raid1/backups/homelab/restic` on Dendra (password
+`~/.config/restic/dendra-password`).
 
 Dendra pulls the copy itself every 30 minutes over a read-only sftp key; the
 homelab cannot reach Dendra. To restore from the copy, run restic on Dendra:
 
 ```bash
-restic -r /mnt/ssd/Backup/HomeLab/Restic --password-file ~/.config/restic/dendra-password \
+restic -r /mnt/btrfs-raid1/backups/homelab/restic --password-file ~/.config/restic/dendra-password \
   snapshots
 ```
 
