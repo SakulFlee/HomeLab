@@ -67,8 +67,9 @@ sudo /opt/homelab/scripts/restic-check.sh  # weekly verification
   (`sftp:homelab:/srv/backup/restic` ->
   `/mnt/btrfs-raid1/backups/homelab/restic`, password
   `restic_dendra_password`). The homelab has no credential that can reach
-  Dendra. Dendra's side lives in `~/.local/bin/homelab-restic-*.sh`, with the
-  repository path defined once in `common.sh`.
+  Dendra. Dendra's side is versioned in `scripts/dendra/` and installed to
+  `~/.local/bin` with `scripts/dendra/install.sh`; the repository path is
+  defined once in `homelab-restic-common.sh`.
 - `restic copy` never deletes on the destination; Dendra runs its own
   `forget --prune`.
 - Retention is `--keep-daily 14 --keep-weekly 8 --keep-monthly 12` on both.
