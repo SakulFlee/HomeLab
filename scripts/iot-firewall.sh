@@ -25,6 +25,26 @@ IFACE="${IOT_WIFI_INTERFACE:-wlp2s0}"
 LAN_IF="${IOT_WIFI_LAN_IF:-eno1}"
 SUBNET=192.168.179.0/24
 
+# ufw's stock before.rules accepts ICMP echo-request in both the input and the
+# forward chain before any user rule. That is why a ping from the IoT segment
+# reaches the LAN and the host even though ufw-user-forward denies the same
+# destinations. This base chain runs at priority -10, before ufw's filter
+# chains at 0, so a drop here is final and the policy matches the docs.
+nft list table inet homelab_iot >/dev/null 2>&1 || nft add table inet homelab_iot
+nft list chain inet homelab_iot forward >/dev/null 2>&1 \
+  || nft 'add chain inet homelab_iot forward { type filter hook forward priority -10; policy accept; }'
+nft list chain inet homelab_iot input >/dev/null 2>&1 \
+  || nft 'add chain inet homelab_iot input { type filter hook input priority -10; policy accept; }'
+nft flush chain inet homelab_iot forward
+nft flush chain inet homelab_iot input
+for net in 192.168.178.0/24 100.64.0.0/10 169.254.0.0/16 10.0.0.0/8 172.16.0.0/12; do
+  nft add rule inet homelab_iot forward iifname "${IFACE}" ip daddr "${net}" drop
+done
+nft add rule inet homelab_iot forward iifname "${IFACE}" oifname "${IFACE}" drop
+# The host's own LAN address is INPUT, not FORWARD, and ufw accepts ICMP there
+# too. DHCP and DNS are UDP/TCP and unaffected by this rule.
+nft add rule inet homelab_iot input iifname "${IFACE}" ip protocol icmp drop
+
 # NAT. Created even when the AP is not running: the rule matches nothing until
 # the subnet has traffic, and it is cheaper than ordering against Docker.
 if ! iptables -w -t nat -C POSTROUTING -s "${SUBNET}" -o "${LAN_IF}" -j MASQUERADE 2>/dev/null; then

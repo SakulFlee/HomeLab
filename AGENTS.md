@@ -129,7 +129,11 @@ of data directories. Inspecting and reversible changes are fine.
   `bootstrap.sh`, run bootstrap once by hand or the AP changes never land.
   Docker DNATs published ports before ufw's filter, which is why the segment is
   blocked in `DOCKER-USER` (`scripts/iot-firewall.sh`) instead of with a plain
-  ufw route rule. See `docs/iot-wifi.md`.
+  ufw route rule. See `docs/iot-wifi.md`. ufw's stock `before.rules` also accepts
+  ICMP echo-request before user rules, so the same unit adds an `inet
+  homelab_iot` nftables chain at priority -10 to drop private destinations and
+  ICMP before ufw runs. Do not remove it just because the ufw rules look
+  sufficient: pings would start working again.
 - **The IoT AP depends on the host being unlocked and up.** Root is LUKS, so
   after a power loss the devices stay offline until the host is unlocked. It is
   one radio: no 5 GHz SSID, no DFS, and no client/AP concurrency in use.

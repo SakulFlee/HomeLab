@@ -46,6 +46,13 @@ There is no mDNS/SSDP reflection across the boundary. The devices are
 cloud-only, so that is deliberate; local discovery would need an avahi
 reflector and a narrower allowlist.
 
+ufw's stock `before.rules` accepts ICMP echo-request in the input and forward
+chains before any user rule, so `homelab-iot-firewall.service` also installs a
+small nftables table (`inet homelab_iot`, hook priority `-10`) that drops
+private destinations, client-to-client traffic and ICMP from the AP before ufw
+sees it. Without it, pings to the LAN and to the host's LAN address succeed
+even though the same destinations are denied over TCP.
+
 ## Files
 
 | path | written by | purpose |
@@ -60,7 +67,8 @@ reflector and a narrower allowlist.
 | `/var/lib/misc/dnsmasq-iot.leases` | dnsmasq | DHCP leases |
 
 Units: `homelab-iot-ap.service` (hostapd), `homelab-iot-dhcp.service`
-(dnsmasq), `homelab-iot-firewall.service` (NAT plus the `DOCKER-USER` rule).
+(dnsmasq), `homelab-iot-firewall.service` (NAT, the `DOCKER-USER` rule and the
+early nft drop).
 
 ## Enable it
 
@@ -179,6 +187,10 @@ iptables -S DOCKER-USER | grep wlp2s0 || true
   are unsupported in AP mode anyway.
 - **Docker bypasses ufw.** That is what `homelab-iot-firewall.service` is for.
   If Docker is reinstalled or its firewall chain is reset, re-run the unit.
+- **ufw accepts ICMP by default.** Its `before.rules` accepts echo-request in
+  both the input and forward chains, before user rules. The `inet homelab_iot`
+  nftables chain exists so pings to the LAN fail as the table above says; if
+  that chain is missing, the pings come back even though TCP is still denied.
 - **The passphrase sits in `/etc/hostapd/iot.conf`** (0600 root, on the
   LUKS-encrypted root). hostapd cannot read it from a file, and it has to exist
   at boot, so `/run` is not an option. sops remains the source of truth.

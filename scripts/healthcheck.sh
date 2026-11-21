@@ -108,6 +108,12 @@ if systemctl cat homelab-iot-ap.service >/dev/null 2>&1; then
   else
     bad "iot Docker isolation"
   fi
+  if nft list chain inet homelab_iot forward >/dev/null 2>&1 \
+    && nft list chain inet homelab_iot input >/dev/null 2>&1; then
+    pass "iot early drop"
+  else
+    bad "iot early drop"
+  fi
   log "iot AP channel: $(cat /var/lib/homelab/iot-channel 2>/dev/null || echo unknown)"
 fi
 
