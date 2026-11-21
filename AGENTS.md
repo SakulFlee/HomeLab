@@ -163,6 +163,10 @@ iw dev wlp2s0 info
 cat /var/lib/misc/dnsmasq-iot.leases
 ```
 
+When testing the segment from a phone, turn off its WireGuard tunnel first: an
+authenticated VPN client reaches the LAN through `wg0`, not through `wlp2s0`,
+and will make the isolation look broken.
+
 For the backup chain:
 
 ```bash

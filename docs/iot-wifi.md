@@ -194,6 +194,11 @@ iptables -S DOCKER-USER | grep wlp2s0 || true
 - **The passphrase sits in `/etc/hostapd/iot.conf`** (0600 root, on the
   LUKS-encrypted root). hostapd cannot read it from a file, and it has to exist
   at boot, so `/run` is not an option. sops remains the source of truth.
+- **An authenticated VPN client can still reach the LAN.** A phone on this
+  SSID with its WireGuard tunnel up reaches `192.168.178.0/24` through
+  `wg0`, not through `wlp2s0`, so the AP rules do not apply and that is by
+  design. Disable the tunnel when testing the segment from a phone. IoT devices
+  do not hold VPN credentials.
 - **`disable_aspm` needs a reboot.** It is set in `/etc/modprobe.d` while the
   module is already in use; the next boot picks it up.
 - **The MT7921 is a client part.** AP mode is supported and fine for ten
