@@ -99,6 +99,15 @@ of data directories. Inspecting and reversible changes are fine.
   `/data` and `custom` at `/data/gitea`, avatars, attachments, LFS and the
   issue indexer silently point at `/data/gitea/...` unless set explicitly. The
   symptom is 404s and broken images.
+- **A dockerd restart leaves the runner and Dockge on a dead socket.** With
+  `live-restore: true` containers keep running across `systemctl restart docker`
+  (including the one an upgrade triggers), but their bind mount of
+  `/var/run/docker.sock` still points at the replaced inode. The runner then
+  fails every job instantly with `failed to query docker info: Cannot connect
+  to the Docker daemon`, and Dockge stops seeing stacks, while both containers
+  still look `Up`. `scripts/docker-socket-refresh.sh` compares inodes and
+  restarts only the stale consumers; `deploy.sh` calls it on every tick and the
+  `docker.service` drop-in from `bootstrap.sh` calls it right after dockerd.
 - **`ufw` and wg-easy use different iptables backends.** ufw and Docker write
   nftables; wg-easy writes `iptables-legacy`. Forwarded VPN traffic is dropped
   unless ufw has `ufw route allow in on wg0`. Ping still works because

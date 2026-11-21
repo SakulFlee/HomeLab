@@ -154,6 +154,7 @@ common symptoms:
 | symptom | look at |
 | --- | --- |
 | VPN clients get no internet but ping works | `ufw route allow in on wg0`, wg-easy `interfaces_table.device` |
+| CI jobs fail instantly with `Cannot connect to the Docker daemon` | runner socket inode is stale; run `scripts/docker-socket-refresh.sh` or `docker restart forgejo-runner` |
 | Admin UIs return 403 | split-horizon DNS / `/etc/hosts`, Cloudflare proxy |
 | Broken avatars or attachments in Forgejo | `FORGEJO__picture__*`, `FORGEJO__attachment__PATH` |
 | Deploy timer restarts everything every 30 min | checkout ahead of `origin/main` |
@@ -200,3 +201,28 @@ start. `deploy.sh` re-renders the file on every run but a `host.env`-only change
 selects no stack, so it would apply nothing. Each slot is a full job container
 plus whatever `docker build` starts inside it; on 16 cores / 30 GB, 4 is
 comfortable.
+
+### After a Docker restart
+
+`daemon.json` sets `live-restore: true`, so containers survive `systemctl
+restart docker` and the package upgrades that trigger it. Their bind mount of
+`/var/run/docker.sock` does not: the mount is tied to the inode that existed
+when the container was created, and dockerd replaces the socket on start. The
+runner then fails every job immediately with
+
+```text
+failed to query docker info: Cannot connect to the Docker daemon at unix:///var/run/docker.sock
+```
+
+while `docker ps` still shows it as `Up`, and Dockge loses its view of stacks
+for the same reason. `scripts/docker-socket-refresh.sh` compares the inode
+inside each socket-mounting container with the live one and restarts only the
+stale ones. `deploy.sh` runs it on every timer tick, and the `docker.service`
+drop-in from `bootstrap.sh` runs it right after dockerd starts. To repair it by
+hand:
+
+```bash
+sudo /opt/homelab/scripts/docker-socket-refresh.sh
+# or, if the script is not on the host yet:
+sudo docker restart forgejo-runner dockge
+```

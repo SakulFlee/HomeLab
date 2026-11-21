@@ -128,6 +128,14 @@ install -d -m 0755 /etc/systemd/system/docker.service.d
 cat >/etc/systemd/system/docker.service.d/10-homelab.conf <<'UNIT'
 [Unit]
 RequiresMountsFor=/srv/docker
+
+[Service]
+# Containers that bind-mount /var/run/docker.sock keep the inode that existed
+# when they were created. dockerd replaces the socket on every restart, and
+# live-restore keeps those containers running, so the runner fails every job
+# with "Cannot connect to the Docker daemon" until it is restarted. Re-check
+# the socket consumers as soon as the daemon is up again.
+ExecStartPost=-/opt/homelab/scripts/docker-socket-refresh.sh
 UNIT
 
 log "writing sysctl settings"

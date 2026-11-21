@@ -102,6 +102,13 @@ trap send_deploy_log EXIT
 "${SCRIPT_DIR}/prepare-data.sh" >/dev/null
 "${SCRIPT_DIR}/render-secrets.sh"
 
+# A dockerd restart (package upgrade, manual restart) replaces the socket inode.
+# Containers that mount /var/run/docker.sock keep the old one, so the runner
+# fails every job with "Cannot connect to the Docker daemon" and Dockge cannot
+# list stacks. Run before the "no stack changes" exit below so a timer tick
+# without a deploy still repairs them.
+"${SCRIPT_DIR}/docker-socket-refresh.sh"
+
 # Start in dependency order. Caddy is last so its upstreams exist first.
 ordered_stacks=(
   coredns
