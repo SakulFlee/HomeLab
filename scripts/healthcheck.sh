@@ -80,6 +80,37 @@ if stack_exists dockge; then
     && pass "dockge UI" || bad "dockge UI"
 fi
 
+# The IoT AP is a host unit installed by bootstrap.sh. Skip until the unit
+# exists, so a deploy that lands before bootstrap does not fail the run.
+if systemctl cat homelab-iot-ap.service >/dev/null 2>&1; then
+  if systemctl is-active --quiet homelab-iot-ap.service; then
+    pass "iot AP service"
+  else
+    bad "iot AP service"
+  fi
+  if command -v iw >/dev/null 2>&1 && iw dev wlp2s0 info 2>/dev/null | grep -q 'type AP'; then
+    pass "iot AP mode"
+  else
+    bad "iot AP mode"
+  fi
+  if systemctl is-active --quiet homelab-iot-dhcp.service; then
+    pass "iot DHCP"
+  else
+    bad "iot DHCP"
+  fi
+  if iptables -w -t nat -C POSTROUTING -s 192.168.179.0/24 -o eno1 -j MASQUERADE 2>/dev/null; then
+    pass "iot NAT"
+  else
+    bad "iot NAT"
+  fi
+  if iptables -w -C DOCKER-USER -i wlp2s0 -d 172.16.0.0/12 -j DROP 2>/dev/null; then
+    pass "iot Docker isolation"
+  else
+    bad "iot Docker isolation"
+  fi
+  log "iot AP channel: $(cat /var/lib/homelab/iot-channel 2>/dev/null || echo unknown)"
+fi
+
 if stack_exists caddy; then
   running caddy && pass "caddy container" || bad "caddy container"
 fi

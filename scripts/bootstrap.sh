@@ -30,7 +30,8 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y \
   ca-certificates curl gnupg git jq \
   age restic \
   btrfs-progs snapper \
-  wireguard-tools nftables ufw \
+  wireguard-tools nftables ufw iptables \
+  hostapd iw dnsmasq-base \
   dnsutils netcat-openbsd \
   tmux htop btop smartmontools zram-tools unattended-upgrades
 
@@ -83,6 +84,12 @@ HTTP_PORT=80
 HTTPS_PORT=443
 FLUXER_LIVEKIT_TCP_PORT=7881
 FLUXER_LIVEKIT_UDP_PORT=7882
+
+# IoT Wi-Fi AP (see docs/iot-wifi.md). The interface comes up as
+# 192.168.179.1/24 and is isolated from the LAN. Channel: auto, 1, 6 or 11.
+IOT_WIFI_SSID=HomeLab-IoT
+IOT_WIFI_CHANNEL=auto
+IOT_WIFI_INTERFACE=wlp2s0
 
 # Forgejo runner concurrency (parallel jobs). Raise it with cores and RAM.
 FORGEJO_RUNNER_CAPACITY=2
@@ -138,10 +145,84 @@ net.ipv6.conf.default.forwarding = 1
 net.ipv6.conf.all.use_tempaddr = 0
 net.ipv6.conf.default.use_tempaddr = 0
 net.ipv6.conf.eno1.use_tempaddr = 0
+# The IoT AP is IPv4-only on purpose: the LAN's IPv6 prefix must not leak
+# onto it, and there is no IPv6 firewall policy for that segment.
+net.ipv6.conf.wlp2s0.disable_ipv6 = 1
+# IoT clients must not be told about a LAN next hop.
+net.ipv4.conf.wlp2s0.send_redirects = 0
+net.ipv4.conf.wlp2s0.accept_redirects = 0
 fs.inotify.max_user_watches = 524288
 fs.inotify.max_user_instances = 1024
 SYSCTL
 sysctl --system >/dev/null
+
+log "configuring the IoT Wi-Fi access point"
+install -d -m 0755 /etc/hostapd /etc/NetworkManager/conf.d \
+  /etc/network/interfaces.d /etc/modprobe.d
+
+# Keep NetworkManager away from the AP interface. ifupdown owns it (below),
+# and NetworkManager.conf already sets managed=false for ifupdown-managed
+# interfaces; this drop-in also covers a profile appearing later.
+cat >/etc/NetworkManager/conf.d/99-homelab-iot.conf <<'NMIOT'
+[keyfile]
+unmanaged-devices=interface-name:wlp2s0
+NMIOT
+
+# The MT7921 is a client-oriented part. ASPM causes high latency and the odd
+# firmware stall, which on an AP shows up as clients dropping off. Takes effect
+# on the next boot; the module cannot be unloaded while the radio is in use.
+cat >/etc/modprobe.d/mt7921e.conf <<'MODPROBE'
+options mt7921e disable_aspm=1
+MODPROBE
+
+# ifupdown brings the interface up with its address before hostapd switches it
+# to AP mode. The subnet must match the ufw route rules and the NAT block.
+cat >/etc/network/interfaces.d/iot-ap <<'IFACE'
+# IoT Wi-Fi AP (wlp2s0). hostapd owns the radio; this only assigns the
+# gateway address. See docs/iot-wifi.md.
+auto wlp2s0
+iface wlp2s0 inet static
+    address 192.168.179.1/24
+IFACE
+
+# Dedicated dnsmasq instance. dnsmasq-base is installed (NetworkManager pulls
+# it in) but ships no global service, so this cannot collide with the CoreDNS
+# container bound to 192.168.178.200:53.
+cat >/etc/dnsmasq-iot.conf <<'DNSMASQ'
+# Served only on the IoT AP interface.
+interface=wlp2s0
+bind-dynamic
+
+dhcp-range=192.168.179.50,192.168.179.200,255.255.255.0,24h
+dhcp-option=option:router,192.168.179.1
+dhcp-option=option:dns-server,192.168.179.1
+dhcp-authoritative
+dhcp-leasefile=/var/lib/misc/dnsmasq-iot.leases
+
+# Never read /etc/resolv.conf: NetworkManager rewrites it, and the IoT subnet
+# cannot reach the host's resolver anyway. Ask the router, with a public
+# resolver as the backup.
+no-resolv
+server=192.168.178.1
+server=9.9.9.9
+domain-needed
+bogus-priv
+
+log-dhcp
+log-facility=-
+DNSMASQ
+
+# dnsmasq drops to the dnsmasq user, so it must own its lease file.
+if [[ ! -e /var/lib/misc/dnsmasq-iot.leases ]]; then
+  install -m 0644 -o dnsmasq -g nogroup /dev/null /var/lib/misc/dnsmasq-iot.leases
+fi
+chown dnsmasq:nogroup /var/lib/misc/dnsmasq-iot.leases
+chmod 0644 /var/lib/misc/dnsmasq-iot.leases
+
+systemctl reload NetworkManager 2>/dev/null || true
+# The packaged unit reads /etc/hostapd/hostapd.conf and would fight our one
+# instance. It is not enabled by default, but make that explicit.
+systemctl disable --now hostapd.service 2>/dev/null || true
 
 log "installing systemd units"
 if compgen -G "${REPO_ROOT}/systemd/*.service" >/dev/null; then
@@ -167,6 +248,12 @@ if systemctl list-unit-files snapper-timeline.timer >/dev/null 2>&1; then
   systemctl enable --now snapper-timeline.timer || true
   systemctl enable --now snapper-cleanup.timer || true
 fi
+
+# The AP only starts once render-secrets.sh has written its config; enabling
+# here is enough, and the unit itself is started below, after the firewall
+# rules exist.
+systemctl enable homelab-iot-firewall.service \
+  homelab-iot-ap.service homelab-iot-dhcp.service
 
 log "creating the proxy network"
 docker network inspect proxy >/dev/null 2>&1 || docker network create proxy
@@ -202,7 +289,33 @@ ufw allow from 172.16.0.0/12 to any port 51821 proto tcp comment 'wg-easy from C
 # ICMP still passes because ufw accepts it in ufw-before-forward, which makes
 # the failure look like a routing problem.
 ufw route allow in on wg0 comment 'WireGuard clients'
+
+# IoT Wi-Fi segment. DHCP and DNS are the only things it may reach on the host;
+# everything else is in ufw's default deny.
+ufw allow in on wlp2s0 to any port 67 proto udp comment 'IoT DHCP'
+ufw allow in on wlp2s0 to any port 53 proto udp comment 'IoT DNS'
+ufw allow in on wlp2s0 to any port 53 proto tcp comment 'IoT DNS'
+
+# Deny the private destinations first, then allow the internet. ufw evaluates
+# user-forward rules in insertion order, so the order here is the policy.
+for net in 192.168.178.0/24 100.64.0.0/10 169.254.0.0/16 10.0.0.0/8 172.16.0.0/12; do
+  ufw route deny in on wlp2s0 to "${net}" comment 'IoT isolation'
+done
+ufw route deny in on wlp2s0 out on wlp2s0 comment 'IoT client isolation'
+ufw route allow in on wlp2s0 out on eno1 comment 'IoT internet'
+
 ufw --force enable
+
+# Now that the isolation rules are in place, bring the AP up. The NAT and
+# DOCKER-USER rules live in homelab-iot-firewall.service; hostapd's config is
+# rendered by render-secrets.sh, which may not have run yet on a fresh host.
+systemctl start homelab-iot-firewall.service || true
+if [[ -r /etc/hostapd/iot.conf ]]; then
+  systemctl restart homelab-iot-ap.service \
+    || log "WARN: IoT AP did not start; check journalctl -u homelab-iot-ap"
+else
+  log "IoT AP config not rendered yet; run render-secrets.sh to start it"
+fi
 
 if [[ ! -s /etc/sops/age/keys.txt ]]; then
   log "WARNING: /etc/sops/age/keys.txt is missing."

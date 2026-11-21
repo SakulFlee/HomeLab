@@ -130,6 +130,11 @@ that user in the ntfy app (`https://ntfy.sakul-flee.de`).
 - IPv6: the apex has an AAAA (DDNS), the game names are CNAMEs to it and
   inherit it. WireGuard stays IPv4 on the endpoint; the tunnel carries both
   families (`100.64.0.0/24`, `fd42:1::/64`) with NAT66.
+- **IoT Wi-Fi**: `wlp2s0` (MT7921) serves a 2.4 GHz-only SSID on
+  `192.168.179.1/24`, DHCP/DNS from a dedicated dnsmasq and NAT out `eno1`.
+  ufw denies the LAN, WireGuard, Docker subnets and client-to-client, and a
+  `DOCKER-USER` rule keeps the segment out of Docker-published ports. IPv6 is
+  disabled on the interface. See [iot-wifi.md](iot-wifi.md).
 
 ## Secrets
 

@@ -1,0 +1,14 @@
+[Unit]
+Description=Keep the IoT Wi-Fi segment out of Docker networks
+Documentation=file:///opt/homelab/docs/iot-wifi.md
+After=docker.service
+Wants=docker.service
+OnFailure=homelab-notify@%n.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/homelab/scripts/iot-firewall.sh
+
+[Install]
+WantedBy=multi-user.target

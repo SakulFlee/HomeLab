@@ -1,0 +1,20 @@
+[Unit]
+Description=HomeLab IoT DHCP and DNS on wlp2s0
+Documentation=file:///opt/homelab/docs/iot-wifi.md
+After=network.target homelab-iot-ap.service
+PartOf=homelab-iot-ap.service
+OnFailure=homelab-notify@%n.service
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+# Dedicated instance of dnsmasq-base, not the global dnsmasq service: the
+# config binds only to wlp2s0, so it cannot collide with CoreDNS on
+# 192.168.178.200:53.
+ExecStart=/usr/sbin/dnsmasq --conf-file=/etc/dnsmasq-iot.conf --keep-in-foreground
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

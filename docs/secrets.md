@@ -16,6 +16,7 @@ the previous host. These keys must exist before `render-secrets.sh` will run:
 | `wg_easy_password_hash` | what wg-easy actually consumes | bcrypt hash of `wg_easy_password`, see below |
 | `restic_password` | local restic repository | `openssl rand -base64 32` |
 | `restic_dendra_password` | Dendra restic repository | a different `openssl rand -base64 32` |
+| `iot_wifi_passphrase` | WPA2 passphrase for the IoT SSID | 8–63 alphanumerics, see [iot-wifi.md](iot-wifi.md) |
 
 Optional, and skipped when absent:
 

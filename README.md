@@ -29,6 +29,8 @@ out at `/opt/homelab` on the host; `deploy.sh` runs as root from there.
 - WireGuard through wg-easy: `51820/udp`, UI on `51821`, tunnel `100.64.0.0/24`
   plus `fd42:1::/64`.
 - Split-horizon DNS on `192.168.178.200` (CoreDNS) for the admin names.
+- IoT Wi-Fi AP on `wlp2s0`: 2.4 GHz only, isolated `192.168.179.0/24`, internet
+  access only. See [docs/iot-wifi.md](docs/iot-wifi.md).
 
 ### Services
 
@@ -87,6 +89,7 @@ every account that has 2FA enabled.
 
 - [docs/operations.md](docs/operations.md) — deployment, backups, alerting,
   VPN/DNS, and the known sharp edges. Start here.
+- [docs/iot-wifi.md](docs/iot-wifi.md) — the isolated 2.4 GHz IoT SSID.
 - [docs/ssh.md](docs/ssh.md) — host SSH, Forgejo SSH and initramfs unlock.
 - [docs/secrets.md](docs/secrets.md) — sops layout and how to read a value.
 - [docs/restore.md](docs/restore.md) — restoring and inspecting backups.

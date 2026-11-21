@@ -10,6 +10,7 @@ checked out at `/opt/homelab` and `deploy.sh` runs as root from there.
 | host OS, packages, firewall, users | Debian on the host, provisioned by `scripts/bootstrap.sh` |
 | host-specific settings (ports, bind IPs, runner capacity) | `/etc/homelab/host.env` on the host |
 | services | `stacks/<name>/compose.yaml` |
+| IoT Wi-Fi AP | `scripts/bootstrap.sh` and `systemd/homelab-iot-*.service` |
 | deploy, backup, restore, secrets | `scripts/` |
 | timers and units | `systemd/` |
 | secrets at rest | `secrets/secrets.yaml` (sops/age) |
@@ -122,6 +123,21 @@ of data directories. Inspecting and reversible changes are fine.
 - **Syncthing folders live on the config volume.** `HOME=/var/syncthing`, so
   `~/…` paths resolve under `/srv/docker/syncthing/config`. `backup.sh`
   therefore excludes the whole `syncthing` tree, not just `syncthing/data`.
+- **The IoT AP is a host unit, not a stack.** `wlp2s0` (MT7921) is a 2.4 GHz-only
+  routed network: `hostapd`, a dedicated dnsmasq and a `DOCKER-USER` rule.
+  `bootstrap.sh` installs it; `deploy.sh` does not. After changing
+  `bootstrap.sh`, run bootstrap once by hand or the AP changes never land.
+  Docker DNATs published ports before ufw's filter, which is why the segment is
+  blocked in `DOCKER-USER` (`scripts/iot-firewall.sh`) instead of with a plain
+  ufw route rule. See `docs/iot-wifi.md`.
+- **The IoT AP depends on the host being unlocked and up.** Root is LUKS, so
+  after a power loss the devices stay offline until the host is unlocked. It is
+  one radio: no 5 GHz SSID, no DFS, and no client/AP concurrency in use.
+- **`/etc/hostapd/iot.conf` contains the WPA passphrase.** hostapd cannot read
+  it from a file and the AP must start before the first deploy renders `/run`,
+  so the generated config persists at 0600 on the LUKS-encrypted root. sops
+  (`iot_wifi_passphrase`) is still the source; `render-secrets.sh` rewrites it
+  and restarts the unit only when the rendered config changed.
 - **Deploy keys**: root on the host holds a Forgejo deploy key for
   `SakulFlee/HomeLab`. That key is what lets the timer fetch. Do not remove it
   without replacing the fetch mechanism.
@@ -133,6 +149,14 @@ docker ps --format '{{.Names}}\t{{.Status}}'
 systemctl --failed
 systemctl list-timers | grep homelab
 sudo /opt/homelab/scripts/healthcheck.sh
+```
+
+For the IoT AP:
+
+```bash
+systemctl status homelab-iot-ap homelab-iot-dhcp homelab-iot-firewall
+iw dev wlp2s0 info
+cat /var/lib/misc/dnsmasq-iot.leases
 ```
 
 For the backup chain:

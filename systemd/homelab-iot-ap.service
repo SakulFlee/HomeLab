@@ -1,0 +1,22 @@
+[Unit]
+Description=HomeLab IoT Wi-Fi access point (2.4 GHz, wlp2s0)
+Documentation=file:///opt/homelab/docs/iot-wifi.md
+After=network.target sys-subsystem-net-devices-wlp2s0.device homelab-iot-firewall.service
+Wants=network.target sys-subsystem-net-devices-wlp2s0.device homelab-iot-dhcp.service homelab-iot-firewall.service
+OnFailure=homelab-notify@%n.service
+# A broken config should not notify every 15 seconds forever.
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+# Picks 1/6/11 (or a pinned channel), assigns 192.168.179.1/24 and turns IPv6
+# off on the interface, then leaves the interface in AP mode for hostapd.
+ExecStartPre=/opt/homelab/scripts/iot-channel.sh
+ExecStart=/usr/sbin/hostapd -f /dev/stdout /run/homelab/secrets/hostapd-iot.conf
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=15s
+
+[Install]
+WantedBy=multi-user.target

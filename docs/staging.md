@@ -62,6 +62,10 @@ sudo /opt/homelab/scripts/render-secrets.sh
 sudo /opt/homelab/scripts/deploy.sh --force
 ```
 
+`render-secrets.sh` also writes `/etc/hostapd/iot.conf` for the IoT AP. It is
+inert on a laptop (the AP units are not installed); it exists on production
+because the AP must come up at boot before the first deploy.
+
 To change the active set, edit `DEPLOY_STACKS` in `/etc/homelab/host.env`.
 
 If you have not copied the Hytale payload yet, leave `hytale` out of
