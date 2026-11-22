@@ -213,6 +213,7 @@ if stack_exists homeassistant; then
     install -d -m 0755 "${LIVE_DATA_DIR}/homeassistant"
     if ! cmp -s "${ha_src}" "${ha_dst}"; then
       install -m 0644 -o root -g root "${ha_src}" "${ha_dst}"
+      log "installed homeassistant configuration.yaml"
       ha_config_changed=1
     fi
   fi

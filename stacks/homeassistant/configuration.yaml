@@ -3,10 +3,35 @@
 # it differs, so edits made on the host do not survive a deploy. Integrations
 # configured through the UI live in .storage and are not touched.
 #
-# The frontend/themes include of the stock file is left out on purpose:
-# default_config already loads the frontend and no themes directory is
-# versioned here.
-default_config:
+# default_config is expanded by hand for two reasons:
+#  * bluetooth: the host's MT7921 exposes hci0 and host networking makes it
+#    visible here, so Home Assistant starts a Bluetooth manager and logs a
+#    NET_ADMIN/NET_RAW permission error every few seconds. Fixing that means
+#    granting NET_ADMIN to a container that shares the host network namespace,
+#    which would let it rewrite the host firewall. Not worth it until a
+#    Bluetooth proxy or a real BLE device exists.
+#  * cloud: Nabu Casa is not used.
+# The list below is default_config's manifest minus those two. A new default
+# integration in a future release has to be added here explicitly.
+assist_pipeline:
+conversation:
+dhcp:
+energy:
+file:
+go2rtc:
+history:
+homeassistant_alerts:
+logbook:
+media_source:
+mobile_app:
+my:
+ssdp:
+stream:
+sun:
+usage_prediction:
+usb:
+webhook:
+zeroconf:
 
 http:
   # Caddy is the only client in front of Home Assistant and it always sends
