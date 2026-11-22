@@ -170,7 +170,13 @@ the Caddy site imports `vpn_only`.
   ```
 
   Restart the container afterwards (`sudo docker restart homeassistant`); the
-  HTTP component only reads the file at startup. The alternative, removing
+  HTTP component only reads the file at startup. If it still answers 400, the
+  log names the address to trust:
+
+  ```bash
+  sudo docker exec homeassistant grep -i 'untrusted proxy' /config/home-assistant.log
+  ```
+ The alternative, removing
   `X-Forwarded-For` in the Caddy site, makes HA log the bridge address and
   lets a failed-login ban lock out Caddy itself.
 
