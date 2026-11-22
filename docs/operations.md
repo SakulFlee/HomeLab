@@ -157,8 +157,10 @@ the Caddy site imports `vpn_only`.
   and logs all live in `/srv/docker/homeassistant`. There is no secret to
   render: the first start serves the onboarding page, where the owner account
   and integrations are created in the browser.
-- After the first start, add the reverse proxy to `configuration.yaml` so the
-  UI logs real addresses and a failed-login ban cannot lock out Caddy itself:
+- Before the first request through Caddy, add the reverse proxy to
+  `configuration.yaml`. Caddy sends `X-Forwarded-For`, and without a trusted
+  proxy Home Assistant answers **400: Bad Request** to every request; the
+  response comes from aiohttp, so it is easy to mistake for a Caddy fault:
 
   ```yaml
   http:
@@ -166,6 +168,11 @@ the Caddy site imports `vpn_only`.
     trusted_proxies:
       - 172.16.0.0/12
   ```
+
+  Restart the container afterwards (`sudo docker restart homeassistant`); the
+  HTTP component only reads the file at startup. The alternative, removing
+  `X-Forwarded-For` in the Caddy site, makes HA log the bridge address and
+  lets a failed-login ban lock out Caddy itself.
 
 - The image is pinned to a release tag; Renovate bumps it. `deploy.sh` only
   pulls a stack whose directory changed, so upgrades land with that PR.
@@ -199,6 +206,9 @@ common symptoms:
 | VPN clients get no internet but ping works | `ufw route allow in on wg0`, wg-easy `interfaces_table.device` |
 | CI jobs fail instantly with `Cannot connect to the Docker daemon` | runner socket inode is stale; run `scripts/docker-socket-refresh.sh` or `docker restart forgejo-runner` |
 | Admin UIs return 403 | split-horizon DNS / `/etc/hosts`, Cloudflare proxy |
+| `home.sakul-flee.de` returns 400 | HA rejects Caddy's `X-Forwarded-For`; set `http.trusted_proxies` |
+| `home.sakul-flee.de` returns 502 | the 8123 ufw rule is missing; re-run `bootstrap.sh` |
+| `home.sakul-flee.de` returns 403 while on VPN | the name resolved to the WAN IP and WireGuard sent it outside the tunnel |
 | Broken avatars or attachments in Forgejo | `FORGEJO__picture__*`, `FORGEJO__attachment__PATH` |
 | Deploy timer restarts everything every 30 min | checkout ahead of `origin/main` |
 | Backups suddenly much larger | new path under `/srv/docker` that is not excluded |

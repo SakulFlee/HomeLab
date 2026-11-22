@@ -134,7 +134,9 @@ of data directories. Inspecting and reversible changes are fine.
   `172.16.0.0/12` for Caddy. A host that has not re-run `bootstrap.sh` since
   that rule was added serves `home.sakul-flee.de` as a 502. The name is
   DNS-only on purpose: if the proxy wildcard catches it, Caddy's `vpn_only`
-  gate sees a Cloudflare edge and returns 403 to everyone.
+  gate sees a Cloudflare edge and returns 403 to everyone. Caddy adds
+  `X-Forwarded-For`, and without `http.trusted_proxies` Home Assistant answers
+  400 to every proxied request.
 - **Syncthing folders live on the config volume.** `HOME=/var/syncthing`, so
   `~/…` paths resolve under `/srv/docker/syncthing/config`. `backup.sh`
   therefore excludes the whole `syncthing` tree, not just `syncthing/data`.
