@@ -52,7 +52,7 @@ for dir in seaweedfs-data meilisearch-data nats-data valkey-data edge-data edge-
 done
 
 # Root-owned state (container runtimes, certificates, UI state).
-for dir in caddy dockge wg-easy forgejo-runner cloudflare-ddns ntfy; do
+for dir in caddy dockge wg-easy forgejo-runner cloudflare-ddns ntfy homeassistant; do
   install -d -m 0755 "${LIVE_DATA_DIR}/${dir}"
 done
 # Renovate's image runs as uid 12021 with gid 0, so hardcoding the image uid

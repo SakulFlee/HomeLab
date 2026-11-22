@@ -1,0 +1,39 @@
+name: homeassistant
+
+services:
+  homeassistant:
+    # Home Assistant Container, not HAOS. There is no Supervisor here, so
+    # "add-ons" are ordinary stacks (ntfy already is one) and HACS is the only
+    # supported way to install custom integrations such as tuya-local.
+    #
+    # Pinned, not :stable: deploy.sh only pulls a stack whose directory
+    # changed, so :stable would produce a different version on every unrelated
+    # change. Renovate bumps this; 2026.11.2 was smoke-tested on the workstation
+    # (onboarding reachable, recorder database created).
+    image: ghcr.io/home-assistant/home-assistant:2026.11.2
+    container_name: homeassistant
+    restart: unless-stopped
+
+    # Host networking is the configuration Home Assistant documents and the
+    # one that keeps discovery working: mDNS/SSDP listen on multicast
+    # addresses that Docker's bridge does not forward, and a Thread/Matter
+    # border router in the future needs the same. The cost is that 8123 is a
+    # host port, not a published one: ufw's default deny keeps it off the LAN
+    # and bootstrap.sh allows it from the Docker bridge so Caddy can proxy it.
+    network_mode: host
+
+    environment:
+      # Schedule helpers, sunrise/sunset triggers and recorder timestamps all
+      # use the container's local time. Without this it is UTC.
+      TZ: Europe/Berlin
+
+    volumes:
+      # Whole configuration tree: configuration.yaml, .storage (every
+      # integration's credentials, including the Tuya tokens), the SQLite
+      # recorder database and the logs.
+      - /srv/docker/homeassistant:/config
+
+    # The recorder writes SQLite on every state change; the 10s default does
+    # not always let it checkpoint and close. A stopped container is fine, a
+    # half-written WAL shows up later as a corrupt database.
+    stop_grace_period: 30s

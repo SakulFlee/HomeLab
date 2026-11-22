@@ -80,6 +80,16 @@ if stack_exists dockge; then
     && pass "dockge UI" || bad "dockge UI"
 fi
 
+if stack_exists homeassistant; then
+  running homeassistant && pass "homeassistant container" || bad "homeassistant container"
+  # Home Assistant uses host networking. First boot (database creation and
+  # onboarding) takes longer than the other stacks, so retry rather than fail
+  # the deploy on a cold start.
+  curl -fsS --max-time 5 --retry 12 --retry-delay 5 --retry-all-errors \
+    http://127.0.0.1:8123/ >/dev/null 2>&1 \
+    && pass "homeassistant HTTP" || bad "homeassistant HTTP"
+fi
+
 # The IoT AP is a host unit installed by bootstrap.sh. Skip until the unit
 # exists, so a deploy that lands before bootstrap does not fail the run.
 if systemctl cat homelab-iot-ap.service >/dev/null 2>&1; then

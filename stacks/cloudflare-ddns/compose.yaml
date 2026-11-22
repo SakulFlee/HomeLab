@@ -15,9 +15,11 @@ services:
       # DOMAINS manages both A and AAAA. Only the apex gets an AAAA for now:
       # the host has a public IPv6 and a router pinhole for 443, but no
       # pinhole has been verified for the WireGuard UDP port, so wg. stays
-      # IPv4-only to keep client configs working.
+      # IPv4-only to keep client configs working. home. is Home Assistant,
+      # DNS-only like the other admin names so Caddy's vpn_only gate sees the
+      # real client address instead of a Cloudflare edge.
       DOMAINS: "sakul-flee.de"
-      IP4_DOMAINS: "wg.sakul-flee.de"
+      IP4_DOMAINS: "wg.sakul-flee.de,home.sakul-flee.de"
       PROXIED: "false"
       # 'local' reads the address that would be used to reach Cloudflare.
       # Temporary privacy addresses are disabled in /etc/sysctl.d so this is

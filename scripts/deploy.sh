@@ -121,6 +121,7 @@ ordered_stacks=(
   hytale
   opencode
   syncthing
+  homeassistant
   website
   forgejo-runner
   ntfy

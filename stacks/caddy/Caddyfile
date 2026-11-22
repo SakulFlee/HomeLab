@@ -75,6 +75,18 @@ dockge.sakul-flee.de {
 	}
 }
 
+home.sakul-flee.de {
+	import vpn_only
+
+	# Home Assistant uses host networking, so reach the host address rather
+	# than a container name. The frontend keeps a websocket open for live
+	# state; -1 disables response buffering so updates are not batched.
+	reverse_proxy http://{$HOMELAB_LAN_IP}:8123 {
+		header_up Host {http.request.host}
+		flush_interval -1
+	}
+}
+
 # Self-hosted notification relay. Public on purpose: it must be reachable from
 # phones outside the LAN/VPN. ntfy enforces its own authentication.
 ntfy.sakul-flee.de {

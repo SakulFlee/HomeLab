@@ -301,6 +301,7 @@ done
 # Caddy runs in a bridge network and reaches wg-easy (host networking) via the
 # host's LAN address, so the source is the Docker bridge, not the LAN.
 ufw allow from 172.16.0.0/12 to any port 51821 proto tcp comment 'wg-easy from Caddy'
+ufw allow from 172.16.0.0/12 to any port 8123 proto tcp comment 'Home Assistant from Caddy'
 # wg0 is created by wg-easy after ufw starts, and wg-easy writes its forwarding
 # rules with iptables-legacy. ufw's policy lives in nftables, so without this
 # route rule every NEW forwarded connection from a VPN client is dropped --

@@ -129,6 +129,12 @@ of data directories. Inspecting and reversible changes are fine.
 - **Split-horizon DNS only works for clients using CoreDNS.** LAN clients on
   the router's DNS get Cloudflare's addresses for the admin names and hit the
   VPN-only 403 in Caddy.
+- **Home Assistant uses host networking, so 8123 is a host port.** `ufw`
+  denies it to the LAN and `bootstrap.sh` allows it only from
+  `172.16.0.0/12` for Caddy. A host that has not re-run `bootstrap.sh` since
+  that rule was added serves `home.sakul-flee.de` as a 502. The name is
+  DNS-only on purpose: if the proxy wildcard catches it, Caddy's `vpn_only`
+  gate sees a Cloudflare edge and returns 403 to everyone.
 - **Syncthing folders live on the config volume.** `HOME=/var/syncthing`, so
   `~/…` paths resolve under `/srv/docker/syncthing/config`. `backup.sh`
   therefore excludes the whole `syncthing` tree, not just `syncthing/data`.

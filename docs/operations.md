@@ -136,6 +136,49 @@ that user in the ntfy app (`https://ntfy.sakul-flee.de`).
   `DOCKER-USER` rule keeps the segment out of Docker-published ports. IPv6 is
   disabled on the interface. See [iot-wifi.md](iot-wifi.md).
 
+## Home Assistant
+
+`stacks/homeassistant` is Home Assistant Container, not HAOS. There is no
+Supervisor, so there are no add-ons: anything that would be one is a separate
+stack (ntfy already is), and custom integrations are installed through HACS.
+Reach it at `https://home.sakul-flee.de` from the LAN or the WireGuard tunnel;
+the Caddy site imports `vpn_only`.
+
+- It uses **host networking**, which is required for mDNS/SSDP discovery and
+  for a Thread/Matter border router later. Port 8123 therefore belongs to the
+  host. ufw's default deny keeps it off the LAN, and `bootstrap.sh` allows it
+  from `172.16.0.0/12` so Caddy (bridge network) can proxy it. Changing that
+  rule is a host change: run `sudo /opt/homelab/scripts/bootstrap.sh` once.
+- `home.sakul-flee.de` is in `cloudflare-ddns`'s `IP4_DOMAINS` and in the
+  CoreDNS split-horizon pattern. Both are needed: the A record must be
+  DNS-only so the `vpn_only` gate sees the client, and LAN clients using
+  CoreDNS must not resolve it through Cloudflare.
+- Configuration, integration credentials (`.storage`), the recorder database
+  and logs all live in `/srv/docker/homeassistant`. There is no secret to
+  render: the first start serves the onboarding page, where the owner account
+  and integrations are created in the browser.
+- After the first start, add the reverse proxy to `configuration.yaml` so the
+  UI logs real addresses and a failed-login ban cannot lock out Caddy itself:
+
+  ```yaml
+  http:
+    use_x_forwarded_for: true
+    trusted_proxies:
+      - 172.16.0.0/12
+  ```
+
+- The image is pinned to a release tag; Renovate bumps it. `deploy.sh` only
+  pulls a stack whose directory changed, so upgrades land with that PR.
+- `backup.sh` includes the whole tree. The SQLite recorder is copied while
+  running, so a restore is crash-consistent; `.storage` and the YAML files are
+  plain files and always consistent.
+- Tuya devices are reachable two ways. The official **Tuya** integration goes
+  through Tuya's cloud, so it works with the IoT segment still sealed. The
+  HACS **tuya-local** integration talks to the device on `tcp/6668` and needs a
+  narrow hole from the host to `192.168.179.0/24`. Both may be installed at
+  the same time for evaluation; see [iot-wifi.md](iot-wifi.md) before punching
+  that hole.
+
 ## Secrets
 
 - `secrets/secrets.yaml` is sops/age encrypted. The host identity lives at
