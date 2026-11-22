@@ -142,12 +142,12 @@ of data directories. Inspecting and reversible changes are fine.
   request is a 400 from aiohttp, which looks like Caddy or DNS breaking.
   `deploy.sh` reconciles the store. `configuration.yaml` itself is installed
   from the repo on every deploy, so YAML edits on the host do not survive.
-- **Bluetooth is blacklisted on the host.** `bootstrap.sh` writes
-  `/etc/modprobe.d/homelab-bluetooth.conf` (`blacklist btusb`) and unloads the
-  module, because host networking lets HA enumerate `hci0` over USB and it
-  then logs a `NET_ADMIN`/`NET_RAW` error every few seconds. Those caps in the
-  host netns would allow rewriting the host firewall. Remove the file and
-  reboot if BLE is ever needed.
+- **Home Assistant must not load the Bluetooth integration.** Host networking
+  exposes the host's adapter through `/sys/bus/usb`, so HA asks for
+  `NET_ADMIN`/`NET_RAW` and logs an error every few seconds; those caps in the
+  host netns would allow rewriting the firewall. `configuration.yaml`
+  therefore expands `default_config` without `bluetooth` (and without
+  `cloud`). Unloading `btusb` is not enough: the USB device stays enumerated.
 - **Syncthing folders live on the config volume.** `HOME=/var/syncthing`, so
   `~/…` paths resolve under `/srv/docker/syncthing/config`. `backup.sh`
   therefore excludes the whole `syncthing` tree, not just `syncthing/data`.

@@ -175,12 +175,12 @@ the Caddy site imports `vpn_only`.
   means the store lost the keys, `untrusted proxy <ip>` means the range is
   wrong (`sudo docker exec homeassistant grep -i forwarded
   /config/home-assistant.log`).
-- **Bluetooth is disabled on the host.** `bootstrap.sh` writes
-  `/etc/modprobe.d/homelab-bluetooth.conf` (`blacklist btusb`) and unloads the
-  module. Host networking lets HA enumerate `hci0` over USB and then log a
-  `NET_ADMIN`/`NET_RAW` error every few seconds; granting those capabilities
-  in the host netns would also allow rewriting the host firewall. Remove the
-  file and reboot if BLE is ever needed.
+- `default_config` is expanded by hand, leaving out `bluetooth` (host
+  networking exposes the host's adapter over USB, so HA would ask for
+  `NET_ADMIN`/`NET_RAW`, which in the host netns also allow rewriting the
+  firewall; unloading the driver does not help, the USB device stays visible)
+  and `cloud` (Nabu Casa is unused). Adding a future default integration means
+  adding its key to the managed file.
 
 - The image is pinned to a release tag; Renovate bumps it. `deploy.sh` only
   pulls a stack whose directory changed, so upgrades land with that PR.

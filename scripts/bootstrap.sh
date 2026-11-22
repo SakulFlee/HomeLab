@@ -183,18 +183,6 @@ cat >/etc/modprobe.d/mt7921e.conf <<'MODPROBE'
 options mt7921e disable_aspm=1
 MODPROBE
 
-# The MT7921's Bluetooth half is unused here; the IoT AP only needs its Wi-Fi
-# half. Home Assistant runs with host networking, enumerates the adapter
-# through USB and then logs a NET_ADMIN/NET_RAW error every few seconds
-# because it cannot power-cycle it. Granting those capabilities in the host
-# network namespace would also allow rewriting the host firewall, so the
-# adapter is disabled instead. Remove this file and reboot to get Bluetooth
-# back (a Bluetooth proxy is the usual answer if HA ever needs BLE).
-cat >/etc/modprobe.d/homelab-bluetooth.conf <<'BTMOD'
-blacklist btusb
-BTMOD
-modprobe -r btusb 2>/dev/null || true
-
 # ifupdown brings the interface up with its address before hostapd switches it
 # to AP mode. The subnet must match the ufw route rules and the NAT block.
 cat >/etc/network/interfaces.d/iot-ap <<'IFACE'
