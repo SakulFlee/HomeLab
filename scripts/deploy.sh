@@ -200,6 +200,24 @@ for stack in "${selected[@]}"; do
   fi
 done
 
+# Home Assistant's YAML is owned by the repository. The stack bind-mounts the
+# directory, so writing the file here is visible inside the container at once,
+# but HA only reads configuration.yaml at startup and Compose cannot detect a
+# bind-mounted file's content change. Install the repo copy and remember to
+# restart afterwards.
+ha_config_changed=0
+if stack_exists homeassistant; then
+  ha_src="${STACKS_DIR}/homeassistant/configuration.yaml"
+  ha_dst="${LIVE_DATA_DIR}/homeassistant/configuration.yaml"
+  if [[ -f "${ha_src}" ]]; then
+    install -d -m 0755 "${LIVE_DATA_DIR}/homeassistant"
+    if ! cmp -s "${ha_src}" "${ha_dst}"; then
+      install -m 0644 -o root -g root "${ha_src}" "${ha_dst}"
+      ha_config_changed=1
+    fi
+  fi
+fi
+
 for stack in "${selected[@]}"; do
   log "applying ${stack}"
   up_args=(-d --build --remove-orphans --wait)
@@ -211,6 +229,11 @@ for stack in "${selected[@]}"; do
     exit 1
   fi
 done
+
+if ((ha_config_changed)) && docker inspect homeassistant >/dev/null 2>&1; then
+  log "homeassistant configuration changed; restarting it"
+  docker restart homeassistant >/dev/null
+fi
 
 # Dockge derives a stack's state from every container in the project, so a
 # finished one-shot init container makes the whole stack read as "exited" even

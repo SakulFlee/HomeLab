@@ -157,21 +157,18 @@ the Caddy site imports `vpn_only`.
   and logs all live in `/srv/docker/homeassistant`. There is no secret to
   render: the first start serves the onboarding page, where the owner account
   and integrations are created in the browser.
-- Before the first request through Caddy, add the reverse proxy to
-  `configuration.yaml`. Caddy sends `X-Forwarded-For`, and without a trusted
-  proxy Home Assistant answers **400: Bad Request** to every request; the
-  response comes from aiohttp, so it is easy to mistake for a Caddy fault:
-
-  ```yaml
-  http:
-    use_x_forwarded_for: true
-    trusted_proxies:
-      - 172.16.0.0/12
-  ```
-
-  Restart the container afterwards (`sudo docker restart homeassistant`); the
-  HTTP component only reads the file at startup. If it still answers 400, the
-  log names the address to trust:
+- `stacks/homeassistant/configuration.yaml` is the source of truth.
+  `deploy.sh` installs it over
+  `/srv/docker/homeassistant/configuration.yaml` and restarts the container
+  when the content differs, so edits made on the host are overwritten.
+  Integrations added through the UI live in `.storage` and are untouched;
+  automations, scripts and scenes created in the UI are written to their own
+  `!include`d files in the volume, not to the managed file.
+- Caddy always sends `X-Forwarded-For`, and without a trusted proxy Home
+  Assistant answers **400: Bad Request** to every request. The response comes
+  from aiohttp, so it is easy to mistake for a Caddy fault. The managed file
+  sets `use_x_forwarded_for` and trusts `172.16.0.0/12`; if that ever
+  regresses, the log names the peer to trust:
 
   ```bash
   sudo docker exec homeassistant grep -i 'untrusted proxy' /config/home-assistant.log

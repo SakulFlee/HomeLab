@@ -1,0 +1,20 @@
+# Managed in the repository. deploy.sh installs this file over
+# /srv/docker/homeassistant/configuration.yaml and restarts the container when
+# it differs, so edits made on the host do not survive a deploy. Integrations
+# configured through the UI live in .storage and are not touched.
+#
+# The frontend/themes include of the stock file is left out on purpose:
+# default_config already loads the frontend and no themes directory is
+# versioned here.
+default_config:
+
+http:
+  # Caddy is the only client in front of Home Assistant and it always sends
+  # X-Forwarded-For. Without a trusted proxy, HA answers 400 to every request.
+  use_x_forwarded_for: true
+  trusted_proxies:
+    - 172.16.0.0/12
+
+automation: !include automations.yaml
+script: !include scripts.yaml
+scene: !include scenes.yaml

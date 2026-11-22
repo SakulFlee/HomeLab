@@ -136,7 +136,9 @@ of data directories. Inspecting and reversible changes are fine.
   DNS-only on purpose: if the proxy wildcard catches it, Caddy's `vpn_only`
   gate sees a Cloudflare edge and returns 403 to everyone. Caddy adds
   `X-Forwarded-For`, and without `http.trusted_proxies` Home Assistant answers
-  400 to every proxied request.
+  400 to every proxied request. `configuration.yaml` is installed from
+  `stacks/homeassistant/` on every deploy, so YAML edits made on the host do
+  not survive.
 - **Syncthing folders live on the config volume.** `HOME=/var/syncthing`, so
   `~/…` paths resolve under `/srv/docker/syncthing/config`. `backup.sh`
   therefore excludes the whole `syncthing` tree, not just `syncthing/data`.
