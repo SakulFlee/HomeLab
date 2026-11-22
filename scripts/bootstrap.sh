@@ -29,7 +29,7 @@ apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install -y \
   ca-certificates curl gnupg git jq \
   age restic \
-  btrfs-progs snapper \
+  btrfs-progs btrfsmaintenance snapper \
   wireguard-tools nftables ufw iptables \
   hostapd iw dnsmasq-base \
   dnsutils netcat-openbsd \
@@ -249,8 +249,18 @@ systemctl daemon-reload
 log "enabling base services"
 systemctl enable --now docker
 systemctl enable --now fstrim.timer || true
+# btrfs-progs on trixie ships no timers; btrfsmaintenance provides the scrub
+# unit. Its default config already scrubs monthly and leaves balance, trim and
+# defrag to "none" (fstrim.timer above covers discards). Only the mountpoints
+# need adjusting: "/" is btrfs and /srv/backup is a second, LUKS-backed btrfs.
+if [[ -f /etc/default/btrfsmaintenance ]]; then
+  sed -i 's|^BTRFS_SCRUB_MOUNTPOINTS=.*|BTRFS_SCRUB_MOUNTPOINTS="/ /srv/backup"|' \
+    /etc/default/btrfsmaintenance
+fi
 systemctl enable --now btrfs-scrub.timer || true
-systemctl enable --now smartd || true
+# smartd is only an alias shipped in /etc/systemd/system; `systemctl enable`
+# refuses to operate on it. The real unit is smartmontools.service.
+systemctl enable --now smartmontools.service || true
 systemctl enable --now unattended-upgrades || true
 if systemctl list-unit-files snapper-timeline.timer >/dev/null 2>&1; then
   systemctl enable --now snapper-timeline.timer || true
