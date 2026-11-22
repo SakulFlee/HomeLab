@@ -3,18 +3,11 @@
 # it differs, so edits made on the host do not survive a deploy. Integrations
 # configured through the UI live in .storage and are not touched.
 #
-# default_config stays. Expanding it by hand (to leave bluetooth out) silently
-# stopped the http: block below from being applied, and HA then answers 400 to
-# every proxied request. The host's Bluetooth adapter is hidden from the
-# container instead; see the /sys/class/bluetooth mount in compose.yaml.
+# There is deliberately no http: block here. Home Assistant 2026.x migrates it
+# into .storage/http on first boot and then ignores YAML for it
+# (components/http/config.py: yaml_migration_done), leaving a repair warning
+# behind. The reverse-proxy settings are reconciled in that store by deploy.sh.
 default_config:
-
-http:
-  # Caddy is the only client in front of Home Assistant and it always sends
-  # X-Forwarded-For. Without a trusted proxy, HA answers 400 to every request.
-  use_x_forwarded_for: true
-  trusted_proxies:
-    - 172.16.0.0/12
 
 automation: !include automations.yaml
 script: !include scripts.yaml

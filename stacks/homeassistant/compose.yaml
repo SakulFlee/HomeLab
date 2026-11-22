@@ -29,15 +29,9 @@ services:
 
     volumes:
       # Whole configuration tree: configuration.yaml, .storage (every
-      # integration's credentials, including the Tuya tokens), the SQLite
-      # recorder database and the logs.
+      # integration's credentials, including the Tuya tokens, and the HTTP
+      # config migrated out of YAML), the SQLite recorder database and logs.
       - /srv/docker/homeassistant:/config
-      # Host networking exposes the host's Bluetooth adapter (hci0) through
-      # sysfs, so HA starts a Bluetooth manager and asks for NET_ADMIN/NET_RAW
-      # to power-cycle it. In the host network namespace those capabilities
-      # would also allow rewriting the host firewall. Masking the class
-      # directory hides the adapter from this container only.
-      - /srv/docker/homeassistant/sys-mask:/sys/class/bluetooth:ro
 
     # The recorder writes SQLite on every state change; the 10s default does
     # not always let it checkpoint and close. A stopped container is fine, a

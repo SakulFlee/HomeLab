@@ -134,11 +134,20 @@ of data directories. Inspecting and reversible changes are fine.
   `172.16.0.0/12` for Caddy. A host that has not re-run `bootstrap.sh` since
   that rule was added serves `home.sakul-flee.de` as a 502. The name is
   DNS-only on purpose: if the proxy wildcard catches it, Caddy's `vpn_only`
-  gate sees a Cloudflare edge and returns 403 to everyone. Caddy adds
-  `X-Forwarded-For`, and without `http.trusted_proxies` Home Assistant answers
-  400 to every proxied request. `configuration.yaml` is installed from
-  `stacks/homeassistant/` on every deploy, so YAML edits made on the host do
-  not survive.
+  gate sees a Cloudflare edge and returns 403 to everyone.
+- **Home Assistant ignores `http:` in YAML after the first boot.** 2026.x
+  migrates it into `.storage/http` once (`yaml_migration_done`) and then uses
+  the store, so a later YAML edit does nothing but raise a repair issue.
+  Without `use_x_forwarded_for`/`trusted_proxies` in that store every proxied
+  request is a 400 from aiohttp, which looks like Caddy or DNS breaking.
+  `deploy.sh` reconciles the store. `configuration.yaml` itself is installed
+  from the repo on every deploy, so YAML edits on the host do not survive.
+- **Bluetooth is blacklisted on the host.** `bootstrap.sh` writes
+  `/etc/modprobe.d/homelab-bluetooth.conf` (`blacklist btusb`) and unloads the
+  module, because host networking lets HA enumerate `hci0` over USB and it
+  then logs a `NET_ADMIN`/`NET_RAW` error every few seconds. Those caps in the
+  host netns would allow rewriting the host firewall. Remove the file and
+  reboot if BLE is ever needed.
 - **Syncthing folders live on the config volume.** `HOME=/var/syncthing`, so
   `~/…` paths resolve under `/srv/docker/syncthing/config`. `backup.sh`
   therefore excludes the whole `syncthing` tree, not just `syncthing/data`.

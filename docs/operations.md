@@ -164,25 +164,23 @@ the Caddy site imports `vpn_only`.
   Integrations added through the UI live in `.storage` and are untouched;
   automations, scripts and scenes created in the UI are written to their own
   `!include`d files in the volume, not to the managed file.
-- `default_config` stays in the managed file. Expanding it by hand to leave
-  `bluetooth` out silently stopped the `http:` block from being applied —
-  verified against the pinned image — which produces the 400s below. The
-  adapter is hidden from the container instead: an empty directory is
-  bind-mounted over `/sys/class/bluetooth`, so HA never sees `hci0`. Granting
-  `NET_ADMIN`/`NET_RAW` instead is not an option: with host networking those
-  capabilities also allow rewriting the host firewall.
-- Caddy always sends `X-Forwarded-For`, and without a trusted proxy Home
-  Assistant answers **400: Bad Request** to every request. The response comes
-  from aiohttp, so it is easy to mistake for a Caddy fault. The managed file
-  sets `use_x_forwarded_for` and trusts `172.16.0.0/12`; if that ever
-  regresses, the log names the peer to trust:
-
-  ```bash
-  sudo docker exec homeassistant grep -i 'untrusted proxy' /config/home-assistant.log
-  ```
- The alternative, removing
-  `X-Forwarded-For` in the Caddy site, makes HA log the bridge address and
-  lets a failed-login ban lock out Caddy itself.
+- **There is no `http:` block in the managed file.** Home Assistant 2026.x
+  migrates it into `.storage/http` on first boot and then ignores YAML for it
+  (`components/http/config.py`, `yaml_migration_done`), leaving a repair
+  warning behind. A YAML edit after that changes nothing. `deploy.sh`
+  reconciles `use_x_forwarded_for` and `trusted_proxies` in that store and
+  restarts, because without them every proxied request gets **400: Bad
+  Request** from aiohttp — which looks like Caddy or DNS being broken. The log
+  line tells the two failure modes apart: `not set-up for reverse proxies`
+  means the store lost the keys, `untrusted proxy <ip>` means the range is
+  wrong (`sudo docker exec homeassistant grep -i forwarded
+  /config/home-assistant.log`).
+- **Bluetooth is disabled on the host.** `bootstrap.sh` writes
+  `/etc/modprobe.d/homelab-bluetooth.conf` (`blacklist btusb`) and unloads the
+  module. Host networking lets HA enumerate `hci0` over USB and then log a
+  `NET_ADMIN`/`NET_RAW` error every few seconds; granting those capabilities
+  in the host netns would also allow rewriting the host firewall. Remove the
+  file and reboot if BLE is ever needed.
 
 - The image is pinned to a release tag; Renovate bumps it. `deploy.sh` only
   pulls a stack whose directory changed, so upgrades land with that PR.

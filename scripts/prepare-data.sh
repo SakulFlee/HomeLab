@@ -55,9 +55,6 @@ done
 for dir in caddy dockge wg-easy forgejo-runner cloudflare-ddns ntfy homeassistant; do
   install -d -m 0755 "${LIVE_DATA_DIR}/${dir}"
 done
-# Empty directory bind-mounted over /sys/class/bluetooth in the Home Assistant
-# container, so host networking does not expose the host's adapter to HA.
-install -d -m 0755 "${LIVE_DATA_DIR}/homeassistant/sys-mask"
 # Renovate's image runs as uid 12021 with gid 0, so hardcoding the image uid
 # would break on an image bump. Group root plus g+w lets it write.
 install -d -m 2770 -o 1000 -g 0 "${LIVE_DATA_DIR}/renovate"

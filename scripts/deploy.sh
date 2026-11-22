@@ -231,6 +231,26 @@ for stack in "${selected[@]}"; do
   fi
 done
 
+# HA 2026.x migrates the http: block into .storage/http on first boot and
+# ignores YAML for it afterwards, so the reverse-proxy settings are reconciled
+# in the store. Stop first: a running instance may flush its in-memory copy.
+# This runs after the apply loop so the store exists on a fresh install.
+ha_store="${LIVE_DATA_DIR}/homeassistant/.storage/http"
+if [[ -f "${ha_store}" ]] && ! jq -e '(.data.stable.use_x_forwarded_for == true) and (.data.stable.trusted_proxies == ["172.16.0.0/12"])' \
+    "${ha_store}" >/dev/null 2>&1; then
+  log "reconciling homeassistant proxy settings in .storage/http"
+  docker stop -t 30 homeassistant >/dev/null 2>&1 || true
+  if jq '.data.stable.use_x_forwarded_for = true
+         | .data.stable.trusted_proxies = ["172.16.0.0/12"]' \
+      "${ha_store}" > "${ha_store}.tmp"; then
+    install -m 0600 -o root -g root "${ha_store}.tmp" "${ha_store}"
+    ha_config_changed=1
+  else
+    log "WARN: could not update ${ha_store}"
+  fi
+  rm -f "${ha_store}.tmp"
+fi
+
 if ((ha_config_changed)) && docker inspect homeassistant >/dev/null 2>&1; then
   log "homeassistant configuration changed; restarting it"
   docker restart homeassistant >/dev/null
