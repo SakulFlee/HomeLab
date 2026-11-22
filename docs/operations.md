@@ -164,13 +164,13 @@ the Caddy site imports `vpn_only`.
   Integrations added through the UI live in `.storage` and are untouched;
   automations, scripts and scenes created in the UI are written to their own
   `!include`d files in the volume, not to the managed file.
-- The managed file expands `default_config` by hand. `bluetooth` is left out
-  because host networking exposes the host's `hci0`, and HA then asks for
-  `NET_ADMIN`/`NET_RAW` to manage it — with the host network namespace those
-  capabilities also allow rewriting the host firewall, so it stays off until a
-  Bluetooth proxy or a real BLE device exists. `cloud` (Nabu Casa) is left out
-  too. A new default integration in a future release has to be added there
-  explicitly.
+- `default_config` stays in the managed file. Expanding it by hand to leave
+  `bluetooth` out silently stopped the `http:` block from being applied —
+  verified against the pinned image — which produces the 400s below. The
+  adapter is hidden from the container instead: an empty directory is
+  bind-mounted over `/sys/class/bluetooth`, so HA never sees `hci0`. Granting
+  `NET_ADMIN`/`NET_RAW` instead is not an option: with host networking those
+  capabilities also allow rewriting the host firewall.
 - Caddy always sends `X-Forwarded-For`, and without a trusted proxy Home
   Assistant answers **400: Bad Request** to every request. The response comes
   from aiohttp, so it is easy to mistake for a Caddy fault. The managed file
