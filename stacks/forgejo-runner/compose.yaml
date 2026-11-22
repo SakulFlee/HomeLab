@@ -12,7 +12,12 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /srv/docker/forgejo-runner:/data
-      - /run/homelab/secrets/forgejo-runner/config.yaml:/config.yaml:ro
+      # Not under /run: these are rendered secrets on tmpfs, so a reboot left
+      # the container starting before render-secrets.sh had recreated the
+      # file, and Docker replaced the missing source with a directory. A
+      # persistent path removes the race. The tree is excluded from backups
+      # and sits on the LUKS root like the hostapd config.
+      - /srv/docker/forgejo-runner/config.yaml:/config.yaml:ro
     networks:
       - proxy
 

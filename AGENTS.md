@@ -148,6 +148,13 @@ of data directories. Inspecting and reversible changes are fine.
   host netns would allow rewriting the firewall. `configuration.yaml`
   therefore expands `default_config` without `bluetooth` (and without
   `cloud`). Unloading `btusb` is not enough: the USB device stays enumerated.
+- **The Forgejo runner config must not live under `/run`.** A bind-mounted
+  file there is gone after a reboot, and the container (restart policy) starts
+  before `render-secrets.sh` re-creates it, so Docker creates a directory in
+  its place. The runner then loops on `read /config.yaml: is a directory`, and
+  `docker-socket-refresh.sh` cannot repair it because the container is not
+  running. The rendered config lives at `/srv/docker/forgejo-runner/config.yaml`
+  (excluded from backups, on the LUKS root).
 - **Syncthing folders live on the config volume.** `HOME=/var/syncthing`, so
   `~/…` paths resolve under `/srv/docker/syncthing/config`. `backup.sh`
   therefore excludes the whole `syncthing` tree, not just `syncthing/data`.

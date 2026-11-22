@@ -93,6 +93,8 @@ fi
 write_secret() {
   local key="$1" dest="$2"
   install -d -m 0700 "$(dirname "${dest}")"
+  # A directory means a container once created the missing bind source.
+  [[ -d "${dest}" ]] && rm -rf "${dest}"
   jq -j --arg k "${key}" '.[$k]' "${tmp}" > "${dest}.tmp"
   install -m 0444 -o root -g root "${dest}.tmp" "${dest}"
   rm -f "${dest}.tmp"
@@ -217,8 +219,12 @@ runner_capacity="${FORGEJO_RUNNER_CAPACITY:-2}"
 [[ "${runner_capacity}" =~ ^[0-9]+$ ]] \
   || die "FORGEJO_RUNNER_CAPACITY must be a whole number, got '${runner_capacity}'"
 
-runner_dir="${RUNTIME_SECRETS_DIR}/forgejo-runner"
-install -d -m 0700 "${runner_dir}"
+runner_dir="${LIVE_DATA_DIR}/forgejo-runner"
+install -d -m 0755 "${runner_dir}"
+# A directory here means a container once started with the file missing and
+# Docker created the bind source. install(1) would then drop the config inside
+# it and the runner would keep reading a directory.
+[[ -d "${runner_dir}/config.yaml" ]] && rm -rf "${runner_dir}/config.yaml"
 runner_uuid="$(jq -j --arg k forgejo_runner_uuid '.[$k]' "${tmp}")"
 runner_token="$(jq -j --arg k forgejo_runner_token '.[$k]' "${tmp}")"
 cat > "${runner_dir}/config.yaml.tmp" <<EOF

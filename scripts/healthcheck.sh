@@ -33,6 +33,10 @@ if stack_exists forgejo; then
     && pass "forgejo HTTP" || bad "forgejo HTTP"
 fi
 
+if stack_exists forgejo-runner; then
+  running forgejo-runner && pass "forgejo-runner container" || bad "forgejo-runner container"
+fi
+
 if stack_exists fluxer; then
   if docker ps --format '{{.Names}}' | grep -q '^fluxer-edge$'; then
     pass "fluxer edge container"

@@ -199,7 +199,12 @@ the Caddy site imports `vpn_only`.
 - `secrets/secrets.yaml` is sops/age encrypted. The host identity lives at
   `/etc/sops/age/keys.txt`; `scripts/sops.sh` is the wrapper that uses it.
 - `render-secrets.sh` writes `/run/homelab/secrets/*`, per-stack `.env` files
-  for Compose, the runner config, and `/etc/homelab/notify.env`.
+  for Compose, and `/etc/homelab/notify.env`. Two generated files are
+  exceptions and live on disk, because a reboot empties `/run` and the
+  containers start before the deploy re-renders it: `/etc/hostapd/iot.conf`
+  and `/srv/docker/forgejo-runner/config.yaml`. Docker replaces a missing bind
+  source with a directory, which is how the runner once ended up reading
+  `/config.yaml` as a directory.
 - Store the age key, both restic repository passwords and the LUKS recovery
   passphrase offline.
 - Never regenerate Forgejo's `SECRET_KEY` on an existing database.
