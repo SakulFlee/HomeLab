@@ -218,8 +218,10 @@ providers, permissions and tool execution; every UI is a client of it.
   only the opencode binary: it adds git, curl, jq, tea and an SSH client. The
   git credential helper reads `FORGEJO_TOKEN` from the environment, so pushes
   work without writing the token to disk, and `tea` or the Forgejo API manage
-  pull requests. The token must be a PAT with `write:repository` (and
-  `read:user` for identity).
+  pull requests. The token is `forgejo_pat` from sops, shared with Hermes;
+  it must be a PAT with `write:repository` (and `read:user` for identity).
+  Rotating it affects both agents, and OpenChamber gets it through the shared
+  OpenCode server.
 
 `stacks/openchamber` is a second UI on the **same** server
 (`OPENCODE_HOST=http://opencode:4096`, `OPENCODE_SKIP_START=true`). Sessions

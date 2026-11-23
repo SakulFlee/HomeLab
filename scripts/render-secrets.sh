@@ -62,7 +62,9 @@ required_keys=(
 
   opencode_server_password
   opencode_go_api_key
-  opencode_forgejo_token
+  # User PAT for git push, shared by OpenCode and Hermes. This is not the
+  # runner token (forgejo_runner_token) or Forgejo's internal token.
+  forgejo_pat
   openchamber_ui_password
 
   renovate_token
@@ -176,7 +178,8 @@ opencode_env="${RUNTIME_SECRETS_DIR}/opencode.env"
 {
   printf 'OPENCODE_SERVER_PASSWORD=%s\n' "$(jq_env opencode_server_password)"
   printf 'OPENCODE_API_KEY=%s\n' "$(jq_env opencode_go_api_key)"
-  printf 'FORGEJO_TOKEN=%s\n' "$(jq_env opencode_forgejo_token)"
+  # One PAT for both agents; Hermes renders the same key into hermes.env.
+  printf 'FORGEJO_TOKEN=%s\n' "$(jq_env forgejo_pat)"
 } > "${opencode_env}.tmp"
 install -m 0400 -o root -g root "${opencode_env}.tmp" "${opencode_env}"
 rm -f "${opencode_env}.tmp"

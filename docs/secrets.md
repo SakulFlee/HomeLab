@@ -12,6 +12,7 @@ the previous host. These keys must exist before `render-secrets.sh` will run:
 | key | purpose | suggested value |
 | --- | --- | --- |
 | `forgejo_db_password` | Forgejo's PostgreSQL role password | `openssl rand -base64 32` |
+| `forgejo_pat` | Forgejo PAT for git push, shared by OpenCode and Hermes | PAT with `write:repository` (and `read:user`) |
 | `wg_easy_password` | retrievable plaintext wg-easy admin password | generated |
 | `wg_easy_password_hash` | what wg-easy actually consumes | bcrypt hash of `wg_easy_password`, see below |
 | `restic_password` | local restic repository | `openssl rand -base64 32` |
