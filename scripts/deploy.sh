@@ -190,7 +190,7 @@ fi
 # remote image to pull.
 for stack in "${selected[@]}"; do
   case "${stack}" in
-    caddy|hytale|openchamber)
+    caddy|hytale|opencode|openchamber)
       log "skipping pull for build-only stack ${stack}"
       continue
       ;;

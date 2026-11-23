@@ -2,7 +2,11 @@ name: opencode
 
 services:
   opencode:
-    image: ghcr.io/anomalyco/opencode:2.3.2
+    # Derived from the upstream image to add git, curl, jq and tea; see the
+    # Dockerfile. The base tag is tracked by Renovate with the openchamber CLI.
+    build:
+      context: .
+    image: homelab/opencode:local
     container_name: opencode
     restart: unless-stopped
     user: "990:990"
