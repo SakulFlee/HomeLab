@@ -78,8 +78,9 @@ fi
 
 if stack_exists ollama; then
   running ollama && pass "ollama container" || bad "ollama container"
-  http_ok "http://127.0.0.1:11434/api/tags" \
-    && pass "ollama HTTP" || bad "ollama HTTP"
+  # No published port: the container lives on the `ai` network only.
+  docker exec -e OLLAMA_HOST=127.0.0.1:11434 ollama ollama list >/dev/null 2>&1 \
+    && pass "ollama API" || bad "ollama API"
 fi
 
 if stack_exists paperless; then

@@ -8,6 +8,17 @@ model:
   base_url: https://opencode.ai/zen/go/v1
   api_mode: chat_completions
 
+# Optional local model. This is not the default: switch with
+# `/model custom:local:gemma4:12b-it-qat` or the `hermes model` menu.
+# Hermes requires at least 64k context for tool use, matching Ollama's
+# OLLAMA_CONTEXT_LENGTH.
+providers:
+  local:
+    api: http://ollama:11434/v1
+    transport: chat_completions
+    default_model: gemma4:12b-it-qat
+    context_length: 65536
+
 webapp:
   enabled: true
   host: 0.0.0.0

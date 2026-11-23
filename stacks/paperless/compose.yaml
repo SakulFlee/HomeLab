@@ -120,6 +120,7 @@ services:
 
     networks:
       - proxy
+      - ai
       - default
 
   db:
@@ -190,6 +191,8 @@ services:
 
 networks:
   proxy:
+    external: true
+  ai:
     external: true
   default:
 

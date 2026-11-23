@@ -194,6 +194,12 @@ of data directories. Inspecting and reversible changes are fine.
   several GB of re-downloadable weights; there is no backup of it. Paperless'
   `data/llm_index` is backed up and can also be rebuilt with
   `document_llmindex rebuild`.
+- **Ollama has no authentication and is reachable only on the `ai` network.**
+  There is no published port; only Paperless, OpenCode and Hermes are attached.
+  Do not put Caddy, Forgejo or another public-facing stack on `ai`, and use
+  `docker exec` for host-side checks. OpenCode's and Hermes' Ollama providers
+  are optional, never the default; both require the 65536-token server default
+  while Paperless sends its own 8192.
 - **Paperless AI is request/response, not an offline queue.** Suggestions are
   synchronous: a timeout returns 503, a provider error 502, and nothing is
   retried. Chat streams and shows a generic error when the model is

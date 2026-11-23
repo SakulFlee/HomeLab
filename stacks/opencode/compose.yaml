@@ -32,7 +32,10 @@ services:
       - ./opencode.json:/etc/opencode/opencode.json:ro
     networks:
       - proxy
+      - ai
 
 networks:
   proxy:
+    external: true
+  ai:
     external: true

@@ -7,7 +7,8 @@ services:
     container_name: ollama
     restart: unless-stopped
     environment:
-      # Listen on the proxy network so Paperless can reach ollama:11434.
+      # Listen on the dedicated ai network so Paperless, OpenCode and Hermes
+      # can reach ollama:11434. There is no host port and no proxy membership.
       OLLAMA_HOST: 0.0.0.0:11434
       # iGPU attempt: RADV via Vulkan. The derived image installs the Mesa ICD
       # and the host's /dev/dri is passed below.
@@ -19,10 +20,10 @@ services:
       OLLAMA_KEEP_ALIVE: 10m
       OLLAMA_MAX_LOADED_MODELS: "2"
       OLLAMA_NUM_PARALLEL: "1"
-      # Match PAPERLESS_AI_LLM_CONTEXT_SIZE, including for manual `ollama run`
-      # tests. Without this, Ollama's own default (4096) applies to a model
-      # loaded outside Paperless.
-      OLLAMA_CONTEXT_LENGTH: "8192"
+      # OpenCode and Hermes require at least 64k for tool use. Paperless sends
+      # its own num_ctx=8192 for suggestions/chat, so it does not need this
+      # larger default; it may cause Ollama to reload between consumers.
+      OLLAMA_CONTEXT_LENGTH: "65536"
     # The AMD iGPU is an amdgpu render node. If Vulkan is not detected, Ollama
     # logs the fallback and runs on the CPU. To force CPU-only, remove this
     # block and the two VULKAN/IGPU variables above.
@@ -31,10 +32,8 @@ services:
     volumes:
       # Models are re-downloadable and intentionally excluded from restic.
       - /srv/docker/ollama:/root/.ollama
-    # Loopback only, for healthcheck.sh and for debugging from the host.
-    # Paperless reaches the service over the proxy network.
-    ports:
-      - "127.0.0.1:11434:11434"
+    # No published port: the API has no authentication, so only the ai network
+    # may reach it. Use `docker exec` for host-side checks.
     healthcheck:
       # OLLAMA_HOST points at 0.0.0.0 for the server; the CLI needs a real
       # destination for this probe.
@@ -44,8 +43,8 @@ services:
       retries: 12
       start_period: 30s
     networks:
-      - proxy
+      - ai
 
 networks:
-  proxy:
+  ai:
     external: true

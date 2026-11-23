@@ -264,11 +264,13 @@ the LAN or the WireGuard tunnel; the Caddy site imports `vpn_only`.
 - This is a fresh library. The pre-Docker installation left no database, so
   there is nothing from the old deployment to import.
 
-## Ollama (Paperless AI)
+## Ollama (local AI)
 
-`stacks/ollama` is the local model server behind Paperless' AI features. It is
-internal: Caddy does not expose it, and the only published port is
-`127.0.0.1:11434` for the health check and manual debugging.
+`stacks/ollama` is the local model server behind Paperless' AI features, and an
+optional model for OpenCode and Hermes. It is attached only to the dedicated
+`ai` network: no host port, no proxy membership, and no authentication.
+Paperless, OpenCode and Hermes are the only members; do not attach Caddy,
+Forgejo or any public-facing service to `ai`.
 
 - The image is built from `ollama/ollama:0.40.17` with Mesa's Vulkan ICD added,
   because the official image does not ship the AMD RADV driver. The host's
@@ -308,8 +310,11 @@ internal: Caddy does not expose it, and the only published port is
 
   It then updates daily at 02:10 via `PAPERLESS_LLM_INDEX_TASK_CRON`.
 - Suggestions send at most 4,000 characters of document text; chat retrieves
-  five ~1,024-token chunks. The configured 8,192-token window is enough; a
-  larger context only grows the KV cache and memory use.
+  five ~1,024-token chunks. Paperless' 8,192-token window is enough; OpenCode
+  and Hermes need the server-wide 65,536-token default because both reject
+  smaller windows for tool use. A larger Paperless context only grows the KV
+  cache and memory use. If 12B at 64k spills out of the iGPU, use
+  `gemma4:e4b` for the agents rather than lowering their context.
 - `PAPERLESS_AI_LLM_REQUEST_TIMEOUT=300` covers CPU inference. Suggestions are
   synchronous: a timeout returns 503, a provider rejection 502, and there is no
   automatic retry. Chat streams and shows a generic error if the model is
@@ -324,6 +329,9 @@ providers, permissions and tool execution; every UI is a client of it.
 
 - **Web UI**: `https://opencode.sakul-flee.de`, username `opencode`, password
   from sops (`opencode_server_password`). The server serves the UI itself.
+- **Local Ollama**: `opencode.json` defines `ollama/gemma4-12b` (Gemma 4 12B,
+  64k context) on the `ai` network. It is not the default; select it from
+  `/models`. The `opencode-go` provider remains the default.
 - **Desktop app**: paste a pair link from `opencode pair --url
   https://opencode.sakul-flee.de` into its server address field, or connect a
   TUI with `opencode --server https://opencode.sakul-flee.de`. Links are
@@ -388,6 +396,20 @@ OpenAI-compatible API server.
   `deepseek-v4.1-flash` (shared `opencode_go_api_key` and Go allowance with
   OpenCode), enables the webapp on 9120, trusts Caddy's `172.16.0.0/12`, and
   points `terminal.cwd` and `desktop.repo_scan_roots` at `/workspace`.
+- **Local Ollama**: the seed also defines `providers.local` for
+  `http://ollama:11434/v1` / `gemma4:12b-it-qat` with 64k context. It is not the
+  default; switch per session with
+  `/model custom:local:gemma4:12b-it-qat`. The seed only applies to a fresh
+  config, so on an existing install add it once and restart:
+
+  ```bash
+  sudo docker exec hermes hermes config set providers.local.api http://ollama:11434/v1
+  sudo docker exec hermes hermes config set providers.local.transport chat_completions
+  sudo docker exec hermes hermes config set providers.local.default_model gemma4:12b-it-qat
+  sudo docker exec hermes hermes config set providers.local.context_length 65536
+  sudo docker restart hermes
+  ```
+
 - **Git**: `prepare-data.sh` installs
   `/srv/docker/hermes/home/.gitconfig`. The credential helper reads
   `FORGEJO_TOKEN`, rendered from `forgejo_pat`, and rewrites

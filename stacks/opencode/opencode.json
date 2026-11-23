@@ -6,5 +6,29 @@
         "apiKey": "{env:OPENCODE_API_KEY}"
       }
     }
+  },
+  "providers": {
+    "ollama": {
+      "name": "Ollama (local)",
+      "package": "@opencode/ai/providers/openai-compatible",
+      "settings": {
+        "baseURL": "http://ollama:11434/v1"
+      },
+      "models": {
+        "gemma4-12b": {
+          "name": "Gemma 4 12B (local)",
+          "modelID": "gemma4:12b-it-qat",
+          "capabilities": {
+            "tools": true,
+            "input": ["text"],
+            "output": ["text"]
+          },
+          "limit": {
+            "context": 65536,
+            "output": 8192
+          }
+        }
+      }
+    }
   }
 }

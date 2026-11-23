@@ -49,7 +49,10 @@ services:
       start_period: 120s
     networks:
       - proxy
+      - ai
 
 networks:
   proxy:
+    external: true
+  ai:
     external: true

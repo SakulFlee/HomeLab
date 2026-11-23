@@ -41,10 +41,12 @@ export GIT_CONFIG_COUNT=1
 export GIT_CONFIG_KEY_0=safe.directory
 export GIT_CONFIG_VALUE_0="${REPO_ROOT}"
 
-if ! docker network inspect proxy >/dev/null 2>&1; then
-  log "creating external Docker network proxy"
-  docker network create proxy >/dev/null
-fi
+for network in proxy ai; do
+  if ! docker network inspect "${network}" >/dev/null 2>&1; then
+    log "creating external Docker network ${network}"
+    docker network create "${network}" >/dev/null
+  fi
+done
 
 exec 9>/run/lock/homelab-deploy.lock
 if ! flock -n 9; then
