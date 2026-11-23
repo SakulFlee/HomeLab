@@ -193,7 +193,7 @@ export directories. The search index is excluded because it is derived data.
 
    ```bash
    sudo docker compose up -d --wait
-   sudo docker compose exec webserver document_index reindex --recreate
+   sudo docker compose exec paperless document_index reindex --recreate
    ```
 
 5. Verify login, documents, and upload one PDF and one DOCX.

@@ -272,7 +272,7 @@ internal: Caddy does not expose it, and the only published port is
 - Build the index after the embedding model is present:
 
   ```bash
-  sudo docker compose -f /opt/homelab/stacks/paperless/compose.yaml exec webserver \
+  sudo docker compose -f /opt/homelab/stacks/paperless/compose.yaml exec paperless \
     document_llmindex rebuild
   ```
 

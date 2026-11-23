@@ -128,7 +128,7 @@ users simply log in again.
 
 `paperless_admin_password` is only used when the superuser is first created.
 Changing the sops value later does not change the existing account's password;
-use `docker compose exec webserver python3 manage.py changepassword paperless`.
+use `docker compose exec paperless python3 manage.py changepassword paperless`.
 The username is `paperless`, set in the stack; changing `PAPERLESS_ADMIN_USER`
 after the first boot creates an additional superuser rather than renaming the
 existing one.
