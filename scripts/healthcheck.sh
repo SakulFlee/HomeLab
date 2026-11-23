@@ -37,6 +37,10 @@ if stack_exists forgejo-runner; then
   running forgejo-runner && pass "forgejo-runner container" || bad "forgejo-runner container"
 fi
 
+if stack_exists openchamber; then
+  running openchamber && pass "openchamber container" || bad "openchamber container"
+fi
+
 if stack_exists fluxer; then
   if docker ps --format '{{.Names}}' | grep -q '^fluxer-edge$'; then
     pass "fluxer edge container"

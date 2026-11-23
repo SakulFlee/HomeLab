@@ -1,0 +1,38 @@
+name: openchamber
+
+services:
+  openchamber:
+    build:
+      context: .
+    image: homelab/openchamber:local
+    container_name: openchamber
+    restart: unless-stopped
+    # OPENCODE_PASSWORD and OPENCHAMBER_UI_PASSWORD.
+    env_file:
+      - path: /run/homelab/secrets/openchamber.env
+        required: true
+    environment:
+      HOME: /home/node
+      OPENCHAMBER_HOST: 0.0.0.0
+      # Settings, auth and project configs. Everything else it stores is here.
+      OPENCHAMBER_DATA_DIR: /data
+      # Caddy is the only client, so it is the only source of X-Forwarded-For.
+      OPENCHAMBER_TRUSTED_PROXIES: 172.16.0.0/12
+
+      # Reuse the OpenCode server from stacks/opencode instead of starting a
+      # second one: sessions, providers and permissions stay in one place and
+      # are shared with the TUI, web UI and desktop app.
+      OPENCODE_HOST: http://opencode:4096
+      OPENCODE_SKIP_START: "true"
+    volumes:
+      - /srv/docker/openchamber:/data
+      # OpenChamber works on the project paths the OpenCode server reports, so
+      # the same workspace has to exist at the same path here for its git and
+      # diff features.
+      - /srv/docker/opencode/workspace:/srv/workspace
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true

@@ -42,6 +42,8 @@ if [[ ! -f "${hytale_mid}" ]]; then
 fi
 install -d -m 0700 -o 990 -g 990 "${LIVE_DATA_DIR}/opencode/home"
 install -d -m 0755 -o 990 -g 990 "${LIVE_DATA_DIR}/opencode/workspace"
+# OpenChamber's web app runs as the node user from the base image.
+install -d -m 0755 -o 1000 -g 1000 "${LIVE_DATA_DIR}/openchamber"
 install -d -m 0700 -o 1000 -g 1000 "${LIVE_DATA_DIR}/syncthing/config"
 install -d -m 0755 -o 1000 -g 1000 "${LIVE_DATA_DIR}/syncthing/data"
 

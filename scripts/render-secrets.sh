@@ -63,6 +63,7 @@ required_keys=(
   opencode_server_password
   opencode_go_api_key
   opencode_forgejo_token
+  openchamber_ui_password
 
   renovate_token
   renovate_github_com_token
@@ -179,6 +180,16 @@ opencode_env="${RUNTIME_SECRETS_DIR}/opencode.env"
 } > "${opencode_env}.tmp"
 install -m 0400 -o root -g root "${opencode_env}.tmp" "${opencode_env}"
 rm -f "${opencode_env}.tmp"
+
+# OpenChamber authenticates to the OpenCode server with the same password and
+# protects its own UI with a separate one.
+openchamber_env="${RUNTIME_SECRETS_DIR}/openchamber.env"
+{
+  printf 'OPENCODE_PASSWORD=%s\n' "$(jq_raw opencode_server_password)"
+  printf 'OPENCHAMBER_UI_PASSWORD=%s\n' "$(jq_raw openchamber_ui_password)"
+} > "${openchamber_env}.tmp"
+install -m 0400 -o root -g root "${openchamber_env}.tmp" "${openchamber_env}"
+rm -f "${openchamber_env}.tmp"
 
 renovate_env="${RUNTIME_SECRETS_DIR}/renovate.env"
 {

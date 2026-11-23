@@ -19,7 +19,7 @@ services:
       # DNS-only like the other admin names so Caddy's vpn_only gate sees the
       # real client address instead of a Cloudflare edge.
       DOMAINS: "sakul-flee.de"
-      IP4_DOMAINS: "wg.sakul-flee.de,home.sakul-flee.de"
+      IP4_DOMAINS: "wg.sakul-flee.de,home.sakul-flee.de,chamber.sakul-flee.de"
       PROXIED: "false"
       # 'local' reads the address that would be used to reach Cloudflare.
       # Temporary privacy addresses are disabled in /etc/sysctl.d so this is

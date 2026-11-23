@@ -2,7 +2,7 @@ name: opencode
 
 services:
   opencode:
-    image: ghcr.io/anomalyco/opencode:2.1.1
+    image: ghcr.io/anomalyco/opencode:2.3.2
     container_name: opencode
     restart: unless-stopped
     user: "990:990"

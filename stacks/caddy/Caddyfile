@@ -49,6 +49,17 @@ opencode.sakul-flee.de {
 	}
 }
 
+chamber.sakul-flee.de {
+	import vpn_only
+
+	# OpenChamber is a second UI on the same OpenCode server. Streams state
+	# and terminal output over long-lived connections.
+	reverse_proxy openchamber:3000 {
+		header_up Host {http.request.host}
+		flush_interval -1
+	}
+}
+
 syncthing.sakul-flee.de {
 	import vpn_only
 

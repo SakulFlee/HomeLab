@@ -194,6 +194,39 @@ the Caddy site imports `vpn_only`.
   the same time for evaluation; see [iot-wifi.md](iot-wifi.md) before punching
   that hole.
 
+## OpenCode and OpenChamber
+
+`stacks/opencode` runs the OpenCode server (`serve` on 4096). It owns sessions,
+providers, permissions and tool execution; every UI is a client of it.
+
+- **Web UI**: `https://opencode.sakul-flee.de`, username `opencode`, password
+  from sops (`opencode_server_password`). The server serves the UI itself.
+- **Desktop app**: paste a pair link from `opencode pair --url
+  https://opencode.sakul-flee.de` into its server address field, or connect a
+  TUI with `opencode --server https://opencode.sakul-flee.de`. Links are
+  single-use and expire after five minutes.
+- **Sessions** are rows in one SQLite database:
+  `/srv/docker/opencode/home/.local/share/opencode/opencode.db`. Copying
+  sessions between machines means copying that file (with the service stopped,
+  or via `sqlite3 .backup`) into a server running the **same or newer**
+  version. A newer database opened by an older binary is not supported.
+- The workspace is the bind mount `/srv/docker/opencode/workspace`; the server
+  can only touch files there and in the image. A client does not extend that:
+  connecting the desktop app does not give the server access to the desktop's
+  filesystem.
+
+`stacks/openchamber` is a second UI on the **same** server
+(`OPENCODE_HOST=http://opencode:4096`, `OPENCODE_SKIP_START=true`). Sessions
+are therefore shared with the web UI, the TUI and the desktop app — there is no
+second database. Reach it at `https://chamber.sakul-flee.de`; its own login is
+`openchamber_ui_password` from sops. It mounts the OpenCode workspace at the
+same path so its git/diff views can read the files the server reports.
+
+OpenChamber's own agent tools are plugins injected into a server it starts. With
+the shared server they are not active unless its plugin folder is registered in
+the OpenCode config; the session list, chats, diffs and git stay functional
+without them.
+
 ## Secrets
 
 - `secrets/secrets.yaml` is sops/age encrypted. The host identity lives at

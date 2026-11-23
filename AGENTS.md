@@ -155,6 +155,11 @@ of data directories. Inspecting and reversible changes are fine.
   `docker-socket-refresh.sh` cannot repair it because the container is not
   running. The rendered config lives at `/srv/docker/forgejo-runner/config.yaml`
   (excluded from backups, on the LUKS root).
+- **OpenCode sessions live in one SQLite database.** It is
+  `/srv/docker/opencode/home/.local/share/opencode/opencode.db`. Never copy a
+  database from a newer OpenCode into an older image, and stop the service (or
+  use `sqlite3 .backup`) before copying it. `stacks/openchamber` is only a UI
+  on the same server, not a second store.
 - **Syncthing folders live on the config volume.** `HOME=/var/syncthing`, so
   `~/…` paths resolve under `/srv/docker/syncthing/config`. `backup.sh`
   therefore excludes the whole `syncthing` tree, not just `syncthing/data`.

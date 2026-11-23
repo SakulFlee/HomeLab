@@ -120,6 +120,7 @@ ordered_stacks=(
   minecraft
   hytale
   opencode
+  openchamber
   syncthing
   homeassistant
   website
@@ -189,7 +190,7 @@ fi
 # remote image to pull.
 for stack in "${selected[@]}"; do
   case "${stack}" in
-    caddy|hytale)
+    caddy|hytale|openchamber)
       log "skipping pull for build-only stack ${stack}"
       continue
       ;;
