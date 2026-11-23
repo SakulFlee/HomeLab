@@ -253,7 +253,9 @@ of data directories. Inspecting and reversible changes are fine.
   (`DEPLOY_SNAPSHOT_KEEP`, default 3), keep `DEPLOY_MIN_FREE_MB` (default
   10240) meaningful, and move bulk data outside `/srv/docker` if it grows
   again. `du -sh /srv/snapshots/*` counts shared extents; use
-  `btrfs filesystem usage /`.
+  `btrfs filesystem usage /`. `scripts/promote-subvolume.sh` prepares a bulk
+  directory as a nested subvolume; nested data is excluded from the deploy
+  snapshot and is not part of a parent-subvolume rollback.
 - **A full root can leave Docker network endpoints orphaned.** A stopped/crashed
   container can leave an endpoint named like the container in its project
   network, so `compose up` fails with "endpoint with name … already exists"

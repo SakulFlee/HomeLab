@@ -72,6 +72,55 @@ also safe outside the deploy rollback.
 `du -sh /srv/snapshots/*` counts shared extents and looks far larger than the
 space actually used; use `btrfs filesystem usage /` for the real number.
 
+### Splitting bulk data into subvolumes
+
+A nested btrfs subvolume is excluded from the parent `/srv/docker` snapshot.
+The helper makes a reflink copy, so the data blocks are shared and the copy does
+not need free space equal to the directory size:
+
+```bash
+sudo /opt/homelab/scripts/promote-subvolume.sh /srv/docker/<path>
+```
+
+It creates `/srv/docker/<path>.new`, verifies the byte/entry counts, and stops.
+The original is untouched until you finalize.
+
+The order below starts with the smallest, easiest win. Stop the owning stack
+first; the helper does not stop services.
+
+1. **Ollama** (`/srv/docker/ollama`) — stop `stacks/ollama`; AI calls from
+   Paperless/OpenCode/Hermes fail while it is down. Models are re-downloadable.
+2. **OpenCode workspace** (`/srv/docker/opencode/workspace`) — stop both
+   `stacks/opencode` and `stacks/openchamber`. Do **not** touch
+   `/srv/docker/opencode/home`; that holds the sessions database.
+3. **Forgejo runner** (`/srv/docker/forgejo-runner`) — stop
+   `stacks/forgejo-runner`. Run the weekly cache cleanup first so the copy is
+   smaller.
+4. **Syncthing** (`/srv/docker/syncthing`) — stop `stacks/syncthing`; do this
+   last, it is the largest tree.
+
+For a single path:
+
+```bash
+cd /opt/homelab
+sudo docker compose -f stacks/<stack>/compose.yaml stop
+sudo /opt/homelab/scripts/promote-subvolume.sh /srv/docker/<path>
+# verify the helper's source/copy counts, then finalize:
+sudo rm -rf /srv/docker/<path>
+sudo mv /srv/docker/<path>.new /srv/docker/<path>
+sudo btrfs subvolume show /srv/docker/<path>
+sudo docker compose -f stacks/<stack>/compose.yaml up -d --force-recreate
+```
+
+For OpenCode, stop/start both stacks; for Ollama, Paperless will reconnect on
+its next AI request.
+
+After the conversion, the parent snapshot shows that path as an empty
+directory. A rollback of the parent subvolume therefore does **not** restore the
+nested data: keep using restic for the real copies, and do not expect
+`btrfs subvolume snapshot` rollback to cover Syncthing, the runner caches or
+Ollama models.
+
 Rollback of a bad deploy:
 
 ```bash
