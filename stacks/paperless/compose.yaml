@@ -75,7 +75,9 @@ services:
       PAPERLESS_AI_ENABLED: "true"
       PAPERLESS_AI_LLM_BACKEND: ollama
       PAPERLESS_AI_LLM_ENDPOINT: http://ollama:11434
-      PAPERLESS_AI_LLM_MODEL: gemma4:e4b
+      # The 12B QAT model fits the 680M's Vulkan budget at ~9 tok/s on the
+      # iGPU. gemma4:e4b is the lighter fallback if it starts spilling.
+      PAPERLESS_AI_LLM_MODEL: gemma4:12b-it-qat
       # 8192 is enough: suggestions send at most 4000 characters of document
       # text, and chat resolves five ~1024-token chunks. Raising this only
       # grows the KV cache.

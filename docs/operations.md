@@ -263,12 +263,14 @@ internal: Caddy does not expose it, and the only published port is
 
   ```bash
   sudo docker exec -e OLLAMA_HOST=127.0.0.1:11434 ollama \
-    ollama pull gemma4:e4b
+    ollama pull gemma4:12b-it-qat
   sudo docker exec -e OLLAMA_HOST=127.0.0.1:11434 ollama \
     ollama pull embeddinggemma
   ```
 
-  `gemma4:e4b` is the generation model; `embeddinggemma` builds the RAG index.
+  `gemma4:12b-it-qat` is the generation model; `embeddinggemma` builds the RAG
+  index. `gemma4:e4b` is the lighter fallback if the iGPU starts spilling or
+  responses feel too slow.
 - Build the index after the embedding model is present:
 
   ```bash
