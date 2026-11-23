@@ -28,8 +28,20 @@ git push origin main        # from a workstation
 ```
 
 The host's `homelab-deploy.timer` fetches `main`, runs `render-secrets.sh`,
-validates every stack, snapshots `/srv/docker` with btrfs, then applies each
-stack with `compose up -d --build --wait` and runs `healthcheck.sh`.
+validates every stack, checks free space, snapshots `/srv/docker` with btrfs,
+then applies each stack with `compose up -d --build --wait` and runs
+`healthcheck.sh`. It keeps the last `DEPLOY_SNAPSHOT_KEEP` (default 3)
+snapshots and refuses to start below `DEPLOY_MIN_FREE_MB` (default 10240).
+
+If the fetch fails, a timer run is a no-op; it does **not** reapply every stack
+every 30 minutes. The recovery path is:
+
+```bash
+sudo /opt/homelab/scripts/deploy.sh --force --offline
+```
+
+`--offline`/`DEPLOY_SKIP_FETCH=1` skips `git fetch` and applies the current
+HEAD, so a Forgejo outage does not block a deploy.
 
 **Push changes; never rsync the repository onto the host.** When the checkout is
 ahead of `origin/main`, `deploy.sh` sees "HEAD != origin" on every run and
@@ -215,6 +227,20 @@ of data directories. Inspecting and reversible changes are fine.
   Rotating it affects both agents. It can push to any repo the account can
   write, and the Forgejo runner mounts the Docker socket, so use a dedicated
   non-admin user or disable Actions on repos the agents can write.
+- **Deploy snapshots are local rollback points, not backups.** `deploy.sh`
+  snapshots all of `/srv/docker`, which includes Syncthing, the Forgejo runner
+  cache/workspaces, OpenCode and the Ollama model store. Changes in those large
+  trees create exclusive extents in older snapshots. Keep the retention short
+  (`DEPLOY_SNAPSHOT_KEEP`, default 3), keep `DEPLOY_MIN_FREE_MB` (default
+  10240) meaningful, and move bulk data outside `/srv/docker` if it grows
+  again. `du -sh /srv/snapshots/*` counts shared extents; use
+  `btrfs filesystem usage /`.
+- **A full root can leave Docker network endpoints orphaned.** A stopped/crashed
+  container can leave an endpoint named like the container in its project
+  network, so `compose up` fails with "endpoint with name … already exists"
+  and `compose down` cannot remove the network. Restart dockerd (live restore
+  keeps containers up) or give the stack a fresh network name; do not remove
+  `/var/lib/docker/network/files/local-kv.db`.
 - **Syncthing folders live on the config volume.** `HOME=/var/syncthing`, so
   `~/…` paths resolve under `/srv/docker/syncthing/config`. `backup.sh`
   therefore excludes the whole `syncthing` tree, not just `syncthing/data`.

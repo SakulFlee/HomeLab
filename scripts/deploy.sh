@@ -12,7 +12,22 @@ require_cmd docker
 require_cmd jq
 
 FORCE=0
-if [[ "${1:-}" == "--force" ]]; then
+OFFLINE=0
+for arg in "$@"; do
+  case "${arg}" in
+    --force) FORCE=1 ;;
+    --offline) OFFLINE=1 ;;
+    *) die "unknown argument: ${arg} (expected --force or --offline)" ;;
+  esac
+done
+
+# DEPLOY_SKIP_FETCH is the environment equivalent for the timer/manual runs.
+if [[ "${DEPLOY_SKIP_FETCH:-0}" == "1" ]]; then
+  OFFLINE=1
+fi
+# An offline run cannot know whether origin moved, so it always applies the
+# current HEAD. This is the recovery path when Forgejo itself is down.
+if (( OFFLINE )); then
   FORCE=1
 fi
 
@@ -38,12 +53,15 @@ if ! flock -n 9; then
 fi
 
 changed=0
-if git fetch origin "${DEPLOY_BRANCH}" --quiet; then
+if (( OFFLINE )); then
+  log "offline mode: skipping git fetch; deploying current HEAD $(git rev-parse --short HEAD)"
+elif git fetch origin "${DEPLOY_BRANCH}" --quiet; then
   target="$(git rev-parse "origin/${DEPLOY_BRANCH}")"
   current="$(git rev-parse HEAD)"
   if [[ "${current}" != "${target}" ]]; then
     log "fast-forwarding ${current} -> ${target}"
-    git merge --ff-only "origin/${DEPLOY_BRANCH}" || die "cannot fast-forward; local changes or divergence"
+    git merge --ff-only "origin/${DEPLOY_BRANCH}" \
+      || die "cannot fast-forward; local changes or divergence (commit/stash them, or use --offline)"
     changed=1
   elif [[ "${HOMELAB_DEPLOY_PENDING:-0}" == "1" ]]; then
     # Set by the re-exec below: the merge happened in the previous process.
@@ -52,24 +70,24 @@ if git fetch origin "${DEPLOY_BRANCH}" --quiet; then
     log "already at ${current}"
   fi
 else
-  # A failed fetch (network, Forgejo down, dubious ownership) used to exit 0
-  # and look like a successful no-op deploy, which hid a stale checkout for
-  # hours. Report it, throttled to once per hour so a long outage does not
-  # notify on every timer tick.
-  log "WARN: git fetch failed; not deploying"
+  # A failed fetch (network, Forgejo down, dubious ownership) must not abort a
+  # recovery run. Continue with the current HEAD; a normal timer run still
+  # exits below as a no-op, so an outage does not reapply every stack every 30
+  # minutes. --force or --offline is the explicit "reapply anyway" path.
+  log "WARN: git fetch failed; current HEAD unchanged (use --force or --offline to re-apply)"
   stamp="${STATE_DIR}/deploy-fetch-failed.last"
   now="$(date +%s)"
   last="$(cat "${stamp}" 2>/dev/null || echo 0)"
+  install -d -m 0755 "${STATE_DIR}" 2>/dev/null || true
   if (( now - last >= 3600 )); then
-    notify "Deploy fetch failed" "git fetch failed on $(hostname); deploy skipped" high
-    install -d -m 0755 "${STATE_DIR}"
-    printf '%s\n' "${now}" > "${stamp}"
+    notify "Deploy fetch failed" \
+      "git fetch failed on $(hostname); current HEAD unchanged (re-run with --force or --offline to re-apply)" high
+    printf '%s\n' "${now}" > "${stamp}" 2>/dev/null || true
   fi
-  exit 0
 fi
 
 if (( ! FORCE && ! changed )); then
-  log "no new commits; nothing to deploy (use --force to re-apply)"
+  log "no new commits; nothing to deploy (use --force or --offline to re-apply)"
   exit 0
 fi
 
@@ -179,12 +197,37 @@ for stack in "${selected[@]}"; do
   compose "${stack}" config -q || die "invalid compose configuration: ${stack}"
 done
 
+# Refuse to snapshot or pull into a nearly full root. The snapshot shares the
+# live data's filesystem, and a failed deploy on a full disk is worse than a
+# skipped one. Override with DEPLOY_MIN_FREE_MB in /etc/homelab/host.env.
+min_free_mb="${DEPLOY_MIN_FREE_MB:-10240}"
+[[ "${min_free_mb}" =~ ^[0-9]+$ ]] || min_free_mb=10240
+avail_mb="$(df -Pm "${LIVE_DATA_DIR}" 2>/dev/null | awk 'NR==2 {print $4}' || true)"
+if [[ -n "${avail_mb}" ]] && (( avail_mb < min_free_mb )); then
+  notify "Deploy aborted" \
+    "only ${avail_mb} MiB free on ${LIVE_DATA_DIR}; need ${min_free_mb} MiB" critical
+  die "insufficient free space on ${LIVE_DATA_DIR}: ${avail_mb} MiB available, ${min_free_mb} MiB required"
+fi
+
 # Local rollback point. /srv/docker is expected to be a btrfs subvolume.
 if command -v btrfs >/dev/null 2>&1 && btrfs subvolume show /srv/docker >/dev/null 2>&1; then
   install -d -m 0755 /srv/snapshots
   snap="/srv/snapshots/deploy-$(date +%Y%m%dT%H%M%S)"
   btrfs subvolume snapshot -r /srv/docker "${snap}"
   log "created rollback snapshot ${snap}"
+
+  # Every deploy used to leave another snapshot behind. Keep a short rollback
+  # window; the snapshots share extents with the live data but pin whatever
+  # changed afterwards, and /srv/docker now holds hundreds of GB of Syncthing,
+  # runner and model data.
+  keep="${DEPLOY_SNAPSHOT_KEEP:-3}"
+  [[ "${keep}" =~ ^[0-9]+$ ]] && (( keep > 0 )) || keep=3
+  mapfile -t old_snaps < <(ls -1dt /srv/snapshots/deploy-* 2>/dev/null | tail -n +$((keep + 1)))
+  for old_snap in "${old_snaps[@]}"; do
+    log "pruning old rollback snapshot ${old_snap}"
+    btrfs subvolume delete "${old_snap}" >/dev/null \
+      || log "WARN: could not delete ${old_snap}"
+  done
 else
   log "WARN: /srv/docker is not a btrfs subvolume; skipping deploy snapshot"
 fi

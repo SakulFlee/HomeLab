@@ -31,13 +31,41 @@ git push origin main
 renders secrets, then works out which stacks actually changed since the
 previous commit (`git diff --name-only`) and applies only those. A change to
 `secrets/secrets.yaml` or `render-secrets.sh` recreates every stack, because the
-rendered environment changes. Before applying it takes a btrfs snapshot of
-`/srv/docker` under `/srv/snapshots`, pulls images, applies each selected stack
-with `--build --wait`, then runs `healthcheck.sh`. A failure sends a
-notification and stops before the next stack. `--force` applies everything.
+rendered environment changes. Before applying it checks free space, takes a
+btrfs snapshot of `/srv/docker` under `/srv/snapshots`, pulls images, applies
+each selected stack with `--build --wait`, then runs `healthcheck.sh`. A failure
+sends a notification and stops before the next stack.
+
+- `--force` applies everything, even with no new commit.
+- `--offline` (or `DEPLOY_SKIP_FETCH=1`) skips `git fetch` and applies the
+  current HEAD. Use it when Forgejo is down. A normal timer run whose fetch
+  fails still exits as a no-op rather than restarting every stack every 30
+  minutes.
+- `DEPLOY_MIN_FREE_MB` (default `10240`) makes the deploy refuse to snapshot or
+  pull when `/srv/docker` has less free space than that.
+- `DEPLOY_SNAPSHOT_KEEP` (default `3`) keeps the most recent deploy snapshots
+  and deletes older ones.
 
 Do not rsync the repository onto the host. If the checkout is ahead of
 `origin/main`, every timer run re-applies all stacks.
+
+### Deploy snapshots
+
+A deploy snapshot is a read-only btrfs snapshot of `/srv/docker`, taken before
+the stacks are applied. It is a local rollback point for bind-mounted app data,
+not a backup: it lives on the same NVMe, and `backup.sh`/restic is the off-box
+copy.
+
+The snapshot covers **everything** under `/srv/docker`, including Syncthing,
+the Forgejo runner cache/workspaces, OpenCode and the Ollama model store. Those
+directories are much larger than the actual app state; changes in them create
+exclusive extents in older snapshots. Before the retention was added, 39
+snapshots accumulated and pinned enough of the root filesystem to fill it.
+`deploy.sh` now keeps the last three (`DEPLOY_SNAPSHOT_KEEP`), and its
+free-space check aborts below `DEPLOY_MIN_FREE_MB`.
+
+`du -sh /srv/snapshots/*` counts shared extents and looks far larger than the
+space actually used; use `btrfs filesystem usage /` for the real number.
 
 Rollback of a bad deploy:
 
