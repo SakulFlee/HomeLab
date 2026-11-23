@@ -2,7 +2,7 @@
 # in their docs is a wrapper around it). Pinned rather than :latest so a deploy
 # cannot change the UI under us; Renovate does not track npm inside a
 # Dockerfile, so bump this by hand with the release notes.
-FROM node:24-bookworm-slim
+FROM node:26-bookworm-slim
 
 # git backs the diff/walkthrough/git features. curl is only for debugging
 # inside the container. The web app needs Node >= 24.14.
