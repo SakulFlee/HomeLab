@@ -123,6 +123,7 @@ log "backing up ${LIVE_DATA_DIR} and ${dump_dir}"
 #
 # Paperless' search index is derived from the database and media, so it is
 # excluded too; docs/restore.md rebuilds it with `document_index reindex`.
+# Ollama's model store is large and re-downloadable, so it is excluded as well.
 restic backup \
   --tag homelab \
   --exclude="${LIVE_DATA_DIR}/forgejo/archive" \
@@ -133,6 +134,7 @@ restic backup \
   --exclude="${LIVE_DATA_DIR}/fluxer/valkey-data" \
   --exclude="${LIVE_DATA_DIR}/paperless/postgres" \
   --exclude="${LIVE_DATA_DIR}/paperless/data/index" \
+  --exclude="${LIVE_DATA_DIR}/ollama" \
   --exclude="${LIVE_DATA_DIR}/minecraft/backups" \
   --exclude="${LIVE_DATA_DIR}/hytale/data/Server/logs" \
   --exclude="${LIVE_DATA_DIR}/forgejo-runner" \

@@ -70,6 +70,23 @@ services:
       PAPERLESS_TIKA_ENDPOINT: http://tika:9998
       PAPERLESS_TIKA_GOTENBERG_ENDPOINT: http://gotenberg:3000
 
+      # AI features, backed by the local Ollama stack. The iGPU is attempted
+      # through Vulkan; if Ollama falls back to CPU the same endpoint works.
+      PAPERLESS_AI_ENABLED: "true"
+      PAPERLESS_AI_LLM_BACKEND: ollama
+      PAPERLESS_AI_LLM_ENDPOINT: http://ollama:11434
+      PAPERLESS_AI_LLM_MODEL: gemma4:e4b
+      # 8192 is enough: suggestions send at most 4000 characters of document
+      # text, and chat resolves five ~1024-token chunks. Raising this only
+      # grows the KV cache.
+      PAPERLESS_AI_LLM_CONTEXT_SIZE: "8192"
+      PAPERLESS_AI_LLM_REQUEST_TIMEOUT: "300"
+      PAPERLESS_AI_LLM_OUTPUT_LANGUAGE: de
+      PAPERLESS_AI_LLM_ALLOW_INTERNAL_ENDPOINTS: "true"
+      PAPERLESS_AI_LLM_EMBEDDING_BACKEND: ollama
+      PAPERLESS_AI_LLM_EMBEDDING_MODEL: embeddinggemma
+      PAPERLESS_AI_LLM_EMBEDDING_CHUNK_SIZE: "1024"
+
     secrets:
       - paperless_secret_key
       - paperless_db_password

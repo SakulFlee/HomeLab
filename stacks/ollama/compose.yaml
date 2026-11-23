@@ -1,0 +1,47 @@
+name: ollama
+
+services:
+  ollama:
+    build: .
+    image: homelab/ollama:local
+    container_name: ollama
+    restart: unless-stopped
+    environment:
+      # Listen on the proxy network so Paperless can reach ollama:11434.
+      OLLAMA_HOST: 0.0.0.0:11434
+      # iGPU attempt: RADV via Vulkan. The derived image installs the Mesa ICD
+      # and the host's /dev/dri is passed below.
+      OLLAMA_VULKAN: "1"
+      OLLAMA_IGPU_ENABLE: "1"
+      # Keep the generation and embedding models resident for a while, but let
+      # them unload when nothing uses them. One request at a time keeps the
+      # KV cache from multiplying.
+      OLLAMA_KEEP_ALIVE: 10m
+      OLLAMA_MAX_LOADED_MODELS: "2"
+      OLLAMA_NUM_PARALLEL: "1"
+    # The AMD iGPU is an amdgpu render node. If Vulkan is not detected, Ollama
+    # logs the fallback and runs on the CPU. To force CPU-only, remove this
+    # block and the two VULKAN/IGPU variables above.
+    devices:
+      - /dev/dri:/dev/dri
+    volumes:
+      # Models are re-downloadable and intentionally excluded from restic.
+      - /srv/docker/ollama:/root/.ollama
+    # Loopback only, for healthcheck.sh and for debugging from the host.
+    # Paperless reaches the service over the proxy network.
+    ports:
+      - "127.0.0.1:11434:11434"
+    healthcheck:
+      # OLLAMA_HOST points at 0.0.0.0 for the server; the CLI needs a real
+      # destination for this probe.
+      test: ["CMD-SHELL", "OLLAMA_HOST=127.0.0.1:11434 ollama list >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    networks:
+      - proxy
+
+networks:
+  proxy:
+    external: true

@@ -97,8 +97,10 @@ install -d -m 0755 -o 1000 -g 1000 "${LIVE_DATA_DIR}/paperless/export"
 install -d -m 0700 -o 70 -g 70 "${LIVE_DATA_DIR}/paperless/postgres"
 install -d -m 0750 -o 999 -g 999 "${LIVE_DATA_DIR}/paperless/valkey"
 
-# Root-owned state (container runtimes, certificates, UI state).
-for dir in caddy dockge wg-easy forgejo-runner cloudflare-ddns ntfy homeassistant; do
+# Root-owned state (container runtimes, certificates, UI state). Ollama's
+# models live here too; they run as root in the official image and are
+# excluded from restic because they can be pulled again.
+for dir in caddy dockge wg-easy forgejo-runner cloudflare-ddns ntfy homeassistant ollama; do
   install -d -m 0755 "${LIVE_DATA_DIR}/${dir}"
 done
 # Renovate's image runs as uid 12021 with gid 0, so hardcoding the image uid

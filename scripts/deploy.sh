@@ -119,6 +119,7 @@ ordered_stacks=(
   fluxer
   minecraft
   hytale
+  ollama
   paperless
   opencode
   openchamber
@@ -192,7 +193,7 @@ fi
 # remote image to pull.
 for stack in "${selected[@]}"; do
   case "${stack}" in
-    caddy|hytale|opencode|openchamber)
+    caddy|hytale|ollama|opencode|openchamber)
       log "skipping pull for build-only stack ${stack}"
       continue
       ;;

@@ -76,6 +76,12 @@ if stack_exists hytale; then
   fi
 fi
 
+if stack_exists ollama; then
+  running ollama && pass "ollama container" || bad "ollama container"
+  http_ok "http://127.0.0.1:11434/api/tags" \
+    && pass "ollama HTTP" || bad "ollama HTTP"
+fi
+
 if stack_exists paperless; then
   running paperless && pass "paperless container" || bad "paperless container"
   running paperless-db && pass "paperless-db container" || bad "paperless-db container"

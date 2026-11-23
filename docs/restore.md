@@ -201,6 +201,11 @@ export directories. The search index is excluded because it is derived data.
 This runbook is for the Docker-era backups. The pre-Docker library left no
 database, so there is nothing from that installation to restore.
 
+Ollama's model store is not backed up. After a host rebuild, pull `gemma4:e4b`
+and `embeddinggemma` again; the LLM index under `data/llm_index` is restored
+from restic and remains valid for the same embedding model. Rebuild it with
+`document_llmindex rebuild` if the embedding model changed.
+
 ## Hermes
 
 `/srv/docker/hermes` is the whole state: `state.db` (sessions and memory

@@ -60,9 +60,10 @@ Dendra   Sun     check         restic check --read-data-subset=10%
   Forgejo, Fluxer and Paperless PostgreSQL databases, asks Hytale for its own
   archive, then backs up `/srv/docker` and the dumps.
 - Excluded: Forgejo's generated archive cache and PGDATA, Fluxer's Postgres and
-  search/NATS/Valkey data, Paperless's PGDATA and derived search index, Hermes'
-  logs and lazy dependency installs, Minecraft's own backups, Hytale logs, the
-  runner, Renovate, and the whole Syncthing tree.
+  search/NATS/Valkey data, Paperless's PGDATA and derived search index, Ollama's
+  re-downloadable model store, Hermes' logs and lazy dependency installs,
+  Minecraft's own backups, Hytale logs, the runner, Renovate, and the whole
+  Syncthing tree.
 - Retention: `--keep-daily 14 --keep-weekly 8 --keep-monthly 12` on both
   repositories.
 - Dendra's copy sits on the btrfs RAID1 array:
@@ -235,6 +236,57 @@ the LAN or the WireGuard tunnel; the Caddy site imports `vpn_only`.
 - This is a fresh library. The pre-Docker installation left no database, so
   there is nothing from the old deployment to import.
 
+## Ollama (Paperless AI)
+
+`stacks/ollama` is the local model server behind Paperless' AI features. It is
+internal: Caddy does not expose it, and the only published port is
+`127.0.0.1:11434` for the health check and manual debugging.
+
+- The image is built from `ollama/ollama:0.40.17` with Mesa's Vulkan ICD added,
+  because the official image does not ship the AMD RADV driver. The host's
+  `/dev/dri` is passed into the container, and `OLLAMA_VULKAN=1` /
+  `OLLAMA_IGPU_ENABLE=1` ask Ollama to use the Radeon iGPU.
+- Check whether Vulkan sees the iGPU:
+
+  ```bash
+  sudo docker exec ollama vulkaninfo --summary
+  sudo docker exec -e OLLAMA_HOST=127.0.0.1:11434 ollama ollama ps
+  ```
+
+  `vulkaninfo` should name the AMD device rather than only `llvmpipe`; `ollama
+  ps` shows the `PROCESSOR` column once a model is loaded. If it reports CPU,
+  Ollama has fallen back and the AI still works, just slower.
+- To force CPU-only, remove the `devices:` block and the two
+  `OLLAMA_VULKAN`/`OLLAMA_IGPU_ENABLE` lines from
+  `stacks/ollama/compose.yaml`, then redeploy. No Paperless setting changes.
+- Models are not pulled automatically. Run once:
+
+  ```bash
+  sudo docker exec -e OLLAMA_HOST=127.0.0.1:11434 ollama \
+    ollama pull gemma4:e4b
+  sudo docker exec -e OLLAMA_HOST=127.0.0.1:11434 ollama \
+    ollama pull embeddinggemma
+  ```
+
+  `gemma4:e4b` is the generation model; `embeddinggemma` builds the RAG index.
+- Build the index after the embedding model is present:
+
+  ```bash
+  sudo docker compose -f /opt/homelab/stacks/paperless/compose.yaml exec webserver \
+    document_llmindex rebuild
+  ```
+
+  It then updates daily at 02:10 via `PAPERLESS_LLM_INDEX_TASK_CRON`.
+- Suggestions send at most 4,000 characters of document text; chat retrieves
+  five ~1,024-token chunks. The configured 8,192-token window is enough; a
+  larger context only grows the KV cache and memory use.
+- `PAPERLESS_AI_LLM_REQUEST_TIMEOUT=300` covers CPU inference. Suggestions are
+  synchronous: a timeout returns 503, a provider rejection 502, and there is no
+  automatic retry. Chat streams and shows a generic error if the model is
+  unreachable. Core Paperless is unaffected.
+- `/srv/docker/ollama` is excluded from restic because the models are
+  re-downloadable. Paperless' `data/llm_index` is included in the backup.
+
 ## OpenCode and OpenChamber
 
 `stacks/opencode` runs the OpenCode server (`serve` on 4096). It owns sessions,
@@ -366,6 +418,9 @@ common symptoms:
 | `paperless.sakul-flee.de` returns 400 | `PAPERLESS_URL` or Caddy's `header_up Host` is missing/wrong |
 | Paperless exits asking for `PAPERLESS_SECRET_KEY` | `/run/homelab/secrets/paperless/paperless_secret_key` is missing or empty; re-run `render-secrets.sh` |
 | Paperless cannot authenticate to its database | the role password is set only on first init; changing `paperless_db_password` needs a fresh database or an `ALTER ROLE` |
+| AI suggestions return 503 | Ollama is down, the model is not pulled, or the request exceeded `PAPERLESS_AI_LLM_REQUEST_TIMEOUT`; check `docker logs ollama` |
+| AI chat says "something went wrong" | the generation model or LLM index is unavailable; check `ollama ps` and rebuild the index |
+| Ollama uses CPU despite the iGPU | Vulkan is not seeing the device; check `vulkaninfo --summary` and `/dev/dri`. CPU fallback is expected and supported |
 | `hermes.sakul-flee.de` returns 403 | the A record is proxied; it must be DNS-only, and CoreDNS must serve the split-horizon answer |
 | `hermes.sakul-flee.de` returns 502 | the webapp listener or its auth provider failed; check `docker exec hermes hermes webapp --status` |
 | Hermes loses its model or every turn errors | `opencode_go_api_key` is missing/expired or the model ID changed; check `docker exec hermes hermes model` |

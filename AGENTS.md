@@ -173,6 +173,21 @@ of data directories. Inspecting and reversible changes are fine.
 - **Tika's JVM defaults to 25% of host RAM.** The stack sets
   `JAVA_TOOL_OPTIONS=-Xmx2g` (the image does not read `JAVA_OPTS`); keep it, or
   Tika can crowd out the other stacks.
+- **Ollama's iGPU support is best-effort.** `stacks/ollama` is a derived image
+  with Mesa's RADV ICD, the host's `/dev/dri` is passed through, and
+  `OLLAMA_VULKAN`/`OLLAMA_IGPU_ENABLE` are set. If `vulkaninfo` only reports
+  `llvmpipe`, Ollama falls back to CPU; to make that explicit, remove the
+  `devices:` block and both variables. AI configuration does not change.
+- **Ollama's model store is excluded from restic.** `/srv/docker/ollama` holds
+  several GB of re-downloadable weights; there is no backup of it. Paperless'
+  `data/llm_index` is backed up and can also be rebuilt with
+  `document_llmindex rebuild`.
+- **Paperless AI is request/response, not an offline queue.** Suggestions are
+  synchronous: a timeout returns 503, a provider error 502, and nothing is
+  retried. Chat streams and shows a generic error when the model is
+  unreachable. The daily LLM index update does not retry. Core Paperless is
+  unaffected. Suggestions only send the first 4,000 characters of a document;
+  the 8,192-token context is enough for chat's five ~1,024-token chunks.
 - **OpenCode sessions live in one SQLite database.** It is
   `/srv/docker/opencode/home/.local/share/opencode/opencode.db`. Never copy a
   database from a newer OpenCode into an older image, and stop the service (or
