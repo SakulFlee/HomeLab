@@ -42,8 +42,20 @@ if [[ ! -f "${hytale_mid}" ]]; then
 fi
 install -d -m 0700 -o 990 -g 990 "${LIVE_DATA_DIR}/opencode/home"
 install -d -m 0755 -o 990 -g 990 "${LIVE_DATA_DIR}/opencode/workspace"
-# OpenChamber's web app runs as the node user from the base image.
-install -d -m 0755 -o 1000 -g 1000 "${LIVE_DATA_DIR}/openchamber"
+# OpenChamber shares the OpenCode workspace and runs as the same UID, so its
+# chats for project-less conversations have to be writable there. It also
+# hands the path to the OpenCode server as a location, which is why the
+# default (/data/chats, inside OpenChamber's own container) fails with
+# LocationNotFoundError.
+install -d -m 0755 -o 990 -g 990 "${LIVE_DATA_DIR}/opencode/workspace/.openchamber"
+install -d -m 0755 -o 990 -g 990 "${LIVE_DATA_DIR}/opencode/workspace/.openchamber/chats"
+# OpenChamber shares the OpenCode workspace and runs as the same UID (990),
+# so its data directory must belong to that user too. Reclaim files written by
+# the image's default UID (1000) once, when switching.
+install -d -m 0755 -o 990 -g 990 "${LIVE_DATA_DIR}/openchamber"
+if [[ -n "$(find "${LIVE_DATA_DIR}/openchamber" ! -user 990 -print -quit 2>/dev/null)" ]]; then
+  chown -R 990:990 "${LIVE_DATA_DIR}/openchamber"
+fi
 install -d -m 0700 -o 1000 -g 1000 "${LIVE_DATA_DIR}/syncthing/config"
 install -d -m 0755 -o 1000 -g 1000 "${LIVE_DATA_DIR}/syncthing/data"
 

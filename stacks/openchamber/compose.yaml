@@ -7,6 +7,11 @@ services:
     image: homelab/openchamber:local
     container_name: openchamber
     restart: unless-stopped
+    # Same UID as the OpenCode container: both write to the shared workspace
+    # (worktrees, staging), so they cannot run as different users. The image's
+    # default user is 1000; the data directory is chowned to match in
+    # prepare-data.sh.
+    user: "990:990"
     # OPENCODE_PASSWORD and OPENCHAMBER_UI_PASSWORD.
     env_file:
       - path: /run/homelab/secrets/openchamber.env
@@ -16,6 +21,11 @@ services:
       OPENCHAMBER_HOST: 0.0.0.0
       # Settings, auth and project configs. Everything else it stores is here.
       OPENCHAMBER_DATA_DIR: /data
+      # Chats without a project. OpenChamber sends this path to the OpenCode
+      # server as a location, so it has to exist in the workspace both
+      # containers share: the default (/data/chats) only exists here and the
+      # server answers LocationNotFoundError, which breaks the workspace.
+      OPENCHAMBER_CHATS_DIR: /srv/workspace/.openchamber/chats
       # Caddy is the only client, so it is the only source of X-Forwarded-For.
       OPENCHAMBER_TRUSTED_PROXIES: 172.16.0.0/12
 

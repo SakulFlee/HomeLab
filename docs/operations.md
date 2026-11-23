@@ -233,6 +233,12 @@ the shared server they are not active unless its plugin folder is registered in
 the OpenCode config; the session list, chats, diffs and git stay functional
 without them.
 
+It runs as UID 990, the same user as the OpenCode server, because both write to
+the shared workspace. Its project-less chats live in
+`/srv/workspace/.openchamber/chats`: OpenChamber passes that path to the server
+as a location, so it cannot be inside its own container (`/data/chats` fails
+with `LocationNotFoundError`).
+
 ## Secrets
 
 - `secrets/secrets.yaml` is sops/age encrypted. The host identity lives at
