@@ -19,8 +19,11 @@ services:
     environment:
       HOME: /home/node
       OPENCHAMBER_HOST: 0.0.0.0
-      # Settings, auth and project configs. Everything else it stores is here.
-      OPENCHAMBER_DATA_DIR: /data
+      # Settings, auth, project configs and project-less chats. Kept in the
+      # shared workspace because OpenChamber passes <data>/chats to the
+      # OpenCode server as a location: a path inside this container alone
+      # (/data) fails with LocationNotFoundError.
+      OPENCHAMBER_DATA_DIR: /srv/workspace/.openchamber
       # Chats without a project. OpenChamber sends this path to the OpenCode
       # server as a location, so it has to exist in the workspace both
       # containers share: the default (/data/chats) only exists here and the

@@ -234,10 +234,10 @@ the OpenCode config; the session list, chats, diffs and git stay functional
 without them.
 
 It runs as UID 990, the same user as the OpenCode server, because both write to
-the shared workspace. Its project-less chats live in
-`/srv/workspace/.openchamber/chats`: OpenChamber passes that path to the server
-as a location, so it cannot be inside its own container (`/data/chats` fails
-with `LocationNotFoundError`).
+the shared workspace. Its data directory and project-less chats live under
+`/srv/workspace/.openchamber`: OpenChamber passes `<data>/chats` to the server
+as a location, so that path has to exist on both sides. Keeping it in `/data`
+fails with `LocationNotFoundError`.
 
 ## Secrets
 
