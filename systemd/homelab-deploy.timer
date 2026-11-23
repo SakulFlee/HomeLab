@@ -2,8 +2,12 @@
 Description=Periodic HomeLab deploy
 
 [Timer]
-OnBootSec=5min
-OnUnitActiveSec=30min
+# Calendar, not OnBootSec/OnUnitActiveSec. Those are monotonic and only count
+# from a service activation made by systemd itself, so a manual deploy or a
+# timer restart can leave the timer with no next elapse at all (seen in
+# November 2026: active, LastTrigger from the previous boot, NextElapse
+# infinity). This fires at :00 and :30 and catches up after downtime.
+OnCalendar=*:0/30
 RandomizedDelaySec=2min
 Persistent=true
 
