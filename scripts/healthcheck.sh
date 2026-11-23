@@ -65,6 +65,19 @@ if stack_exists hytale; then
   fi
 fi
 
+if stack_exists paperless; then
+  running paperless && pass "paperless container" || bad "paperless container"
+  running paperless-db && pass "paperless-db container" || bad "paperless-db container"
+  running paperless-broker && pass "paperless-broker container" || bad "paperless-broker container"
+  running paperless-tika && pass "paperless-tika container" || bad "paperless-tika container"
+  running paperless-gotenberg && pass "paperless-gotenberg container" || bad "paperless-gotenberg container"
+  # PAPERLESS_URL restricts ALLOWED_HOSTS to the public name. "localhost" is
+  # always allowed for the image's own health check, so ask with that Host
+  # rather than 127.0.0.1, which would be a Django 400.
+  curl -fsS --max-time 5 -H 'Host: localhost' http://127.0.0.1:8000/ >/dev/null 2>&1 \
+    && pass "paperless HTTP" || bad "paperless HTTP"
+fi
+
 if stack_exists coredns; then
   running coredns && pass "coredns container" || bad "coredns container"
   if command -v dig >/dev/null 2>&1; then

@@ -149,6 +149,58 @@ sudo docker compose up -d
 The machine-id file must be restored with `auth.enc`. If it is missing or
 mismatched, run `/auth login device` from the tmux console.
 
+## Paperless
+
+The nightly backup contains a hot `pg_dump` plus the media, data, consume and
+export directories. The search index is excluded because it is derived data.
+
+1. Stop the stack:
+
+   ```bash
+   cd /opt/homelab/stacks/paperless
+   sudo docker compose down
+   ```
+
+2. Create the mount points, then restore the directories and ownership:
+
+   ```bash
+   sudo /opt/homelab/scripts/prepare-data.sh
+   sudo rsync -aHAX --numeric-ids /srv/restore/srv/docker/paperless/ /srv/docker/paperless/
+   sudo chown -R 1000:1000 \
+     /srv/docker/paperless/data \
+     /srv/docker/paperless/media \
+     /srv/docker/paperless/consume \
+     /srv/docker/paperless/export
+   sudo chown -R 70:70 /srv/docker/paperless/postgres
+   sudo chown -R 999:999 /srv/docker/paperless/valkey
+   ```
+
+3. Start only the database, then restore the dump:
+
+   ```bash
+   sudo docker compose up -d db
+   pw="$(sudo cat /run/homelab/secrets/paperless/paperless_db_password)"
+   sudo docker compose exec -T -e PGPASSWORD="$pw" db \
+     dropdb -U paperless --if-exists paperless
+   sudo docker compose exec -T -e PGPASSWORD="$pw" db \
+     createdb -U paperless paperless
+   sudo docker compose exec -T -e PGPASSWORD="$pw" db \
+     pg_restore -U paperless -d paperless --clean --if-exists --no-owner --no-acl \
+     < /srv/backup/dumps/paperless-<stamp>.dump
+   ```
+
+4. Start the rest and rebuild the search index:
+
+   ```bash
+   sudo docker compose up -d --wait
+   sudo docker compose exec webserver document_index reindex --recreate
+   ```
+
+5. Verify login, documents, and upload one PDF and one DOCX.
+
+This runbook is for the Docker-era backups. The pre-Docker library left no
+database, so there is nothing from that installation to restore.
+
 ## Host loss
 
 1. Install Debian 13 and run `scripts/bootstrap.sh`.

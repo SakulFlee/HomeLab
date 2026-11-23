@@ -155,6 +155,24 @@ of data directories. Inspecting and reversible changes are fine.
   `docker-socket-refresh.sh` cannot repair it because the container is not
   running. The rendered config lives at `/srv/docker/forgejo-runner/config.yaml`
   (excluded from backups, on the LUKS root).
+- **Paperless refuses to start without `PAPERLESS_SECRET_KEY`.** It is rendered
+  from sops to `/run/homelab/secrets/paperless/paperless_secret_key` and read
+  through `PAPERLESS_SECRET_KEY_FILE`. The file must not end in a newline
+  (`render-secrets.sh` uses `jq -j`); a hand-edited copy with one produces a
+  key containing a newline and a confusing session/auth failure. Do not rotate
+  the key on an existing install: every session and token is invalidated,
+  though the documents are unaffected.
+- **Paperless' PostgreSQL 18 mounts `/var/lib/postgresql`, not
+  `/var/lib/postgresql/data`.** The image creates the major-version
+  subdirectory itself, exactly like Forgejo's database.
+- **Paperless is DNS-only.** `paperless.sakul-flee.de` is in
+  `cloudflare-ddns`'s `IP4_DOMAINS` and the CoreDNS split-horizon pattern. If
+  it resolves through Cloudflare, the `vpn_only` gate sees an edge and returns
+  403. `PAPERLESS_URL` and Caddy's `header_up Host` are the matching pair for
+  the reverse proxy; without them Django returns 400.
+- **Tika's JVM defaults to 25% of host RAM.** The stack sets
+  `JAVA_TOOL_OPTIONS=-Xmx2g` (the image does not read `JAVA_OPTS`); keep it, or
+  Tika can crowd out the other stacks.
 - **OpenCode sessions live in one SQLite database.** It is
   `/srv/docker/opencode/home/.local/share/opencode/opencode.db`. Never copy a
   database from a newer OpenCode into an older image, and stop the service (or

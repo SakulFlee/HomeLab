@@ -22,6 +22,7 @@ fi
 ensure_runtime_dirs
 install -d -m 0700 "${RUNTIME_SECRETS_DIR}"
 install -d -m 0700 "${RUNTIME_SECRETS_DIR}/forgejo"
+install -d -m 0700 "${RUNTIME_SECRETS_DIR}/paperless"
 
 tmp="$(mktemp /run/homelab/secrets/.decrypted.XXXXXX)"
 iot_conf_tmp=""
@@ -42,6 +43,10 @@ required_keys=(
   forgejo_smtp_password
   forgejo_runner_uuid
   forgejo_runner_token
+
+  paperless_secret_key
+  paperless_db_password
+  paperless_admin_password
 
   fluxer_postgres_password
   fluxer_search_api_key
@@ -114,6 +119,13 @@ write_secret forgejo_internal_token "${RUNTIME_SECRETS_DIR}/forgejo/forgejo_inte
 write_secret forgejo_jwt_secret "${RUNTIME_SECRETS_DIR}/forgejo/forgejo_jwt_secret"
 write_secret forgejo_lfs_secret "${RUNTIME_SECRETS_DIR}/forgejo/forgejo_lfs_secret"
 write_secret forgejo_smtp_password "${RUNTIME_SECRETS_DIR}/forgejo/forgejo_smtp_password"
+
+# Paperless reads these through Docker secrets (PAPERLESS_*_FILE). write_secret
+# uses `jq -j`, so the files carry no trailing newline; Paperless warns about
+# one and a key with a newline is a silent authentication problem.
+write_secret paperless_secret_key "${RUNTIME_SECRETS_DIR}/paperless/paperless_secret_key"
+write_secret paperless_db_password "${RUNTIME_SECRETS_DIR}/paperless/paperless_db_password"
+write_secret paperless_admin_password "${RUNTIME_SECRETS_DIR}/paperless/paperless_admin_password"
 
 # Compose env-file values are interpolated: a literal $ starts a variable. A
 # bcrypt hash or a random token containing $ would otherwise be mangled. Escape

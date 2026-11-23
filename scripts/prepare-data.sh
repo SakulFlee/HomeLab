@@ -65,6 +65,16 @@ for dir in seaweedfs-data meilisearch-data nats-data valkey-data edge-data edge-
   install -d -m 0755 "${LIVE_DATA_DIR}/fluxer/${dir}"
 done
 
+# Paperless: the image's paperless user is 1000, PostgreSQL 18-alpine is 70 and
+# Valkey's official image is 999. The media tree is the one that matters: it is
+# the documents, and a restore copies it back as 1000:1000.
+install -d -m 0755 -o 1000 -g 1000 "${LIVE_DATA_DIR}/paperless/data"
+install -d -m 0755 -o 1000 -g 1000 "${LIVE_DATA_DIR}/paperless/media"
+install -d -m 0755 -o 1000 -g 1000 "${LIVE_DATA_DIR}/paperless/consume"
+install -d -m 0755 -o 1000 -g 1000 "${LIVE_DATA_DIR}/paperless/export"
+install -d -m 0700 -o 70 -g 70 "${LIVE_DATA_DIR}/paperless/postgres"
+install -d -m 0750 -o 999 -g 999 "${LIVE_DATA_DIR}/paperless/valkey"
+
 # Root-owned state (container runtimes, certificates, UI state).
 for dir in caddy dockge wg-easy forgejo-runner cloudflare-ddns ntfy homeassistant; do
   install -d -m 0755 "${LIVE_DATA_DIR}/${dir}"

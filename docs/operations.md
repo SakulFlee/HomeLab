@@ -56,12 +56,13 @@ Dendra   03:30   prune         forget --keep-daily 14 --keep-weekly 8 --keep-mon
 Dendra   Sun     check         restic check --read-data-subset=10%
 ```
 
-- `backup.sh` stops Forgejo and Minecraft while it runs, dumps both PostgreSQL
-  databases, asks Hytale for its own archive, then backs up `/srv/docker` and
-  the dumps.
+- `backup.sh` stops Forgejo and Minecraft while it runs, dumps the Forgejo,
+  Fluxer and Paperless PostgreSQL databases, asks Hytale for its own archive,
+  then backs up `/srv/docker` and the dumps.
 - Excluded: Forgejo's generated archive cache and PGDATA, Fluxer's Postgres and
-  search/NATS/Valkey data, Minecraft's own backups, Hytale logs, the runner,
-  Renovate, and the whole Syncthing tree.
+  search/NATS/Valkey data, Paperless's PGDATA and derived search index,
+  Minecraft's own backups, Hytale logs, the runner, Renovate, and the whole
+  Syncthing tree.
 - Retention: `--keep-daily 14 --keep-weekly 8 --keep-monthly 12` on both
   repositories.
 - Dendra's copy sits on the btrfs RAID1 array:
@@ -194,6 +195,46 @@ the Caddy site imports `vpn_only`.
   the same time for evaluation; see [iot-wifi.md](iot-wifi.md) before punching
   that hole.
 
+## Paperless
+
+`stacks/paperless` is Paperless-ngx 3.4.2 with its own PostgreSQL 18, Valkey
+broker, Tika and Gotenberg. Reach it at `https://paperless.sakul-flee.de` from
+the LAN or the WireGuard tunnel; the Caddy site imports `vpn_only`.
+
+- Five containers: `paperless` (web, scheduler and two task workers), `db`,
+  `broker`, `tika` and `gotenberg`. Only `paperless` joins the `proxy` network,
+  and it publishes `127.0.0.1:8000` for the health check, so there is no
+  LAN-facing host port and no `ufw`/`bootstrap.sh` change.
+- Data lives under `/srv/docker/paperless`: `data/` (index, logs, migration
+  state), `media/` (documents, archive, thumbnails), `consume/`, `export/`,
+  `postgres/` and `valkey/`. The Paperless tree is owned by UID/GID 1000;
+  PostgreSQL runs as 70 and Valkey as 999.
+- PostgreSQL 18 mounts `/var/lib/postgresql`, not `.../data` — the same layout
+  trap as Forgejo.
+- The three secrets are `paperless_secret_key`, `paperless_db_password` and
+  `paperless_admin_password`, rendered as Docker secrets. The first boot
+  creates the `paperless` superuser with `paperless@sakul-flee.de`; changing the
+  sops password later does not change the existing account.
+- OCR is `deu+eng`, with 2 task workers and 2 threads per worker (otherwise
+  Paperless would derive 8 threads from the host's 16 cores). Tika's JVM is
+  capped at 2 GiB. `PAPERLESS_URL` and Caddy's `header_up Host` are both
+  required: without them Django answers proxied requests with 400.
+- `paperless.sakul-flee.de` is in `cloudflare-ddns`'s `IP4_DOMAINS` and in the
+  CoreDNS split-horizon pattern. The record must be DNS-only, or the `vpn_only`
+  gate sees a Cloudflare edge and returns 403.
+- `backup.sh` takes a hot `pg_dump`; restic includes media, data, consume and
+  export but excludes PGDATA and `data/index`. Restore in
+  [restore.md](restore.md).
+- The first deploy after adding the three sops keys is a secrets change, which
+  `deploy.sh` treats as "recreate every stack". Apply this one with
+  `sudo DEPLOY_STACKS="paperless coredns cloudflare-ddns caddy" \
+  /opt/homelab/scripts/deploy.sh --force` to avoid restarting Fluxer, Forgejo
+  and the game servers for an unrelated reason.
+- The media library is part of the restic backup. The old volume was sized at
+  50 GiB; as the new library grows, expect the repository to grow with it.
+- This is a fresh library. The pre-Docker installation left no database, so
+  there is nothing from the old deployment to import.
+
 ## OpenCode and OpenChamber
 
 `stacks/opencode` runs the OpenCode server (`serve` on 4096). It owns sessions,
@@ -254,7 +295,9 @@ fails with `LocationNotFoundError`.
   `/config.yaml` as a directory.
 - Store the age key, both restic repository passwords and the LUKS recovery
   passphrase offline.
-- Never regenerate Forgejo's `SECRET_KEY` on an existing database.
+- Never regenerate Forgejo's `SECRET_KEY` on an existing database. Paperless's
+  `paperless_secret_key` is similar, but losing it only invalidates sessions
+  and tokens; document data is unaffected.
 
 ## Troubleshooting
 
@@ -270,6 +313,10 @@ common symptoms:
 | `home.sakul-flee.de` returns 502 | the 8123 ufw rule is missing; re-run `bootstrap.sh` |
 | `home.sakul-flee.de` returns 403 while on VPN | the name resolved to the WAN IP and WireGuard sent it outside the tunnel |
 | Broken avatars or attachments in Forgejo | `FORGEJO__picture__*`, `FORGEJO__attachment__PATH` |
+| `paperless.sakul-flee.de` returns 403 | the A record is proxied; it must be DNS-only, and CoreDNS must serve the split-horizon answer |
+| `paperless.sakul-flee.de` returns 400 | `PAPERLESS_URL` or Caddy's `header_up Host` is missing/wrong |
+| Paperless exits asking for `PAPERLESS_SECRET_KEY` | `/run/homelab/secrets/paperless/paperless_secret_key` is missing or empty; re-run `render-secrets.sh` |
+| Paperless cannot authenticate to its database | the role password is set only on first init; changing `paperless_db_password` needs a fresh database or an `ALTER ROLE` |
 | Deploy timer restarts everything every 30 min | checkout ahead of `origin/main` |
 | Backups suddenly much larger | new path under `/srv/docker` that is not excluded |
 

@@ -2,8 +2,8 @@
 # Application-consistent backup into the local restic repository.
 #
 # Forgejo and Minecraft are stopped for the duration so their data is
-# quiescent. Fluxer gets a PostgreSQL dump while the stack stays up; Hytale is
-# asked for its own archive through the tmux console.
+# quiescent. Fluxer and Paperless get a PostgreSQL dump while the stack stays
+# up; Hytale is asked for its own archive through the tmux console.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -72,6 +72,16 @@ if stack_exists fluxer; then
   fi
 fi
 
+if stack_exists paperless && [[ "$(docker inspect -f '{{.State.Running}}' paperless-db 2>/dev/null || true)" == "true" ]]; then
+  log "dumping paperless postgres"
+  paperless_pw="$(cat "${RUNTIME_SECRETS_DIR}/paperless/paperless_db_password")"
+  if ! docker exec -e "PGPASSWORD=${paperless_pw}" paperless-db \
+      pg_dump -Fc -U paperless -d paperless > "${dump_dir}/paperless-${stamp}.dump"; then
+    die "paperless pg_dump failed"
+  fi
+  log "wrote ${dump_dir}/paperless-${stamp}.dump"
+fi
+
 if stack_exists minecraft; then
   log "stopping minecraft for a quiescent world"
   compose minecraft stop >/dev/null 2>&1 || true
@@ -98,6 +108,9 @@ log "backing up ${LIVE_DATA_DIR} and ${dump_dir}"
 # Syncthing only mirrors data that already exists on the source devices, and
 # its folders live on the config volume (HOME=/var/syncthing), not under data/.
 # The whole tree is excluded rather than just syncthing/data.
+#
+# Paperless' search index is derived from the database and media, so it is
+# excluded too; docs/restore.md rebuilds it with `document_index reindex`.
 restic backup \
   --tag homelab \
   --exclude="${LIVE_DATA_DIR}/forgejo/archive" \
@@ -106,6 +119,8 @@ restic backup \
   --exclude="${LIVE_DATA_DIR}/fluxer/meilisearch-data" \
   --exclude="${LIVE_DATA_DIR}/fluxer/nats-data" \
   --exclude="${LIVE_DATA_DIR}/fluxer/valkey-data" \
+  --exclude="${LIVE_DATA_DIR}/paperless/postgres" \
+  --exclude="${LIVE_DATA_DIR}/paperless/data/index" \
   --exclude="${LIVE_DATA_DIR}/minecraft/backups" \
   --exclude="${LIVE_DATA_DIR}/hytale/data/Server/logs" \
   --exclude="${LIVE_DATA_DIR}/forgejo-runner" \

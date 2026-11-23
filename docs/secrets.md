@@ -7,12 +7,16 @@ committed.
 ## Keys the renderer requires
 
 The Forgejo, Fluxer, OpenCode, Renovate and runner values were carried over from
-the previous host. These keys must exist before `render-secrets.sh` will run:
+the previous host; the Paperless values were added with that stack. These keys
+must exist before `render-secrets.sh` will run:
 
 | key | purpose | suggested value |
 | --- | --- | --- |
 | `forgejo_db_password` | Forgejo's PostgreSQL role password | `openssl rand -base64 32` |
 | `forgejo_pat` | Forgejo PAT for git push, shared by OpenCode and Hermes | PAT with `write:repository` (and `read:user`) |
+| `paperless_secret_key` | Paperless session/token signing key | `python3 -c 'import secrets; print(secrets.token_urlsafe(64))'` |
+| `paperless_db_password` | Paperless's PostgreSQL role password | `openssl rand -base64 32` |
+| `paperless_admin_password` | first-boot Paperless superuser password | chosen once |
 | `wg_easy_password` | retrievable plaintext wg-easy admin password | generated |
 | `wg_easy_password_hash` | what wg-easy actually consumes | bcrypt hash of `wg_easy_password`, see below |
 | `restic_password` | local restic repository | `openssl rand -base64 32` |
@@ -106,3 +110,23 @@ runner looks online and idle.
 The old host stored it as `SECRET_KEY_URI=file:/var/lib/forgejo/custom/conf/secret_key`,
 so the key is the content of `forgejo-custom/conf/secret_key` in the migration
 export, not the URI string and not the `app.ini` value.
+
+## Paperless
+
+The three Paperless values are rendered as files under
+`/run/homelab/secrets/paperless` and mounted as Docker secrets. Paperless reads
+them through `PAPERLESS_SECRET_KEY_FILE`, `PAPERLESS_DBPASS_FILE` and
+`PAPERLESS_ADMIN_PASSWORD_FILE`; the files must not end in a newline (the
+renderer uses `jq -j`).
+
+`paperless_secret_key` signs sessions and tokens. Do not regenerate it on an
+existing installation: every session and token becomes invalid. Unlike
+Forgejo's key it does not encrypt document data, so a rotation is recoverable —
+users simply log in again.
+
+`paperless_admin_password` is only used when the superuser is first created.
+Changing the sops value later does not change the existing account's password;
+use `docker compose exec webserver python3 manage.py changepassword paperless`.
+The username is `paperless`, set in the stack; changing `PAPERLESS_ADMIN_USER`
+after the first boot creates an additional superuser rather than renaming the
+existing one.

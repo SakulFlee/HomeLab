@@ -98,6 +98,18 @@ home.sakul-flee.de {
 	}
 }
 
+paperless.sakul-flee.de {
+	import vpn_only
+
+	# Plain http:// upstream: Caddy terminates TLS and Paperless speaks HTTP on
+	# 8000 inside the stack. header_up Host is required, not cosmetic: Paperless
+	# derives ALLOWED_HOSTS and its redirect target from PAPERLESS_URL and the
+	# Host header, so it must see the name the browser asked for.
+	reverse_proxy paperless:8000 {
+		header_up Host {http.request.host}
+	}
+}
+
 # Self-hosted notification relay. Public on purpose: it must be reachable from
 # phones outside the LAN/VPN. ntfy enforces its own authentication.
 ntfy.sakul-flee.de {

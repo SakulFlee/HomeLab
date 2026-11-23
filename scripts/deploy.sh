@@ -119,6 +119,7 @@ ordered_stacks=(
   fluxer
   minecraft
   hytale
+  paperless
   opencode
   openchamber
   syncthing

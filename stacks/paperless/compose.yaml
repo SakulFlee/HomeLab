@@ -1,0 +1,183 @@
+name: paperless
+
+services:
+  paperless:
+    # Pinned, not :latest: deploy.sh only pulls a stack whose directory changed,
+    # so a floating tag would produce a different version on an unrelated
+    # deploy. Renovate bumps this tag.
+    image: ghcr.io/paperless-ngx/paperless-ngx:3.4.2
+    container_name: paperless
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      broker:
+        condition: service_healthy
+      tika:
+        condition: service_started
+      gotenberg:
+        condition: service_started
+    environment:
+      # The image starts as root for its s6 init and drops to the paperless
+      # user. Pin the mapping so the bind mounts keep the uid/gid
+      # prepare-data.sh created instead of an id a future image bump picks.
+      USERMAP_UID: "1000"
+      USERMAP_GID: "1000"
+
+      TZ: Europe/Berlin
+
+      PAPERLESS_REDIS: redis://broker:6379
+      PAPERLESS_DBENGINE: postgresql
+      PAPERLESS_DBHOST: db
+      PAPERLESS_DBPORT: "5432"
+      PAPERLESS_DBNAME: paperless
+      PAPERLESS_DBUSER: paperless
+      # postgres:18-alpine listens without TLS on the internal network.
+      # PAPERLESS_DBSSLMODE was removed in Paperless 3; DB_OPTIONS replaces it.
+      PAPERLESS_DB_OPTIONS: sslmode=disable
+
+      # Paperless supports Docker secrets by appending _FILE to a setting. Its
+      # init-env-file oneshot resolves these before migrations and the
+      # superuser bootstrap, so the database password and signing key never
+      # appear in `docker inspect`.
+      PAPERLESS_SECRET_KEY_FILE: /run/secrets/paperless_secret_key
+      PAPERLESS_DBPASS_FILE: /run/secrets/paperless_db_password
+      PAPERLESS_ADMIN_USER: paperless
+      PAPERLESS_ADMIN_PASSWORD_FILE: /run/secrets/paperless_admin_password
+      PAPERLESS_ADMIN_MAIL: paperless@sakul-flee.de
+
+      # PAPERLESS_URL sets ALLOWED_HOSTS, CSRF_TRUSTED_ORIGINS and the CORS
+      # list in one go. Caddy forwards the public name as Host; without this
+      # every proxied request is a 400 from Django.
+      PAPERLESS_URL: https://paperless.sakul-flee.de
+      # Without an explicit list ALLOWED_HOSTS stays ["*"], which accepts any
+      # Host header. Setting it also makes Paperless append "localhost" for the
+      # container health check.
+      PAPERLESS_ALLOWED_HOSTS: paperless.sakul-flee.de
+      PAPERLESS_CSRF_TRUSTED_ORIGINS: https://paperless.sakul-flee.de
+
+      # Parity with the old k3s/Incus deployment. deu is included in the image,
+      # so PAPERLESS_OCR_LANGUAGES is not needed.
+      PAPERLESS_TIME_ZONE: Europe/Berlin
+      PAPERLESS_OCR_LANGUAGE: deu+eng
+      PAPERLESS_OCR_USER_ARGS: '{"optimize": 1, "pdfa_image_compression": "lossless"}'
+      PAPERLESS_TASK_WORKERS: "2"
+      # Paperless otherwise derives this from the host's 16 cores (8 threads
+      # per worker). The old instance had 4 cores, so 2 matches its OCR
+      # concurrency and keeps the memory footprint predictable.
+      PAPERLESS_THREADS_PER_WORKER: "2"
+      PAPERLESS_TIKA_ENABLED: "1"
+      PAPERLESS_TIKA_ENDPOINT: http://tika:9998
+      PAPERLESS_TIKA_GOTENBERG_ENDPOINT: http://gotenberg:3000
+
+    secrets:
+      - paperless_secret_key
+      - paperless_db_password
+      - paperless_admin_password
+
+    volumes:
+      - /srv/docker/paperless/data:/usr/src/paperless/data
+      - /srv/docker/paperless/media:/usr/src/paperless/media
+      - /srv/docker/paperless/consume:/usr/src/paperless/consume
+      - /srv/docker/paperless/export:/usr/src/paperless/export
+
+    # Loopback only, for healthcheck.sh. Caddy reaches the service over the
+    # proxy network as paperless:8000; nothing is published to the LAN.
+    ports:
+      - "127.0.0.1:8000:8000"
+
+    healthcheck:
+      test: ["CMD", "curl", "-fsSL", "--max-time", "2", "http://localhost:8000"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      # First boot runs the schema migrations. The image's own check has no
+      # start period and would report unhealthy while they run.
+      start_period: 180s
+
+    # Celery workers get a chance to finish a document before the container is
+    # killed; a half-written original is worse than a slow deploy.
+    stop_grace_period: 60s
+
+    networks:
+      - proxy
+      - default
+
+  db:
+    image: postgres:18-alpine
+    container_name: paperless-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: paperless
+      POSTGRES_USER: paperless
+      POSTGRES_PASSWORD_FILE: /run/secrets/paperless_db_password
+    secrets:
+      - paperless_db_password
+    volumes:
+      # PostgreSQL 18+ expects the mount at /var/lib/postgresql, not at
+      # /var/lib/postgresql/data. The image creates the major-version
+      # subdirectory itself, which is what keeps pg_upgrade on one filesystem.
+      - /srv/docker/paperless/postgres:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U paperless -d paperless"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    shm_size: 256mb
+    networks:
+      - default
+
+  broker:
+    # Valkey is what upstream's compose file uses; Paperless only needs a
+    # Redis-compatible Celery broker. Its state is a queue, so losing it on a
+    # restart does not lose documents.
+    image: valkey/valkey:9-alpine
+    container_name: paperless-broker
+    restart: unless-stopped
+    volumes:
+      - /srv/docker/paperless/valkey:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - default
+
+  tika:
+    image: apache/tika:3.3.1.0
+    container_name: paperless-tika
+    restart: unless-stopped
+    environment:
+      # The Tika entrypoint execs java directly and does not read JAVA_OPTS;
+      # JAVA_TOOL_OPTIONS is picked up by every JVM, including its parse
+      # workers. Without it the JVM takes 25% of the host's RAM as its heap.
+      JAVA_TOOL_OPTIONS: "-Xmx2g"
+    networks:
+      - default
+
+  gotenberg:
+    image: gotenberg/gotenberg:8.38
+    container_name: paperless-gotenberg
+    restart: unless-stopped
+    # The chromium route converts .eml files. It must not fetch external
+    # content such as tracking pixels or javascript.
+    command:
+      - gotenberg
+      - --chromium-disable-javascript=true
+      - "--chromium-allow-list=^file:///tmp/.*"
+    networks:
+      - default
+
+networks:
+  proxy:
+    external: true
+  default:
+
+secrets:
+  paperless_secret_key:
+    file: /run/homelab/secrets/paperless/paperless_secret_key
+  paperless_db_password:
+    file: /run/homelab/secrets/paperless/paperless_db_password
+  paperless_admin_password:
+    file: /run/homelab/secrets/paperless/paperless_admin_password
