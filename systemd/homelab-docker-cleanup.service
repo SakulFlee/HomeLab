@@ -1,0 +1,15 @@
+[Unit]
+Description=HomeLab Docker image and build-cache cleanup
+After=network-online.target docker.service
+Requires=docker.service
+OnFailure=homelab-notify@%n.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/homelab
+EnvironmentFile=-/etc/homelab/notify.env
+ExecStart=/opt/homelab/scripts/docker-cleanup.sh
+TimeoutStartSec=1h
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7

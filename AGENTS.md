@@ -86,6 +86,11 @@ sudo /opt/homelab/scripts/restic-check.sh  # weekly verification
 - `restic copy` never deletes on the destination; Dendra runs its own
   `forget --prune`.
 - Retention is `--keep-daily 14 --keep-weekly 8 --keep-monthly 12` on both.
+- `homelab-docker-cleanup.timer` prunes unused images older than 14 days and
+  build cache older than 7 days; `homelab-runner-cleanup.timer` removes runner
+  cache files older than 14 days and job workspaces older than 7 days. Neither
+  touches volumes, registration/config or the running job. Both are installed
+  and enabled by `bootstrap.sh`.
 
 ## Destructive actions
 
@@ -198,8 +203,8 @@ of data directories. Inspecting and reversible changes are fine.
   network.** There is no published port; only Paperless, OpenCode and Hermes are
   attached. Do not put Caddy, Forgejo or another public-facing stack on it, and
   use `docker exec` for host-side checks. OpenCode's and Hermes' Ollama
-  providers are optional, never the default; both require the 65536-token
-  server default while Paperless sends its own 8192.
+  providers are optional, never the default. All consumers use the 65536-token
+  window; Paperless still only sends 4,000 characters for suggestions.
 - **The AI network is called `homelab-ai`, not `ai`.** Docker's embedded DNS
   resolves `<container>.<network>` as well as plain container names, so
   container `opencode` on a network named `ai` answered for `opencode.ai` and
@@ -212,7 +217,8 @@ of data directories. Inspecting and reversible changes are fine.
   retried. Chat streams and shows a generic error when the model is
   unreachable. The daily LLM index update does not retry. Core Paperless is
   unaffected. Suggestions only send the first 4,000 characters of a document;
-  the 8,192-token context is enough for chat's five ~1,024-token chunks.
+  the 65,536-token window is shared with the agents and chat's five
+  ~1,024-token chunks.
 - **OpenCode sessions live in one SQLite database.** It is
   `/srv/docker/opencode/home/.local/share/opencode/opencode.db`. Never copy a
   database from a newer OpenCode into an older image, and stop the service (or

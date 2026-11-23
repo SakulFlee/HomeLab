@@ -348,6 +348,8 @@ if ((ENABLE_TIMERS)); then
   systemctl enable --now homelab-restic-copy.timer || true
   systemctl enable --now homelab-restic-check.timer || true
   systemctl enable --now homelab-renovate.timer || true
+  systemctl enable --now homelab-docker-cleanup.timer || true
+  systemctl enable --now homelab-runner-cleanup.timer || true
 else
   log "timers are installed but not enabled. Re-run with --enable-timers after verification."
 fi

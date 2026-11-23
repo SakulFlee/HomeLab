@@ -64,6 +64,11 @@ snapshots accumulated and pinned enough of the root filesystem to fill it.
 `deploy.sh` now keeps the last three (`DEPLOY_SNAPSHOT_KEEP`), and its
 free-space check aborts below `DEPLOY_MIN_FREE_MB`.
 
+When isolating OpenCode, keep `/srv/docker/opencode/home` — the sessions
+database — in the parent snapshot. Only `/srv/docker/opencode/workspace` is
+bulky and re-clonable. The restic backup includes both paths, so sessions are
+also safe outside the deploy rollback.
+
 `du -sh /srv/snapshots/*` counts shared extents and looks far larger than the
 space actually used; use `btrfs filesystem usage /` for the real number.
 
@@ -119,6 +124,32 @@ sudo restic -r /srv/backup/restic \
 ```
 
 See [restore.md](restore.md) for the full procedure.
+
+## Cleanup
+
+Two weekly timers reclaim disk space without touching volumes or application
+data:
+
+| timer | when | what |
+| --- | --- | --- |
+| `homelab-docker-cleanup.timer` | Sun 04:30 | unused images older than 14 days and build cache older than 7 days |
+| `homelab-runner-cleanup.timer` | Sun 05:00 | runner cache files older than 14 days and job workspaces older than 7 days |
+
+- `docker image prune -a` only removes images no container references; running
+  and stopped containers keep theirs. Volumes are never pruned.
+- The runner cleanup skips itself while a `FORGEJO-ACTIONS` job container is
+  running, and never touches `.runner`, `config.yaml` or the live job.
+- Override the ages in `/etc/homelab/host.env`:
+  `DOCKER_IMAGE_PRUNE_DAYS`, `DOCKER_BUILD_CACHE_PRUNE_DAYS`,
+  `RUNNER_CACHE_DAYS`, `RUNNER_WORKSPACE_DAYS`.
+- Manual run:
+  ```bash
+  sudo systemctl start homelab-docker-cleanup.service
+  sudo systemctl start homelab-runner-cleanup.service
+  ```
+- `bootstrap.sh` installs and enables the timers. On an existing host, either
+  re-run `bootstrap.sh` once or install the four unit files and enable the
+  timers manually.
 
 ## Alerting
 
@@ -312,11 +343,12 @@ answer for `opencode.ai` and break the OpenCode Go API.
 
   It then updates daily at 02:10 via `PAPERLESS_LLM_INDEX_TASK_CRON`.
 - Suggestions send at most 4,000 characters of document text; chat retrieves
-  five ~1,024-token chunks. Paperless' 8,192-token window is enough; OpenCode
-  and Hermes need the server-wide 65,536-token default because both reject
-  smaller windows for tool use. A larger Paperless context only grows the KV
-  cache and memory use. If 12B at 64k spills out of the iGPU, use
-  `gemma4:e4b` for the agents rather than lowering their context.
+  five ~1,024-token chunks. Paperless, OpenCode and Hermes all use the same
+  65,536-token window: the agents reject smaller windows for tool use, and
+  matching Paperless avoids Ollama loading the same model at two different
+  contexts. It does not make Paperless read more of a document. If 12B at 64k
+  spills out of the iGPU, use `gemma4:e4b` for the agents rather than lowering
+  their context.
 - `PAPERLESS_AI_LLM_REQUEST_TIMEOUT=300` covers CPU inference. Suggestions are
   synchronous: a timeout returns 503, a provider rejection 502, and there is no
   automatic retry. Chat streams and shows a generic error if the model is

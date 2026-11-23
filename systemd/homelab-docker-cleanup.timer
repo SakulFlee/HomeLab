@@ -1,0 +1,11 @@
+[Unit]
+Description=Weekly HomeLab Docker image and build-cache cleanup
+
+[Timer]
+OnCalendar=Sun *-*-* 04:30:00
+RandomizedDelaySec=15min
+Persistent=true
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target

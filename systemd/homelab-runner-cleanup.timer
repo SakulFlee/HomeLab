@@ -1,0 +1,11 @@
+[Unit]
+Description=Weekly HomeLab Forgejo runner cache and workspace cleanup
+
+[Timer]
+OnCalendar=Sun *-*-* 05:00:00
+RandomizedDelaySec=15min
+Persistent=true
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target
