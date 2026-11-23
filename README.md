@@ -43,7 +43,7 @@ out at `/opt/homelab` on the host; `deploy.sh` runs as root from there.
 | Hytale | `hytale.sakul-flee.de:5520/udp` |
 | Admin (LAN/VPN only) | `dockge.`, `vpn.`, `syncthing.`, `opencode.`, `paperless.`, `hermes.` |
 | ntfy (self-hosted relay) | `ntfy.sakul-flee.de`, authenticated |
-| Ollama | internal only (`ai` network), Paperless/OpenCode/Hermes |
+| Ollama | internal only (`homelab-ai` network), Paperless/OpenCode/Hermes |
 
 ## First setup
 

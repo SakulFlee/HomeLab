@@ -120,7 +120,7 @@ services:
 
     networks:
       - proxy
-      - ai
+      - homelab-ai
       - default
 
   db:
@@ -192,7 +192,7 @@ services:
 networks:
   proxy:
     external: true
-  ai:
+  homelab-ai:
     external: true
   default:
 

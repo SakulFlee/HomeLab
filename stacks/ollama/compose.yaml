@@ -7,8 +7,9 @@ services:
     container_name: ollama
     restart: unless-stopped
     environment:
-      # Listen on the dedicated ai network so Paperless, OpenCode and Hermes
-      # can reach ollama:11434. There is no host port and no proxy membership.
+      # Listen on the dedicated homelab-ai network so Paperless, OpenCode and
+      # Hermes can reach ollama:11434. There is no host port and no proxy
+      # membership.
       OLLAMA_HOST: 0.0.0.0:11434
       # iGPU attempt: RADV via Vulkan. The derived image installs the Mesa ICD
       # and the host's /dev/dri is passed below.
@@ -32,8 +33,8 @@ services:
     volumes:
       # Models are re-downloadable and intentionally excluded from restic.
       - /srv/docker/ollama:/root/.ollama
-    # No published port: the API has no authentication, so only the ai network
-    # may reach it. Use `docker exec` for host-side checks.
+    # No published port: the API has no authentication, so only the
+    # homelab-ai network may reach it. Use `docker exec` for host-side checks.
     healthcheck:
       # OLLAMA_HOST points at 0.0.0.0 for the server; the CLI needs a real
       # destination for this probe.
@@ -43,8 +44,8 @@ services:
       retries: 12
       start_period: 30s
     networks:
-      - ai
+      - homelab-ai
 
 networks:
-  ai:
+  homelab-ai:
     external: true

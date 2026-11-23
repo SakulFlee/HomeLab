@@ -78,7 +78,7 @@ fi
 
 if stack_exists ollama; then
   running ollama && pass "ollama container" || bad "ollama container"
-  # No published port: the container lives on the `ai` network only.
+  # No published port: the container lives on the `homelab-ai` network only.
   docker exec -e OLLAMA_HOST=127.0.0.1:11434 ollama ollama list >/dev/null 2>&1 \
     && pass "ollama API" || bad "ollama API"
 fi

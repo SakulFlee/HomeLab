@@ -41,7 +41,10 @@ export GIT_CONFIG_COUNT=1
 export GIT_CONFIG_KEY_0=safe.directory
 export GIT_CONFIG_VALUE_0="${REPO_ROOT}"
 
-for network in proxy ai; do
+# The AI network must not be called `ai`: Docker's embedded DNS resolves
+# <container>.<network>, so `opencode` on `ai` answers for `opencode.ai` and
+# hijacks the OpenCode API host.
+for network in proxy homelab-ai; do
   if ! docker network inspect "${network}" >/dev/null 2>&1; then
     log "creating external Docker network ${network}"
     docker network create "${network}" >/dev/null

@@ -1,13 +1,11 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "provider": {
+  "providers": {
     "opencode-go": {
-      "options": {
+      "settings": {
         "apiKey": "{env:OPENCODE_API_KEY}"
       }
-    }
-  },
-  "providers": {
+    },
     "ollama": {
       "name": "Ollama (local)",
       "package": "@opencode/ai/providers/openai-compatible",

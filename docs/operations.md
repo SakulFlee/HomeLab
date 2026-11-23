@@ -268,9 +268,11 @@ the LAN or the WireGuard tunnel; the Caddy site imports `vpn_only`.
 
 `stacks/ollama` is the local model server behind Paperless' AI features, and an
 optional model for OpenCode and Hermes. It is attached only to the dedicated
-`ai` network: no host port, no proxy membership, and no authentication.
+`homelab-ai` network: no host port, no proxy membership, and no authentication.
 Paperless, OpenCode and Hermes are the only members; do not attach Caddy,
-Forgejo or any public-facing service to `ai`.
+Forgejo or any public-facing service to it. The name is deliberately not `ai`:
+Docker's DNS resolves `<container>.<network>`, so `opencode` on `ai` would
+answer for `opencode.ai` and break the OpenCode Go API.
 
 - The image is built from `ollama/ollama:0.40.17` with Mesa's Vulkan ICD added,
   because the official image does not ship the AMD RADV driver. The host's
@@ -330,8 +332,8 @@ providers, permissions and tool execution; every UI is a client of it.
 - **Web UI**: `https://opencode.sakul-flee.de`, username `opencode`, password
   from sops (`opencode_server_password`). The server serves the UI itself.
 - **Local Ollama**: `opencode.json` defines `ollama/gemma4-12b` (Gemma 4 12B,
-  64k context) on the `ai` network. It is not the default; select it from
-  `/models`. The `opencode-go` provider remains the default.
+  64k context) on the `homelab-ai` network. It is not the default; select it
+  from `/models`. The `opencode-go` provider remains the default.
 - **Desktop app**: paste a pair link from `opencode pair --url
   https://opencode.sakul-flee.de` into its server address field, or connect a
   TUI with `opencode --server https://opencode.sakul-flee.de`. Links are
