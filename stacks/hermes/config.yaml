@@ -1,0 +1,33 @@
+# Seeded into /srv/docker/hermes/config.yaml by prepare-data.sh, and only when
+# that file does not exist yet. After the first boot Hermes owns the runtime
+# copy; edit it through the webapp or `docker exec hermes hermes config set`
+# and restart the container. Changes to this file do not re-apply.
+model:
+  provider: opencode-go
+  default: deepseek-v4.1-flash
+  base_url: https://opencode.ai/zen/go/v1
+  api_mode: chat_completions
+
+webapp:
+  enabled: true
+  host: 0.0.0.0
+  port: 9120
+  public_url: "https://hermes.sakul-flee.de"
+
+dashboard:
+  # Caddy is the only source of X-Forwarded-* headers. The webapp reads the
+  # same list, and without it sign-in cookies are built for http:// and the
+  # https callback fails.
+  trusted_proxies:
+    - "172.16.0.0/12"
+
+terminal:
+  # local means the container's own shell, not the host. There is no Docker
+  # socket mounted, so the docker backend is not available.
+  backend: local
+  cwd: /workspace
+
+desktop:
+  repo_scan_enabled: true
+  repo_scan_roots:
+    - /workspace

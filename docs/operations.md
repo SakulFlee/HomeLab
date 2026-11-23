@@ -56,13 +56,13 @@ Dendra   03:30   prune         forget --keep-daily 14 --keep-weekly 8 --keep-mon
 Dendra   Sun     check         restic check --read-data-subset=10%
 ```
 
-- `backup.sh` stops Forgejo and Minecraft while it runs, dumps the Forgejo,
-  Fluxer and Paperless PostgreSQL databases, asks Hytale for its own archive,
-  then backs up `/srv/docker` and the dumps.
+- `backup.sh` stops Forgejo, Minecraft and Hermes while it runs, dumps the
+  Forgejo, Fluxer and Paperless PostgreSQL databases, asks Hytale for its own
+  archive, then backs up `/srv/docker` and the dumps.
 - Excluded: Forgejo's generated archive cache and PGDATA, Fluxer's Postgres and
-  search/NATS/Valkey data, Paperless's PGDATA and derived search index,
-  Minecraft's own backups, Hytale logs, the runner, Renovate, and the whole
-  Syncthing tree.
+  search/NATS/Valkey data, Paperless's PGDATA and derived search index, Hermes'
+  logs and lazy dependency installs, Minecraft's own backups, Hytale logs, the
+  runner, Renovate, and the whole Syncthing tree.
 - Retention: `--keep-daily 14 --keep-weekly 8 --keep-monthly 12` on both
   repositories.
 - Dendra's copy sits on the btrfs RAID1 array:
@@ -282,6 +282,55 @@ the shared workspace. Its data directory and project-less chats live under
 as a location, so that path has to exist on both sides. Keeping it in `/data`
 fails with `LocationNotFoundError`.
 
+## Hermes Agent
+
+`stacks/hermes` runs Nous Research's Hermes Agent as a persistent gateway. The
+browser workspace is its only UI; there is no messaging platform, dashboard or
+OpenAI-compatible API server.
+
+- **Webapp**: `https://hermes.sakul-flee.de`, username `sakulflee`, password
+  `hermes_ui_password` from sops. The Caddy site imports `vpn_only`, and the
+  webapp's own login is the dashboard basic-auth provider
+  (`HERMES_DASHBOARD_BASIC_AUTH_*`). `hermes_ui_secret` signs its sessions;
+  rotating it logs every browser out.
+- The container runs as UID 991 and keeps state in `/srv/docker/hermes`
+  (`/opt/data`). `/srv/docker/hermes/workspace` is mounted at `/workspace`;
+  `HERMES_WRITE_SAFE_ROOT=/opt/data:/workspace` is what lets the file tools
+  write there. There is no Docker socket and no host network: the terminal
+  backend is `local`, so commands run inside the container.
+- `stacks/hermes/config.yaml` is seeded by `prepare-data.sh` **only when
+  `/srv/docker/hermes/config.yaml` is absent**. After the first boot Hermes
+  owns the file; edit it through the webapp or with
+  `docker exec hermes hermes config set ...` followed by
+  `docker restart hermes`. The seed selects `opencode-go` /
+  `deepseek-v4.1-flash` (shared `opencode_go_api_key` and Go allowance with
+  OpenCode), enables the webapp on 9120, trusts Caddy's `172.16.0.0/12`, and
+  points `terminal.cwd` and `desktop.repo_scan_roots` at `/workspace`.
+- **Git**: `prepare-data.sh` installs
+  `/srv/docker/hermes/home/.gitconfig`. The credential helper reads
+  `FORGEJO_TOKEN`, rendered from `forgejo_pat`, and rewrites
+  `https://forgejo.sakul-flee.de/` to `http://forgejo:3000/` so the agent stays
+  on the proxy network. The token is the same PAT OpenCode uses.
+- **Sessions** are rows in `/srv/docker/hermes/state.db` (SQLite, WAL). Never
+  run a second Hermes container against this directory; the gateway, cron and
+  webapp all open it. `backup.sh` stops the container before the restic run so
+  the copy is consistent. Logs: `docker logs -f hermes` and
+  `/srv/docker/hermes/logs/gateways/default/current`.
+- **Upgrades**: the image is pinned to a `vX.Y.Z` tag and Renovate only tracks
+  plain version tags (not `-desktop`, `-canary` or `rc`). Hermes migrates
+  `config.yaml`/`.env` on start and writes timestamped backups next to them.
+- `hermes.sakul-flee.de` is DNS-only (`cloudflare-ddns` `IP4_DOMAINS` and the
+  CoreDNS split horizon). If it resolves through Cloudflare, Caddy returns 403.
+  If the webapp is down or its auth provider is missing, Caddy returns 502 and
+  `docker exec hermes hermes webapp --status` says why.
+- The webapp login is effectively root inside the container plus write access
+  to `/workspace`; keep it VPN-only. The shared `forgejo_pat` is an admin PAT,
+  so a push to a repo with Actions enabled can reach the runner's Docker
+  socket. Use a dedicated non-admin Forgejo user or disable Actions on repos
+  the token can write.
+- The first deploy is a `render-secrets.sh` change, so `deploy.sh` recreates
+  every stack once. Later Hermes-only changes apply just this stack.
+
 ## Secrets
 
 - `secrets/secrets.yaml` is sops/age encrypted. The host identity lives at
@@ -317,6 +366,10 @@ common symptoms:
 | `paperless.sakul-flee.de` returns 400 | `PAPERLESS_URL` or Caddy's `header_up Host` is missing/wrong |
 | Paperless exits asking for `PAPERLESS_SECRET_KEY` | `/run/homelab/secrets/paperless/paperless_secret_key` is missing or empty; re-run `render-secrets.sh` |
 | Paperless cannot authenticate to its database | the role password is set only on first init; changing `paperless_db_password` needs a fresh database or an `ALTER ROLE` |
+| `hermes.sakul-flee.de` returns 403 | the A record is proxied; it must be DNS-only, and CoreDNS must serve the split-horizon answer |
+| `hermes.sakul-flee.de` returns 502 | the webapp listener or its auth provider failed; check `docker exec hermes hermes webapp --status` |
+| Hermes loses its model or every turn errors | `opencode_go_api_key` is missing/expired or the model ID changed; check `docker exec hermes hermes model` |
+| Hermes cannot push to Forgejo | `forgejo_pat` is missing/expired, or the git credential helper cannot see `FORGEJO_TOKEN` |
 | Deploy timer restarts everything every 30 min | checkout ahead of `origin/main` |
 | Backups suddenly much larger | new path under `/srv/docker` that is not excluded |
 

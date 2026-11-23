@@ -56,6 +56,28 @@ install -d -m 0755 -o 990 -g 990 "${LIVE_DATA_DIR}/openchamber"
 if [[ -n "$(find "${LIVE_DATA_DIR}/openchamber" ! -user 990 -print -quit 2>/dev/null)" ]]; then
   chown -R 990:990 "${LIVE_DATA_DIR}/openchamber"
 fi
+# Hermes Agent: UID 991. The image's /init chowns /opt/data to HERMES_UID/GID
+# and then drops to that user for the gateway. The runtime config is seeded
+# once; after the first boot the webapp owns it, so a deploy must not overwrite
+# it. The git identity is ours and is refreshed on every run.
+install -d -m 0700 -o 991 -g 991 "${LIVE_DATA_DIR}/hermes"
+install -d -m 0755 -o 991 -g 991 "${LIVE_DATA_DIR}/hermes/workspace"
+install -d -m 0700 -o 991 -g 991 "${LIVE_DATA_DIR}/hermes/home"
+if [[ -d "${LIVE_DATA_DIR}/hermes/config.yaml" ]]; then
+  rmdir "${LIVE_DATA_DIR}/hermes/config.yaml" 2>/dev/null \
+    || die "${LIVE_DATA_DIR}/hermes/config.yaml is a non-empty directory; remove it before continuing"
+fi
+if [[ ! -f "${LIVE_DATA_DIR}/hermes/config.yaml" ]]; then
+  install -m 0600 -o 991 -g 991 "${REPO_ROOT}/stacks/hermes/config.yaml" \
+    "${LIVE_DATA_DIR}/hermes/config.yaml"
+fi
+install -m 0600 -o 991 -g 991 "${REPO_ROOT}/stacks/hermes/gitconfig" \
+  "${LIVE_DATA_DIR}/hermes/home/.gitconfig"
+if [[ ! -f "${LIVE_DATA_DIR}/hermes/SOUL.md" ]]; then
+  install -m 0600 -o 991 -g 991 "${REPO_ROOT}/stacks/hermes/SOUL.md" \
+    "${LIVE_DATA_DIR}/hermes/SOUL.md"
+fi
+
 install -d -m 0700 -o 1000 -g 1000 "${LIVE_DATA_DIR}/syncthing/config"
 install -d -m 0755 -o 1000 -g 1000 "${LIVE_DATA_DIR}/syncthing/data"
 

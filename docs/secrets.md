@@ -7,8 +7,8 @@ committed.
 ## Keys the renderer requires
 
 The Forgejo, Fluxer, OpenCode, Renovate and runner values were carried over from
-the previous host; the Paperless values were added with that stack. These keys
-must exist before `render-secrets.sh` will run:
+the previous host; the Paperless and Hermes values were added with those
+stacks. These keys must exist before `render-secrets.sh` will run:
 
 | key | purpose | suggested value |
 | --- | --- | --- |
@@ -17,6 +17,8 @@ must exist before `render-secrets.sh` will run:
 | `paperless_secret_key` | Paperless session/token signing key | `python3 -c 'import secrets; print(secrets.token_urlsafe(64))'` |
 | `paperless_db_password` | Paperless's PostgreSQL role password | `openssl rand -base64 32` |
 | `paperless_admin_password` | first-boot Paperless superuser password | chosen once |
+| `hermes_ui_password` | Hermes webapp login (user `sakulflee`) | `openssl rand -base64 24` |
+| `hermes_ui_secret` | HMAC key for Hermes webapp sessions | `openssl rand -hex 32` |
 | `wg_easy_password` | retrievable plaintext wg-easy admin password | generated |
 | `wg_easy_password_hash` | what wg-easy actually consumes | bcrypt hash of `wg_easy_password`, see below |
 | `restic_password` | local restic repository | `openssl rand -base64 32` |
@@ -130,3 +132,14 @@ use `docker compose exec webserver python3 manage.py changepassword paperless`.
 The username is `paperless`, set in the stack; changing `PAPERLESS_ADMIN_USER`
 after the first boot creates an additional superuser rather than renaming the
 existing one.
+
+## Hermes
+
+`hermes_ui_password` is the webapp login for username `sakulflee`.
+`hermes_ui_secret` signs its session cookies; changing it logs every browser
+out (the password itself can be changed without invalidating the secret).
+
+Hermes reads `opencode_go_api_key` for model access and `forgejo_pat` for git,
+so there is no separate Hermes model key or git token to rotate. The shared Go
+allowance is the one OpenCode uses, and revoking `forgejo_pat` stops both
+agents.

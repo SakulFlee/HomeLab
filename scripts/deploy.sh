@@ -122,6 +122,7 @@ ordered_stacks=(
   paperless
   opencode
   openchamber
+  hermes
   syncthing
   homeassistant
   website

@@ -178,6 +178,28 @@ of data directories. Inspecting and reversible changes are fine.
   database from a newer OpenCode into an older image, and stop the service (or
   use `sqlite3 .backup`) before copying it. `stacks/openchamber` is only a UI
   on the same server, not a second store.
+- **Hermes' `state.db` is a single-writer SQLite database.** It lives at
+  `/srv/docker/hermes/state.db`, and the gateway, cron and webapp all open it.
+  Never point a second Hermes container (including a dashboard or a CLI
+  gateway) at `/srv/docker/hermes`; `backup.sh` stops the container for a
+  consistent copy.
+- **Hermes' `config.yaml` is seeded once, not repo-managed.**
+  `prepare-data.sh` installs `stacks/hermes/config.yaml` only when
+  `/srv/docker/hermes/config.yaml` is absent. After that Hermes owns it; use
+  the webapp or `docker exec hermes hermes config set ...` and restart the
+  container. Editing the repo copy does not re-apply it.
+- **Hermes may write only `/opt/data` and `/workspace`.**
+  `HERMES_WRITE_SAFE_ROOT` has to keep both, and the stack deliberately has no
+  Docker socket and no host network. The terminal backend is the container's
+  own shell, not the host.
+- **Hermes' webapp needs its public URL and trusted proxy.** The seed sets
+  `webapp.public_url` and `dashboard.trusted_proxies=172.16.0.0/12`; a
+  non-loopback webapp refuses to start without the basic-auth provider.
+  Sign-in loops or a 502 behind Caddy usually mean one of those keys moved.
+- **`forgejo_pat` is shared by OpenCode and Hermes and is an admin PAT.**
+  Rotating it affects both agents. It can push to any repo the account can
+  write, and the Forgejo runner mounts the Docker socket, so use a dedicated
+  non-admin user or disable Actions on repos the agents can write.
 - **Syncthing folders live on the config volume.** `HOME=/var/syncthing`, so
   `~/…` paths resolve under `/srv/docker/syncthing/config`. `backup.sh`
   therefore excludes the whole `syncthing` tree, not just `syncthing/data`.
@@ -211,6 +233,13 @@ docker ps --format '{{.Names}}\t{{.Status}}'
 systemctl --failed
 systemctl list-timers | grep homelab
 sudo /opt/homelab/scripts/healthcheck.sh
+```
+
+For Hermes:
+
+```bash
+docker exec hermes hermes webapp --status
+docker logs --tail 50 hermes
 ```
 
 For the IoT AP:

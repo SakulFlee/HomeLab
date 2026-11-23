@@ -41,6 +41,17 @@ if stack_exists openchamber; then
   running openchamber && pass "openchamber container" || bad "openchamber container"
 fi
 
+if stack_exists hermes; then
+  running hermes && pass "hermes container" || bad "hermes container"
+  # The stack healthcheck covers both the gateway and the webapp listener; a
+  # running container with an auth misconfiguration would not be healthy.
+  if [[ "$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}}' hermes 2>/dev/null || true)" == healthy ]]; then
+    pass "hermes webapp"
+  else
+    bad "hermes webapp"
+  fi
+fi
+
 if stack_exists fluxer; then
   if docker ps --format '{{.Names}}' | grep -q '^fluxer-edge$'; then
     pass "fluxer edge container"

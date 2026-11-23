@@ -72,6 +72,9 @@ required_keys=(
   forgejo_pat
   openchamber_ui_password
 
+  hermes_ui_password
+  hermes_ui_secret
+
   renovate_token
   renovate_github_com_token
 
@@ -205,6 +208,19 @@ openchamber_env="${RUNTIME_SECRETS_DIR}/openchamber.env"
 } > "${openchamber_env}.tmp"
 install -m 0400 -o root -g root "${openchamber_env}.tmp" "${openchamber_env}"
 rm -f "${openchamber_env}.tmp"
+
+# Hermes shares the OpenCode Go key and the git PAT. It signs its webapp
+# sessions with the dashboard basic-auth provider; the username is in the
+# Compose file and the password/secret are secrets.
+hermes_env="${RUNTIME_SECRETS_DIR}/hermes.env"
+{
+  printf 'HERMES_DASHBOARD_BASIC_AUTH_PASSWORD=%s\n' "$(jq_env hermes_ui_password)"
+  printf 'HERMES_DASHBOARD_BASIC_AUTH_SECRET=%s\n' "$(jq_env hermes_ui_secret)"
+  printf 'OPENCODE_GO_API_KEY=%s\n' "$(jq_env opencode_go_api_key)"
+  printf 'FORGEJO_TOKEN=%s\n' "$(jq_env forgejo_pat)"
+} > "${hermes_env}.tmp"
+install -m 0400 -o root -g root "${hermes_env}.tmp" "${hermes_env}"
+rm -f "${hermes_env}.tmp"
 
 renovate_env="${RUNTIME_SECRETS_DIR}/renovate.env"
 {

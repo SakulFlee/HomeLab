@@ -14,6 +14,12 @@
         "/anomalyco\\/opencode$/"
       ],
       "groupName": "opencode"
+    },
+    {
+      "description": "Hermes publishes desktop, canary and rc tags alongside the stable image; only track plain vX.Y.Z releases",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["nousresearch/hermes-agent"],
+      "allowedVersions": "/^v?\\d+\\.\\d+\\.\\d+$/"
     }
   ]
 }

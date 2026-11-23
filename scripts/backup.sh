@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Application-consistent backup into the local restic repository.
 #
-# Forgejo and Minecraft are stopped for the duration so their data is
+# Forgejo, Minecraft and Hermes are stopped for the duration so their data is
 # quiescent. Fluxer and Paperless get a PostgreSQL dump while the stack stays
 # up; Hytale is asked for its own archive through the tmux console.
 set -euo pipefail
@@ -35,6 +35,7 @@ fi
 
 forgejo_stopped=0
 minecraft_stopped=0
+hermes_stopped=0
 
 start_services() {
   if ((minecraft_stopped)); then
@@ -42,6 +43,9 @@ start_services() {
   fi
   if ((forgejo_stopped)); then
     compose forgejo start forgejo || true
+  fi
+  if ((hermes_stopped)); then
+    compose hermes start || true
   fi
 }
 trap start_services EXIT
@@ -104,6 +108,14 @@ if stack_exists hytale && [[ "$(docker inspect -f '{{.State.Running}}' hytale 2>
   find "${hytale_backups}" -maxdepth 1 -type f -name '*.zip' -mtime +7 -print -delete || true
 fi
 
+# Hermes keeps sessions in a SQLite WAL database. Stop it for the copy rather
+# than relying on the main file and its WAL being captured consistently.
+if stack_exists hermes; then
+  log "stopping hermes for a consistent SQLite backup"
+  compose hermes stop >/dev/null 2>&1 || true
+  hermes_stopped=1
+fi
+
 log "backing up ${LIVE_DATA_DIR} and ${dump_dir}"
 # Syncthing only mirrors data that already exists on the source devices, and
 # its folders live on the config volume (HOME=/var/syncthing), not under data/.
@@ -124,6 +136,8 @@ restic backup \
   --exclude="${LIVE_DATA_DIR}/minecraft/backups" \
   --exclude="${LIVE_DATA_DIR}/hytale/data/Server/logs" \
   --exclude="${LIVE_DATA_DIR}/forgejo-runner" \
+  --exclude="${LIVE_DATA_DIR}/hermes/logs" \
+  --exclude="${LIVE_DATA_DIR}/hermes/installs" \
   --exclude="${LIVE_DATA_DIR}/renovate" \
   --exclude="${LIVE_DATA_DIR}/syncthing" \
   "${LIVE_DATA_DIR}" "${dump_dir}"
