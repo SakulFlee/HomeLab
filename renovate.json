@@ -5,5 +5,15 @@
   ],
   "git-submodules": {
     "enabled": true
-  }
+  },
+  "packageRules": [
+    {
+      "description": "OpenChamber runs the OpenCode CLI for capability checks, and the image must match the server in stacks/opencode",
+      "matchPackageNames": [
+        "@opencode/cli",
+        "ghcr.io/anomalyco/opencode"
+      ],
+      "groupName": "opencode"
+    }
+  ]
 }

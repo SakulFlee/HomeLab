@@ -8,11 +8,17 @@ FROM node:24-bookworm-slim
 # inside the container. The web app needs Node >= 24.14.
 # OpenChamber requires the opencode CLI on PATH even when it does not start a
 # server (it is used for version and capability checks). Keep it on the same
-# version as stacks/opencode.
+# version as stacks/opencode: Renovate updates both through the annotation
+# below and groups them in renovate.json.
+# renovate: datasource=npm depName=@opencode/cli
+ARG OPENCODE_VERSION=2.3.2
+# renovate: datasource=npm depName=@openchamber/web
+ARG OPENCHAMBER_VERSION=2.8.0
+
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates curl git \
  && rm -rf /var/lib/apt/lists/* \
- && npm install -g @openchamber/web@2.8.0 @opencode/cli@2.3.2 \
+ && npm install -g "@openchamber/web@${OPENCHAMBER_VERSION}" "@opencode/cli@${OPENCODE_VERSION}" \
  && mkdir -p /data /srv/workspace \
  && chown node:node /data /srv/workspace
 
