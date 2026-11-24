@@ -361,6 +361,21 @@ the LAN or the WireGuard tunnel; the Caddy site imports `vpn_only`.
   `PAPERLESS_EMPTY_TRASH_DELAY`) to free the files. The Duplicates view keeps
   showing trashed copies until then. Rebuild/refresh the indexes afterwards:
   `document_index reindex --if-needed` and `document_llmindex update`.
+- The same script has a fuzzy mode for re-saved/re-OCR'd copies. It groups
+  connected components at a content-similarity threshold, so review the dry run:
+  ```bash
+  sudo docker exec paperless python3 /tmp/paperless-dedupe.py \
+    --fuzzy-ratio 97 --names --show 10000 > /tmp/fuzzy-groups.txt
+  sudo docker exec paperless python3 /tmp/paperless-dedupe.py \
+    --fuzzy-ratio 97 --csv /tmp/fuzzy.csv
+  sudo docker cp paperless:/tmp/fuzzy.csv /tmp/fuzzy.csv
+  # then, after review:
+  sudo docker exec paperless python3 /tmp/paperless-dedupe.py \
+    --fuzzy-ratio 97 --prefer-title --apply
+  ```
+  Unlike `document_fuzzy_match --delete`, this is soft-delete and keeps one
+  keeper per connected group. Do not set the ratio low without reviewing; a
+  chain of similar documents can merge into one group.
 - `paperless.sakul-flee.de` is in `cloudflare-ddns`'s `IP4_DOMAINS` and in the
   CoreDNS split-horizon pattern. The record must be DNS-only, or the `vpn_only`
   gate sees a Cloudflare edge and returns 403.

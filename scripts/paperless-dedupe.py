@@ -17,6 +17,7 @@ import os
 import re
 import sys
 from collections import defaultdict
+from itertools import combinations
 
 sys.path.insert(0, "/usr/src/paperless/src")
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "paperless.settings")
@@ -89,7 +90,7 @@ def choose_keeper(group: list[Document], prefer_title: bool) -> Document:
     return max(group, key=lambda doc: keeper_score(doc, prefer_title))
 
 
-def duplicate_groups() -> list[list[Document]]:
+def exact_duplicate_groups() -> list[list[Document]]:
     docs = list(
         Document.objects.filter(root_document__isnull=True)
         .only(
@@ -136,6 +137,62 @@ def duplicate_groups() -> list[list[Document]]:
     return [group for group in groups.values() if len(group) > 1]
 
 
+def fuzzy_duplicate_groups(ratio: float) -> list[list[Document]]:
+    """Group documents whose content is at least `ratio` percent similar.
+
+    This is the same rapidfuzz comparison as document_fuzzy_match, but it keeps
+    connected components together so the script can choose one keeper per
+    group and soft-delete the rest.
+    """
+    import rapidfuzz
+
+    docs = list(
+        Document.objects.filter(root_document__isnull=True)
+        .only(
+            "id",
+            "title",
+            "original_filename",
+            "content",
+            "checksum",
+            "archive_checksum",
+            "correspondent_id",
+            "document_type_id",
+            "storage_path_id",
+        )
+        .prefetch_related("tags")
+    )
+
+    parent: dict[int, int] = {}
+
+    def find(doc_id: int) -> int:
+        parent.setdefault(doc_id, doc_id)
+        while parent[doc_id] != doc_id:
+            parent[doc_id] = parent[parent[doc_id]]
+            doc_id = parent[doc_id]
+        return doc_id
+
+    def union(a: int, b: int) -> None:
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[rb] = ra
+
+    processed = [
+        (doc, rapidfuzz.utils.default_process(doc.content or "")) for doc in docs
+    ]
+
+    for (doc_a, content_a), (doc_b, content_b) in combinations(processed, 2):
+        if not content_a or not content_b:
+            continue
+        if rapidfuzz.fuzz.ratio(content_a, content_b, score_cutoff=ratio) >= ratio:
+            union(doc_a.id, doc_b.id)
+
+    groups: dict[int, list[Document]] = defaultdict(list)
+    for doc in docs:
+        groups[find(doc.id)].append(doc)
+
+    return [group for group in groups.values() if len(group) > 1]
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -164,11 +221,26 @@ def main() -> int:
         action="store_true",
         help="prefer a meaningful title/original filename over metadata when choosing the keeper",
     )
+    parser.add_argument(
+        "--fuzzy-ratio",
+        type=float,
+        default=None,
+        metavar="PERCENT",
+        help="group by content similarity instead of checksums (0-100, e.g. 97)",
+    )
     args = parser.parse_args()
 
-    groups = duplicate_groups()
+    if args.fuzzy_ratio is not None:
+        if not 0 <= args.fuzzy_ratio <= 100:
+            parser.error("--fuzzy-ratio must be between 0 and 100")
+        groups = fuzzy_duplicate_groups(args.fuzzy_ratio)
+        label = f"fuzzy (>= {args.fuzzy_ratio:g}%)"
+    else:
+        groups = exact_duplicate_groups()
+        label = "exact checksum"
+
     if not groups:
-        print("No exact duplicate groups found.")
+        print(f"No duplicate groups found ({label}).")
         return 0
 
     total_duplicates = sum(len(group) - 1 for group in groups)
