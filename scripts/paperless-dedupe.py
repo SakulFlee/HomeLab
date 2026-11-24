@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import csv
 import os
+import re
 import sys
 from collections import defaultdict
 
@@ -69,10 +70,15 @@ def keeper_score(doc: Document, prefer_title: bool) -> tuple[int, ...]:
         return meta
 
     title = (doc.title or "").strip()
+    original = (doc.original_filename or "").strip()
+
+    def has_letters(value: str) -> bool:
+        return bool(re.search(r"[^\W\d_]", value, re.UNICODE))
+
     quality = 0
-    if title and not title.isdigit():
-        quality += 2
-    if "sync-conflict" in title.lower():
+    quality += 2 if has_letters(title) else 0
+    quality += 2 if has_letters(original) else 0
+    if "sync-conflict" in f"{title} {original}".lower():
         quality -= 2
     if title.endswith(")") and " (" in title:
         quality -= 1
@@ -156,7 +162,7 @@ def main() -> int:
     parser.add_argument(
         "--prefer-title",
         action="store_true",
-        help="prefer a meaningful title over metadata when choosing the keeper",
+        help="prefer a meaningful title/original filename over metadata when choosing the keeper",
     )
     args = parser.parse_args()
 
