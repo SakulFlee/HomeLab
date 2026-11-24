@@ -335,6 +335,22 @@ the LAN or the WireGuard tunnel; the Caddy site imports `vpn_only`.
   consumption. Existing duplicates are found with the **Duplicates** filter in
   the document list (`has_duplicates=true` in the API); near-duplicates that
   were re-saved or re-OCR'd need `document_fuzzy_match`.
+- Existing exact duplicates can be cleaned with `scripts/paperless-dedupe.py`.
+  It runs inside the container, keeps the copy with the most metadata (then the
+  lowest id), and soft-deletes the rest through Paperless' own bulk-delete path:
+
+  ```bash
+  cd /opt/homelab
+  sudo docker cp scripts/paperless-dedupe.py paperless:/tmp/paperless-dedupe.py
+  sudo docker exec paperless python3 /tmp/paperless-dedupe.py
+  sudo docker exec paperless python3 /tmp/paperless-dedupe.py --show 10000 > /tmp/duplicates.txt
+  sudo docker exec paperless python3 /tmp/paperless-dedupe.py --apply
+  ```
+
+  `--apply` moves the extras to the trash; empty the trash (or wait for
+  `PAPERLESS_EMPTY_TRASH_DELAY`) to free the files. The Duplicates view keeps
+  showing trashed copies until then. Rebuild/refresh the indexes afterwards:
+  `document_index reindex --if-needed` and `document_llmindex update`.
 - `paperless.sakul-flee.de` is in `cloudflare-ddns`'s `IP4_DOMAINS` and in the
   CoreDNS split-horizon pattern. The record must be DNS-only, or the `vpn_only`
   gate sees a Cloudflare edge and returns 403.
