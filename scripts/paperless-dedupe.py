@@ -12,6 +12,7 @@ Default is a dry run. Pass --apply to soft-delete.
 from __future__ import annotations
 
 import argparse
+import csv
 import os
 import sys
 from collections import defaultdict
@@ -61,12 +62,34 @@ def metadata_score(doc: Document) -> tuple[int, int]:
     return (score, -doc.id)
 
 
+def keeper_score(doc: Document, prefer_title: bool) -> tuple[int, ...]:
+    """Keeper ordering; optionally prefer a meaningful title."""
+    meta = metadata_score(doc)
+    if not prefer_title:
+        return meta
+
+    title = (doc.title or "").strip()
+    quality = 0
+    if title and not title.isdigit():
+        quality += 2
+    if "sync-conflict" in title.lower():
+        quality -= 2
+    if title.endswith(")") and " (" in title:
+        quality -= 1
+    return (quality, *meta)
+
+
+def choose_keeper(group: list[Document], prefer_title: bool) -> Document:
+    return max(group, key=lambda doc: keeper_score(doc, prefer_title))
+
+
 def duplicate_groups() -> list[list[Document]]:
     docs = list(
         Document.objects.filter(root_document__isnull=True)
         .only(
             "id",
             "title",
+            "original_filename",
             "checksum",
             "archive_checksum",
             "correspondent_id",
@@ -120,6 +143,21 @@ def main() -> int:
         default=20,
         help="number of groups to print in the report (default: 20)",
     )
+    parser.add_argument(
+        "--names",
+        action="store_true",
+        help="print every group member's title and original filename",
+    )
+    parser.add_argument(
+        "--csv",
+        metavar="PATH",
+        help="write every group member to a CSV file",
+    )
+    parser.add_argument(
+        "--prefer-title",
+        action="store_true",
+        help="prefer a meaningful title over metadata when choosing the keeper",
+    )
     args = parser.parse_args()
 
     groups = duplicate_groups()
@@ -131,16 +169,56 @@ def main() -> int:
     print(f"Found {len(groups)} duplicate group(s), {total_duplicates} extra file(s).")
 
     to_delete: list[int] = []
-    for group in sorted(groups, key=lambda g: (-len(g), g[0].id))[: args.show]:
-        keeper = max(group, key=metadata_score)
-        others = [d for d in group if d.id != keeper.id]
-        print(
-            f"  group of {len(group)}: keep {keeper.id} "
-            f"({keeper.title!r}); delete {', '.join(str(d.id) for d in others)}",
-        )
+    sorted_groups = sorted(groups, key=lambda g: (-len(g), g[0].id))
+    for group in sorted_groups[: args.show]:
+        keeper = choose_keeper(group, args.prefer_title)
+        if args.names:
+            print(f"  group of {len(group)}:")
+            for doc in sorted(group, key=lambda d: d.id):
+                role = "keep" if doc.id == keeper.id else "delete"
+                print(
+                    f"    {role:6} id={doc.id:<7} "
+                    f"title={doc.title!r} file={doc.original_filename!r}",
+                )
+        else:
+            others = [d for d in group if d.id != keeper.id]
+            print(
+                f"  group of {len(group)}: keep {keeper.id} "
+                f"({keeper.title!r}); delete {', '.join(str(d.id) for d in others)}",
+            )
+
+    if args.csv:
+        with open(args.csv, "w", newline="", encoding="utf-8") as handle:
+            writer = csv.writer(handle)
+            writer.writerow(
+                [
+                    "group",
+                    "role",
+                    "id",
+                    "title",
+                    "original_filename",
+                    "checksum",
+                    "archive_checksum",
+                ],
+            )
+            for group_number, group in enumerate(sorted_groups, start=1):
+                keeper = choose_keeper(group, args.prefer_title)
+                for doc in sorted(group, key=lambda d: d.id):
+                    writer.writerow(
+                        [
+                            group_number,
+                            "keep" if doc.id == keeper.id else "delete",
+                            doc.id,
+                            doc.title,
+                            doc.original_filename or "",
+                            doc.checksum,
+                            doc.archive_checksum or "",
+                        ],
+                    )
+        print(f"Wrote {args.csv}")
 
     for group in groups:
-        keeper = max(group, key=metadata_score)
+        keeper = choose_keeper(group, args.prefer_title)
         to_delete.extend(d.id for d in group if d.id != keeper.id)
 
     if not args.apply:

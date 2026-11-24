@@ -343,8 +343,18 @@ the LAN or the WireGuard tunnel; the Caddy site imports `vpn_only`.
   cd /opt/homelab
   sudo docker cp scripts/paperless-dedupe.py paperless:/tmp/paperless-dedupe.py
   sudo docker exec paperless python3 /tmp/paperless-dedupe.py
-  sudo docker exec paperless python3 /tmp/paperless-dedupe.py --show 10000 > /tmp/duplicates.txt
-  sudo docker exec paperless python3 /tmp/paperless-dedupe.py --apply
+
+  # Every member with its real title and original filename:
+  sudo docker exec paperless python3 /tmp/paperless-dedupe.py \
+    --names --show 10000 > /tmp/duplicates.txt
+  # Or a spreadsheet-friendly export:
+  sudo docker exec paperless python3 /tmp/paperless-dedupe.py \
+    --csv /tmp/duplicates.csv
+  sudo docker cp paperless:/tmp/duplicates.csv /tmp/duplicates.csv
+
+  # Choose a keeper by meaningful title instead of metadata:
+  sudo docker exec paperless python3 /tmp/paperless-dedupe.py --prefer-title
+  sudo docker exec paperless python3 /tmp/paperless-dedupe.py --prefer-title --apply
   ```
 
   `--apply` moves the extras to the trash; empty the trash (or wait for
