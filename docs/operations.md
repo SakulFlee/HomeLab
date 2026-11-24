@@ -456,6 +456,11 @@ the shared workspace. Its data directory and project-less chats live under
 as a location, so that path has to exist on both sides. Keeping it in `/data`
 fails with `LocationNotFoundError`.
 
+Its `HOME` is `/data`, not the image's `/home/node`: that directory belongs to
+the image's `node` user (1000), and the 990 process cannot create
+`~/.local` there. With `HOME=/home/node`, “Create Quick Workspace” fails with
+`EACCES: permission denied, mkdir '/home/node/.local'`.
+
 ## Hermes Agent
 
 `stacks/hermes` runs Nous Research's Hermes Agent as a persistent gateway. The

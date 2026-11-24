@@ -17,7 +17,10 @@ services:
       - path: /run/homelab/secrets/openchamber.env
         required: true
     environment:
-      HOME: /home/node
+      # The container runs as 990, but /home/node belongs to the image's node
+      # user (1000). Use the writable /data volume so quick workspaces and
+      # CLI caches do not fail with EACCES creating ~/.local.
+      HOME: /data
       OPENCHAMBER_HOST: 0.0.0.0
       # Settings, auth, project configs and project-less chats. Kept in the
       # shared workspace because OpenChamber passes <data>/chats to the
