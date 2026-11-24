@@ -89,8 +89,9 @@ sudo /opt/homelab/scripts/restic-check.sh  # weekly verification
 - `homelab-docker-cleanup.timer` prunes unused images older than 14 days and
   build cache older than 7 days; `homelab-runner-cleanup.timer` removes runner
   cache files older than 14 days and job workspaces older than 7 days. Neither
-  touches volumes, registration/config or the running job. Both are installed
-  and enabled by `bootstrap.sh`.
+  touches volumes, registration/config or the running job. They are installed
+  by `bootstrap.sh`; `bootstrap.sh --enable-timers` enables them (the default is
+  install-only so a fresh host can be verified first).
 
 ## Destructive actions
 

@@ -196,9 +196,10 @@ data:
   sudo systemctl start homelab-docker-cleanup.service
   sudo systemctl start homelab-runner-cleanup.service
   ```
-- `bootstrap.sh` installs and enables the timers. On an existing host, either
-  re-run `bootstrap.sh` once or install the four unit files and enable the
-  timers manually.
+- `bootstrap.sh` installs the units but leaves every timer disabled by default.
+  `sudo /opt/homelab/scripts/bootstrap.sh --enable-timers` enables the whole set,
+  including these two. On an existing host, either re-run it with that flag or
+  install the four unit files and enable the timers manually.
 
 ## Alerting
 
