@@ -219,6 +219,13 @@ of data directories. Inspecting and reversible changes are fine.
   consumption. Existing ones are in the Duplicates filter
   (`has_duplicates=true`); re-saved/re-OCR'd near-duplicates need
   `document_fuzzy_match`.
+- **Paperless index writes must run as the `paperless` user.** A raw
+  `docker exec python3` runs as root; `bulk_edit.delete` and other index work
+  then leaves root-owned Tantivy/LLM index files, and search fails with
+  `PermissionDenied` on `.managed.json`. Use the management-command wrappers,
+  `docker exec -u paperless`, or `paperless-dedupe.py`, which drops privileges
+  itself. Recover with `chown -R paperless:paperless` on `data/index` and
+  `data/llm_index`, then `document_index reindex --recreate`.
 - **Paperless AI is request/response, not an offline queue.** Suggestions are
   synchronous: a timeout returns 503, a provider error 502, and nothing is
   retried. Chat streams and shows a generic error when the model is

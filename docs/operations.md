@@ -335,6 +335,11 @@ the LAN or the WireGuard tunnel; the Caddy site imports `vpn_only`.
   consumption. Existing duplicates are found with the **Duplicates** filter in
   the document list (`has_duplicates=true` in the API); near-duplicates that
   were re-saved or re-OCR'd need `document_fuzzy_match`.
+- Management commands that touch the index must run as the `paperless` user.
+  The wrappers do that automatically; a raw `docker exec python3` does not.
+  `paperless-dedupe.py` drops privileges itself, but older runs as root can
+  leave `data/index` or `data/llm_index` root-owned. Fix ownership and rebuild
+  with `chown -R paperless:paperless` plus `document_index reindex --recreate`.
 - Existing exact duplicates can be cleaned with `scripts/paperless-dedupe.py`.
   It runs inside the container, keeps the copy with the most metadata (then the
   lowest id), and soft-deletes the rest through Paperless' own bulk-delete path:

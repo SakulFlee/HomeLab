@@ -45,6 +45,24 @@ def load_secret_files() -> None:
 
 load_secret_files()
 
+
+def drop_privileges() -> None:
+    """Run as paperless, not root.
+
+    bulk_edit.delete touches the Tantivy and LLM indexes. Running it as root
+    leaves root-owned files that the Paperless web process cannot read.
+    """
+    if os.geteuid() != 0:
+        return
+    import pwd  # noqa: PLC0415
+
+    user = pwd.getpwnam("paperless")
+    os.setgid(user.pw_gid)
+    os.setuid(user.pw_uid)
+
+
+drop_privileges()
+
 import django  # noqa: E402
 
 django.setup()
