@@ -62,6 +62,10 @@ services:
       PAPERLESS_OCR_LANGUAGE: deu+eng
       PAPERLESS_OCR_USER_ARGS: '{"optimize": 1, "pdfa_image_compression": "lossless"}'
       PAPERLESS_TASK_WORKERS: "2"
+      # Paperless 3.x consumes duplicates by default and only marks them.
+      # Restore the pre-v3 behavior: a file whose original/archive checksum
+      # already exists is discarded instead of being indexed again.
+      PAPERLESS_CONSUMER_DELETE_DUPLICATES: "true"
       # Paperless otherwise derives this from the host's 16 cores (8 threads
       # per worker). The old instance had 4 cores, so 2 matches its OCR
       # concurrency and keeps the memory footprint predictable.

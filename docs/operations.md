@@ -329,6 +329,12 @@ the LAN or the WireGuard tunnel; the Caddy site imports `vpn_only`.
   Paperless would derive 8 threads from the host's 16 cores). Tika's JVM is
   capped at 2 GiB. `PAPERLESS_URL` and Caddy's `header_up Host` are both
   required: without them Django answers proxied requests with 400.
+- Paperless 3.x consumes exact duplicates by default and only marks them.
+  `PAPERLESS_CONSUMER_DELETE_DUPLICATES=true` restores the pre-v3 behavior:
+  a file whose original or archive checksum already exists is deleted at
+  consumption. Existing duplicates are found with the **Duplicates** filter in
+  the document list (`has_duplicates=true` in the API); near-duplicates that
+  were re-saved or re-OCR'd need `document_fuzzy_match`.
 - `paperless.sakul-flee.de` is in `cloudflare-ddns`'s `IP4_DOMAINS` and in the
   CoreDNS split-horizon pattern. The record must be DNS-only, or the `vpn_only`
   gate sees a Cloudflare edge and returns 403.

@@ -213,6 +213,12 @@ of data directories. Inspecting and reversible changes are fine.
   (`ECONNREFUSED` on 443). The same applies to any network whose name is a
   public TLD (`net`, `dev`, `cloud`, …). Keep network names out of the DNS
   namespace of real domains.
+- **Paperless 3.x consumes duplicates by default.** It detects identical
+  original/archive checksums but still creates the document and marks it.
+  `PAPERLESS_CONSUMER_DELETE_DUPLICATES=true` restores rejection at
+  consumption. Existing ones are in the Duplicates filter
+  (`has_duplicates=true`); re-saved/re-OCR'd near-duplicates need
+  `document_fuzzy_match`.
 - **Paperless AI is request/response, not an offline queue.** Suggestions are
   synchronous: a timeout returns 503, a provider error 502, and nothing is
   retried. Chat streams and shows a generic error when the model is
