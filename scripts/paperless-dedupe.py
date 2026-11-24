@@ -19,6 +19,29 @@ from collections import defaultdict
 sys.path.insert(0, "/usr/src/paperless/src")
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "paperless.settings")
 
+
+def load_secret_files() -> None:
+    """Resolve PAPERLESS_*_FILE like the image's s6 init does.
+
+    A raw `docker exec` does not pass through s6's init-env-file, so
+    PAPERLESS_SECRET_KEY and PAPERLESS_DBPASS are absent unless we read them.
+    """
+    skip = {"PAPERLESS_OCR_SKIP_ARCHIVE_FILE", "PAPERLESS_MODEL_FILE"}
+    for key, path in list(os.environ.items()):
+        if key in skip or not key.startswith("PAPERLESS_") or not key.endswith("_FILE"):
+            continue
+        target = key[: -len("_FILE")]
+        if target in os.environ:
+            continue
+        try:
+            with open(path, encoding="utf-8") as handle:
+                os.environ[target] = handle.read()
+        except OSError as exc:
+            print(f"WARNING: cannot read {key}={path}: {exc}", file=sys.stderr)
+
+
+load_secret_files()
+
 import django  # noqa: E402
 
 django.setup()
