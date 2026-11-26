@@ -185,7 +185,7 @@ services:
       - default
 
   gotenberg:
-    image: gotenberg/gotenberg:8.38
+    image: gotenberg/gotenberg:9.10
     container_name: paperless-gotenberg
     restart: unless-stopped
     # The chromium route converts .eml files. It must not fetch external
