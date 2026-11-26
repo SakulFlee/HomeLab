@@ -2094,7 +2094,7 @@ services:
         - CMD-SHELL
         - pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"
       timeout: ${FLUXER_HEALTHCHECK_TIMEOUT:-5s}
-    image: ${FLUXER_POSTGRES_IMAGE:-postgres:16-alpine}
+    image: ${FLUXER_POSTGRES_IMAGE:-postgres:19-alpine}
     networks:
       fluxer: null
     restart: ${FLUXER_RESTART_POLICY:-unless-stopped}
