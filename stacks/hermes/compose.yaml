@@ -4,7 +4,7 @@ services:
   hermes:
     # Upstream image, pinned to a stable release. Renovate only tracks plain
     # vX.Y.Z tags; see the package rule in renovate.json.
-    image: nousresearch/hermes-agent:v0.23.3
+    image: nousresearch/hermes-agent:v0.23.4
     container_name: hermes
     restart: unless-stopped
     # The image's /init has to start as root so it can chown /opt/data to
