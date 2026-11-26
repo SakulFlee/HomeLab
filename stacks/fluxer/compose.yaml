@@ -3797,7 +3797,7 @@ services:
         - valkey-cli
         - ping
       timeout: ${FLUXER_HEALTHCHECK_TIMEOUT:-5s}
-    image: ${FLUXER_VALKEY_IMAGE:-valkey/valkey:9.1-alpine}
+    image: ${FLUXER_VALKEY_IMAGE:-valkey/valkey:9.2-alpine}
     networks:
       fluxer: null
     restart: ${FLUXER_RESTART_POLICY:-unless-stopped}
