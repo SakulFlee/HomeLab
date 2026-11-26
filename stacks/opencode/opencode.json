@@ -13,9 +13,9 @@
         "baseURL": "http://ollama:11434/v1"
       },
       "models": {
-        "gemma4-12b": {
-          "name": "Gemma 4 12B (local)",
-          "modelID": "gemma4:12b-it-qat",
+        "qwen3.5-9b": {
+          "name": "Qwen 3.5 9B (local)",
+          "modelID": "qwen3.5:9b",
           "capabilities": {
             "tools": true,
             "input": ["text"],

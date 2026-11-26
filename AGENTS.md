@@ -195,7 +195,15 @@ of data directories. Inspecting and reversible changes are fine.
   with Mesa's RADV ICD, the host's `/dev/dri` is passed through, and
   `OLLAMA_VULKAN`/`OLLAMA_IGPU_ENABLE` are set. If `vulkaninfo` only reports
   `llvmpipe`, Ollama falls back to CPU; to make that explicit, remove the
-  `devices:` block and both variables. AI configuration does not change.
+  `devices:` block and both variables. That is a last resort: a 12B model on
+  the CPU measures ~0.3 tok/s, against ~2–6 tok/s on the iGPU.
+- **Do not serve Gemma 4 through Ollama's Vulkan backend.** It intermittently
+  returns `<unused49>` over and over instead of text (ollama#15261,
+  llama.cpp#21516). The corruption is state-dependent, so Gemma looks fine for
+  minutes and then reads as a sudden host regression; `gemma4:e4b` is affected
+  by the same bug. The stack serves `qwen3.5:9b` instead — dense, 256K native
+  context, and it tool-calls correctly. Verified on the 680M: 3 cold reloads,
+  a 15 KB prompt and 4 concurrent requests at 64k, none degenerate.
 - **Ollama's model store is excluded from restic.** `/srv/docker/ollama` holds
   several GB of re-downloadable weights; there is no backup of it. Paperless'
   `data/llm_index` is backed up and can also be rebuilt with

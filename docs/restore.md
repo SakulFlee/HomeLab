@@ -202,7 +202,7 @@ This runbook is for the Docker-era backups. The pre-Docker library left no
 database, so there is nothing from that installation to restore.
 
 Ollama's model store is not backed up. After a host rebuild, pull the configured
-generation model (`gemma4:12b-it-qat`) and `embeddinggemma` again; the LLM index
+generation model (`qwen3.5:9b`) and `embeddinggemma` again; the LLM index
 under `data/llm_index` is restored from restic and remains valid for the same
 embedding model. Rebuild it with `document_llmindex rebuild` if the embedding
 model changed.

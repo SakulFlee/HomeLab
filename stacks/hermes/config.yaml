@@ -9,9 +9,15 @@
 # through OPENCODE_GO_API_KEY and is selectable per session.
 # Back to the cloud model: `/model opencode-go:deepseek-v4.1-flash --global`
 # or the dashboard's Models page.
+#
+# qwen3.5:9b, not gemma4:12b-it-qat: Gemma 4 on the Vulkan backend emits
+# "<unused49>" instead of text (ollama#15261, llama.cpp#21516). It is
+# intermittent, so it looks like a sudden host regression. qwen3.5 is dense and
+# skips the corrupt path; it is slower (~2 tok/s vs ~6) but it tool-calls
+# reliably.
 model:
   provider: custom:local
-  default: gemma4:12b-it-qat
+  default: qwen3.5:9b
   api_mode: chat_completions
 
 # Local provider. Hermes requires at least 64k context for tool use, matching
@@ -20,7 +26,7 @@ providers:
   local:
     api: http://ollama:11434/v1
     transport: chat_completions
-    default_model: gemma4:12b-it-qat
+    default_model: qwen3.5:9b
     context_length: 65536
 
 webapp:

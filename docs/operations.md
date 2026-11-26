@@ -429,14 +429,17 @@ answer for `opencode.ai` and break the OpenCode Go API.
 
   ```bash
   sudo docker exec -e OLLAMA_HOST=127.0.0.1:11434 ollama \
-    ollama pull gemma4:12b-it-qat
+    ollama pull qwen3.5:9b
   sudo docker exec -e OLLAMA_HOST=127.0.0.1:11434 ollama \
     ollama pull embeddinggemma
   ```
 
-  `gemma4:12b-it-qat` is the generation model; `embeddinggemma` builds the RAG
-  index. `gemma4:e4b` is the lighter fallback if the iGPU starts spilling or
-  responses feel too slow.
+  `qwen3.5:9b` is the generation model; `embeddinggemma` builds the RAG index.
+  Do not go back to `gemma4:12b-it-qat`: Gemma 4 on the Vulkan backend emits
+  `<unused49>` instead of text (ollama#15261, llama.cpp#21516). The corruption
+  is intermittent, so it reads as a sudden host regression, and `gemma4:e4b`
+  is hit by the same bug. Expect ~2 tok/s on the 680M; Gemma 4 managed ~6 but
+  was unreliable. `qwen3.5:4b` is the lighter fallback if the iGPU spills.
 - Build the index after the embedding model is present:
 
   ```bash
@@ -449,9 +452,9 @@ answer for `opencode.ai` and break the OpenCode Go API.
   five ~1,024-token chunks. Paperless, OpenCode and Hermes all use the same
   65,536-token window: the agents reject smaller windows for tool use, and
   matching Paperless avoids Ollama loading the same model at two different
-  contexts. It does not make Paperless read more of a document. If 12B at 64k
-  spills out of the iGPU, use `gemma4:e4b` for the agents rather than lowering
-  their context.
+  contexts. It does not make Paperless read more of a document. If the 9B at
+  64k spills out of the iGPU, use `qwen3.5:4b` for the agents rather than
+  lowering their context.
 - `PAPERLESS_AI_LLM_REQUEST_TIMEOUT=300` covers CPU inference. Suggestions are
   synchronous: a timeout returns 503, a provider rejection 502, and there is no
   automatic retry. Chat streams and shows a generic error if the model is
@@ -466,7 +469,7 @@ providers, permissions and tool execution; every UI is a client of it.
 
 - **Web UI**: `https://opencode.sakul-flee.de`, username `opencode`, password
   from sops (`opencode_server_password`). The server serves the UI itself.
-- **Local Ollama**: `opencode.json` defines `ollama/gemma4-12b` (Gemma 4 12B,
+- **Local Ollama**: `opencode.json` defines `ollama/qwen3.5-9b` (Qwen 3.5 9B,
   64k context) on the `homelab-ai` network. It is not the default; select it
   from `/models`. The `opencode-go` provider remains the default.
 - **Desktop app**: paste a pair link from `opencode pair --url
@@ -535,7 +538,7 @@ OpenAI-compatible API server.
   owns the file; edit it through the webapp or with
   `docker exec hermes hermes config set ...` followed by
   `docker restart hermes`. The seed makes the local Ollama model the default
-  (`model.provider: custom:local`, `model.default: gemma4:12b-it-qat`) and
+  (`model.provider: custom:local`, `model.default: qwen3.5:9b`) and
   defines `providers.local` for `http://ollama:11434/v1` with 64k context. It
   also enables the webapp on 9120, trusts Caddy's `172.16.0.0/12`, and points
   `terminal.cwd` and `desktop.repo_scan_roots` at `/workspace`. It deliberately
@@ -548,19 +551,19 @@ OpenAI-compatible API server.
   ends in `--global`, and chats that are already open keep the model they
   started with. Go back to the cloud model with
   `/model opencode-go:deepseek-v4.1-flash --global`; one session on the local
-  model is `/model custom:local:gemma4:12b-it-qat`. Auxiliary tasks default to
+  model is `/model custom:local:qwen3.5:9b`. Auxiliary tasks default to
   `auto`, so titles, compression and vision also run on the main model — on a
-  local default, that is the 12B model.
+  local default, that is the 9B model.
 - **Existing installs**: the seed only applies to a fresh config, so on the
   current host switch the default once and restart:
 
   ```bash
   sudo docker exec hermes hermes config set model.provider custom:local
-  sudo docker exec hermes hermes config set model.default gemma4:12b-it-qat
+  sudo docker exec hermes hermes config set model.default qwen3.5:9b
   sudo docker exec hermes hermes config unset model.base_url
   sudo docker exec hermes hermes config set providers.local.api http://ollama:11434/v1
   sudo docker exec hermes hermes config set providers.local.transport chat_completions
-  sudo docker exec hermes hermes config set providers.local.default_model gemma4:12b-it-qat
+  sudo docker exec hermes hermes config set providers.local.default_model qwen3.5:9b
   sudo docker exec hermes hermes config set providers.local.context_length 65536
   sudo docker restart hermes
   ```
@@ -631,7 +634,8 @@ common symptoms:
 | Paperless cannot authenticate to its database | the role password is set only on first init; changing `paperless_db_password` needs a fresh database or an `ALTER ROLE` |
 | AI suggestions return 503 | Ollama is down, the model is not pulled, or the request exceeded `PAPERLESS_AI_LLM_REQUEST_TIMEOUT`; check `docker logs ollama` |
 | AI chat says "something went wrong" | the generation model or LLM index is unavailable; check `ollama ps` and rebuild the index |
-| Ollama uses CPU despite the iGPU | Vulkan is not seeing the device; check `vulkaninfo --summary` and `/dev/dri`. CPU fallback is expected and supported |
+| Ollama uses CPU despite the iGPU | Vulkan is not seeing the device; check `vulkaninfo --summary` and `/dev/dri`. CPU fallback is expected and supported, but costs ~0.3 tok/s on a 12B |
+| Ollama returns `<unused49>` or repeats one token | Gemma 4 on the Vulkan backend (ollama#15261, llama.cpp#21516). Switch the model to `qwen3.5:9b`; do not chase it as a host or Hermes fault |
 | `hermes.sakul-flee.de` returns 403 | the A record is proxied; it must be DNS-only, and CoreDNS must serve the split-horizon answer |
 | `hermes.sakul-flee.de` returns 502 | the webapp listener or its auth provider failed; check `docker exec hermes hermes webapp --status` |
 | Hermes loses its model or every turn errors | Ollama/model ID (default), or `opencode_go_api_key` when switched back to the cloud; check `docker exec hermes hermes config get model --json`, `docker exec ollama ollama list` |

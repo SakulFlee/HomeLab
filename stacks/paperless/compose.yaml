@@ -79,9 +79,12 @@ services:
       PAPERLESS_AI_ENABLED: "true"
       PAPERLESS_AI_LLM_BACKEND: ollama
       PAPERLESS_AI_LLM_ENDPOINT: http://ollama:11434
-      # The 12B QAT model fits the 680M's Vulkan budget at ~9 tok/s on the
-      # iGPU. gemma4:e4b is the lighter fallback if it starts spilling.
-      PAPERLESS_AI_LLM_MODEL: gemma4:12b-it-qat
+      # Same model as the agents, so one instance stays loaded. Not
+      # gemma4:12b-it-qat: see stacks/hermes/config.yaml and the Ollama section
+      # of docs/operations.md (Vulkan emits "<unused49>"). Qwen 3.5 9B runs at
+      # roughly 2 tok/s on the 680M, which PAPERLESS_AI_LLM_REQUEST_TIMEOUT
+      # covers; qwen3.5:4b is the lighter fallback if it starts spilling.
+      PAPERLESS_AI_LLM_MODEL: qwen3.5:9b
       # Match Ollama's server default so Paperless and the agents share one
       # 64k model instance instead of loading the same model at 8k and 64k.
       # Suggestions only send 4000 characters and chat five ~1024-token
