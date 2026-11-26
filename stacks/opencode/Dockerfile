@@ -2,7 +2,7 @@
 # jq. A coding agent needs git for snapshots, worktrees and diffs, and Forgejo
 # PRs need an HTTP client. tea is the Forgejo CLI for interactive PR work.
 # renovate: datasource=docker depName=ghcr.io/anomalyco/opencode
-FROM ghcr.io/anomalyco/opencode:2.3.2
+FROM ghcr.io/anomalyco/opencode:2.4.2
 
 USER root
 RUN apk add --no-cache \
