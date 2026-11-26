@@ -2063,7 +2063,7 @@ services:
         - /dev/null
         - http://127.0.0.1:8222/healthz
       timeout: ${FLUXER_HEALTHCHECK_TIMEOUT:-5s}
-    image: ${FLUXER_NATS_IMAGE:-nats:2.14-alpine}
+    image: ${FLUXER_NATS_IMAGE:-nats:2.15-alpine}
     networks:
       fluxer: null
     restart: ${FLUXER_RESTART_POLICY:-unless-stopped}
