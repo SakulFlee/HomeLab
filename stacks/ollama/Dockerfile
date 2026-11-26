@@ -6,7 +6,7 @@
 #
 # vulkan-tools is only for debugging; `vulkaninfo --summary` inside the
 # container should name the AMD device when the ICD is working.
-FROM ollama/ollama:0.40.17
+FROM ollama/ollama:0.40.18
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
