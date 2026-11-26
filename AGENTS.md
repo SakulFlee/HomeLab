@@ -202,8 +202,20 @@ of data directories. Inspecting and reversible changes are fine.
   llama.cpp#21516). The corruption is state-dependent, so Gemma looks fine for
   minutes and then reads as a sudden host regression; `gemma4:e4b` is affected
   by the same bug. The stack serves `qwen3.5:9b` instead — dense, 256K native
-  context, and it tool-calls correctly. Verified on the 680M: 3 cold reloads,
-  a 15 KB prompt and 4 concurrent requests at 64k, none degenerate.
+  context, and it tool-calls correctly.
+- **A unified-memory iGPU model that does not fit in free RAM is corrupted, not
+  OOM-killed.** The 680M has 512 MB of dedicated VRAM; Ollama puts the whole
+  model in GTT, which is ordinary system RAM (`/sys/class/drm/card0/device/
+  mem_info_gtt_used` showed 7.9 GB for an 8 GB model). When the host is short
+  of memory the driver swaps those pages out, and the GPU then emits degenerate
+  output — one token repeated forever, `"//////"` or `<unused49>` — while the
+  CPU backend on the identical weights is coherent. It affects *any* model, so
+  it is not the Gemma bug above, and it comes and goes with load. Before
+  blaming a model, check `MemAvailable`, `SwapFree` and the `pgmajfault` rate in
+  `/proc/vmstat`; the failure seen here was 350 MB free, ~10 GB swapped and
+  ~12,000 major faults/s. Fixes are in order of effect: free RAM, give the
+  iGPU a fixed UMA carve-out in firmware so its buffers cannot be evicted, or
+  run a smaller model (`qwen3.5:4b`).
 - **Ollama's model store is excluded from restic.** `/srv/docker/ollama` holds
   several GB of re-downloadable weights; there is no backup of it. Paperless'
   `data/llm_index` is backed up and can also be rebuilt with

@@ -635,7 +635,7 @@ common symptoms:
 | AI suggestions return 503 | Ollama is down, the model is not pulled, or the request exceeded `PAPERLESS_AI_LLM_REQUEST_TIMEOUT`; check `docker logs ollama` |
 | AI chat says "something went wrong" | the generation model or LLM index is unavailable; check `ollama ps` and rebuild the index |
 | Ollama uses CPU despite the iGPU | Vulkan is not seeing the device; check `vulkaninfo --summary` and `/dev/dri`. CPU fallback is expected and supported, but costs ~0.3 tok/s on a 12B |
-| Ollama returns `<unused49>` or repeats one token | Gemma 4 on the Vulkan backend (ollama#15261, llama.cpp#21516). Switch the model to `qwen3.5:9b`; do not chase it as a host or Hermes fault |
+| Ollama returns `<unused49>` or repeats one token | first rule out host memory: the iGPU holds the model in GTT (system RAM) and swaps it out when the host is short, which corrupts compute — check `MemAvailable`, `SwapFree`, `pgmajfault`, `mem_info_gtt_used`. Only then suspect the Gemma-on-Vulkan bug (ollama#15261) |
 | `hermes.sakul-flee.de` returns 403 | the A record is proxied; it must be DNS-only, and CoreDNS must serve the split-horizon answer |
 | `hermes.sakul-flee.de` returns 502 | the webapp listener or its auth provider failed; check `docker exec hermes hermes webapp --status` |
 | Hermes loses its model or every turn errors | Ollama/model ID (default), or `opencode_go_api_key` when switched back to the cloud; check `docker exec hermes hermes config get model --json`, `docker exec ollama ollama list` |
