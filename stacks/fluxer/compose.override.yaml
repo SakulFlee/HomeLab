@@ -22,7 +22,7 @@ services:
   postgres:
     container_name: fluxer-postgres
     volumes: !override
-      - /srv/docker/fluxer/postgres-data:/var/lib/postgresql/data
+      - /srv/docker/fluxer/postgres-data:/var/lib/postgresql
 
   valkey:
     volumes: !override

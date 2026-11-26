@@ -2103,7 +2103,7 @@ services:
       - bind:
           create_host_path: true
         source: /srv/docker/fluxer/postgres-data
-        target: /var/lib/postgresql/data
+        target: /var/lib/postgresql
         type: bind
   push:
     depends_on:
