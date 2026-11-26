@@ -2,16 +2,20 @@
 # that file does not exist yet. After the first boot Hermes owns the runtime
 # copy; edit it through the webapp or `docker exec hermes hermes config set`
 # and restart the container. Changes to this file do not re-apply.
+
+# Default main model: the local Ollama model. `custom:local` refers to the
+# `providers.local` entry below, so no model.base_url is set here (a stale
+# base_url would win over the provider's `api`). OpenCode Go stays configured
+# through OPENCODE_GO_API_KEY and is selectable per session.
+# Back to the cloud model: `/model opencode-go:deepseek-v4.1-flash --global`
+# or the dashboard's Models page.
 model:
-  provider: opencode-go
-  default: deepseek-v4.1-flash
-  base_url: https://opencode.ai/zen/go/v1
+  provider: custom:local
+  default: gemma4:12b-it-qat
   api_mode: chat_completions
 
-# Optional local model. This is not the default: switch with
-# `/model custom:local:gemma4:12b-it-qat` or the `hermes model` menu.
-# Hermes requires at least 64k context for tool use, matching Ollama's
-# OLLAMA_CONTEXT_LENGTH.
+# Local provider. Hermes requires at least 64k context for tool use, matching
+# Ollama's OLLAMA_CONTEXT_LENGTH.
 providers:
   local:
     api: http://ollama:11434/v1

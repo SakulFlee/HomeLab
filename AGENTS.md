@@ -203,9 +203,10 @@ of data directories. Inspecting and reversible changes are fine.
 - **Ollama has no authentication and is reachable only on the `homelab-ai`
   network.** There is no published port; only Paperless, OpenCode and Hermes are
   attached. Do not put Caddy, Forgejo or another public-facing stack on it, and
-  use `docker exec` for host-side checks. OpenCode's and Hermes' Ollama
-  providers are optional, never the default. All consumers use the 65536-token
-  window; Paperless still only sends 4,000 characters for suggestions.
+  use `docker exec` for host-side checks. OpenCode's Ollama provider is
+  optional and never the default; Hermes defaults to it. All consumers use the
+  65536-token window; Paperless still only sends 4,000 characters for
+  suggestions.
 - **The AI network is called `homelab-ai`, not `ai`.** Docker's embedded DNS
   resolves `<container>.<network>` as well as plain container names, so
   container `opencode` on a network named `ai` answered for `opencode.ai` and

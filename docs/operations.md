@@ -399,10 +399,11 @@ the LAN or the WireGuard tunnel; the Caddy site imports `vpn_only`.
 
 ## Ollama (local AI)
 
-`stacks/ollama` is the local model server behind Paperless' AI features, and an
-optional model for OpenCode and Hermes. It is attached only to the dedicated
-`homelab-ai` network: no host port, no proxy membership, and no authentication.
-Paperless, OpenCode and Hermes are the only members; do not attach Caddy,
+`stacks/ollama` is the local model server behind Paperless' AI features, the
+default main model for Hermes, and an optional model for OpenCode. It is
+attached only to the dedicated `homelab-ai` network: no host port, no proxy
+membership, and no authentication. Paperless, OpenCode and Hermes are the only
+members; do not attach Caddy,
 Forgejo or any public-facing service to it. The name is deliberately not `ai`:
 Docker's DNS resolves `<container>.<network>`, so `opencode` on `ai` would
 answer for `opencode.ai` and break the OpenCode Go API.
@@ -533,23 +534,40 @@ OpenAI-compatible API server.
   `/srv/docker/hermes/config.yaml` is absent**. After the first boot Hermes
   owns the file; edit it through the webapp or with
   `docker exec hermes hermes config set ...` followed by
-  `docker restart hermes`. The seed selects `opencode-go` /
-  `deepseek-v4.1-flash` (shared `opencode_go_api_key` and Go allowance with
-  OpenCode), enables the webapp on 9120, trusts Caddy's `172.16.0.0/12`, and
-  points `terminal.cwd` and `desktop.repo_scan_roots` at `/workspace`.
-- **Local Ollama**: the seed also defines `providers.local` for
-  `http://ollama:11434/v1` / `gemma4:12b-it-qat` with 64k context. It is not the
-  default; switch per session with
-  `/model custom:local:gemma4:12b-it-qat`. The seed only applies to a fresh
-  config, so on an existing install add it once and restart:
+  `docker restart hermes`. The seed makes the local Ollama model the default
+  (`model.provider: custom:local`, `model.default: gemma4:12b-it-qat`) and
+  defines `providers.local` for `http://ollama:11434/v1` with 64k context. It
+  also enables the webapp on 9120, trusts Caddy's `172.16.0.0/12`, and points
+  `terminal.cwd` and `desktop.repo_scan_roots` at `/workspace`. It deliberately
+  sets no `model.base_url`: the provider entry supplies the endpoint, and a
+  stale base_url would win over it. OpenCode Go (`opencode_go_api_key`) stays
+  configured but is no longer the default.
+- **Switching models**: the dashboard's Models page writes `model.provider`,
+  `model.default` and `model.base_url` to `config.yaml`, so that change
+  persists across restarts. A `/model` inside a chat is session-only unless it
+  ends in `--global`, and chats that are already open keep the model they
+  started with. Go back to the cloud model with
+  `/model opencode-go:deepseek-v4.1-flash --global`; one session on the local
+  model is `/model custom:local:gemma4:12b-it-qat`. Auxiliary tasks default to
+  `auto`, so titles, compression and vision also run on the main model — on a
+  local default, that is the 12B model.
+- **Existing installs**: the seed only applies to a fresh config, so on the
+  current host switch the default once and restart:
 
   ```bash
+  sudo docker exec hermes hermes config set model.provider custom:local
+  sudo docker exec hermes hermes config set model.default gemma4:12b-it-qat
+  sudo docker exec hermes hermes config unset model.base_url
   sudo docker exec hermes hermes config set providers.local.api http://ollama:11434/v1
   sudo docker exec hermes hermes config set providers.local.transport chat_completions
   sudo docker exec hermes hermes config set providers.local.default_model gemma4:12b-it-qat
   sudo docker exec hermes hermes config set providers.local.context_length 65536
   sudo docker restart hermes
   ```
+
+  Confirm with `docker exec hermes hermes config get model --json`, and check
+  the model is present (`docker exec ollama ollama list`). Ollama does not pull
+  on demand, so a missing model fails every turn instead of downloading.
 
 - **Git**: `prepare-data.sh` installs
   `/srv/docker/hermes/home/.gitconfig`. The credential helper reads
@@ -616,7 +634,7 @@ common symptoms:
 | Ollama uses CPU despite the iGPU | Vulkan is not seeing the device; check `vulkaninfo --summary` and `/dev/dri`. CPU fallback is expected and supported |
 | `hermes.sakul-flee.de` returns 403 | the A record is proxied; it must be DNS-only, and CoreDNS must serve the split-horizon answer |
 | `hermes.sakul-flee.de` returns 502 | the webapp listener or its auth provider failed; check `docker exec hermes hermes webapp --status` |
-| Hermes loses its model or every turn errors | `opencode_go_api_key` is missing/expired or the model ID changed; check `docker exec hermes hermes model` |
+| Hermes loses its model or every turn errors | Ollama/model ID (default), or `opencode_go_api_key` when switched back to the cloud; check `docker exec hermes hermes config get model --json`, `docker exec ollama ollama list` |
 | Hermes cannot push to Forgejo | `forgejo_pat` is missing/expired, or the git credential helper cannot see `FORGEJO_TOKEN` |
 | Deploy timer restarts everything every 30 min | checkout ahead of `origin/main` |
 | Backups suddenly much larger | new path under `/srv/docker` that is not excluded |
