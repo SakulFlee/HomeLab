@@ -218,9 +218,13 @@ of data directories. Inspecting and reversible changes are fine.
   it is not the Gemma bug above, and it comes and goes with load. Before
   blaming a model, check `MemAvailable`, `SwapFree` and the `pgmajfault` rate in
   `/proc/vmstat`; the failure seen here was 350 MB free, ~10 GB swapped and
-  ~12,000 major faults/s. Fixes are in order of effect: free RAM, give the
-  iGPU a fixed UMA carve-out in firmware so its buffers cannot be evicted, or
-  run a smaller model (`qwen3.5:4b`).
+  ~12,000 major faults/s. A routine Rust build in the runner is enough to get
+  there, so the local model cannot be trusted while a build is running. Fixes
+  are in order of effect: bound the build's memory, give the iGPU a fixed UMA
+  carve-out in firmware so its buffers cannot be evicted, free RAM elsewhere, or
+  run a smaller model (`qwen3.5:4b`). Throughput is a separate matter: the
+  9B is ~2 tok/s on this iGPU whether or not it is paged, because Q4_K_M is a
+  poor fit for the 680M's compute.
 - **Ollama's model store is excluded from restic.** `/srv/docker/ollama` holds
   several GB of re-downloadable weights; there is no backup of it. Paperless'
   `data/llm_index` is backed up and can also be rebuilt with
