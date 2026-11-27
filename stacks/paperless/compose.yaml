@@ -5,7 +5,7 @@ services:
     # Pinned, not :latest: deploy.sh only pulls a stack whose directory changed,
     # so a floating tag would produce a different version on an unrelated
     # deploy. Renovate bumps this tag.
-    image: ghcr.io/paperless-ngx/paperless-ngx:3.4.2
+    image: ghcr.io/paperless-ngx/paperless-ngx:3.5.1
     container_name: paperless
     restart: unless-stopped
     depends_on:
