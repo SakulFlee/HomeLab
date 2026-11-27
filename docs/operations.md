@@ -89,7 +89,7 @@ The order below starts with the smallest, easiest win. Stop the owning stack
 first; the helper does not stop services.
 
 1. **Ollama** (`/srv/docker/ollama`) — stop `stacks/ollama`; AI calls from
-   Paperless/OpenCode/Hermes fail while it is down. Models are re-downloadable.
+   Paperless/OpenCode fail while it is down. Models are re-downloadable.
 2. **OpenCode workspace** (`/srv/docker/opencode/workspace`) — stop both
    `stacks/opencode` and `stacks/openchamber`. Do **not** touch
    `/srv/docker/opencode/home`; that holds the sessions database.
@@ -193,14 +193,13 @@ Dendra   03:30   prune         forget --keep-daily 14 --keep-weekly 8 --keep-mon
 Dendra   Sun     check         restic check --read-data-subset=10%
 ```
 
-- `backup.sh` stops Forgejo, Minecraft and Hermes while it runs, dumps the
+- `backup.sh` stops Forgejo and Minecraft while it runs, dumps the
   Forgejo, Fluxer and Paperless PostgreSQL databases, asks Hytale for its own
   archive, then backs up `/srv/docker` and the dumps.
 - Excluded: Forgejo's generated archive cache and PGDATA, Fluxer's Postgres and
   search/NATS/Valkey data, Paperless's PGDATA and derived search index, Ollama's
-  re-downloadable model store, Hermes' logs and lazy dependency installs,
-  Minecraft's own backups, Hytale logs, the runner, Renovate, and the whole
-  Syncthing tree.
+  re-downloadable model store, Minecraft's own backups, Hytale logs, the
+  runner, Renovate, and the whole Syncthing tree.
 - Retention: `--keep-daily 14 --keep-weekly 8 --keep-monthly 12` on both
   repositories.
 - Dendra's copy sits on the btrfs RAID1 array:
@@ -454,32 +453,38 @@ the LAN or the WireGuard tunnel; the Caddy site imports `vpn_only`.
 
 ## Ollama (local AI)
 
-`stacks/ollama` is the local model server behind Paperless' AI features, the
-default main model for Hermes, and an optional model for OpenCode. It is
-attached only to the dedicated `homelab-ai` network: no host port, no proxy
-membership, and no authentication. Paperless, OpenCode and Hermes are the only
-members; do not attach Caddy,
-Forgejo or any public-facing service to it. The name is deliberately not `ai`:
-Docker's DNS resolves `<container>.<network>`, so `opencode` on `ai` would
-answer for `opencode.ai` and break the OpenCode Go API.
+`stacks/ollama` is the local model server behind Paperless' AI features and an
+optional model for OpenCode. It is attached only to the dedicated `homelab-ai`
+network: no host port, no proxy membership, and no authentication. Paperless and
+OpenCode are the only members; do not attach Caddy, Forgejo or any
+public-facing service to it. The name is deliberately not `ai`: Docker's DNS
+resolves `<container>.<network>`, so `opencode` on `ai` would answer for
+`opencode.ai` and break the OpenCode Go API.
 
-- The image is built from `ollama/ollama:0.40.17` with Mesa's Vulkan ICD added,
-  because the official image does not ship the AMD RADV driver. The host's
-  `/dev/dri` is passed into the container, and `OLLAMA_VULKAN=1` /
-  `OLLAMA_IGPU_ENABLE=1` ask Ollama to use the Radeon iGPU.
-- Check whether Vulkan sees the iGPU:
+- **CPU only, on purpose.** The stack used to build a derived image with Mesa's
+  Vulkan ICD and pass `/dev/dri` through. That is gone. The 680M has 512 MB of
+  dedicated VRAM (`mem_info_vram_total`), so Ollama puts the weights in GTT,
+  which is ordinary system RAM; under memory pressure those pages get swapped
+  out and Vulkan returns garbage instead of failing — `<unused49>` on repeat for
+  Gemma 4, `"//////"` for Qwen3.5. It is not model-specific, and it comes and
+  goes with load, which makes it look like a regression on the host. Q4_K_M on
+  the CPU is also *faster* here: measured 8.8 tok/s against 2.0 on the iGPU,
+  with prefill around 34 tok/s.
+- Check what is actually loaded:
 
   ```bash
-  sudo docker exec ollama vulkaninfo --summary
   sudo docker exec -e OLLAMA_HOST=127.0.0.1:11434 ollama ollama ps
   ```
 
-  `vulkaninfo` should name the AMD device rather than only `llvmpipe`; `ollama
-  ps` shows the `PROCESSOR` column once a model is loaded. If it reports CPU,
-  Ollama has fallen back and the AI still works, just slower.
-- To force CPU-only, remove the `devices:` block and the two
-  `OLLAMA_VULKAN`/`OLLAMA_IGPU_ENABLE` lines from
-  `stacks/ollama/compose.yaml`, then redeploy. No Paperless setting changes.
+  `PROCESSOR` should say `CPU`. A model reporting VRAM means something has
+  re-enabled the GPU path.
+- Re-enabling the iGPU: restore `stacks/ollama/Dockerfile` from `87f6eeb4`, add
+  `build: .` back, and return the `devices:` block plus
+  `OLLAMA_VULKAN=1`/`OLLAMA_IGPU_ENABLE=1`. Only do that with a firmware UMA
+  carve-out large enough to hold the model (AMD CBS → NBIO → GFX
+  Configuration → UMA Frame Buffer Size); otherwise a routine Rust build will
+  corrupt inference again. Either way, `vulkaninfo --summary` should name the
+  AMD device rather than only `llvmpipe`.
 - Models are not pulled automatically. Run once:
 
   ```bash
@@ -490,11 +495,10 @@ answer for `opencode.ai` and break the OpenCode Go API.
   ```
 
   `qwen3.5:9b` is the generation model; `embeddinggemma` builds the RAG index.
-  Do not go back to `gemma4:12b-it-qat`: Gemma 4 on the Vulkan backend emits
-  `<unused49>` instead of text (ollama#15261, llama.cpp#21516). The corruption
-  is intermittent, so it reads as a sudden host regression, and `gemma4:e4b`
-  is hit by the same bug. Expect ~2 tok/s on the 680M; Gemma 4 managed ~6 but
-  was unreliable. `qwen3.5:4b` is the lighter fallback if the iGPU spills.
+  Gemma 4 is not a fallback: on the Vulkan backend it returns `<unused49>`
+  instead of text (ollama#15261, llama.cpp#21516), and its Q4_0 weights are far
+  slower on the CPU, so there is no reason to go back. `qwen3.5:4b` is the
+  lighter fallback if memory is tight.
 - Build the index after the embedding model is present:
 
   ```bash
@@ -504,9 +508,9 @@ answer for `opencode.ai` and break the OpenCode Go API.
 
   It then updates daily at 02:10 via `PAPERLESS_LLM_INDEX_TASK_CRON`.
 - Suggestions send at most 4,000 characters of document text; chat retrieves
-  five ~1,024-token chunks. Paperless, OpenCode and Hermes all use the same
-  65,536-token window: the agents reject smaller windows for tool use, and
-  matching Paperless avoids Ollama loading the same model at two different
+  five ~1,024-token chunks. Paperless and OpenCode both use the same
+  65,536-token window: matching Paperless avoids Ollama loading the same model
+  at two different
   contexts. It does not make Paperless read more of a document. If the 9B at
   64k spills out of the iGPU, use `qwen3.5:4b` for the agents rather than
   lowering their context.
@@ -544,9 +548,9 @@ providers, permissions and tool execution; every UI is a client of it.
   only the opencode binary: it adds git, curl, jq, tea and an SSH client. The
   git credential helper reads `FORGEJO_TOKEN` from the environment, so pushes
   work without writing the token to disk, and `tea` or the Forgejo API manage
-  pull requests. The token is `forgejo_pat` from sops, shared with Hermes;
+  pull requests. The token is `forgejo_pat` from sops;
   it must be a PAT with `write:repository` (and `read:user` for identity).
-  Rotating it affects both agents, and OpenChamber gets it through the shared
+  Rotating it affects every consumer, and OpenChamber gets it through the shared
   OpenCode server.
 
 `stacks/openchamber` is a second UI on the **same** server
@@ -571,86 +575,6 @@ Its `HOME` is `/data`, not the image's `/home/node`: that directory belongs to
 the image's `node` user (1000), and the 990 process cannot create
 `~/.local` there. With `HOME=/home/node`, “Create Quick Workspace” fails with
 `EACCES: permission denied, mkdir '/home/node/.local'`.
-
-## Hermes Agent
-
-`stacks/hermes` runs Nous Research's Hermes Agent as a persistent gateway. The
-browser workspace is its only UI; there is no messaging platform, dashboard or
-OpenAI-compatible API server.
-
-- **Webapp**: `https://hermes.sakul-flee.de`, username `sakulflee`, password
-  `hermes_ui_password` from sops. The Caddy site imports `vpn_only`, and the
-  webapp's own login is the dashboard basic-auth provider
-  (`HERMES_DASHBOARD_BASIC_AUTH_*`). `hermes_ui_secret` signs its sessions;
-  rotating it logs every browser out.
-- The container runs as UID 991 and keeps state in `/srv/docker/hermes`
-  (`/opt/data`). `/srv/docker/hermes/workspace` is mounted at `/workspace`;
-  `HERMES_WRITE_SAFE_ROOT=/opt/data:/workspace` is what lets the file tools
-  write there. There is no Docker socket and no host network: the terminal
-  backend is `local`, so commands run inside the container.
-- `stacks/hermes/config.yaml` is seeded by `prepare-data.sh` **only when
-  `/srv/docker/hermes/config.yaml` is absent**. After the first boot Hermes
-  owns the file; edit it through the webapp or with
-  `docker exec hermes hermes config set ...` followed by
-  `docker restart hermes`. The seed makes the local Ollama model the default
-  (`model.provider: custom:local`, `model.default: qwen3.5:9b`) and
-  defines `providers.local` for `http://ollama:11434/v1` with 64k context. It
-  also enables the webapp on 9120, trusts Caddy's `172.16.0.0/12`, and points
-  `terminal.cwd` and `desktop.repo_scan_roots` at `/workspace`. It deliberately
-  sets no `model.base_url`: the provider entry supplies the endpoint, and a
-  stale base_url would win over it. OpenCode Go (`opencode_go_api_key`) stays
-  configured but is no longer the default.
-- **Switching models**: the dashboard's Models page writes `model.provider`,
-  `model.default` and `model.base_url` to `config.yaml`, so that change
-  persists across restarts. A `/model` inside a chat is session-only unless it
-  ends in `--global`, and chats that are already open keep the model they
-  started with. Go back to the cloud model with
-  `/model opencode-go:deepseek-v4.1-flash --global`; one session on the local
-  model is `/model custom:local:qwen3.5:9b`. Auxiliary tasks default to
-  `auto`, so titles, compression and vision also run on the main model — on a
-  local default, that is the 9B model.
-- **Existing installs**: the seed only applies to a fresh config, so on the
-  current host switch the default once and restart:
-
-  ```bash
-  sudo docker exec hermes hermes config set model.provider custom:local
-  sudo docker exec hermes hermes config set model.default qwen3.5:9b
-  sudo docker exec hermes hermes config unset model.base_url
-  sudo docker exec hermes hermes config set providers.local.api http://ollama:11434/v1
-  sudo docker exec hermes hermes config set providers.local.transport chat_completions
-  sudo docker exec hermes hermes config set providers.local.default_model qwen3.5:9b
-  sudo docker exec hermes hermes config set providers.local.context_length 65536
-  sudo docker restart hermes
-  ```
-
-  Confirm with `docker exec hermes hermes config get model --json`, and check
-  the model is present (`docker exec ollama ollama list`). Ollama does not pull
-  on demand, so a missing model fails every turn instead of downloading.
-
-- **Git**: `prepare-data.sh` installs
-  `/srv/docker/hermes/home/.gitconfig`. The credential helper reads
-  `FORGEJO_TOKEN`, rendered from `forgejo_pat`, and rewrites
-  `https://forgejo.sakul-flee.de/` to `http://forgejo:3000/` so the agent stays
-  on the proxy network. The token is the same PAT OpenCode uses.
-- **Sessions** are rows in `/srv/docker/hermes/state.db` (SQLite, WAL). Never
-  run a second Hermes container against this directory; the gateway, cron and
-  webapp all open it. `backup.sh` stops the container before the restic run so
-  the copy is consistent. Logs: `docker logs -f hermes` and
-  `/srv/docker/hermes/logs/gateways/default/current`.
-- **Upgrades**: the image is pinned to a `vX.Y.Z` tag and Renovate only tracks
-  plain version tags (not `-desktop`, `-canary` or `rc`). Hermes migrates
-  `config.yaml`/`.env` on start and writes timestamped backups next to them.
-- `hermes.sakul-flee.de` is DNS-only (`cloudflare-ddns` `IP4_DOMAINS` and the
-  CoreDNS split horizon). If it resolves through Cloudflare, Caddy returns 403.
-  If the webapp is down or its auth provider is missing, Caddy returns 502 and
-  `docker exec hermes hermes webapp --status` says why.
-- The webapp login is effectively root inside the container plus write access
-  to `/workspace`; keep it VPN-only. The shared `forgejo_pat` is an admin PAT,
-  so a push to a repo with Actions enabled can reach the runner's Docker
-  socket. Use a dedicated non-admin Forgejo user or disable Actions on repos
-  the token can write.
-- The first deploy is a `render-secrets.sh` change, so `deploy.sh` recreates
-  every stack once. Later Hermes-only changes apply just this stack.
 
 ## Secrets
 
@@ -689,12 +613,8 @@ common symptoms:
 | Paperless cannot authenticate to its database | the role password is set only on first init; changing `paperless_db_password` needs a fresh database or an `ALTER ROLE` |
 | AI suggestions return 503 | Ollama is down, the model is not pulled, or the request exceeded `PAPERLESS_AI_LLM_REQUEST_TIMEOUT`; check `docker logs ollama` |
 | AI chat says "something went wrong" | the generation model or LLM index is unavailable; check `ollama ps` and rebuild the index |
-| Ollama uses CPU despite the iGPU | Vulkan is not seeing the device; check `vulkaninfo --summary` and `/dev/dri`. CPU fallback is expected and supported, but costs ~0.3 tok/s on a 12B |
-| Ollama returns `<unused49>` or repeats one token | first rule out host memory: the iGPU holds the model in GTT (system RAM) and swaps it out when the host is short, which corrupts compute — check `MemAvailable`, `SwapFree`, `pgmajfault`, `mem_info_gtt_used`. Only then suspect the Gemma-on-Vulkan bug (ollama#15261) |
-| `hermes.sakul-flee.de` returns 403 | the A record is proxied; it must be DNS-only, and CoreDNS must serve the split-horizon answer |
-| `hermes.sakul-flee.de` returns 502 | the webapp listener or its auth provider failed; check `docker exec hermes hermes webapp --status` |
-| Hermes loses its model or every turn errors | Ollama/model ID (default), or `opencode_go_api_key` when switched back to the cloud; check `docker exec hermes hermes config get model --json`, `docker exec ollama ollama list` |
-| Hermes cannot push to Forgejo | `forgejo_pat` is missing/expired, or the git credential helper cannot see `FORGEJO_TOKEN` |
+| Ollama is slower than expected | inference is CPU-only by design; a concurrent build takes the cores. `ollama ps` reporting `CPU` is correct, not a fault |
+| Ollama returns `<unused49>` or repeats one token | the iGPU path was corrupting output when memory got tight; the stack is CPU-only now (see the Ollama section). If `ollama ps` reports VRAM, something re-enabled the GPU, and `MemAvailable`/`pgmajfault` are worth checking |
 | Deploy timer restarts everything every 30 min | checkout ahead of `origin/main` |
 | Backups suddenly much larger | new path under `/srv/docker` that is not excluded |
 
@@ -740,20 +660,17 @@ selects no stack, so it would apply nothing. Each slot is a full job container
 plus whatever `docker build` starts inside it; on 16 cores / 30 GB, 4 is
 comfortable.
 
-`FORGEJO_RUNNER_JOB_MEMORY` (default `12g`) caps each job container's memory
-and swap, rendered as `container.options`:
-`--memory 12g --memory-swap 12g`. Swap is disabled for the container on
-purpose, so a build that exceeds the cap is OOM-killed and shows a red job
-instead of pushing the host into reclaim. That matters because the iGPU holds
-the local Ollama model in ordinary system RAM: when a build drives the host to
-a few hundred MB free, swapped-out GPU pages make inference return garbage
-such as `"//////"` rather than failing (see `AGENTS.md`). The cap is **per
-job and multiplies with `FORGEJO_RUNNER_CAPACITY`** — capacity 2 at 12g is a
-24 GB worst case, which does not fit here beside the model. For heavy Rust
-builds keep capacity at 1, or lower the per-job value so
-`capacity × job memory` stays around 12 GB. `FORGEJO_RUNNER_JOB_MEMORY=none`
-leaves jobs uncapped. Change it the same way as capacity, with
-`render-secrets.sh` plus a `docker restart forgejo-runner`.
+`FORGEJO_RUNNER_JOB_MEMORY` caps each job container's memory and swap, rendered
+as `container.options: --memory <n> --memory-swap <n>`. It is **unset
+(`none`) by default**: with Ollama on the CPU, memory pressure only slows
+inference, so builds are free to use the host. It existed because the iGPU held
+the model in ordinary system RAM, where swapped-out GPU pages made inference
+return garbage such as `"//////"` instead of failing. Swap is disabled for the
+container on purpose, so an oversized build is OOM-killed and shows a red job
+rather than thrashing the host. The cap is **per job and multiplies with
+`FORGEJO_RUNNER_CAPACITY`** — capacity 2 at 12g is a 24 GB worst case. Set it
+the same way as capacity, with `render-secrets.sh` plus a
+`docker restart forgejo-runner`.
 
 ### After a Docker restart
 

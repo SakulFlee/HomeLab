@@ -67,13 +67,10 @@ required_keys=(
 
   opencode_server_password
   opencode_go_api_key
-  # User PAT for git push, shared by OpenCode and Hermes. This is not the
-  # runner token (forgejo_runner_token) or Forgejo's internal token.
+  # User PAT for git push, used by OpenCode. This is not the runner token
+  # (forgejo_runner_token) or Forgejo's internal token.
   forgejo_pat
   openchamber_ui_password
-
-  hermes_ui_password
-  hermes_ui_secret
 
   renovate_token
   renovate_github_com_token
@@ -193,7 +190,7 @@ opencode_env="${RUNTIME_SECRETS_DIR}/opencode.env"
 {
   printf 'OPENCODE_SERVER_PASSWORD=%s\n' "$(jq_env opencode_server_password)"
   printf 'OPENCODE_API_KEY=%s\n' "$(jq_env opencode_go_api_key)"
-  # One PAT for both agents; Hermes renders the same key into hermes.env.
+  # Used by OpenCode for git push.
   printf 'FORGEJO_TOKEN=%s\n' "$(jq_env forgejo_pat)"
 } > "${opencode_env}.tmp"
 install -m 0400 -o root -g root "${opencode_env}.tmp" "${opencode_env}"
@@ -208,19 +205,6 @@ openchamber_env="${RUNTIME_SECRETS_DIR}/openchamber.env"
 } > "${openchamber_env}.tmp"
 install -m 0400 -o root -g root "${openchamber_env}.tmp" "${openchamber_env}"
 rm -f "${openchamber_env}.tmp"
-
-# Hermes shares the OpenCode Go key and the git PAT. It signs its webapp
-# sessions with the dashboard basic-auth provider; the username is in the
-# Compose file and the password/secret are secrets.
-hermes_env="${RUNTIME_SECRETS_DIR}/hermes.env"
-{
-  printf 'HERMES_DASHBOARD_BASIC_AUTH_PASSWORD=%s\n' "$(jq_env hermes_ui_password)"
-  printf 'HERMES_DASHBOARD_BASIC_AUTH_SECRET=%s\n' "$(jq_env hermes_ui_secret)"
-  printf 'OPENCODE_GO_API_KEY=%s\n' "$(jq_env opencode_go_api_key)"
-  printf 'FORGEJO_TOKEN=%s\n' "$(jq_env forgejo_pat)"
-} > "${hermes_env}.tmp"
-install -m 0400 -o root -g root "${hermes_env}.tmp" "${hermes_env}"
-rm -f "${hermes_env}.tmp"
 
 renovate_env="${RUNTIME_SECRETS_DIR}/renovate.env"
 {
@@ -261,16 +245,17 @@ runner_capacity="${FORGEJO_RUNNER_CAPACITY:-2}"
 [[ "${runner_capacity}" =~ ^[0-9]+$ ]] \
   || die "FORGEJO_RUNNER_CAPACITY must be a whole number, got '${runner_capacity}'"
 
-# Job containers are capped so a build cannot drive the host into swap. The
-# iGPU keeps the local model in ordinary system RAM, and swapped-out GPU pages
-# make Ollama return garbage instead of failing (see AGENTS.md). memory-swap
-# equal to memory disables swap for the container, so an oversized build is
-# killed instead of quietly corrupting inference.
+# Job containers can be capped so a build cannot drive the host into swap. It
+# is a guard rather than a default: with Ollama on the CPU, memory pressure
+# only slows inference, so jobs are uncapped unless FORGEJO_RUNNER_JOB_MEMORY
+# is set. It mattered while the model ran on the iGPU, where swapped-out GPU
+# pages made inference return garbage instead of failing (see AGENTS.md).
+# memory-swap equal to memory disables swap for the container, so an oversized
+# build is killed instead of quietly thrashing the host.
 #
 # The cap is per job and multiplies with capacity: capacity 2 at 12g is 24g of
-# worst case, which does not fit on this host alongside the model. For heavy
-# builds keep FORGEJO_RUNNER_CAPACITY=1 or lower this value.
-runner_job_memory="${FORGEJO_RUNNER_JOB_MEMORY:-12g}"
+# worst case, which does not fit on this host.
+runner_job_memory="${FORGEJO_RUNNER_JOB_MEMORY:-none}"
 if [[ "${runner_job_memory}" == "none" ]]; then
   runner_options_line=""
 else

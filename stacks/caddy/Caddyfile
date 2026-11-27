@@ -60,17 +60,6 @@ chamber.sakul-flee.de {
 	}
 }
 
-hermes.sakul-flee.de {
-	import vpn_only
-
-	# Hermes' browser workspace (chat and PTY) runs on 9120 and keeps
-	# WebSockets open, so response buffering must stay off.
-	reverse_proxy hermes:9120 {
-		header_up Host {http.request.host}
-		flush_interval -1
-	}
-}
-
 syncthing.sakul-flee.de {
 	import vpn_only
 

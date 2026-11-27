@@ -2,39 +2,29 @@ name: ollama
 
 services:
   ollama:
-    build: .
-    image: homelab/ollama:local
+    # Upstream image, CPU only. The 680M has 512 MB of dedicated VRAM, so the
+    # weights live in GTT (ordinary system RAM). When a build drives the host
+    # low on memory those pages get swapped out and Vulkan returns garbage
+    # instead of failing: "<unused49>" for Gemma, "//////" for Qwen3.5. Q4_K_M
+    # on the CPU is both correct and faster here (8.8 tok/s against 2.0), so
+    # the iGPU buys nothing. Re-enabling it needs the Mesa Dockerfile from
+    # 87f6eeb4 plus the `devices:`/OLLAMA_VULKAN block. See docs/operations.md.
+    image: ollama/ollama:0.40.18
     container_name: ollama
     restart: unless-stopped
     environment:
-      # Listen on the dedicated homelab-ai network so Paperless, OpenCode and
-      # Hermes can reach ollama:11434. There is no host port and no proxy
-      # membership.
+      # Listen on the dedicated homelab-ai network so Paperless and OpenCode
+      # can reach ollama:11434. There is no host port and no proxy membership.
       OLLAMA_HOST: 0.0.0.0:11434
-      # iGPU attempt: RADV via Vulkan. The derived image installs the Mesa ICD
-      # and the host's /dev/dri is passed below.
-      OLLAMA_VULKAN: "1"
-      OLLAMA_IGPU_ENABLE: "1"
-      # Keep the generation and embedding models resident for a while, but let
-      # them unload when nothing uses them. One request at a time keeps the
-      # KV cache from multiplying.
+      # One resident model only. Two at 64k is ~13 GB of anonymous memory on a
+      # 30 GB host that also runs Rust builds, and reloading is cheaper than
+      # swapping.
       OLLAMA_KEEP_ALIVE: 10m
-      # One resident model only. The 680M has no real VRAM, so Ollama holds the
-      # weights in GTT, which is ordinary system RAM; two models at 64k is
-      # ~17 GB of it. A concurrent request at a different context (or a second
-      # model) is enough on its own to push the host into swap, and swapped-out
-      # GPU pages make inference return garbage rather than fail.
       OLLAMA_MAX_LOADED_MODELS: "1"
       OLLAMA_NUM_PARALLEL: "1"
-      # OpenCode and Hermes require at least 64k for tool use. Paperless sends
-      # its own num_ctx=8192 for suggestions/chat, so it does not need this
-      # larger default; it may cause Ollama to reload between consumers.
+      # Paperless and OpenCode both ask for 64k, so they share one instance
+      # instead of making Ollama load the model at two contexts.
       OLLAMA_CONTEXT_LENGTH: "65536"
-    # The AMD iGPU is an amdgpu render node. If Vulkan is not detected, Ollama
-    # logs the fallback and runs on the CPU. To force CPU-only, remove this
-    # block and the two VULKAN/IGPU variables above.
-    devices:
-      - /dev/dri:/dev/dri
     volumes:
       # Models are re-downloadable and intentionally excluded from restic.
       - /srv/docker/ollama:/root/.ollama

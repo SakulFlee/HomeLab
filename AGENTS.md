@@ -196,46 +196,32 @@ of data directories. Inspecting and reversible changes are fine.
 - **Tika's JVM defaults to 25% of host RAM.** The stack sets
   `JAVA_TOOL_OPTIONS=-Xmx2g` (the image does not read `JAVA_OPTS`); keep it, or
   Tika can crowd out the other stacks.
-- **Ollama's iGPU support is best-effort.** `stacks/ollama` is a derived image
-  with Mesa's RADV ICD, the host's `/dev/dri` is passed through, and
-  `OLLAMA_VULKAN`/`OLLAMA_IGPU_ENABLE` are set. If `vulkaninfo` only reports
-  `llvmpipe`, Ollama falls back to CPU; to make that explicit, remove the
-  `devices:` block and both variables. That is a last resort: a 12B model on
-  the CPU measures ~0.3 tok/s, against ~2–6 tok/s on the iGPU.
-- **Do not serve Gemma 4 through Ollama's Vulkan backend.** It intermittently
-  returns `<unused49>` over and over instead of text (ollama#15261,
-  llama.cpp#21516). The corruption is state-dependent, so Gemma looks fine for
-  minutes and then reads as a sudden host regression; `gemma4:e4b` is affected
-  by the same bug. The stack serves `qwen3.5:9b` instead — dense, 256K native
-  context, and it tool-calls correctly.
-- **A unified-memory iGPU model that does not fit in free RAM is corrupted, not
-  OOM-killed.** The 680M has 512 MB of dedicated VRAM; Ollama puts the whole
-  model in GTT, which is ordinary system RAM (`/sys/class/drm/card0/device/
-  mem_info_gtt_used` showed 7.9 GB for an 8 GB model). When the host is short
-  of memory the driver swaps those pages out, and the GPU then emits degenerate
-  output — one token repeated forever, `"//////"` or `<unused49>` — while the
-  CPU backend on the identical weights is coherent. It affects *any* model, so
-  it is not the Gemma bug above, and it comes and goes with load. Before
-  blaming a model, check `MemAvailable`, `SwapFree` and the `pgmajfault` rate in
-  `/proc/vmstat`; the failure seen here was 350 MB free, ~10 GB swapped and
-  ~12,000 major faults/s. A routine Rust build in the runner is enough to get
-  there, so the local model cannot be trusted while a build is running. Fixes
-  are in order of effect: bound the build's memory
-  (`FORGEJO_RUNNER_JOB_MEMORY`, default `12g` per job, and it multiplies with
-  `FORGEJO_RUNNER_CAPACITY`), give the iGPU a fixed UMA
-  carve-out in firmware so its buffers cannot be evicted, free RAM elsewhere, or
-  run a smaller model (`qwen3.5:4b`). Throughput is a separate matter: the
-  9B is ~2 tok/s on this iGPU whether or not it is paged, because Q4_K_M is a
-  poor fit for the 680M's compute.
+- **Ollama runs CPU-only, and that is deliberate.** It used to build a derived
+  image with Mesa's RADV ICD and pass `/dev/dri` through. The 680M has only
+  512 MB of dedicated VRAM, so the weights went to GTT, which is ordinary system
+  RAM: when a build drove the host low on memory the driver swapped those pages
+  out and the GPU emitted degenerate output — one token repeated forever,
+  `"//////"` for Qwen3.5, `<unused49>` for Gemma 4 — while the CPU backend on
+  the identical weights stayed coherent. It affects any model, so do not chase
+  it as a Gemma or application bug, and check `MemAvailable`, `SwapFree` and
+  `pgmajfault` before blaming anything (`/sys/class/drm/card0/device/
+  mem_info_gtt_used` shows the GTT the iGPU would use). Q4_K_M on the CPU is
+  also faster: 8.8 tok/s against 2.0 on the iGPU, with prefill ~34 tok/s.
+  Re-enabling the GPU needs the Dockerfile from `87f6eeb4` *and* a firmware UMA
+  carve-out big enough to hold the model; without one, a routine Rust build
+  corrupts inference again.
+- **Gemma 4 is also broken on Ollama's Vulkan backend specifically.** It returns
+  `<unused49>` over and over (ollama#15261, llama.cpp#21516) regardless of
+  memory, and `gemma4:e4b` is hit too. The stack serves `qwen3.5:9b`.
 - **Ollama's model store is excluded from restic.** `/srv/docker/ollama` holds
   several GB of re-downloadable weights; there is no backup of it. Paperless'
   `data/llm_index` is backed up and can also be rebuilt with
   `document_llmindex rebuild`.
 - **Ollama has no authentication and is reachable only on the `homelab-ai`
-  network.** There is no published port; only Paperless, OpenCode and Hermes are
+  network.** There is no published port; only Paperless and OpenCode are
   attached. Do not put Caddy, Forgejo or another public-facing stack on it, and
   use `docker exec` for host-side checks. OpenCode's Ollama provider is
-  optional and never the default; Hermes defaults to it. All consumers use the
+  optional and never the default. All consumers use the
   65536-token window; Paperless still only sends 4,000 characters for
   suggestions.
 - **The AI network is called `homelab-ai`, not `ai`.** Docker's embedded DNS
@@ -263,35 +249,16 @@ of data directories. Inspecting and reversible changes are fine.
   retried. Chat streams and shows a generic error when the model is
   unreachable. The daily LLM index update does not retry. Core Paperless is
   unaffected. Suggestions only send the first 4,000 characters of a document;
-  the 65,536-token window is shared with the agents and chat's five
+  the 65,536-token window is shared with OpenCode and chat's five
   ~1,024-token chunks.
 - **OpenCode sessions live in one SQLite database.** It is
   `/srv/docker/opencode/home/.local/share/opencode/opencode.db`. Never copy a
   database from a newer OpenCode into an older image, and stop the service (or
   use `sqlite3 .backup`) before copying it. `stacks/openchamber` is only a UI
   on the same server, not a second store.
-- **Hermes' `state.db` is a single-writer SQLite database.** It lives at
-  `/srv/docker/hermes/state.db`, and the gateway, cron and webapp all open it.
-  Never point a second Hermes container (including a dashboard or a CLI
-  gateway) at `/srv/docker/hermes`; `backup.sh` stops the container for a
-  consistent copy.
-- **Hermes' `config.yaml` is seeded once, not repo-managed.**
-  `prepare-data.sh` installs `stacks/hermes/config.yaml` only when
-  `/srv/docker/hermes/config.yaml` is absent. After that Hermes owns it; use
-  the webapp or `docker exec hermes hermes config set ...` and restart the
-  container. Editing the repo copy does not re-apply it.
-- **Hermes may write only `/opt/data` and `/workspace`.**
-  `HERMES_WRITE_SAFE_ROOT` has to keep both, and the stack deliberately has no
-  Docker socket and no host network. The terminal backend is the container's
-  own shell, not the host.
-- **Hermes' webapp needs its public URL and trusted proxy.** The seed sets
-  `webapp.public_url` and `dashboard.trusted_proxies=172.16.0.0/12`; a
-  non-loopback webapp refuses to start without the basic-auth provider.
-  Sign-in loops or a 502 behind Caddy usually mean one of those keys moved.
-- **`forgejo_pat` is shared by OpenCode and Hermes and is an admin PAT.**
-  Rotating it affects both agents. It can push to any repo the account can
+- **`forgejo_pat` is an admin PAT.** It can push to any repo the account can
   write, and the Forgejo runner mounts the Docker socket, so use a dedicated
-  non-admin user or disable Actions on repos the agents can write.
+  non-admin user or disable Actions on repos OpenCode can write.
 - **Deploy snapshots are local rollback points, not backups.** `deploy.sh`
   snapshots all of `/srv/docker`, which includes Syncthing, the Forgejo runner
   cache/workspaces, OpenCode and the Ollama model store. Changes in those large
@@ -341,13 +308,6 @@ docker ps --format '{{.Names}}\t{{.Status}}'
 systemctl --failed
 systemctl list-timers | grep homelab
 sudo /opt/homelab/scripts/healthcheck.sh
-```
-
-For Hermes:
-
-```bash
-docker exec hermes hermes webapp --status
-docker logs --tail 50 hermes
 ```
 
 For the IoT AP:

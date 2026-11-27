@@ -207,39 +207,6 @@ under `data/llm_index` is restored from restic and remains valid for the same
 embedding model. Rebuild it with `document_llmindex rebuild` if the embedding
 model changed.
 
-## Hermes
-
-`/srv/docker/hermes` is the whole state: `state.db` (sessions and memory
-indexes), `config.yaml`, `.env`, `memories/`, `skills/`, `logs/` and
-`workspace/`. `backup.sh` stops the container before restic runs, so the
-restored SQLite database is consistent.
-
-1. Stop the stack:
-
-   ```bash
-   cd /opt/homelab/stacks/hermes
-   sudo docker compose down
-   ```
-
-2. Restore the tree and ownership:
-
-   ```bash
-   sudo /opt/homelab/scripts/prepare-data.sh
-   sudo rsync -aHAX --numeric-ids /srv/restore/srv/docker/hermes/ /srv/docker/hermes/
-   sudo chown -R 991:991 /srv/docker/hermes
-   sudo chmod 0700 /srv/docker/hermes /srv/docker/hermes/home
-   ```
-
-3. Start it and check the webapp:
-
-   ```bash
-   sudo docker compose up -d --wait
-   sudo docker exec hermes hermes webapp --status
-   ```
-
-   `config.yaml` is runtime state. Do not overwrite a restored copy with the
-   seed in `stacks/hermes/config.yaml`.
-
 ## Host loss
 
 1. Install Debian 13 and run `scripts/bootstrap.sh`.

@@ -94,11 +94,11 @@ IOT_WIFI_INTERFACE=wlp2s0
 # Forgejo runner concurrency (parallel jobs). Raise it with cores and RAM.
 FORGEJO_RUNNER_CAPACITY=2
 # Memory cap per job container, including swap, so a build cannot push the
-# host into swap. The iGPU holds the local Ollama model in system RAM and
-# swapped-out GPU pages make inference return garbage (see AGENTS.md). It
-# multiplies with capacity: 2 x 12g does not fit here, so heavy builds want
-# FORGEJO_RUNNER_CAPACITY=1 or a lower value. `none` leaves jobs uncapped.
-FORGEJO_RUNNER_JOB_MEMORY=12g
+# host into swap. Only needed while Ollama runs on the iGPU: there the model
+# lives in system RAM and swapped-out GPU pages make inference return garbage.
+# With Ollama on the CPU (the current setup) pressure slows it down but cannot
+# corrupt it. It multiplies with capacity, and `none` leaves jobs uncapped.
+FORGEJO_RUNNER_JOB_MEMORY=none
 
 # Optional staging policy:
 # DEPLOY_STACKS="forgejo fluxer minecraft hytale coredns dockge syncthing website"

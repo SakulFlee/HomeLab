@@ -7,18 +7,16 @@ committed.
 ## Keys the renderer requires
 
 The Forgejo, Fluxer, OpenCode, Renovate and runner values were carried over from
-the previous host; the Paperless and Hermes values were added with those
-stacks. These keys must exist before `render-secrets.sh` will run:
+the previous host; the Paperless values were added with its stack. These keys
+must exist before `render-secrets.sh` will run:
 
 | key | purpose | suggested value |
 | --- | --- | --- |
 | `forgejo_db_password` | Forgejo's PostgreSQL role password | `openssl rand -base64 32` |
-| `forgejo_pat` | Forgejo PAT for git push, shared by OpenCode and Hermes | PAT with `write:repository` (and `read:user`) |
+| `forgejo_pat` | Forgejo PAT for git push, used by OpenCode | PAT with `write:repository` (and `read:user`) |
 | `paperless_secret_key` | Paperless session/token signing key | `python3 -c 'import secrets; print(secrets.token_urlsafe(64))'` |
 | `paperless_db_password` | Paperless's PostgreSQL role password | `openssl rand -base64 32` |
 | `paperless_admin_password` | first-boot Paperless superuser password | chosen once |
-| `hermes_ui_password` | Hermes webapp login (user `sakulflee`) | `openssl rand -base64 24` |
-| `hermes_ui_secret` | HMAC key for Hermes webapp sessions | `openssl rand -hex 32` |
 | `wg_easy_password` | retrievable plaintext wg-easy admin password | generated |
 | `wg_easy_password_hash` | what wg-easy actually consumes | bcrypt hash of `wg_easy_password`, see below |
 | `restic_password` | local restic repository | `openssl rand -base64 32` |
@@ -37,12 +35,15 @@ Optional, and skipped when absent:
 `render-secrets.sh` writes these into `/etc/homelab/notify.env` (0600 root),
 which every notifying unit loads through `EnvironmentFile=`.
 
+The `hermes_ui_password` and `hermes_ui_secret` values are still in the sops
+file from the removed Hermes stack. Nothing reads them any more, so they can be
+deleted whenever convenient.
+
 ## Add a key
 
 ```bash
 sops set secrets/secrets.yaml '["forgejo_db_password"]' '"VALUE"'
 ```
-
 or edit the file:
 
 ```bash
@@ -133,13 +134,3 @@ The username is `paperless`, set in the stack; changing `PAPERLESS_ADMIN_USER`
 after the first boot creates an additional superuser rather than renaming the
 existing one.
 
-## Hermes
-
-`hermes_ui_password` is the webapp login for username `sakulflee`.
-`hermes_ui_secret` signs its session cookies; changing it logs every browser
-out (the password itself can be changed without invalidating the secret).
-
-Hermes reads `opencode_go_api_key` for model access and `forgejo_pat` for git,
-so there is no separate Hermes model key or git token to rotate. The shared Go
-allowance is the one OpenCode uses, and revoking `forgejo_pat` stops both
-agents.

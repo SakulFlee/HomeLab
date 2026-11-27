@@ -41,9 +41,9 @@ out at `/opt/homelab` on the host; `deploy.sh` runs as root from there.
 | Website | `sakul-flee.de` |
 | Minecraft | `minecraft.sakul-flee.de:25565` |
 | Hytale | `hytale.sakul-flee.de:5520/udp` |
-| Admin (LAN/VPN only) | `dockge.`, `vpn.`, `syncthing.`, `opencode.`, `paperless.`, `hermes.` |
+| Admin (LAN/VPN only) | `dockge.`, `vpn.`, `syncthing.`, `opencode.`, `paperless.` |
 | ntfy (self-hosted relay) | `ntfy.sakul-flee.de`, authenticated |
-| Ollama | internal only (`homelab-ai` network), Paperless/OpenCode/Hermes |
+| Ollama | internal only (`homelab-ai` network), Paperless/OpenCode |
 
 ## First setup
 
