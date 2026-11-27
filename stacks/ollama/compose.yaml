@@ -9,7 +9,7 @@ services:
     # on the CPU is both correct and faster here (8.8 tok/s against 2.0), so
     # the iGPU buys nothing. Re-enabling it needs the Mesa Dockerfile from
     # 87f6eeb4 plus the `devices:`/OLLAMA_VULKAN block. See docs/operations.md.
-    image: ollama/ollama:0.40.18
+    image: ollama/ollama:0.40.19
     container_name: ollama
     restart: unless-stopped
     environment:
