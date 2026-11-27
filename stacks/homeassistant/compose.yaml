@@ -10,7 +10,7 @@ services:
     # changed, so :stable would produce a different version on every unrelated
     # change. Renovate bumps this; 2026.11.2 was smoke-tested on the workstation
     # (onboarding reachable, recorder database created).
-    image: ghcr.io/home-assistant/home-assistant:2026.11.2
+    image: ghcr.io/home-assistant/home-assistant:2026.11.3
     container_name: homeassistant
     restart: unless-stopped
 
