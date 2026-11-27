@@ -180,9 +180,14 @@ of data directories. Inspecting and reversible changes are fine.
   key containing a newline and a confusing session/auth failure. Do not rotate
   the key on an existing install: every session and token is invalidated,
   though the documents are unaffected.
-- **Paperless' PostgreSQL 18 mounts `/var/lib/postgresql`, not
-  `/var/lib/postgresql/data`.** The image creates the major-version
-  subdirectory itself, exactly like Forgejo's database.
+- **The databases keep the cluster in `/var/lib/postgresql/<major>/docker`.**
+  Forgejo, Fluxer and Paperless all mount the parent `/var/lib/postgresql`, not
+  `.../data`; a pre-18 layout with `PG_VERSION` at the mount root (Fluxer was
+  one) has to be moved. A PostgreSQL major bump is a data migration: the image
+  refuses to start against the previous major's directory. Renovate proposes
+  these majors as ordinary updates, and the merged tag only breaks the stack on
+  its next recreate. All three are on 19; see `docs/operations.md` →
+  PostgreSQL upgrades.
 - **Paperless is DNS-only.** `paperless.sakul-flee.de` is in
   `cloudflare-ddns`'s `IP4_DOMAINS` and the CoreDNS split-horizon pattern. If
   it resolves through Cloudflare, the `vpn_only` gate sees an edge and returns

@@ -128,6 +128,61 @@ sudo btrfs subvolume list /srv/snapshots
 # stop the affected stack, swap the subvolume back, start it again
 ```
 
+## PostgreSQL upgrades
+
+Forgejo, Fluxer and Paperless each run their own `postgres:19-alpine` under
+`/srv/docker/<stack>/postgres*`. A PostgreSQL major is a data migration, not an
+image bump: from 18 on, the cluster lives in
+`/var/lib/postgresql/<major>/docker` and the mount must be the parent
+`/var/lib/postgresql`. Bumping the tag against an older cluster makes the
+entrypoint refuse to start:
+
+```text
+Counter to that, there appears to be PostgreSQL data in:
+  /var/lib/postgresql/18/docker
+```
+
+Renovate proposes these majors like any other update. Merging the PR is fine;
+the stack only breaks when it is next recreated, which is why a merged major
+should be either migrated soon or pinned back. Note that Renovate bumps all
+three stacks in one branch.
+
+Procedure, per database:
+
+1. Record the source: `cat <mount>/<old>/docker/PG_VERSION`, `du -sh` of the
+   cluster, the extension list (`\dx`) and per-table `count(*)` for the
+   comparison in step 5.
+2. Stop `homelab-deploy.timer`, or hold `/run/lock/homelab-deploy.lock`, so a
+   tick cannot recreate the stack mid-way.
+3. `compose <stack> stop`, then start the old major in a throwaway container on
+   the same mount:
+   `docker run -d --name <stack>-pgold -v /srv/docker/<stack>/postgres:/var/lib/postgresql postgres:18-alpine`
+   and `pg_dump -Fc -U <user> -d <db> > /srv/backup/dumps/<stack>-pre19-<stamp>.dump`.
+   For a pre-18 layout (Fluxer was cloned with the cluster at the mount root),
+   mount the directory that actually contains `PG_VERSION`.
+4. Prove the dump before touching the live data: restore it into a throwaway
+   new-major container and diff the per-table counts.
+5. `mv /srv/docker/<stack>/postgres/<old> /srv/docker/<stack>/postgres-<old>-pre<new>`,
+   then start only the stack's `db`; `initdb` creates `<new>/docker`.
+6. `pg_restore --no-owner --no-acl --exit-on-error`, diff the row counts against
+   step 1, then start the rest of the stack and run `healthcheck.sh`.
+7. Keep the old cluster until you are confident, then move it out of
+   `/srv/docker` into `/srv/backup/<stack>-postgres-<old>-pre<new>`. That name
+   matters twice: `backup.sh` only excludes the exact mount path, so anything
+   else under the mount's parent is uploaded to restic and lands in every
+   deploy snapshot; and dropping the stack prefix collides with another stack's
+   archive because the cluster directories are all called `<major>`.
+
+`pg_upgrade --link` is the alternative that avoids the dump; it needs the old
+binaries mounted into the new container (`--old-bindir`, `--old-libdir`) and is
+worth it only for a database where a full restore would take minutes. Below a
+few GB, dump and restore is simpler and verifies itself.
+
+Rollback is the mirror image: stop the stack, move `<new>` aside, move the
+archive back to `<old>`, put the old image tag back and start. The dump is in
+`/srv/backup/dumps` (restic) and the old cluster is on the same LUKS volume, so
+a failed restore loses nothing.
+
 ## Backups
 
 ```text
@@ -307,7 +362,7 @@ the Caddy site imports `vpn_only`.
 
 ## Paperless
 
-`stacks/paperless` is Paperless-ngx 3.4.2 with its own PostgreSQL 18, Valkey
+`stacks/paperless` is Paperless-ngx 3.4.2 with its own PostgreSQL 19, Valkey
 broker, Tika and Gotenberg. Reach it at `https://paperless.sakul-flee.de` from
 the LAN or the WireGuard tunnel; the Caddy site imports `vpn_only`.
 
@@ -319,8 +374,8 @@ the LAN or the WireGuard tunnel; the Caddy site imports `vpn_only`.
   state), `media/` (documents, archive, thumbnails), `consume/`, `export/`,
   `postgres/` and `valkey/`. The Paperless tree is owned by UID/GID 1000;
   PostgreSQL runs as 70 and Valkey as 999.
-- PostgreSQL 18 mounts `/var/lib/postgresql`, not `.../data` — the same layout
-  trap as Forgejo.
+- PostgreSQL 19 mounts `/var/lib/postgresql`, not `.../data` — the same layout
+  trap as Forgejo. See "PostgreSQL upgrades" for major bumps.
 - The three secrets are `paperless_secret_key`, `paperless_db_password` and
   `paperless_admin_password`, rendered as Docker secrets. The first boot
   creates the `paperless` superuser with `paperless@sakul-flee.de`; changing the
