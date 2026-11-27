@@ -9,7 +9,7 @@ services:
     restart: unless-stopped
     user: "989:989"
     stop_grace_period: 5m
-    mem_limit: 8g
+    mem_limit: 2g
     ports:
       - "${HYTALE_PORT:-5520}:5520/udp"
     volumes:
