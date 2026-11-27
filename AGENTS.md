@@ -220,7 +220,9 @@ of data directories. Inspecting and reversible changes are fine.
   `/proc/vmstat`; the failure seen here was 350 MB free, ~10 GB swapped and
   ~12,000 major faults/s. A routine Rust build in the runner is enough to get
   there, so the local model cannot be trusted while a build is running. Fixes
-  are in order of effect: bound the build's memory, give the iGPU a fixed UMA
+  are in order of effect: bound the build's memory
+  (`FORGEJO_RUNNER_JOB_MEMORY`, default `12g` per job, and it multiplies with
+  `FORGEJO_RUNNER_CAPACITY`), give the iGPU a fixed UMA
   carve-out in firmware so its buffers cannot be evicted, free RAM elsewhere, or
   run a smaller model (`qwen3.5:4b`). Throughput is a separate matter: the
   9B is ~2 tok/s on this iGPU whether or not it is paged, because Q4_K_M is a

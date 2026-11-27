@@ -261,6 +261,24 @@ runner_capacity="${FORGEJO_RUNNER_CAPACITY:-2}"
 [[ "${runner_capacity}" =~ ^[0-9]+$ ]] \
   || die "FORGEJO_RUNNER_CAPACITY must be a whole number, got '${runner_capacity}'"
 
+# Job containers are capped so a build cannot drive the host into swap. The
+# iGPU keeps the local model in ordinary system RAM, and swapped-out GPU pages
+# make Ollama return garbage instead of failing (see AGENTS.md). memory-swap
+# equal to memory disables swap for the container, so an oversized build is
+# killed instead of quietly corrupting inference.
+#
+# The cap is per job and multiplies with capacity: capacity 2 at 12g is 24g of
+# worst case, which does not fit on this host alongside the model. For heavy
+# builds keep FORGEJO_RUNNER_CAPACITY=1 or lower this value.
+runner_job_memory="${FORGEJO_RUNNER_JOB_MEMORY:-12g}"
+if [[ "${runner_job_memory}" == "none" ]]; then
+  runner_options_line=""
+else
+  [[ "${runner_job_memory}" =~ ^[0-9]+[gGmM]$ ]] \
+    || die "FORGEJO_RUNNER_JOB_MEMORY must look like 12g, 2048m or 'none', got '${runner_job_memory}'"
+  runner_options_line="  options: \"--memory ${runner_job_memory} --memory-swap ${runner_job_memory}\""
+fi
+
 runner_dir="${LIVE_DATA_DIR}/forgejo-runner"
 install -d -m 0755 "${runner_dir}"
 # A directory here means a container once started with the file missing and
@@ -296,6 +314,7 @@ container:
   valid_volumes: []
   docker_host: "automount"
   workdir_parent: /data/workspace
+${runner_options_line}
 server:
   connections:
     forgejo:

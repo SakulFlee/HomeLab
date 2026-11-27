@@ -740,6 +740,21 @@ selects no stack, so it would apply nothing. Each slot is a full job container
 plus whatever `docker build` starts inside it; on 16 cores / 30 GB, 4 is
 comfortable.
 
+`FORGEJO_RUNNER_JOB_MEMORY` (default `12g`) caps each job container's memory
+and swap, rendered as `container.options`:
+`--memory 12g --memory-swap 12g`. Swap is disabled for the container on
+purpose, so a build that exceeds the cap is OOM-killed and shows a red job
+instead of pushing the host into reclaim. That matters because the iGPU holds
+the local Ollama model in ordinary system RAM: when a build drives the host to
+a few hundred MB free, swapped-out GPU pages make inference return garbage
+such as `"//////"` rather than failing (see `AGENTS.md`). The cap is **per
+job and multiplies with `FORGEJO_RUNNER_CAPACITY`** — capacity 2 at 12g is a
+24 GB worst case, which does not fit here beside the model. For heavy Rust
+builds keep capacity at 1, or lower the per-job value so
+`capacity × job memory` stays around 12 GB. `FORGEJO_RUNNER_JOB_MEMORY=none`
+leaves jobs uncapped. Change it the same way as capacity, with
+`render-secrets.sh` plus a `docker restart forgejo-runner`.
+
 ### After a Docker restart
 
 `daemon.json` sets `live-restore: true`, so containers survive `systemctl
